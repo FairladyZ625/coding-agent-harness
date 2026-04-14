@@ -1,0 +1,144 @@
+---
+name: coding-agent-harness
+description: >
+  Coding Agent Harness 工程方法论。为使用 Coding Agent（Codex、Claude Code、Gemini CLI 等）
+  做长程项目开发的团队，在用户的项目上构建一套完整的 harness 工程体系。
+  包括：项目诊断、AGENTS.md 生成、docs/ 目录搭建、Planning Loop、SSoT 治理、
+  Worktree 并行开发、Regression SSoT 与 Evidence Depth 分级回归、Walkthrough 收口、
+  Cadence Ledger。
+  当用户要求设置 coding agent 的开发流程、建立回归测试体系、设计 AGENTS.md / CLAUDE.md、
+  规划长程 agent 任务的执行框架、搭建 harness、或者提到 harness engineering 时，使用此技能。
+  也适用于"帮我搭一套 agent 开发规范"、"怎么让 AI 在长任务上不跑偏"、
+  "怎么做 agent 的回归测试"、"帮我初始化项目的 harness"等场景。
+---
+
+# Coding Agent Harness 工程方法论
+
+一套经过真实项目验证的方法论，用于在任意项目上构建 Coding Agent 的工程化支撑体系。
+
+## 核心理念
+
+- **文档是写给 Agent 看的，不是写给人看的。** 人看排期表、架构文档和执行 output。Agent 看 task_plan、walkthrough、reference 标准。
+- **上下文不是越多越好，是越准越好。** AGENTS.md 做目录不做百科，具体规范按需加载。
+- **单元测试只是底线，不是保障。** 真正的保障需要多层证据（Evidence Depth）。
+- **严肃项目用顶级模型。** 便宜模型的返工成本远高于差价。
+- **强制流程优于口头约定。** 每个步骤都应该是 agent 可自主执行的。
+
+---
+
+## 主执行 SOP
+
+当用户要求在项目上搭建 harness 时，严格按以下顺序执行：
+
+### Phase 1: 项目诊断
+
+读 `references/project-onboarding-audit.md`，按其中的扫描清单分析用户项目现状，输出诊断报告。
+
+### Phase 2: 确认方案
+
+根据诊断结果，确定 harness 规模（参考 `references/project-onboarding-audit.md` 中的项目类型分支），与用户确认落地方案。
+
+### Phase 3: 搭建目录结构
+
+读 `references/docs-directory-standard.md`，在项目中创建 docs/ 目录结构。根据诊断结果裁剪不需要的目录。
+
+### Phase 4: 生成 AGENTS.md
+
+读 `references/agents-md-pattern.md`，根据项目技术栈和目录结构生成 AGENTS.md。使用 `templates/AGENTS.md.template` 作为起点。
+
+### Phase 5: 生成 Reference 标准文件
+
+读 `references/docs-directory-standard.md` 中的 reference 文件清单，根据项目需要生成对应的标准文件到 `docs/11-REFERENCE/`。使用 `templates/reference/` 下的模板。
+
+### Phase 6: 初始化 Planning Loop
+
+读 `references/planning-loop.md`，在 `docs/09-PLANNING/TASKS/` 下建立任务模板目录。使用 `templates/planning/` 下的三件套模板。
+
+### Phase 7: 初始化 SSoT
+
+读 `references/ssot-governance.md`，创建 Feature SSoT 和 Regression SSoT。使用 `templates/ssot/` 下的模板。
+
+### Phase 8: 初始化 Regression 体系
+
+读 `references/regression-system.md` 和 `references/cadence-ledger.md`，根据项目的关键 surface 建立回归 gate 和 cadence 规则。使用 `templates/regression/` 下的模板。
+
+### Phase 9: 初始化 Walkthrough 流程
+
+读 `references/walkthrough-closeout.md`，建立 walkthrough 模板。使用 `templates/walkthrough/` 下的模板。
+
+### Phase 10: 初始化 Worktree 规范
+
+读 `references/worktree-parallel.md`，确认 worktree 命名和分支规范，写入 AGENTS.md 或对应 reference 文件。
+
+### Phase 11: 输出 Bootstrap Summary
+
+输出一份 harness bootstrap 总结，包括：
+- 创建了哪些文件
+- 每个文件的用途
+- 建议的首批任务
+- 下一步行动
+
+---
+
+## 最小交付清单
+
+harness bootstrap 完成后，项目中至少应存在以下文件：
+
+- [ ] `AGENTS.md`（或 `CLAUDE.md`），100-300 行，宪章 + 索引结构
+- [ ] `docs/11-REFERENCE/` 下至少 3 个标准文件
+- [ ] `docs/09-PLANNING/TASKS/_task-template/` 包含三件套模板
+- [ ] `docs/05-TEST-QA/Regression-SSoT.md`
+- [ ] `docs/05-TEST-QA/Cadence-Ledger.md`
+- [ ] `docs/10-WALKTHROUGH/_walkthrough-template.md`
+- [ ] Feature SSoT 文件（位置由项目决定）
+- [ ] Bootstrap Summary 已输出给用户
+
+---
+
+## Feature 完整生命周期
+
+harness 搭建完成后，每个 feature 从想法到代码的标准流程：
+
+1. **Brainstorming** — 讨论需求，产出设计记录
+2. **Planning with Files** — 建任务目录，三件套文件
+3. **SSoT 排期** — 回写到 Feature SSoT
+4. **Worktree 并行开发** — 开独立 worktree，分支隔离
+5. **Merge + 自动回归** — Cadence Ledger 触发对应回归面
+6. **Walkthrough 收口** — 写收口记录
+7. **Worktree 清理** — 删除已 merge 的 worktree
+
+---
+
+## Reference 索引
+
+| 模块 | Reference | 何时读取 |
+|------|-----------|---------|
+| 项目诊断 | `references/project-onboarding-audit.md` | Phase 1 |
+| AGENTS.md | `references/agents-md-pattern.md` | Phase 4 |
+| 目录结构 | `references/docs-directory-standard.md` | Phase 3, 5 |
+| Planning Loop | `references/planning-loop.md` | Phase 6 |
+| SSoT 治理 | `references/ssot-governance.md` | Phase 7 |
+| Regression | `references/regression-system.md` | Phase 8 |
+| Cadence Ledger | `references/cadence-ledger.md` | Phase 8 |
+| Walkthrough | `references/walkthrough-closeout.md` | Phase 9 |
+| Worktree | `references/worktree-parallel.md` | Phase 10 |
+
+## Template 索引
+
+| 模板 | 路径 | 用途 |
+|------|------|------|
+| AGENTS.md | `templates/AGENTS.md.template` | Phase 4 |
+| Feature SSoT | `templates/ssot/Feature-SSoT.md` | Phase 7 |
+| Regression SSoT | `templates/ssot/Regression-SSoT.md` | Phase 7 |
+| Cadence Ledger | `templates/regression/Cadence-Ledger.md` | Phase 8 |
+| Task Plan | `templates/planning/task_plan.md` | Phase 6 |
+| Findings | `templates/planning/findings.md` | Phase 6 |
+| Progress | `templates/planning/progress.md` | Phase 6 |
+| Walkthrough | `templates/walkthrough/walkthrough-template.md` | Phase 9 |
+| Testing Standard | `templates/reference/testing-standard.md` | Phase 5 |
+| Execution Workflow | `templates/reference/execution-workflow-standard.md` | Phase 5 |
+| Docs Library | `templates/reference/docs-library-standard.md` | Phase 5 |
+| Regression Governance | `templates/reference/regression-ssot-governance.md` | Phase 5 |
+| Walkthrough Standard | `templates/reference/walkthrough-standard.md` | Phase 5 |
+| Worktree Standard | `templates/reference/worktree-standard.md` | Phase 5 |
+| Engineering Standard | `templates/reference/engineering-standard.md` | Phase 5 |
