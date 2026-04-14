@@ -53,23 +53,25 @@ coding-agent-harness/
     └── reference/ (7 个标准文件模板)
 ```
 
-## 怎么用
+## 快速开始
 
-### 作为 Skill 使用（推荐）
+把下面这段话复制给你的 Agent（Claude Code / Codex / Gemini CLI / 任何支持自定义指令的 Coding Agent），它就会自动帮你在当前项目上搭建完整的 harness 体系：
 
-如果你使用 OpenClaw 或兼容的 agent 平台：
+```
+请克隆 https://github.com/FairladyZ625/coding-agent-harness 到本地，
+读取其中的 SKILL.md 作为执行协议，然后按照 11 Phase SOP 的顺序，
+在我当前的项目上搭建完整的 harness 体系。
+先从 Phase 1（项目诊断）开始，逐步执行到 Phase 11（输出 Bootstrap Summary）。
+每完成一个 Phase 告诉我结果，再继续下一个。
+```
 
-1. 将本仓库克隆到你的 skills 目录
-2. 当你要求 agent "帮我搭建 harness" 时，它会自动按 11 Phase SOP 执行：
-   - 项目诊断 → 确认方案 → 搭建目录 → 生成 AGENTS.md → 建立 Reference 标准 → 初始化 Planning Loop → 初始化 SSoT → 初始化 Regression 体系 → 初始化 Walkthrough → 初始化 Worktree 规范 → 输出总结
+### 其他使用方式
 
-### 作为参考文档使用
+**作为 Skill 安装**：如果你使用 [OpenClaw](https://github.com/openclaw/openclaw) 或兼容的 agent 平台，将本仓库克隆到 skills 目录即可。当你说"帮我搭建 harness"时，agent 会自动触发完整的 11 Phase SOP。
 
-直接读 `references/` 下的方法论文档，了解每个模块的设计思路和最佳实践。
+**作为参考文档**：直接读 `references/` 下的方法论文档，了解每个模块的设计思路。
 
-### 作为模板库使用
-
-从 `templates/` 目录复制模板文件到你的项目中，按需修改。
+**作为模板库**：从 `templates/` 目录复制模板文件到你的项目中，按需修改。
 
 ## Base Harness = 地基
 
