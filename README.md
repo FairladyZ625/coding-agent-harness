@@ -91,7 +91,11 @@ coding-agent-harness/
 
 一个人配合 AI，三周半快速开发期产生了近 40 万行代码和文档改动，15 万行源码，1284 次提交，413 篇 walkthrough，441 个任务计划。一行代码没写。
 
-更多细节见文章：[《300 亿 Token，15 万行代码，我一行没写》](https://mp.weixin.qq.com/s/xxx)
+更多细节见文章：[《一个月300亿Token，30万行代码，30万字烧出来的Harness实践，我开源了》](https://mp.weixin.qq.com/s/kX0yhBpvZyqI0NXlHv8KhQ)
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=FairladyZ625/coding-agent-harness&type=Date)](https://star-history.com/#FairladyZ625/coding-agent-harness&Date)
 
 ## License
 
