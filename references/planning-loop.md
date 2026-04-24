@@ -10,7 +10,8 @@
 docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/
 ├── task_plan.md    ← 计划：目标、范围、步骤、验收标准
 ├── findings.md     ← 发现：执行过程中的研究发现和技术决策
-└── progress.md     ← 进度：每个阶段的状态更新和验证结果
+├── progress.md     ← 进度：每个阶段的状态更新和验证结果
+└── long-running-task-contract.md ← 长程任务合同（仅长程任务需要）
 ```
 
 ## 执行规则
@@ -19,6 +20,7 @@ docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/
 2. **每个阶段后更新 progress.md** — 记录做了什么、验证了什么
 3. **研究发现写入 findings.md** — 不丢失中间产物
 4. **禁止在项目根目录放过程文件** — task_plan.md、findings.md、progress.md 只能在任务目录内
+5. **长程任务必须补合同** — 如果任务需要连续执行、多轮审查或子代理 review，先补 `long-running-task-contract.md`
 
 ## task_plan.md 模板
 
@@ -44,6 +46,11 @@ docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/
 - 路径：[worktree 路径]
 - 分支：[分支名]
 - 若未开 worktree，原因：[说明]
+
+## 长程任务判定
+- 是否属于长程任务：[是 / 否]
+- 若是，合同文件：`long-running-task-contract.md`
+- Stop Condition 摘要：[什么时候可以停]
 ```
 
 ## 为什么这套东西有效
@@ -108,8 +115,8 @@ Anthropic 的方案用 Feature List JSON + progress file + git commit 做跨 ses
 
 示例：
 - `2026-03-15-user-auth-refactor`
-- `2026-03-18-dashboard-timeline-component`
-- `2026-04-01-regression-gate-plugin-live`
+- `2026-03-18-ui-timeline-component`
+- `2026-04-01-regression-gate-webhook-live`
 
 ## 状态流转
 

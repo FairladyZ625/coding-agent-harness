@@ -34,8 +34,11 @@ AGENTS.md 只包含两类内容：
 - 开发执行 / 回写流程：
   先读 docs/11-REFERENCE/execution-workflow-standard.md
 
-- Dashboard / 前端任务：
-  先读 docs/11-REFERENCE/dashboard-frontend-standard.md
+- 长程任务 / 连续执行 / 子代理审查：
+  先读 docs/11-REFERENCE/long-running-task-standard.md
+
+- 前端 / UI 任务：
+  先读 docs/11-REFERENCE/frontend-standard.md
 ```
 
 ### 推荐结构
@@ -47,8 +50,9 @@ AGENTS.md 只包含两类内容：
     └── 11-REFERENCE/
         ├── testing-standard.md
         ├── execution-workflow-standard.md
+        ├── long-running-task-standard.md
         ├── engineering-standard.md
-        ├── dashboard-frontend-standard.md
+        ├── frontend-standard.md
         ├── docs-library-standard.md
         ├── regression-ssot-governance.md
         ├── walkthrough-standard.md

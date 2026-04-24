@@ -39,7 +39,7 @@
 示例：
 - `feat/user-auth-oauth2`
 - `fix/timeline-render-delay`
-- `refactor/plugin-adapter-decouple`
+- `refactor/external-adapter-decouple`
 
 ## 分支命名规范
 

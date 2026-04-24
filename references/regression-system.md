@@ -12,7 +12,7 @@
 |------|------|------|--------|
 | L1 | tests | 只有单元测试 | 最低 |
 | L2 | local_smoke | 本地冒烟测试通过 | 低 |
-| L3 | live_discord | 真实环境端到端验证 | 中 |
+| L3 | live_e2e | 真实环境端到端验证 | 中 |
 | L4 | browser_human_proxy | 浏览器模拟真人操作 | 高 |
 | L5 | hard_gate | 结构化判定 + 非零退出 | 最高 |
 
@@ -27,15 +27,15 @@
 
 | ID | Status | Surface | Primary Entrypoint | Evidence Depth |
 |----|--------|---------|-------------------|----------------|
-| RG-001 | 🟢 | Plugin Live Smoke | `npm run smoke:plugin:live` | hard_gate |
-| RG-002 | 🟢 | Discord Inbound Action | `npm run smoke:discord:inbound-action` | live_discord |
+| RG-001 | 🟢 | API Contract Smoke | `npm run smoke:api` | hard_gate |
+| RG-002 | 🟢 | External Integration E2E | `npm run smoke:integration:live` | live_e2e |
 | ...
 
 ## Residual Items
 
 | ID | Surface | Issue | Priority |
 |----|---------|-------|----------|
-| R-001 | Dashboard | Timeline 组件偶发渲染延迟 | P2 |
+| R-001 | Frontend | Timeline 组件偶发渲染延迟 | P2 |
 | ...
 
 ## Shared Regression Ledger
@@ -53,10 +53,10 @@
 ```markdown
 ## Cadence Rules
 
-- 改了 plugin command surface → 跑 RG-001 + RG-004 + RG-007
-- 改了 Discord adapter → 跑 RG-002 + RG-003 + RG-007
-- 改了 Nomos 核心 → 跑 RG-008 + RG-009 + RG-010
-- 改了 dashboard 前端 → 跑 RG-005（如有）
+- 改了 API contract → 跑 RG-001 + RG-004
+- 改了 external integration adapter → 跑 RG-002 + RG-003
+- 改了 core domain logic → 跑 RG-008 + RG-009 + RG-010
+- 改了 frontend user flow → 跑 RG-005（如有）
 - 任何 merge 到 master → 跑 Full Shared Batch
 ```
 

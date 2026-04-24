@@ -4,10 +4,10 @@ description: >
   Coding Agent Harness 工程方法论。为使用 Coding Agent（Codex、Claude Code、Gemini CLI 等）
   做长程项目开发的团队，在用户的项目上构建一套完整的 harness 工程体系。
   包括：项目诊断、AGENTS.md 生成、docs/ 目录搭建、Planning Loop、SSoT 治理、
-  Worktree 并行开发、Regression SSoT 与 Evidence Depth 分级回归、Walkthrough 收口、
-  Cadence Ledger。
+  Long-Running Task Protocol、Worktree 并行开发、Regression SSoT 与 Evidence Depth
+  分级回归、Walkthrough 收口、Cadence Ledger。
   当用户要求设置 coding agent 的开发流程、建立回归测试体系、设计 AGENTS.md / CLAUDE.md、
-  规划长程 agent 任务的执行框架、搭建 harness、或者提到 harness engineering 时，使用此技能。
+  规划长程 agent 任务的执行框架、子代理审查循环、搭建 harness、或者提到 harness engineering 时，使用此技能。
   也适用于"帮我搭一套 agent 开发规范"、"怎么让 AI 在长任务上不跑偏"、
   "怎么做 agent 的回归测试"、"帮我初始化项目的 harness"等场景。
 ---
@@ -21,6 +21,7 @@ description: >
 - **文档是写给 Agent 看的，不是写给人看的。** 人看排期表、架构文档和执行 output。Agent 看 task_plan、walkthrough、reference 标准。
 - **上下文不是越多越好，是越准越好。** AGENTS.md 做目录不做百科，具体规范按需加载。
 - **单元测试只是底线，不是保障。** 真正的保障需要多层证据（Evidence Depth）。
+- **长程任务先设计合同，再开放执行。** 连续跑数小时的前提是 Goal、Scope、Review Loop、Evidence、Stop Condition 都清楚。
 - **严肃项目用顶级模型。** 便宜模型的返工成本远高于差价。
 - **强制流程优于口头约定。** 每个步骤都应该是 agent 可自主执行的。
 
@@ -54,23 +55,27 @@ description: >
 
 读 `references/planning-loop.md`，在 `docs/09-PLANNING/TASKS/` 下建立任务模板目录。使用 `templates/planning/` 下的三件套模板。
 
-### Phase 7: 初始化 SSoT
+### Phase 7: 初始化 Long-Running Task Protocol
+
+读 `references/long-running-task-standard.md`，在 `docs/11-REFERENCE/` 中生成长程任务标准。使用 `templates/reference/long-running-task-standard.md`，并把 `templates/planning/long-running-task-contract.md` 放入任务模板目录。
+
+### Phase 8: 初始化 SSoT
 
 读 `references/ssot-governance.md`，创建 Feature SSoT 和 Regression SSoT。使用 `templates/ssot/` 下的模板。
 
-### Phase 8: 初始化 Regression 体系
+### Phase 9: 初始化 Regression 体系
 
 读 `references/regression-system.md` 和 `references/cadence-ledger.md`，根据项目的关键 surface 建立回归 gate 和 cadence 规则。使用 `templates/regression/` 下的模板。
 
-### Phase 9: 初始化 Walkthrough 流程
+### Phase 10: 初始化 Walkthrough 流程
 
 读 `references/walkthrough-closeout.md`，建立 walkthrough 模板。使用 `templates/walkthrough/` 下的模板。
 
-### Phase 10: 初始化 Worktree 规范
+### Phase 11: 初始化 Worktree 规范
 
 读 `references/worktree-parallel.md`，确认 worktree 命名和分支规范，写入 AGENTS.md 或对应 reference 文件。
 
-### Phase 11: 输出 Bootstrap Summary
+### Phase 12: 输出 Bootstrap Summary
 
 输出一份 harness bootstrap 总结，包括：
 - 创建了哪些文件
@@ -87,6 +92,8 @@ harness bootstrap 完成后，项目中至少应存在以下文件：
 - [ ] `AGENTS.md`（或 `CLAUDE.md`），100-300 行，宪章 + 索引结构
 - [ ] `docs/11-REFERENCE/` 下至少 3 个标准文件
 - [ ] `docs/09-PLANNING/TASKS/_task-template/` 包含三件套模板
+- [ ] `docs/11-REFERENCE/long-running-task-standard.md`
+- [ ] `docs/09-PLANNING/TASKS/_task-template/long-running-task-contract.md`
 - [ ] `docs/05-TEST-QA/Regression-SSoT.md`
 - [ ] `docs/05-TEST-QA/Cadence-Ledger.md`
 - [ ] `docs/10-WALKTHROUGH/_walkthrough-template.md`
@@ -101,11 +108,12 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 
 1. **Brainstorming** — 讨论需求，产出设计记录
 2. **Planning with Files** — 建任务目录，三件套文件
-3. **SSoT 排期** — 回写到 Feature SSoT
-4. **Worktree 并行开发** — 开独立 worktree，分支隔离
-5. **Merge + 自动回归** — Cadence Ledger 触发对应回归面
-6. **Walkthrough 收口** — 写收口记录
-7. **Worktree 清理** — 删除已 merge 的 worktree
+3. **Long-Running Contract（如适用）** — 明确连续执行权限、review loop、evidence、stop condition
+4. **SSoT 排期** — 回写到 Feature SSoT
+5. **Worktree 并行开发** — 开独立 worktree，分支隔离
+6. **Merge + 自动回归** — Cadence Ledger 触发对应回归面
+7. **Walkthrough 收口** — 写收口记录
+8. **Worktree 清理** — 删除已 merge 的 worktree
 
 ---
 
@@ -117,26 +125,29 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | AGENTS.md | `references/agents-md-pattern.md` | Phase 4 |
 | 目录结构 | `references/docs-directory-standard.md` | Phase 3, 5 |
 | Planning Loop | `references/planning-loop.md` | Phase 6 |
-| SSoT 治理 | `references/ssot-governance.md` | Phase 7 |
-| Regression | `references/regression-system.md` | Phase 8 |
-| Cadence Ledger | `references/cadence-ledger.md` | Phase 8 |
-| Walkthrough | `references/walkthrough-closeout.md` | Phase 9 |
-| Worktree | `references/worktree-parallel.md` | Phase 10 |
+| Long-Running Task | `references/long-running-task-standard.md` | Phase 7 |
+| SSoT 治理 | `references/ssot-governance.md` | Phase 8 |
+| Regression | `references/regression-system.md` | Phase 9 |
+| Cadence Ledger | `references/cadence-ledger.md` | Phase 9 |
+| Walkthrough | `references/walkthrough-closeout.md` | Phase 10 |
+| Worktree | `references/worktree-parallel.md` | Phase 11 |
 
 ## Template 索引
 
 | 模板 | 路径 | 用途 |
 |------|------|------|
 | AGENTS.md | `templates/AGENTS.md.template` | Phase 4 |
-| Feature SSoT | `templates/ssot/Feature-SSoT.md` | Phase 7 |
-| Regression SSoT | `templates/ssot/Regression-SSoT.md` | Phase 7 |
-| Cadence Ledger | `templates/regression/Cadence-Ledger.md` | Phase 8 |
+| Feature SSoT | `templates/ssot/Feature-SSoT.md` | Phase 8 |
+| Regression SSoT | `templates/ssot/Regression-SSoT.md` | Phase 8 |
+| Cadence Ledger | `templates/regression/Cadence-Ledger.md` | Phase 9 |
 | Task Plan | `templates/planning/task_plan.md` | Phase 6 |
 | Findings | `templates/planning/findings.md` | Phase 6 |
 | Progress | `templates/planning/progress.md` | Phase 6 |
-| Walkthrough | `templates/walkthrough/walkthrough-template.md` | Phase 9 |
+| Long-Running Task Contract | `templates/planning/long-running-task-contract.md` | Phase 7 |
+| Walkthrough | `templates/walkthrough/walkthrough-template.md` | Phase 10 |
 | Testing Standard | `templates/reference/testing-standard.md` | Phase 5 |
 | Execution Workflow | `templates/reference/execution-workflow-standard.md` | Phase 5 |
+| Long-Running Task Standard | `templates/reference/long-running-task-standard.md` | Phase 7 |
 | Docs Library | `templates/reference/docs-library-standard.md` | Phase 5 |
 | Regression Governance | `templates/reference/regression-ssot-governance.md` | Phase 5 |
 | Walkthrough Standard | `templates/reference/walkthrough-standard.md` | Phase 5 |

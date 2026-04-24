@@ -22,6 +22,12 @@
 - 分支：[分支名]
 - 若未开 worktree，原因：[说明]
 
+## 长程任务判定
+- 是否属于长程任务：[是 / 否]
+- 若是，合同文件：`long-running-task-contract.md`
+- 连续执行权限：[已授权 / 未授权 / 不适用]
+- Stop Condition 摘要：[一句话说明什么时候可以停]
+
 ## 关联
 - Feature SSoT 条目：[引用]
 - 相关 Regression Gate：[引用]

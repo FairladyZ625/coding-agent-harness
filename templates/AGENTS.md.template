@@ -26,6 +26,7 @@
 | 架构 / 核心模块改动 | `docs/11-REFERENCE/engineering-standard.md` |
 | 测试 / 冒烟 / 回归 | `docs/11-REFERENCE/testing-standard.md` |
 | 开发执行 / commit / PR | `docs/11-REFERENCE/execution-workflow-standard.md` |
+| 长程任务 / 连续执行 / 子代理审查 | `docs/11-REFERENCE/long-running-task-standard.md` |
 | 文档治理 / planning | `docs/11-REFERENCE/docs-library-standard.md` |
 | 回归 SSoT 维护 | `docs/11-REFERENCE/regression-ssot-governance.md` |
 | Walkthrough 收口 | `docs/11-REFERENCE/walkthrough-standard.md` |
@@ -36,11 +37,12 @@
 ## 开发流程
 
 1. 非平凡任务先建 task plan（`docs/09-PLANNING/TASKS/`）
-2. 回写 Feature SSoT
-3. 开 worktree，分支隔离
-4. 完成后 merge + 跑回归（按 Cadence Ledger）
-5. 写 walkthrough（`docs/10-WALKTHROUGH/`）
-6. 清理 worktree
+2. 长程任务先补 `long-running-task-contract.md`
+3. 回写 Feature SSoT
+4. 开 worktree，分支隔离
+5. 完成后 merge + 跑回归（按 Cadence Ledger）
+6. 写 walkthrough（`docs/10-WALKTHROUGH/`）
+7. 清理 worktree
 
 ## SSoT 文件
 

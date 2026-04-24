@@ -13,17 +13,19 @@
 - **文档是写给 Agent 看的，不是写给人看的。**
 - **上下文不是越多越好，是越准越好。**
 - **单元测试只是底线，不是保障。**
+- **长程任务先设计合同，再开放执行。**
 - **严肃项目用顶级模型。**
 - **强制流程优于口头约定。**
 
 ## 它包含什么
 
-### 六大模块
+### 七大模块
 
 | 模块 | 解决什么问题 |
 |------|------------|
 | AGENTS.md 设计模式 | 怎么让入口文件管住整个项目 |
 | Planning Loop | 怎么让 agent 在长任务中不偏离目标 |
+| Long-Running Task Protocol | 怎么把多轮任务设计成可连续执行、可审查、可停止的合同 |
 | SSoT 治理 | 怎么维护单一事实源 |
 | Worktree 并行开发 | 怎么多 agent 并行不冲突 |
 | Regression 体系 | 怎么保证改了 A 不破坏 B |
@@ -33,12 +35,13 @@
 
 ```
 coding-agent-harness/
-├── SKILL.md                          # 执行协议（11 Phase SOP）
+├── SKILL.md                          # 执行协议（12 Phase SOP）
 ├── references/                       # 方法论详解
 │   ├── project-onboarding-audit.md   # 项目诊断 + 三级规模分支
 │   ├── agents-md-pattern.md          # AGENTS.md 设计模式
 │   ├── docs-directory-standard.md    # docs/ 目录标准
 │   ├── planning-loop.md              # 三件套 + 命名规范
+│   ├── long-running-task-standard.md # 长程任务合同 + review loop + stop condition
 │   ├── ssot-governance.md            # 双轨 SSoT 治理
 │   ├── regression-system.md          # Evidence Depth 五级制
 │   ├── cadence-ledger.md             # 触发规则 + batch log
@@ -46,11 +49,11 @@ coding-agent-harness/
 │   └── worktree-parallel.md          # 命名/分支/操作 SOP
 └── templates/                        # 可直接写入项目的模板
     ├── AGENTS.md.template
-    ├── planning/ (task_plan, findings, progress)
+    ├── planning/ (task_plan, findings, progress, long-running-task-contract)
     ├── ssot/ (Feature-SSoT, Regression-SSoT)
     ├── regression/ (Cadence-Ledger)
     ├── walkthrough/ (walkthrough-template)
-    └── reference/ (7 个标准文件模板)
+    └── reference/ (8 个标准文件模板)
 ```
 
 ## 快速开始
@@ -59,15 +62,15 @@ coding-agent-harness/
 
 ```
 请克隆 https://github.com/FairladyZ625/coding-agent-harness 到本地，
-读取其中的 SKILL.md 作为执行协议，然后按照 11 Phase SOP 的顺序，
+读取其中的 SKILL.md 作为执行协议，然后按照 12 Phase SOP 的顺序，
 在我当前的项目上搭建完整的 harness 体系。
-先从 Phase 1（项目诊断）开始，逐步执行到 Phase 11（输出 Bootstrap Summary）。
+先从 Phase 1（项目诊断）开始，逐步执行到 Phase 12（输出 Bootstrap Summary）。
 每完成一个 Phase 告诉我结果，再继续下一个。
 ```
 
 ### 其他使用方式
 
-**作为 Skill 安装**：如果你使用 [OpenClaw](https://github.com/openclaw/openclaw) 或兼容的 agent 平台，将本仓库克隆到 skills 目录即可。当你说"帮我搭建 harness"时，agent 会自动触发完整的 11 Phase SOP。
+**作为 Skill 安装**：如果你使用 [OpenClaw](https://github.com/openclaw/openclaw) 或兼容的 agent 平台，将本仓库克隆到 skills 目录即可。当你说"帮我搭建 harness"时，agent 会自动触发完整的 12 Phase SOP。
 
 **作为参考文档**：直接读 `references/` 下的方法论文档，了解每个模块的设计思路。
 

@@ -55,6 +55,7 @@ docs/
 |------|------|--------|
 | testing-standard.md | 测试规范、框架选择、覆盖率要求 | 是 |
 | execution-workflow-standard.md | 开发执行流程、commit 规范、PR 流程 | 是 |
+| long-running-task-standard.md | 长程任务合同、连续执行权限、review loop、停止条件 | 是 |
 | docs-library-standard.md | 文档治理规范、命名规则、归档规则 | 是 |
 | regression-ssot-governance.md | Regression SSoT 治理规范 | Standard+ |
 | walkthrough-standard.md | Walkthrough 写作规范 | 是 |

@@ -5,14 +5,16 @@
 ### 开始任务前
 1. 读 Feature SSoT，确认任务状态
 2. 读对应的 task_plan.md，对齐目标
-3. 确认是否需要开 worktree（参考 worktree-standard.md）
-4. 如需开 worktree，按规范创建并记录
+3. 判断是否属于长程任务；如属于，先读 `long-running-task-standard.md` 并补齐合同
+4. 确认是否需要开 worktree（参考 worktree-standard.md）
+5. 如需开 worktree，按规范创建并记录
 
 ### 执行过程中
 1. 每完成一个阶段，更新 progress.md
 2. 研究发现写入 findings.md
-3. 定期 commit，commit message 有意义
-4. 遇到阻塞，立即记录到 progress.md 并报告
+3. 长程任务每轮都要按合同执行 evidence loop 与 review loop
+4. 定期 commit，commit message 有意义
+5. 遇到阻塞、合同失效或暂停条件触发，立即记录到 progress.md 并报告
 
 ### 完成任务后
 1. 确保所有改动已 commit，工作区 clean
@@ -37,8 +39,8 @@ Scope：模块或包名
 
 示例：
 - `feat(auth): add OAuth2 login flow`
-- `fix(dashboard): resolve timeline render delay`
-- `test(plugin): add live smoke for slash commands`
+- `fix(ui): resolve timeline render delay`
+- `test(api): add live smoke for webhook flow`
 
 ## PR / Merge 规范
 

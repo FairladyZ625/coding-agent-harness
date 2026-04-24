@@ -12,7 +12,7 @@ SSoT（Single Source of Truth，单一事实源）是长程项目的命脉。没
 
 管理 feature / wave / implementation 的进度和 residual。
 
-- 文件：`docs/Agora-实施排期-Agora-TS.md`（按你的项目命名）
+- 文件：`docs/09-PLANNING/Feature-SSoT.md`（按你的项目命名）
 - 职责：哪些 feature 在做、做到哪了、还剩什么
 - 规则：开始任何非平凡任务前先读，完成后必须回写
 
