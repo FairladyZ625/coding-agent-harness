@@ -5,7 +5,7 @@ description: >
   做长程项目开发的团队，在用户的项目上构建一套完整的 harness 工程体系。
   包括：项目诊断、AGENTS.md + CLAUDE.md 入口文件生成、docs/ 目录搭建、Planning Loop、SSoT 治理、
   Long-Running Task Protocol、Worktree 并行开发、Regression SSoT 与 Evidence Depth
-  分级回归、Walkthrough 收口、Cadence Ledger。
+  分级回归、Walkthrough 收口、Cadence Ledger、经验沉淀回流（Lessons SSoT）。
   当用户要求设置 coding agent 的开发流程、建立回归测试体系、设计 AGENTS.md / CLAUDE.md、
   规划长程 agent 任务的执行框架、子代理审查循环、搭建 harness、或者提到 harness engineering 时，使用此技能。
   也适用于"帮我搭一套 agent 开发规范"、"怎么让 AI 在长任务上不跑偏"、
@@ -68,6 +68,10 @@ description: >
 
 读 `references/ssot-governance.md`，创建 Feature SSoT 和 Regression SSoT。使用 `templates/ssot/` 下的模板。
 
+### Phase 8b: 初始化经验沉淀体系
+
+读 `references/lessons-governance.md`，创建 Lessons SSoT。使用 `templates/ssot/Lessons-SSoT.md` 作为模板。同时在 `docs/01-GOVERNANCE/` 下创建 `lessons/` 和 `archive/` 目录（含 `.gitkeep`）。
+
 ### Phase 9: 初始化 Regression 体系
 
 读 `references/regression-system.md` 和 `references/cadence-ledger.md`，根据项目的关键 surface 建立回归 gate 和 cadence 规则。使用 `templates/regression/` 下的模板。
@@ -103,6 +107,9 @@ harness bootstrap 完成后，项目中至少应存在以下文件：
 - [ ] `docs/05-TEST-QA/Regression-SSoT.md`
 - [ ] `docs/05-TEST-QA/Cadence-Ledger.md`
 - [ ] `docs/10-WALKTHROUGH/_walkthrough-template.md`
+- [ ] `docs/01-GOVERNANCE/Lessons-SSoT.md`
+- [ ] `docs/01-GOVERNANCE/lessons/`（空目录 + .gitkeep）
+- [ ] `docs/01-GOVERNANCE/archive/`（空目录 + .gitkeep）
 - [ ] Feature SSoT 文件（位置由项目决定）
 - [ ] Bootstrap Summary 已输出给用户
 
@@ -133,6 +140,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | Planning Loop | `references/planning-loop.md` | Phase 6 |
 | Long-Running Task | `references/long-running-task-standard.md` | Phase 7 |
 | SSoT 治理 | `references/ssot-governance.md` | Phase 8 |
+| 经验沉淀 | `references/lessons-governance.md` | Phase 8b |
 | Regression | `references/regression-system.md` | Phase 9 |
 | Cadence Ledger | `references/cadence-ledger.md` | Phase 9 |
 | Walkthrough | `references/walkthrough-closeout.md` | Phase 10 |
@@ -146,6 +154,10 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | CLAUDE.md | `templates/CLAUDE.md.template` | Phase 4，Claude Code 兼容 shim |
 | Feature SSoT | `templates/ssot/Feature-SSoT.md` | Phase 8 |
 | Regression SSoT | `templates/ssot/Regression-SSoT.md` | Phase 8 |
+| Lessons SSoT | `templates/ssot/Lessons-SSoT.md` | Phase 8b |
+| Lesson (ref-change) | `templates/lessons/lesson-ref-change.md` | Walkthrough 收口后 |
+| Lesson (new-doc) | `templates/lessons/lesson-new-doc.md` | Walkthrough 收口后 |
+| Lesson (arch/process) | `templates/lessons/lesson-arch-process-change.md` | Walkthrough 收口后 |
 | Cadence Ledger | `templates/regression/Cadence-Ledger.md` | Phase 9 |
 | Task Plan | `templates/planning/task_plan.md` | Phase 6 |
 | Findings | `templates/planning/findings.md` | Phase 6 |

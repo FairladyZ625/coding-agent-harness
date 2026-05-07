@@ -9,7 +9,10 @@
 ```
 docs/
 ├── 00-RAW-PRDS/              ← 原始需求文档、PRD、用户故事
-├── 01-GOVERNANCE/             ← 项目治理规则、决策记录
+├── 01-GOVERNANCE/             ← 项目治理规则、决策记录、经验沉淀
+│   ├── Lessons-SSoT.md        ← 经验沉淀建议表
+│   ├── lessons/               ← 具体沉淀内容
+│   └── archive/               ← 已处理条目归档
 ├── 02-PRODUCT/                ← 产品设计、用户流程、功能规格
 ├── 03-ARCHITECTURE/           ← 架构设计、技术方案、ADR
 ├── 04-DEVELOPMENT/            ← 开发指南、环境配置、本地开发说明
@@ -33,7 +36,7 @@ docs/
 | 目录 | 何时可省略 |
 |------|-----------|
 | 00-RAW-PRDS | 没有正式 PRD 流程的小项目 |
-| 01-GOVERNANCE | 单人项目 |
+| 01-GOVERNANCE | 单人项目且不需要经验沉淀时 |
 | 02-PRODUCT | 纯技术项目（库、CLI 工具） |
 | 06-INTEGRATIONS | 没有第三方集成 |
 | 07-OPERATIONS | 没有部署需求（纯库） |

@@ -4,9 +4,9 @@
 
 SSoT（Single Source of Truth，单一事实源）是长程项目的命脉。没有 SSoT，agent 和人都会在多个版本的"真相"之间迷失。
 
-## 双轨制
+## 三轨制
 
-长程项目需要两个 SSoT，各管各的：
+长程项目需要三个 SSoT，各管各的：
 
 ### Feature SSoT（实施排期表）
 
@@ -24,11 +24,21 @@ SSoT（Single Source of Truth，单一事实源）是长程项目的命脉。没
 - 职责：哪些回归面存在、每条的标准入口、当前证据深度、residual
 - 规则：新增固定 gate 或 evidence depth 变化时必须更新
 
+### Lessons SSoT（经验沉淀）
+
+管理 Agent 在开发过程中发现的经验、改进建议和规范演进。
+
+- 文件：`docs/01-GOVERNANCE/Lessons-SSoT.md`
+- 职责：哪些经验值得沉淀、当前审批状态、冲突关系
+- 规则：Walkthrough 收口后检查是否有沉淀建议；写之前必须完整读 SSoT
+- 详细治理规范：`references/lessons-governance.md`
+
 ### 分工规则
 
 - Feature SSoT 不替代 Regression SSoT
 - Regression SSoT 也不替代 Feature SSoT
-- 两者必须互相引用，但不能彼此吞并
+- Lessons SSoT 不替代前两者，它管的是规范本身的演进
+- 三者必须各司其职，不能彼此吞并
 
 ## SSoT 与 Planning 的双向绑定
 
