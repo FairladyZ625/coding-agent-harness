@@ -23,7 +23,7 @@
 
 | 模块 | 解决什么问题 |
 |------|------------|
-| AGENTS.md 设计模式 | 怎么让入口文件管住整个项目 |
+| AGENTS.md / CLAUDE.md 入口设计模式 | 怎么让入口文件管住整个项目，同时兼容 Claude Code |
 | Planning Loop | 怎么让 agent 在长任务中不偏离目标 |
 | Long-Running Task Protocol | 怎么把多轮任务设计成可连续执行、可审查、可停止的合同 |
 | SSoT 治理 | 怎么维护单一事实源 |
@@ -38,7 +38,7 @@ coding-agent-harness/
 ├── SKILL.md                          # 执行协议（12 Phase SOP）
 ├── references/                       # 方法论详解
 │   ├── project-onboarding-audit.md   # 项目诊断 + 三级规模分支
-│   ├── agents-md-pattern.md          # AGENTS.md 设计模式
+│   ├── agents-md-pattern.md          # AGENTS.md / CLAUDE.md 入口设计模式
 │   ├── docs-directory-standard.md    # docs/ 目录标准
 │   ├── planning-loop.md              # 三件套 + 命名规范
 │   ├── long-running-task-standard.md # 长程任务合同 + review loop + stop condition
@@ -49,6 +49,7 @@ coding-agent-harness/
 │   └── worktree-parallel.md          # 命名/分支/操作 SOP
 └── templates/                        # 可直接写入项目的模板
     ├── AGENTS.md.template
+    ├── CLAUDE.md.template            # Claude Code 兼容 shim，指向 AGENTS.md
     ├── planning/ (task_plan, findings, progress, long-running-task-contract)
     ├── ssot/ (Feature-SSoT, Regression-SSoT)
     ├── regression/ (Cadence-Ledger)

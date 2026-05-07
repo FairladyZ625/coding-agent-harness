@@ -1,0 +1,12 @@
+# CLAUDE.md
+
+This project uses `AGENTS.md` as the canonical coding-agent instruction file.
+
+Claude Code should:
+
+1. Read `AGENTS.md` first.
+2. Follow the Task-Type Reading Matrix in `AGENTS.md`.
+3. Load only the referenced `docs/11-REFERENCE/` files needed for the current task.
+4. Treat this file as a compatibility shim, not a second source of truth.
+
+Do not duplicate project rules here. Keep durable project instructions in `AGENTS.md` and the referenced docs to avoid drift.

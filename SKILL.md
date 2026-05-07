@@ -3,7 +3,7 @@ name: coding-agent-harness
 description: >
   Coding Agent Harness 工程方法论。为使用 Coding Agent（Codex、Claude Code、Gemini CLI 等）
   做长程项目开发的团队，在用户的项目上构建一套完整的 harness 工程体系。
-  包括：项目诊断、AGENTS.md 生成、docs/ 目录搭建、Planning Loop、SSoT 治理、
+  包括：项目诊断、AGENTS.md + CLAUDE.md 入口文件生成、docs/ 目录搭建、Planning Loop、SSoT 治理、
   Long-Running Task Protocol、Worktree 并行开发、Regression SSoT 与 Evidence Depth
   分级回归、Walkthrough 收口、Cadence Ledger。
   当用户要求设置 coding agent 的开发流程、建立回归测试体系、设计 AGENTS.md / CLAUDE.md、
@@ -19,7 +19,7 @@ description: >
 ## 核心理念
 
 - **文档是写给 Agent 看的，不是写给人看的。** 人看排期表、架构文档和执行 output。Agent 看 task_plan、walkthrough、reference 标准。
-- **上下文不是越多越好，是越准越好。** AGENTS.md 做目录不做百科，具体规范按需加载。
+- **上下文不是越多越好，是越准越好。** AGENTS.md 做目录不做百科；CLAUDE.md 只做 Claude Code 兼容 shim，不做第二份规范。
 - **单元测试只是底线，不是保障。** 真正的保障需要多层证据（Evidence Depth）。
 - **长程任务先设计合同，再开放执行。** 连续跑数小时的前提是 Goal、Scope、Review Loop、Evidence、Stop Condition 都清楚。
 - **严肃项目用顶级模型。** 便宜模型的返工成本远高于差价。
@@ -43,9 +43,14 @@ description: >
 
 读 `references/docs-directory-standard.md`，在项目中创建 docs/ 目录结构。根据诊断结果裁剪不需要的目录。
 
-### Phase 4: 生成 AGENTS.md
+### Phase 4: 生成 AGENTS.md + CLAUDE.md
 
 读 `references/agents-md-pattern.md`，根据项目技术栈和目录结构生成 AGENTS.md。使用 `templates/AGENTS.md.template` 作为起点。
+
+同时生成 `CLAUDE.md`：
+- 优先使用 `templates/CLAUDE.md.template`
+- `CLAUDE.md` 只作为 Claude Code 兼容入口，指向 AGENTS.md
+- 不要在 `CLAUDE.md` 中复制完整规范，避免 AGENTS.md 与 CLAUDE.md 漂移
 
 ### Phase 5: 生成 Reference 标准文件
 
@@ -89,7 +94,8 @@ description: >
 
 harness bootstrap 完成后，项目中至少应存在以下文件：
 
-- [ ] `AGENTS.md`（或 `CLAUDE.md`），100-300 行，宪章 + 索引结构
+- [ ] `AGENTS.md`，100-300 行，宪章 + 索引结构
+- [ ] `CLAUDE.md`，Claude Code 兼容 shim，指向 `AGENTS.md`（不复制完整规范）
 - [ ] `docs/11-REFERENCE/` 下至少 3 个标准文件
 - [ ] `docs/09-PLANNING/TASKS/_task-template/` 包含三件套模板
 - [ ] `docs/11-REFERENCE/long-running-task-standard.md`
@@ -122,7 +128,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | 模块 | Reference | 何时读取 |
 |------|-----------|---------|
 | 项目诊断 | `references/project-onboarding-audit.md` | Phase 1 |
-| AGENTS.md | `references/agents-md-pattern.md` | Phase 4 |
+| AGENTS.md + CLAUDE.md | `references/agents-md-pattern.md` | Phase 4 |
 | 目录结构 | `references/docs-directory-standard.md` | Phase 3, 5 |
 | Planning Loop | `references/planning-loop.md` | Phase 6 |
 | Long-Running Task | `references/long-running-task-standard.md` | Phase 7 |
@@ -137,6 +143,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | 模板 | 路径 | 用途 |
 |------|------|------|
 | AGENTS.md | `templates/AGENTS.md.template` | Phase 4 |
+| CLAUDE.md | `templates/CLAUDE.md.template` | Phase 4，Claude Code 兼容 shim |
 | Feature SSoT | `templates/ssot/Feature-SSoT.md` | Phase 8 |
 | Regression SSoT | `templates/ssot/Regression-SSoT.md` | Phase 8 |
 | Cadence Ledger | `templates/regression/Cadence-Ledger.md` | Phase 9 |
