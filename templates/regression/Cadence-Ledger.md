@@ -2,6 +2,7 @@
 
 > 定义"什么情况下自动触发哪些回归面"。
 > 新增 regression gate 时必须同步更新 trigger rules。
+> 改变 trigger rules、gate 结构或 evidence depth 时，在当前任务的 Harness Ledger row 记录 `Regression=updated`。
 
 ## Trigger Rules
 

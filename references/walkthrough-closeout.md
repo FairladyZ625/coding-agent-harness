@@ -34,6 +34,7 @@
 - Task Plan: [路径]
 - SSoT 条目: [引用]
 - Regression Gate: [引用]
+- Harness Ledger: [HL-...]
 ```
 
 ## 存放位置
@@ -49,6 +50,7 @@ docs/10-WALKTHROUGH/<YYYY-MM-DD-wave名称>.md
 3. **Walkthrough 必须引用验证结果** — 跑了什么、结果是什么
 4. **Walkthrough 不是代码注释** — 不需要逐行解释代码，重点是决策和验证
 5. **Walkthrough 完成后必须执行经验沉淀检查** — 见下方“经验沉淀检查”章节
+6. **收口后必须更新 Harness Ledger** — 记录本轮上下文回写是否完成
 
 ## 经验沉淀检查
 
@@ -67,6 +69,18 @@ docs/10-WALKTHROUGH/<YYYY-MM-DD-wave名称>.md
 4. 更新 Lessons SSoT 表
 
 如果所有答案都是“没有”，跳过即可。
+
+## Harness Ledger 回写
+
+写完 Walkthrough、更新 Feature/Regression SSoT，并完成 Lessons 检查后，Agent 必须更新
+`docs/Harness-Ledger.md`：
+
+1. 为本轮任务追加或更新对应 `HL-*` 条目
+2. 记录 Task Plan、Feature SSoT、Regression SSoT、Walkthrough、Lessons Check 的结果
+3. 列出本轮触碰的 harness 文档
+4. 如有未完成项，使用 `missing` 或 `skipped-with-reason` 并写明 residual
+
+没有 Harness Ledger 条目的 wave，不视为完整 closed。
 
 ## 为什么 Walkthrough 有效
 

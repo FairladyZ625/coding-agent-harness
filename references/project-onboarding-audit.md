@@ -37,6 +37,7 @@
 - 有没有任务追踪系统？（GitHub Issues / Linear / Jira 等）
 - 有没有排期文档或 SSoT？
 - 有没有 planning 目录或任务模板？
+- 有没有 Harness Ledger 或类似上下文回写总账？
 
 ### 6. 协作模式
 - 几个人在开发？
@@ -72,6 +73,7 @@
 | Planning Loop | [有/无/需改造] | 🟢/🟡/🔴 |
 | Feature SSoT | [有/无/需改造] | 🟢/🟡/🔴 |
 | Regression 体系 | [有/无/需改造] | 🟢/🟡/🔴 |
+| Harness Ledger | [有/无/需改造] | 🟢/🟡/🔴 |
 | Walkthrough 流程 | [有/无/需改造] | 🟢/🟡/🔴 |
 | Worktree 规范 | [有/无/需改造] | 🟢/🟡/🔴 |
 
@@ -103,6 +105,7 @@
 - docs/11-REFERENCE/ 下 2-3 个标准文件
 - Planning 三件套模板
 - 简化版 Regression SSoT（可以只有 tests + local_smoke 两层）
+- Harness Ledger（只记录 task closeout 行）
 - Walkthrough 模板
 
 可省略：
@@ -117,6 +120,7 @@
 - 全部 Phase 1-11
 - Evidence Depth 至少覆盖到 L3（live 环境验证）
 - Cadence Ledger
+- Harness Ledger
 - Worktree 规范
 
 ### Full（大型项目）
@@ -126,5 +130,6 @@
 - 每个子仓库或重要子包有自己的 reference 文件
 - Evidence Depth 要求覆盖到 L4 或 L5
 - Shared Regression Batch 定期执行
+- Harness Ledger 季度归档
 - 多 agent 并行分工协议
 - 跨仓库 surface 映射

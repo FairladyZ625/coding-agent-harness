@@ -99,6 +99,7 @@ Pause and report if:
 - [ ] Tests / regression evidence
 - [ ] Docs updates
 - [ ] `progress.md` / `findings.md` updates
+- [ ] Harness Ledger update
 - [ ] Walkthrough
 - [ ] PR / commit / release note
 - [ ] Residual risk summary

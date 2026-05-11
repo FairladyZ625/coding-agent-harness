@@ -25,4 +25,5 @@
 - Task Plan：[路径]
 - Feature SSoT 条目：[引用]
 - Regression Gate：[引用]
+- Harness Ledger：[HL-...]
 - Commit：[hash]

@@ -20,8 +20,11 @@
 1. 确保所有改动已 commit，工作区 clean
 2. 跑对应的回归测试（按 Cadence Ledger）
 3. 更新 Feature SSoT
-4. 写 walkthrough（参考 walkthrough-standard.md）
-5. 如有 worktree，按规范清理
+4. 更新 Regression SSoT / Cadence Ledger（如适用）
+5. 写 walkthrough（参考 walkthrough-standard.md）
+6. 执行 Lessons 检查
+7. 更新 Harness Ledger
+8. 如有 worktree，按规范清理
 
 ## Commit 规范
 
@@ -56,3 +59,4 @@ Scope：模块或包名
 - 禁止跳过 task plan 直接开始非平凡任务
 - 禁止 merge 后不跑回归
 - 禁止 merge 后不写 walkthrough
+- 禁止非平凡任务完成后不更新 Harness Ledger

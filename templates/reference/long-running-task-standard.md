@@ -111,6 +111,7 @@
 - docs updates
 - planning progress / findings
 - walkthrough
+- Harness Ledger
 - PR / commit / release note
 - residual risk summary
 
@@ -134,3 +135,10 @@
 - “你自己把握什么时候完成”
 
 长程任务的原则是：开放执行，封闭验收；多轮证据，不靠感觉。
+
+## 项目落地规则
+
+- `execution-workflow-standard.md` 在开始任务前要求判断是否属于长程任务
+- `docs/09-PLANNING/TASKS/_task-template/` 包含 long-running task contract 模板
+- regression / testing 标准能提供可复查证据，而不是只依赖主观判断
+- `docs/Harness-Ledger.md` 记录长程任务是否完成必要的上下文回写

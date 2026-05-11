@@ -36,6 +36,9 @@ AGENTS.md 只包含两类内容：
 - 文档治理 / planning / walkthrough：
   先读 docs/11-REFERENCE/docs-library-standard.md
 
+- Harness Ledger / 上下文回写：
+  先读 docs/11-REFERENCE/harness-ledger-standard.md
+
 - 开发执行 / 回写流程：
   先读 docs/11-REFERENCE/execution-workflow-standard.md
 
@@ -53,6 +56,7 @@ AGENTS.md 只包含两类内容：
 ├── AGENTS.md        ← 231 行，canonical 宪章 + 索引
 ├── CLAUDE.md        ← 轻量 shim，指向 AGENTS.md
 └── docs/
+    ├── Harness-Ledger.md
     └── 11-REFERENCE/
         ├── testing-standard.md
         ├── execution-workflow-standard.md
@@ -60,6 +64,7 @@ AGENTS.md 只包含两类内容：
         ├── engineering-standard.md
         ├── frontend-standard.md
         ├── docs-library-standard.md
+        ├── harness-ledger-standard.md
         ├── regression-ssot-governance.md
         ├── walkthrough-standard.md
         └── ...（按需扩展）

@@ -8,6 +8,7 @@
 
 ```
 docs/
+├── Harness-Ledger.md           ← 全局 harness 上下文回写总账
 ├── 00-RAW-PRDS/              ← 原始需求文档、PRD、用户故事
 ├── 01-GOVERNANCE/             ← 项目治理规则、决策记录、经验沉淀
 │   ├── Lessons-SSoT.md        ← 经验沉淀建议表
@@ -36,7 +37,7 @@ docs/
 | 目录 | 何时可省略 |
 |------|-----------|
 | 00-RAW-PRDS | 没有正式 PRD 流程的小项目 |
-| 01-GOVERNANCE | 单人项目且不需要经验沉淀时 |
+| 01-GOVERNANCE | 仅实验性 Lite 项目且明确不启用 Lessons / 归档时 |
 | 02-PRODUCT | 纯技术项目（库、CLI 工具） |
 | 06-INTEGRATIONS | 没有第三方集成 |
 | 07-OPERATIONS | 没有部署需求（纯库） |
@@ -44,11 +45,15 @@ docs/
 | 99-TMP | 可选 |
 
 以下目录是 harness 的核心，不可省略：
+- 01-GOVERNANCE
 - 03-ARCHITECTURE
 - 05-TEST-QA
 - 09-PLANNING（含 TASKS/）
 - 10-WALKTHROUGH
 - 11-REFERENCE
+
+`docs/Harness-Ledger.md` 不是目录，但属于核心 harness 文件，不可省略。它是
+`docs/` 根目录允许存在的全局控制文件；普通过程文件仍然不得放在根目录。
 
 ## Reference 标准文件清单
 
@@ -60,6 +65,7 @@ docs/
 | execution-workflow-standard.md | 开发执行流程、commit 规范、PR 流程 | 是 |
 | long-running-task-standard.md | 长程任务合同、连续执行权限、review loop、停止条件 | 是 |
 | docs-library-standard.md | 文档治理规范、命名规则、归档规则 | 是 |
+| harness-ledger-standard.md | Harness Ledger 写入规范、closeout 检查 | 是 |
 | regression-ssot-governance.md | Regression SSoT 治理规范 | Standard+ |
 | walkthrough-standard.md | Walkthrough 写作规范 | 是 |
 | worktree-standard.md | Worktree 命名、分支、清理规范 | Standard+ |

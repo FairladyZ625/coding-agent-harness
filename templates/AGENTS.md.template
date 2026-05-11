@@ -28,6 +28,7 @@
 | 开发执行 / commit / PR | `docs/11-REFERENCE/execution-workflow-standard.md` |
 | 长程任务 / 连续执行 / 子代理审查 | `docs/11-REFERENCE/long-running-task-standard.md` |
 | 文档治理 / planning | `docs/11-REFERENCE/docs-library-standard.md` |
+| Harness Ledger 回写 | `docs/11-REFERENCE/harness-ledger-standard.md` |
 | 回归 SSoT 维护 | `docs/11-REFERENCE/regression-ssot-governance.md` |
 | Walkthrough 收口 | `docs/11-REFERENCE/walkthrough-standard.md` |
 | Worktree 操作 | `docs/11-REFERENCE/worktree-standard.md` |
@@ -42,13 +43,16 @@
 4. 开 worktree，分支隔离
 5. 完成后 merge + 跑回归（按 Cadence Ledger）
 6. 写 walkthrough（`docs/10-WALKTHROUGH/`）
-7. 清理 worktree
+7. 执行 Lessons 检查并更新 Harness Ledger（`docs/Harness-Ledger.md`）
+8. 清理 worktree
 
-## SSoT 文件
+## SSoT 与 Ledger 文件
 
 - **Feature SSoT**：`docs/09-PLANNING/[Feature-SSoT].md`
 - **Regression SSoT**：`docs/05-TEST-QA/Regression-SSoT.md`
+- **Lessons SSoT**：`docs/01-GOVERNANCE/Lessons-SSoT.md`
 - **Cadence Ledger**：`docs/05-TEST-QA/Cadence-Ledger.md`
+- **Harness Ledger**：`docs/Harness-Ledger.md`
 
 ## 协作规则
 

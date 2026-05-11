@@ -62,6 +62,14 @@
 
 不用人记住该跑什么，系统自己知道。
 
+## 与 Harness Ledger 的关系
+
+Regression SSoT 和 Cadence Ledger 管“回归事实”：有哪些 gate、证据深度是多少、
+最近 batch 结果如何。
+
+Harness Ledger 只在当前任务收口时记录 `Regression=updated`、`Regression=n/a` 等
+任务级回写状态。不要把 batch 明细复制进 Harness Ledger。
+
 ## 建立回归体系的步骤
 
 1. 列出项目的所有关键 surface（用户入口、API 端点、集成点）

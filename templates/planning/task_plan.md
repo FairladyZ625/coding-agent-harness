@@ -31,4 +31,5 @@
 ## 关联
 - Feature SSoT 条目：[引用]
 - 相关 Regression Gate：[引用]
+- Harness Ledger 条目：[完成时填写 / HL-...]
 - 前置任务：[引用，如无则写"无"]

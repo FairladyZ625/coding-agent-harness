@@ -5,7 +5,8 @@ description: >
   做长程项目开发的团队，在用户的项目上构建一套完整的 harness 工程体系。
   包括：项目诊断、AGENTS.md + CLAUDE.md 入口文件生成、docs/ 目录搭建、Planning Loop、SSoT 治理、
   Long-Running Task Protocol、Worktree 并行开发、Regression SSoT 与 Evidence Depth
-  分级回归、Walkthrough 收口、Cadence Ledger、经验沉淀回流（Lessons SSoT）。
+  分级回归、Walkthrough 收口、Cadence Ledger、经验沉淀回流（Lessons SSoT）、
+  Harness Ledger 全局上下文回写总账。
   当用户要求设置 coding agent 的开发流程、建立回归测试体系、设计 AGENTS.md / CLAUDE.md、
   规划长程 agent 任务的执行框架、子代理审查循环、搭建 harness、或者提到 harness engineering 时，使用此技能。
   也适用于"帮我搭一套 agent 开发规范"、"怎么让 AI 在长任务上不跑偏"、
@@ -72,6 +73,10 @@ description: >
 
 读 `references/lessons-governance.md`，创建 Lessons SSoT。使用 `templates/ssot/Lessons-SSoT.md` 作为模板。同时在 `docs/01-GOVERNANCE/` 下创建 `lessons/` 和 `archive/` 目录（含 `.gitkeep`）。
 
+### Phase 8c: 初始化 Harness Ledger
+
+读 `references/harness-ledger.md`，在 `docs/` 根目录创建 `Harness-Ledger.md`。使用 `templates/ledger/Harness-Ledger.md` 作为模板。
+
 ### Phase 9: 初始化 Regression 体系
 
 读 `references/regression-system.md` 和 `references/cadence-ledger.md`，根据项目的关键 surface 建立回归 gate 和 cadence 规则。使用 `templates/regression/` 下的模板。
@@ -110,6 +115,8 @@ harness bootstrap 完成后，项目中至少应存在以下文件：
 - [ ] `docs/01-GOVERNANCE/Lessons-SSoT.md`
 - [ ] `docs/01-GOVERNANCE/lessons/`（空目录 + .gitkeep）
 - [ ] `docs/01-GOVERNANCE/archive/`（空目录 + .gitkeep）
+- [ ] `docs/Harness-Ledger.md`
+- [ ] `docs/11-REFERENCE/harness-ledger-standard.md`
 - [ ] Feature SSoT 文件（位置由项目决定）
 - [ ] Bootstrap Summary 已输出给用户
 
@@ -126,7 +133,8 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 5. **Worktree 并行开发** — 开独立 worktree，分支隔离
 6. **Merge + 自动回归** — Cadence Ledger 触发对应回归面
 7. **Walkthrough 收口** — 写收口记录
-8. **Worktree 清理** — 删除已 merge 的 worktree
+8. **Harness Ledger 回写** — 记录本轮上下文维护是否完成
+9. **Worktree 清理** — 删除已 merge 的 worktree
 
 ---
 
@@ -141,6 +149,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | Long-Running Task | `references/long-running-task-standard.md` | Phase 7 |
 | SSoT 治理 | `references/ssot-governance.md` | Phase 8 |
 | 经验沉淀 | `references/lessons-governance.md` | Phase 8b |
+| Harness Ledger | `references/harness-ledger.md` | Phase 8c |
 | Regression | `references/regression-system.md` | Phase 9 |
 | Cadence Ledger | `references/cadence-ledger.md` | Phase 9 |
 | Walkthrough | `references/walkthrough-closeout.md` | Phase 10 |
@@ -155,6 +164,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | Feature SSoT | `templates/ssot/Feature-SSoT.md` | Phase 8 |
 | Regression SSoT | `templates/ssot/Regression-SSoT.md` | Phase 8 |
 | Lessons SSoT | `templates/ssot/Lessons-SSoT.md` | Phase 8b |
+| Harness Ledger | `templates/ledger/Harness-Ledger.md` | Phase 8c |
 | Lesson (ref-change) | `templates/lessons/lesson-ref-change.md` | Walkthrough 收口后 |
 | Lesson (new-doc) | `templates/lessons/lesson-new-doc.md` | Walkthrough 收口后 |
 | Lesson (arch/process) | `templates/lessons/lesson-arch-process-change.md` | Walkthrough 收口后 |
@@ -168,6 +178,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | Execution Workflow | `templates/reference/execution-workflow-standard.md` | Phase 5 |
 | Long-Running Task Standard | `templates/reference/long-running-task-standard.md` | Phase 7 |
 | Docs Library | `templates/reference/docs-library-standard.md` | Phase 5 |
+| Harness Ledger Standard | `templates/reference/harness-ledger-standard.md` | Phase 5 |
 | Regression Governance | `templates/reference/regression-ssot-governance.md` | Phase 5 |
 | Walkthrough Standard | `templates/reference/walkthrough-standard.md` | Phase 5 |
 | Worktree Standard | `templates/reference/worktree-standard.md` | Phase 5 |

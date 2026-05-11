@@ -20,7 +20,7 @@ Walkthrough 是每个 wave / feature 完成后的收口记录。给下一轮 age
 3. **关键决策**：为什么选了方案 A 而不是方案 B
 4. **验证结果**：跑了什么测试、回归结果、evidence depth
 5. **Residual**：遗留问题（如无则显式写"无"）
-6. **关联**：task plan 路径、SSoT 条目、regression gate、commit hash
+6. **关联**：task plan 路径、SSoT 条目、regression gate、Harness Ledger ID、commit hash
 
 ## 写作原则
 
@@ -32,3 +32,7 @@ Walkthrough 是每个 wave / feature 完成后的收口记录。给下一轮 age
 ## 模板
 
 使用 `docs/10-WALKTHROUGH/_walkthrough-template.md`（如已初始化）。
+
+## 收口要求
+
+写完 walkthrough 并完成 Lessons 检查后，必须更新 `docs/Harness-Ledger.md`。

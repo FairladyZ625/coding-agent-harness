@@ -12,6 +12,10 @@ Agent 在 Walkthrough 收口时自动识别可沉淀的经验，写入 Lessons S
 | Regression SSoT | 回归控制 | `docs/05-TEST-QA/` |
 | **Lessons SSoT** | **经验沉淀** | **`docs/01-GOVERNANCE/`** |
 
+Lessons SSoT 管“规范是否应该演进”。本轮任务是否做过 Lessons 检查、是否创建了
+Lessons 条目，由 `docs/Harness-Ledger.md` 记录，避免把 SOP 合规状态塞进
+Lessons SSoT。
+
 ## 目录结构
 
 ```
@@ -120,3 +124,6 @@ docs/01-GOVERNANCE/archive/Lessons-SSoT-archive-YYYY-QN.md
 - `process-change`：按建议更新流程文档
 
 合入完成后，状态改为 `✅ merged`。
+
+合入任务收口时，还必须在 `docs/Harness-Ledger.md` 的当前任务 row 中记录
+`Lessons=updated` 或 `Lessons=checked-created`。

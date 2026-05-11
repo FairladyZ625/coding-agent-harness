@@ -21,6 +21,7 @@ docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/
 3. **研究发现写入 findings.md** — 不丢失中间产物
 4. **禁止在项目根目录放过程文件** — task_plan.md、findings.md、progress.md 只能在任务目录内
 5. **长程任务必须补合同** — 如果任务需要连续执行、多轮审查或子代理 review，先补 `long-running-task-contract.md`
+6. **任务收口必须回写 Harness Ledger** — 只在任务完成或上下文回写状态变化时记录，不记录每次 `progress.md` 更新
 
 ## task_plan.md 模板
 
@@ -127,3 +128,6 @@ Anthropic 的方案用 Feature List JSON + progress file + git commit 做跨 ses
 ```
 
 每次状态变更时，必须同时更新 progress.md 和 Feature SSoT。
+
+任务完成时，必须在 `docs/Harness-Ledger.md` 中记录本轮 task plan、SSoT、
+walkthrough、Lessons 检查等上下文回写结果。

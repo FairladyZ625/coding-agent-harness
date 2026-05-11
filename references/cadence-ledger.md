@@ -51,3 +51,5 @@ Cadence Ledger 是一个独立文件，放在 `docs/05-TEST-QA/Cadence-Ledger.md
 - 新增 regression gate 时，必须同步更新 trigger rules
 - 每轮 shared batch 执行后，必须记录到 batch log
 - 定期审查 trigger rules 是否还准确（代码结构可能变化）
+- 如果本轮任务改变了 trigger rules、gate 结构或 evidence depth，收口时在 Harness Ledger 记录 `Regression=updated`
+- routine batch 只更新 `Last Verified` 且无 residual / evidence depth 变化时，不强制写 Harness Ledger
