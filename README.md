@@ -1,10 +1,13 @@
 # Coding Agent Harness
 
+[![skills.sh](https://skills.sh/b/FairladyZ625/coding-agent-harness)](https://skills.sh/FairladyZ625/coding-agent-harness)
+
 > 用 AI 写 15 万行代码不难，难的是不让它跑偏。一套经过真实项目验证的工程方法论，帮你在任意项目上构建 Coding Agent 的 harness 体系。
 
 ## 这是什么
 
-**Coding Agent Harness** 是一套开源的方法论和工具模板，用于规控 Coding Agent（Codex、Claude Code、Gemini CLI 等）在长程项目中的表现。
+**Coding Agent Harness** 是一套开源的方法论和工具模板，用于规控
+Coding Agent（Codex、Claude Code、Gemini CLI 等）在长程项目中的表现。
 
 它解决的核心问题：当任务持续几天、几周、上百轮迭代的时候，怎么保证 agent 不跑偏。
 
@@ -22,7 +25,7 @@
 ### 七大模块
 
 | 模块 | 解决什么问题 |
-|------|------------|
+| ------ | ------------ |
 | AGENTS.md / CLAUDE.md 入口设计模式 | 怎么让入口文件管住整个项目，同时兼容 Claude Code |
 | Planning Loop | 怎么让 agent 在长任务中不偏离目标 |
 | Long-Running Task Protocol | 怎么把多轮任务设计成可连续执行、可审查、可停止的合同 |
@@ -33,7 +36,7 @@
 
 ### 文件结构
 
-```
+```text
 coding-agent-harness/
 ├── SKILL.md                          # 执行协议（12 Phase SOP）
 ├── references/                       # 方法论详解
@@ -59,9 +62,56 @@ coding-agent-harness/
 
 ## 快速开始
 
-把下面这段话复制给你的 Agent（Claude Code / Codex / Gemini CLI / 任何支持自定义指令的 Coding Agent），它就会自动帮你在当前项目上搭建完整的 harness 体系：
+### 使用 npx 安装为 Agent Skill
 
+本仓库已经按开放 Agent Skills 生态的 `SKILL.md` 格式发布，可以通过
+[`skills`](https://github.com/vercel-labs/skills) CLI 安装到 Codex、Claude Code、
+Cursor、OpenClaw、Gemini CLI 等兼容 agent。
+
+先预览仓库里可安装的 Skill：
+
+```bash
+npx skills add FairladyZ625/coding-agent-harness --list
 ```
+
+安装到当前项目：
+
+```bash
+npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
+```
+
+安装到 Codex 全局 Skill 目录：
+
+```bash
+npx skills add FairladyZ625/coding-agent-harness \
+  --skill coding-agent-harness \
+  --agent codex \
+  --global \
+  -y
+```
+
+安装后可用下面的命令确认：
+
+```bash
+npx skills list --global --agent codex
+```
+
+`skills` CLI 支持的常见安装位置包括：
+
+| Agent | Project 目录 | Global 目录 |
+| ------ | -------------- | ------------- |
+| Codex | `.agents/skills/` | `~/.codex/skills/` |
+| Claude Code | `.claude/skills/` | `~/.claude/skills/` |
+| OpenClaw | `skills/` | `~/.openclaw/skills/` |
+| Gemini CLI | `.agents/skills/` | `~/.gemini/skills/` |
+
+### 让 Agent 直接执行
+
+把下面这段话复制给你的 Agent（Claude Code / Codex / Gemini CLI / 任何支持
+自定义指令的 Coding Agent），它就会自动帮你在当前项目上搭建完整的
+harness 体系：
+
+```text
 请克隆 https://github.com/FairladyZ625/coding-agent-harness 到本地，
 读取其中的 SKILL.md 作为执行协议，然后按照 12 Phase SOP 的顺序，
 在我当前的项目上搭建完整的 harness 体系。
@@ -71,7 +121,11 @@ coding-agent-harness/
 
 ### 其他使用方式
 
-**作为 Skill 安装**：如果你使用 [OpenClaw](https://github.com/openclaw/openclaw) 或兼容的 agent 平台，将本仓库克隆到 skills 目录即可。当你说"帮我搭建 harness"时，agent 会自动触发完整的 12 Phase SOP。
+**作为 Skill 安装**：推荐使用
+`npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness`
+安装到兼容的 agent。也可以手动将本仓库克隆到 OpenClaw 或其他兼容平台的
+skills 目录。当你说"帮我搭建 harness"时，agent 会自动触发完整的
+12 Phase SOP。
 
 **作为参考文档**：直接读 `references/` 下的方法论文档，了解每个模块的设计思路。
 
@@ -79,23 +133,30 @@ coding-agent-harness/
 
 ## Base Harness = 地基
 
-这套 harness 是 **base 骨架**，管的是项目级的治理框架——文档怎么组织、任务怎么排期、回归怎么跑、worktree 怎么并行。
+这套 harness 是 **base 骨架**，管的是项目级的治理框架——文档怎么组织、
+任务怎么排期、回归怎么跑、worktree 怎么并行。
 
 你可以在这个地基上叠加任何工作流：
 
-- [gstack](https://github.com/garrytan/gstack) — Garry Tan 的虚拟工程团队（23 个 slash command）
-- [everything-claude-code](https://github.com/affaan-m/everything-claude-code) — Agent harness 性能优化系统
+- [gstack](https://github.com/garrytan/gstack) — Garry Tan 的虚拟工程团队
+  （23 个 slash command）
+- [everything-claude-code](https://github.com/affaan-m/everything-claude-code) —
+  Agent harness 性能优化系统
 - [Superpowers](https://github.com/anthropics/superpowers) — Anthropic 官方增强工具集
 
 三者不冲突，可以自由组合。
 
 ## 起源
 
-这套方法论来自一个真实的开源项目 [Agora](https://github.com/FairladyZ625/Agora)（Context Harness Platform for Human-Agent Teams）的开发实践。
+这套方法论来自一个真实的开源项目
+[Agora](https://github.com/FairladyZ625/Agora)（Context Harness Platform for
+Human-Agent Teams）的开发实践。
 
-一个人配合 AI，三周半快速开发期产生了近 40 万行代码和文档改动，15 万行源码，1284 次提交，413 篇 walkthrough，441 个任务计划。一行代码没写。
+一个人配合 AI，三周半快速开发期产生了近 40 万行代码和文档改动，
+15 万行源码，1284 次提交，413 篇 walkthrough，441 个任务计划。一行代码没写。
 
-更多细节见文章：[《一个月300亿Token，30万行代码，30万字烧出来的Harness实践，我开源了》](https://mp.weixin.qq.com/s/kX0yhBpvZyqI0NXlHv8KhQ)
+更多细节见文章：
+[《一个月300亿Token，30万行代码，30万字烧出来的Harness实践，我开源了》](https://mp.weixin.qq.com/s/kX0yhBpvZyqI0NXlHv8KhQ)
 
 ## Star History
 
