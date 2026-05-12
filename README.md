@@ -108,6 +108,37 @@ npx skills list --global --agent codex
 | OpenClaw | `skills/` | `~/.openclaw/skills/` |
 | Gemini CLI | `.agents/skills/` | `~/.gemini/skills/` |
 
+### 更新已有 Harness
+
+如果一个项目已经按旧版 harness 搭好了，不需要重新生成一遍，也不应该用模板覆盖现有
+`docs/`。更新方式是让 Agent 重新读取最新版 Skill，然后对现有项目做增量同步。
+
+先把 Skill 更新到最新版本：
+
+```bash
+npx skills add FairladyZ625/coding-agent-harness \
+  --skill coding-agent-harness \
+  --agent codex \
+  --global \
+  -y
+```
+
+然后把下面这段话发给目标项目里的 Agent：
+
+```text
+请重新读取最新版 coding-agent-harness Skill。
+对比本项目现有 AGENTS.md / CLAUDE.md / docs/ 与最新版 harness 的 SKILL.md、
+references/、templates/，只做增量更新：
+1. 列出缺失或过期的 harness 骨架、reference、template、SSoT、Ledger 项。
+2. 先给出 delta plan，不要重写已有业务事实、历史 walkthrough、task progress 或 SSoT 内容。
+3. 只补齐新增标准和缺失结构；已有项目事实只能合并、追加或加 residual，不能用模板覆盖。
+4. 如果新增了 Lessons SSoT、Harness Ledger 或相关 reference/template，
+   同步更新 AGENTS.md / CLAUDE.md / docs 索引。
+5. 收口时写 walkthrough，并在 docs/Harness-Ledger.md 记录本次 harness update 做了哪些增量同步。
+```
+
+判断标准：**重装 Skill 不会删除项目历史；更新 Harness 是一次 delta merge，不是重建文档库。**
+
 ### 让 Agent 直接执行
 
 把下面这段话复制给你的 Agent（Claude Code / Codex / Gemini CLI / 任何支持

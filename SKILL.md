@@ -30,6 +30,20 @@ description: >
 
 ## 主执行 SOP
 
+如果用户要求"更新 harness"、"同步最新版 harness"、"把项目升级到最新
+coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增量更新流程：
+
+1. 读取本 Skill 的最新版 `SKILL.md`、相关 `references/`、`templates/`。
+2. 扫描目标项目现有 `AGENTS.md`、`CLAUDE.md`、`docs/` 和 SSoT / Ledger 文件。
+3. 输出 delta plan：哪些 harness 骨架、reference、template、SSoT、Ledger 项缺失或过期。
+4. 只补齐新增标准和缺失结构；不得用模板覆盖已有业务事实、历史 walkthrough、
+   task progress、Feature SSoT、Regression SSoT 或 Lessons SSoT。
+5. 对已有文档采用 merge / append / residual-with-reason；只有全新缺失文件才从模板创建。
+6. 如果引入 Lessons SSoT、Harness Ledger 或新的 reference/template，同步更新入口索引。
+7. 收口时写 walkthrough，并在 `docs/Harness-Ledger.md` 记录本次 harness update 的 delta。
+
+一句话：harness update 是 delta merge，不是重新搭一遍。
+
 当用户要求在项目上搭建 harness 时，严格按以下顺序执行：
 
 ### Phase 1: 项目诊断

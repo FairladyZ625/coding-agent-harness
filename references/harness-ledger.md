@@ -45,10 +45,11 @@ Harness Ledger 不记录：
 
 1. 完成一个非平凡 task / wave / feature
 2. Bootstrap harness 完成
-3. 新增或修改 AGENTS.md / CLAUDE.md / reference / template
-4. 修改 Feature SSoT、Regression SSoT、Lessons SSoT 任一文件
-5. 创建 walkthrough
-6. Lessons approved 后合入正式 reference
+3. 同步或升级最新版 coding-agent-harness
+4. 新增或修改 AGENTS.md / CLAUDE.md / reference / template
+5. 修改 Feature SSoT、Regression SSoT、Lessons SSoT 任一文件
+6. 创建 walkthrough
+7. Lessons approved 后合入正式 reference
 
 不需要更新 Harness Ledger：
 
@@ -112,6 +113,18 @@ docs/01-GOVERNANCE/archive/Harness-Ledger-archive-YYYY-QN.md
 7. 更新 Harness Ledger
 
 最后更新 Harness Ledger，是为了让它记录本轮所有上下文维护的最终状态。
+
+## Harness Update 记录
+
+更新已有 harness 时，Ledger row 只记录本次 delta merge：
+
+- 读到了哪个最新版 Skill / reference / template
+- 新增或修补了哪些 harness 骨架文件
+- 哪些既有 SSoT / walkthrough / task history 被保留未覆盖
+- 是否产生 residual，例如某个标准暂不适合当前项目
+
+不要把模板全文、旧文档全文或逐行 diff 复制进 Ledger。细节由 git history 和
+walkthrough 保存，Ledger 只回答"这次升级维护了哪些上下文入口"。
 
 ## 常见反模式
 

@@ -17,6 +17,7 @@ Walkthrough、Lessons SSoT 和 reference/template 文档。
 
 - 完成一个非平凡 task / wave / feature
 - Bootstrap harness 完成
+- 同步或升级最新版 coding-agent-harness
 - 新增或修改 AGENTS.md / CLAUDE.md / reference / template
 - 修改 Feature SSoT、Regression SSoT、Lessons SSoT 任一文件
 - 创建 walkthrough
@@ -60,6 +61,16 @@ Walkthrough、Lessons SSoT 和 reference/template 文档。
 - [ ] Walkthrough 已创建或有明确跳过原因
 - [ ] Lessons 检查已执行，结果为 `checked-none` 或 `checked-created`
 - [ ] Harness Ledger row 已更新为 `closed`，或 residual 已记录
+
+## Harness Update Checklist
+
+更新已有 harness 时确认：
+
+- [ ] 已重新读取最新版 coding-agent-harness Skill
+- [ ] 已列出 delta plan
+- [ ] 只补齐新增标准和缺失结构，未覆盖历史 walkthrough、task progress 或 SSoT 事实
+- [ ] 新增 reference/template 已写入入口索引
+- [ ] Ledger row 记录了本次 delta merge 和 residual
 
 ## 归档
 
