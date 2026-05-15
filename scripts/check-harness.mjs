@@ -38,6 +38,8 @@ const agAgentsRefs = [
   "execution-workflow-standard.md",
   "adversarial-review-standard.md",
   "review-routing-standard.md",
+  "walkthrough-standard.md",
+  "Lessons-SSoT.md",
   "harness-ledger-standard.md",
   "Closeout-SSoT.md",
 ];
