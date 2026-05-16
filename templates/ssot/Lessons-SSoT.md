@@ -11,7 +11,7 @@
 |----|------|--------|------|--------|---------|------------|--------|----------|
 | | | | | | | | | |
 
-## Archived (see archive/ for full history)
+## Archived (see _archive/ for full history)
 
 | ID | Date | Resolution | Resolved |
 |----|------|------------|----------|
@@ -39,4 +39,4 @@
 3. `Detail Doc` 必须是详情文档路径，不能写散文摘要。
 4. 副本始终基于正式版本，不基于其他 pending 副本。
 5. 如有冲突，以解决冲突方式编写，并在 Conflict 列互相标记。
-6. Active 表超过 20 条时归档已完结条目到 `archive/`。
+6. Active 表超过 20 条时归档已完结条目到 `_archive/`。

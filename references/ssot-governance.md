@@ -23,6 +23,7 @@ SSoT（Single Source of Truth，单一事实源）是长程项目的命脉。没
 - 文件：`docs/09-PLANNING/Feature-SSoT.md`（按你的项目命名）
 - 职责：哪些 feature 在做、做到哪了、还剩什么
 - 规则：开始任何非平凡任务前先读，完成后必须回写
+- 归档：Active 表只保留未完成或仍需操作的 feature；completed / superseded 历史行超过 20 条、release 收束、或启用模块并行切换时，必须移入 `docs/09-PLANNING/_archive/` 的 Feature SSoT 归档文件
 
 ### Regression SSoT（回归控制塔）
 
@@ -58,6 +59,41 @@ SSoT（Single Source of Truth，单一事实源）是长程项目的命脉。没
 - Lessons SSoT 不替代前两者，它管的是规范本身的演进
 - Harness Ledger 不替代任何 SSoT，它只记录本轮任务是否维护了对应事实
 - 四张 SSoT 和 Harness Ledger 必须各司其职，不能彼此吞并
+
+### Module Registry 与 Feature SSoT 的分工
+
+当项目启用模块并行开发（见 `references/module-parallel-standard.md`）时：
+
+- **Module Registry + module_plan.md** 追踪模块内步骤进度（替代 Feature SSoT 对模块工作的追踪）
+- **Feature SSoT** 只追踪：
+  - 不属于任何模块的独立功能
+  - 发布级汇总（哪个 release 包含了哪些模块步骤）
+
+**禁止**：同一个工作项同时出现在 module_plan 和 Feature SSoT 中。这会造成真相分裂。
+
+模块并行切换后，Feature SSoT 的 Active 表必须变小：
+
+- Active 表只保留不属于任何模块、且仍未完成的独立功能。
+- Phase 历史、completed feature 明细、旧 task 路径明细移入 `docs/09-PLANNING/_archive/`。
+- Feature SSoT 主文件只保留冻结边界、当前 active 指针、completed summary 和 archive index。
+- 不允许把几百行历史明细继续堆在 Feature SSoT 底部作为“文件内归档”。
+
+未启用模块并行的项目继续使用 Feature SSoT 追踪所有功能进度。
+
+## SSoT 归档规则
+
+每张 SSoT 都必须区分 Active 与 Archive。Active 保存当前事实；Archive 保存可追溯历史。
+
+| SSoT | Active 保留 | 归档触发 | 归档位置 |
+|------|-------------|----------|----------|
+| Feature SSoT | 未完成 / 仍需操作的 feature | completed/superseded 超过 20 条、release 收束、模块并行切换 | `docs/09-PLANNING/_archive/` |
+| Delivery SSoT | 当前交付 block、集成顺序和阻塞项 | wave 结束或 completed/superseded blocks 超过 20 条 | `docs/09-PLANNING/_archive/` |
+| Module Registry | 活跃 / 暂停不久的模块 | 模块 completed 或 paused 超过 60 天 | `docs/09-PLANNING/MODULES/_archive/<key>/` |
+| Regression SSoT | active gates | gate 废弃或长期不再运行 | `docs/05-TEST-QA/_archive/` |
+| Lessons SSoT | pending / approved / superseded 条目 | merged/rejected 超过 20 条 | `docs/01-GOVERNANCE/_archive/` |
+| Harness Ledger | 最近 50 条 active/closed 任务记录 | closed/superseded 超过 50 条 | `docs/01-GOVERNANCE/_archive/` |
+
+归档不改变 ID，不删除证据文件；Active 文件必须留下 archive index 或指向归档文件。
 
 ## SSoT 与 Planning 的双向绑定
 

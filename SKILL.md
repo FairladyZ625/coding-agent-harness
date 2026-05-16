@@ -72,6 +72,24 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 
 如果是多人、多仓或传统工程流程，必须创建或更新 `docs/09-PLANNING/Delivery-SSoT.md`。
 
+### Phase 2c: 模块识别与注册（可选）
+
+当项目满足以下条件时启用：
+
+- Operating Model 为 `solo-orchestrator` 或 `team-feature-lead`
+- 存在 2+ 个可独立演进的功能域
+- 开发者计划多会话 / 多 worktree 并行
+
+读 `references/module-parallel-standard.md`，执行：
+
+1. 识别项目中的独立模块（按功能域划分，不按技术层划分）
+2. 为每个模块声明 write scope，确认无交集
+3. 创建 `docs/09-PLANNING/Module-Registry.md`（使用 `templates/ssot/Module-Registry.md`）
+4. 为每个活跃模块创建 `docs/09-PLANNING/MODULES/<key>/module_plan.md`（使用 `templates/planning/module_plan.md`）
+5. 在 AGENTS.md 中添加模块冷启动指引段落
+
+如果项目从线性 Phase 模型迁移，还需执行迁移步骤（见 `references/module-parallel-standard.md` 的"从线性 Phase 迁移"段落）。
+
 ### Phase 3: 搭建目录结构
 
 读 `references/docs-directory-standard.md`，在项目中创建 docs/ 目录结构。根据诊断结果裁剪不需要的目录。
@@ -127,7 +145,7 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 
 ### Phase 8b: 初始化经验沉淀体系
 
-读 `references/lessons-governance.md`，创建 Lessons SSoT。使用 `templates/ssot/Lessons-SSoT.md` 作为模板。同时在 `docs/01-GOVERNANCE/` 下创建 `lessons/` 和 `archive/` 目录（含 `.gitkeep`）。
+读 `references/lessons-governance.md`，创建 Lessons SSoT。使用 `templates/ssot/Lessons-SSoT.md` 作为模板。同时在 `docs/01-GOVERNANCE/` 下创建 `lessons/` 和 `_archive/` 目录（含 `.gitkeep`）。
 
 ### Phase 8c: 初始化 Harness Ledger
 
@@ -145,6 +163,16 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 ### Phase 11: 初始化 Worktree 规范
 
 读 `references/worktree-parallel.md`，确认 worktree 命名和分支规范，写入 AGENTS.md 或对应 reference 文件。
+
+### Phase 11b: 初始化模块并行启动 Prompt（如启用）
+
+如果项目启用模块并行开发，读 `references/module-parallel-standard.md`，并为每个 active module 创建：
+
+- `docs/09-PLANNING/Module-Registry.md`
+- `docs/09-PLANNING/MODULES/<key>/module_plan.md`
+- `docs/09-PLANNING/MODULES/Session-Prompt-Pack.md` 或 `docs/09-PLANNING/MODULES/<key>/session_prompt.md`
+
+使用 `templates/planning/module_session_prompt.md` 填充每个模块的启动 prompt。Prompt 必须包含 start gate、worktree/branch preflight、write scope、shared coordination、verification、review/Lessons/Closeout 收口。
 
 ### Phase 12: 输出 Bootstrap Summary
 
@@ -179,7 +207,7 @@ harness bootstrap 完成后，项目中至少应存在以下文件：
 - [ ] `docs/10-WALKTHROUGH/Closeout-SSoT.md`
 - [ ] `docs/01-GOVERNANCE/Lessons-SSoT.md`
 - [ ] `docs/01-GOVERNANCE/lessons/`（空目录 + .gitkeep）
-- [ ] `docs/01-GOVERNANCE/archive/`（空目录 + .gitkeep）
+- [ ] `docs/01-GOVERNANCE/_archive/`（空目录 + .gitkeep）
 - [ ] `docs/Harness-Ledger.md`
 - [ ] `docs/11-REFERENCE/harness-ledger-standard.md`
 - [ ] `.github/pull_request_template.md` 或 platform-specific PR template / residual
@@ -187,6 +215,10 @@ harness bootstrap 完成后，项目中至少应存在以下文件：
 - [ ] Branch protection plan 和 required checks 状态
 - [ ] Worktree concurrency policy
 - [ ] Delivery operating model 已选择；多人/多仓模式下有 `docs/09-PLANNING/Delivery-SSoT.md`
+- [ ] 如启用模块并行：`docs/09-PLANNING/Module-Registry.md`
+- [ ] 如启用模块并行：`docs/09-PLANNING/MODULES/Session-Prompt-Pack.md` 或每模块 `session_prompt.md`
+- [ ] 如启用模块并行：每个 active module 有 `docs/09-PLANNING/MODULES/<key>/module_plan.md`
+- [ ] 如启用模块并行：模块 task template / shared lock / dependency readiness 规则已落地
 - [ ] Harness checker 已通过，或 residual 写明 owner/action/status
 - [ ] Feature SSoT 文件（位置由项目决定）
 - [ ] Bootstrap Summary 已输出给用户
@@ -257,6 +289,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | Progress | `templates/planning/progress.md` | Phase 6 |
 | Review Report | `templates/planning/review.md` | Phase 6 |
 | Long-Running Task Contract | `templates/planning/long-running-task-contract.md` | Phase 7 |
+| Module Session Prompt | `templates/planning/module_session_prompt.md` | 模块并行开发会话冷启动 |
 | Walkthrough | `templates/walkthrough/walkthrough-template.md` | Phase 10 |
 | Closeout SSoT | `templates/walkthrough/Closeout-SSoT.md` | Phase 10 |
 | Testing Standard | `templates/reference/testing-standard.md` | Phase 5 |

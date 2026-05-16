@@ -40,3 +40,8 @@
 - Review Report：[路径 / 不适用]
 - Harness Ledger 条目：[完成时填写 / HL-...]
 - 前置任务：[引用，如无则写"无"]
+
+## 模块关联（启用模块并行时填写）
+- Module: [module key，如 reader / graph / 不适用]
+- Step: [step ID，如 RDR-02 / 不适用]
+- Module Plan: [link to module_plan.md / 不适用]

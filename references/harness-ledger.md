@@ -100,7 +100,7 @@ HL-20260511-001
 Active 表保留最近 50 条。更早的 `closed` 或 `superseded` 条目按季度归档：
 
 ```text
-docs/01-GOVERNANCE/archive/Harness-Ledger-archive-YYYY-QN.md
+docs/01-GOVERNANCE/_archive/Harness-Ledger-archive-YYYY-QN.md
 ```
 
 归档不改变 `HL-*` ID，也不删除 walkthrough、task plan 或四张 SSoT 中的引用。

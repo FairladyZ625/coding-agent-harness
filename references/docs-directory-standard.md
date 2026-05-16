@@ -10,24 +10,37 @@
 docs/
 ├── Harness-Ledger.md           ← 全局 harness 上下文回写总账
 ├── 00-RAW-PRDS/              ← 原始需求文档、PRD、用户故事
+│   └── _archive/              ← 本层历史文档归档（如该层会增长）
 ├── 01-GOVERNANCE/             ← 项目治理规则、决策记录、经验沉淀
 │   ├── Lessons-SSoT.md        ← 经验沉淀建议表
 │   ├── lessons/               ← 具体沉淀内容
-│   └── archive/               ← 已处理条目归档
+│   └── _archive/              ← 已处理条目归档
 ├── 02-PRODUCT/                ← 产品设计、用户流程、功能规格
+│   └── _archive/              ← 本层历史文档归档（如该层会增长）
 ├── 03-ARCHITECTURE/           ← 架构设计、技术方案、ADR
+│   └── _archive/              ← 本层历史文档归档（如该层会增长）
 ├── 04-DEVELOPMENT/            ← 开发指南、环境配置、本地开发说明
+│   └── _archive/              ← 本层历史文档归档（如该层会增长）
 ├── 05-TEST-QA/                ← 测试策略、Regression SSoT、Cadence Ledger
+│   └── _archive/              ← 废弃 regression gate / 旧 evidence pack 归档
 ├── 06-INTEGRATIONS/           ← 第三方集成文档、API 对接说明
+│   └── _archive/              ← 本层历史文档归档（如该层会增长）
 ├── 07-OPERATIONS/             ← 部署、运维、监控、告警
+│   └── _archive/              ← 本层历史文档归档（如该层会增长）
 ├── 08-SECURITY/               ← 安全策略、权限模型、审计日志
+│   └── _archive/              ← 本层历史文档归档（如该层会增长）
 ├── 09-PLANNING/               ← 排期、任务计划
 │   ├── TASKS/                 ← 任务目录（每个任务一个子目录）
 │   │   └── _task-template/    ← 任务模板
+│   ├── MODULES/               ← 模块并行开发计划（启用时）
+│   │   └── _archive/          ← 已完成 / 暂停过久模块归档
+│   ├── _archive/              ← 历史任务、旧 Feature SSoT 明细、过期排期归档
 │   ├── Delivery-SSoT.md       ← 多人 / 多仓 / 传统流程下的交付排期和集成顺序
 │   └── [Feature-SSoT].md     ← 实施排期表
 ├── 10-WALKTHROUGH/            ← Walkthrough 收口记录与 Closeout SSoT
+│   └── _archive/              ← 历史 walkthrough 批量归档（迁移 / 年度收束时）
 ├── 11-REFERENCE/              ← 标准文件（agent 按需加载）
+│   └── _archive/              ← 旧版标准归档
 └── 99-TMP/                    ← 临时文件（定期清理）
 ```
 
@@ -58,6 +71,32 @@ docs/
 
 `docs/10-WALKTHROUGH/Closeout-SSoT.md` 是 closed task 的收口索引和硬门槛；
 每个 closed Harness Ledger row 必须在这里登记 walkthrough 或受控 skip reason。
+
+## 通用归档规则
+
+归档是目录级基础设施，不是单张表的特例。任何会持续增长的目录都应该有同级
+`_archive/` 目录；如果目录本身不会增长，可以暂不创建，但第一次归档前必须创建。
+
+### 硬规则
+
+- Active 文件只保存当前事实和最近需要操作的事实。
+- 历史事实移入同级 `_archive/`，不要长期堆在 Active 表底部。
+- 归档不改变原始 ID，不删除 task plan、walkthrough、SSoT 或 Ledger 的可追溯引用。
+- 归档后 Active 文件必须留下归档索引或指针，说明历史在哪里。
+- 归档文件必须按时间或范围命名：`<name>-archive-YYYY-QN.md`、`<name>-phase-1-11.md`、`YYYY-MM-DD-<name>.md`。
+- 新增归档规则时，同步更新 `docs-library-standard.md` 和对应 checker。
+
+### 推荐触发条件
+
+| 对象 | 触发条件 | 归档位置 |
+|------|----------|----------|
+| Feature SSoT Active 表 | 模块并行切换、release 完成、或 completed rows 超过 20 条 | `09-PLANNING/_archive/` |
+| Delivery SSoT | 集成 wave 结束或 completed/superseded blocks 超过 20 条 | `09-PLANNING/_archive/` |
+| Module Registry / module_plan | 模块 completed 或 paused 超过 60 天 | `09-PLANNING/MODULES/_archive/<key>/` |
+| Regression SSoT | gate 废弃或长期不再运行 | `05-TEST-QA/_archive/` |
+| Lessons SSoT | merged/rejected 条目超过 20 条 | `01-GOVERNANCE/_archive/` |
+| Harness Ledger | closed/superseded 超过 50 条 | `01-GOVERNANCE/_archive/` |
+| Walkthrough | 年度/阶段迁移或目录过大 | `10-WALKTHROUGH/_archive/` |
 
 ## Reference 标准文件清单
 

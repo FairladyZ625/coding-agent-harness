@@ -85,5 +85,5 @@ Regression SSoT、Walkthrough、Lessons SSoT 和 reference/template 文档。
 Active 表保留最近 50 条。更早的 `closed` 或 `superseded` 条目按季度归档：
 
 ```text
-docs/01-GOVERNANCE/archive/Harness-Ledger-archive-YYYY-QN.md
+docs/01-GOVERNANCE/_archive/Harness-Ledger-archive-YYYY-QN.md
 ```
