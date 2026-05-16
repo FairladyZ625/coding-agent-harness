@@ -122,3 +122,39 @@ git worktree list  # 不应该再看到该 worktree
 - 用户明确要求保留
 
 若选择暂时保留，必须在 progress.md 里写明保留原因。
+
+## 模块级 Worktree
+
+当项目启用模块并行开发（见 `references/module-parallel-standard.md`）时，每个模块对应一个长期 worktree。这与上文的"任务级 worktree"（每个 task 一个，merge 后删除）共存不冲突。
+
+### 命名
+
+`codex/<module-key>`（如 `codex/reader`、`codex/graph`）
+
+### 生命周期
+
+- 模块注册时创建，模块完成时删除
+- 步骤在模块 worktree 内顺序执行，每个步骤完成后提交并推送
+- 不在每个步骤后删除 worktree
+
+### Merge 策略（项目级决定）
+
+- **频繁合并**：每个步骤完成后 merge 回 main。divergence 小，冲突少。推荐 solo-orchestrator 使用。
+- **批量合并**：所有步骤完成后一次性 merge。main 始终是完整功能。适合有 CI/CD 发布流水线绑定 main 的项目。
+
+### 定期 Rebase
+
+无论哪种策略，模块 worktree 应定期 rebase 到最新 main：
+
+- 频率：每周一次，或每次基础设施 task 完成后
+- 目的：避免 divergence 过大导致 merge 困难
+
+### 与任务级 Worktree 的区别
+
+| 维度 | 任务级 Worktree | 模块级 Worktree |
+|------|----------------|----------------|
+| 命名 | `feat/<task-name>` | `codex/<module-key>` |
+| 生命周期 | 一个 task，merge 后删除 | 模块活跃期间持续存在 |
+| 适用场景 | 独立短期任务 | 长期演进的功能域 |
+| 清理时机 | task 完成后立即清理 | 模块所有步骤完成后清理 |
+

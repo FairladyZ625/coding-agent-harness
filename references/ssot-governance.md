@@ -59,6 +59,19 @@ SSoT（Single Source of Truth，单一事实源）是长程项目的命脉。没
 - Harness Ledger 不替代任何 SSoT，它只记录本轮任务是否维护了对应事实
 - 四张 SSoT 和 Harness Ledger 必须各司其职，不能彼此吞并
 
+### Module Registry 与 Feature SSoT 的分工
+
+当项目启用模块并行开发（见 `references/module-parallel-standard.md`）时：
+
+- **Module Registry + module_plan.md** 追踪模块内步骤进度（替代 Feature SSoT 对模块工作的追踪）
+- **Feature SSoT** 只追踪：
+  - 不属于任何模块的独立功能
+  - 发布级汇总（哪个 release 包含了哪些模块步骤）
+
+**禁止**：同一个工作项同时出现在 module_plan 和 Feature SSoT 中。这会造成真相分裂。
+
+未启用模块并行的项目继续使用 Feature SSoT 追踪所有功能进度。
+
 ## SSoT 与 Planning 的双向绑定
 
 - 每个 task plan 必须指向 SSoT 中的对应条目

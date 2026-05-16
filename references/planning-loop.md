@@ -61,6 +61,15 @@ docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/
 - Reviewer：[self / subagent / external / human]
 ```
 
+## 模块并行开发时的任务目录
+
+当项目启用模块并行开发（见 `references/module-parallel-standard.md`）时：
+
+- 任务目录位于模块内：`docs/09-PLANNING/MODULES/<key>/TASKS/<PREFIX>-NN-<name>/`
+- 跨模块基础设施任务位于：`docs/09-PLANNING/MODULES/_shared/TASKS/YYYY-MM-DD-<name>/`
+- task_plan.md 应填写"模块关联"段（Module、Step、Module Plan link）
+- 会话结束时除了更新 progress.md，还需更新 Module Registry 和 module_plan.md
+
 ## 为什么这套东西有效
 
 - agent 的上下文窗口有限，task_plan 是它在长任务中唯一稳定的锚点

@@ -72,6 +72,24 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 
 如果是多人、多仓或传统工程流程，必须创建或更新 `docs/09-PLANNING/Delivery-SSoT.md`。
 
+### Phase 2c: 模块识别与注册（可选）
+
+当项目满足以下条件时启用：
+
+- Operating Model 为 `solo-orchestrator` 或 `team-feature-lead`
+- 存在 2+ 个可独立演进的功能域
+- 开发者计划多会话 / 多 worktree 并行
+
+读 `references/module-parallel-standard.md`，执行：
+
+1. 识别项目中的独立模块（按功能域划分，不按技术层划分）
+2. 为每个模块声明 write scope，确认无交集
+3. 创建 `docs/09-PLANNING/Module-Registry.md`（使用 `templates/ssot/Module-Registry.md`）
+4. 为每个活跃模块创建 `docs/09-PLANNING/MODULES/<key>/module_plan.md`（使用 `templates/planning/module_plan.md`）
+5. 在 AGENTS.md 中添加模块冷启动指引段落
+
+如果项目从线性 Phase 模型迁移，还需执行迁移步骤（见 `references/module-parallel-standard.md` 的"从线性 Phase 迁移"段落）。
+
 ### Phase 3: 搭建目录结构
 
 读 `references/docs-directory-standard.md`，在项目中创建 docs/ 目录结构。根据诊断结果裁剪不需要的目录。
