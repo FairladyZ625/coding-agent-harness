@@ -48,3 +48,10 @@
 - Module: [module key，如 reader / graph / 不适用]
 - Step: [step ID，如 RDR-02 / 不适用]
 - Module Plan: [link to module_plan.md / 不适用]
+
+## Coordinator Handoff（启用模块并行时填写）
+- Global sync owner: coordinator / 不适用
+- Global sync status: pending-coordinator-pass / synced / n/a
+- Registry update needed: [module key, step, status, branch, updated / 不适用]
+- Harness Ledger update needed: [task plan path, review path, closeout status / 不适用]
+- Closeout / Regression update needed: [路径或 n/a]

@@ -19,6 +19,7 @@ Regression SSoT、Walkthrough、Lessons SSoT 和 reference/template 文档。
 - Bootstrap harness 完成
 - 同步或升级最新版 coding-agent-harness
 - 新增或修改 AGENTS.md / CLAUDE.md / reference / template
+- coordinator pass 同步模块任务的全局状态、review、closeout 或 regression 结果
 - 创建或更新 required review report
 - 修改 Feature SSoT、Regression SSoT、Lessons SSoT 任一文件
 - 创建 walkthrough
@@ -58,6 +59,7 @@ Regression SSoT、Walkthrough、Lessons SSoT 和 reference/template 文档。
 任务完成前确认：
 
 - [ ] `progress.md` 已更新
+- [ ] 启用模块并行时，模块 worker 已更新 `module_plan.md` 和 Coordinator Handoff；coordinator pass 已同步 `Module-Registry.md` 和 Harness Ledger，或明确保留 `pending-coordinator-pass`
 - [ ] `review.md` 已创建/更新，或标记 `n/a` / `skipped-with-reason`
 - [ ] Closeout reviewer / subagent 已执行，或标记 `skipped-with-reason`
 - [ ] Repo governance / CI-CD 已更新、验证或 residualized

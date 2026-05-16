@@ -88,6 +88,7 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 3. 创建 `docs/09-PLANNING/Module-Registry.md`（使用 `templates/ssot/Module-Registry.md`）
 4. 为每个活跃模块创建 `docs/09-PLANNING/MODULES/<key>/module_plan.md`（使用 `templates/planning/module_plan.md`）
 5. 在 AGENTS.md 中添加模块冷启动指引段落
+6. 启用检查器的模块任务反向索引规则：模块 worker 必须把活跃任务写入 `module_plan.md`，并用 Coordinator Handoff 标记总表同步需求；只有 coordinator pass 或显式 shared lock owner 写 `Module-Registry.md` / Harness Ledger。
 
 如果项目从线性 Phase 模型迁移，还需执行迁移步骤（见 `references/module-parallel-standard.md` 的"从线性 Phase 迁移"段落）。
 
@@ -235,7 +236,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 2. **Planning with Files** — 建任务目录，task plan / findings / progress / review 文件
 3. **Long-Running Contract（如适用）** — 明确连续执行权限、review loop、evidence、stop condition
 4. **Delivery Operating Model** — 确认本轮属于 solo / team / split-repo / program / stage-gate / kanban 哪种交付形态
-5. **SSoT 排期** — 回写到 Feature SSoT；多人/多仓时回写 Delivery SSoT
+5. **SSoT 排期** — 回写到 Feature SSoT；模块并行时 worker 回写 module_plan + Coordinator Handoff，coordinator pass 回写 Module Registry / Harness Ledger；多人/多仓时回写 Delivery SSoT
 6. **Repo Governance / CI-CD** — 确认 PR policy、required checks、branch protection、worktree concurrency
 7. **Worktree / Branch 并行开发** — 按 operating model 决定 worktree、feature branch、contract branch 或 release branch
 8. **Subagent Worker Handoff（如适用）** — coordinator 分配独立 worktree / branch / write scope；worker 提交自己的 commit 并 handoff commit SHA / checks / residuals

@@ -50,12 +50,14 @@ Verification:
 
 Closeout:
 - Update the module plan and module task progress.
-- Update docs/09-PLANNING/Module-Registry.md only while holding the registry shared lock or in a coordinator pass.
+- Do not update docs/09-PLANNING/Module-Registry.md, docs/Harness-Ledger.md, Closeout SSoT, Regression SSoT, or Cadence Ledger from a worker session unless the coordinator explicitly assigned that shared lock.
+- If global tables need updates, write a Coordinator Handoff in task_plan.md or progress.md with `Global sync status: pending-coordinator-pass`.
+- Only a coordinator pass or explicit shared-lock owner may update docs/09-PLANNING/Module-Registry.md.
 - Update docs/09-PLANNING/MODULES/<module-key>/module_plan.md.
 - Write review.md or record review skipped-with-reason.
 - Write walkthrough with Lessons Reflection when the step is completed.
-- Update Closeout SSoT and Lessons Check.
-- Update Regression SSoT and Harness Ledger when behavior, tests, architecture, or process changed.
+- Coordinator pass updates Closeout SSoT and Lessons Check when the task closes.
+- Coordinator pass updates Regression SSoT and Harness Ledger when behavior, tests, architecture, or process changed.
 - Do not claim completion until verification passes or each residual is recorded with owner and reason.
 
 Stop conditions:

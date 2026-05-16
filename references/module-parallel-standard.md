@@ -123,7 +123,19 @@ docs/09-PLANNING/MODULES/_shared/TASKS/
 会话结束时必须更新：
 - module_plan.md 的步骤状态和"当前状态"段落
 - 模块 TASKS 下的 progress / findings / review / walkthrough 相关引用
-- Module Registry 的状态行（Status、Current Step、Updated）只有在持有 registry shared lock 或 coordinator pass 中更新
+- 模块 TASKS 下的 Coordinator Handoff，列出需要 coordinator 同步到总表的 registry / ledger / closeout 项
+
+模块 worker 默认不得写全局总表：
+
+- `docs/09-PLANNING/Module-Registry.md`
+- `docs/Harness-Ledger.md`
+- `docs/10-WALKTHROUGH/Closeout-SSoT.md`
+- `docs/05-TEST-QA/Regression-SSoT.md`
+- `docs/05-TEST-QA/Cadence-Ledger.md`
+
+这些文件只有 coordinator pass 或显式 shared lock owner 能写。模块 worker 需要总表同步时，只在模块任务的
+`progress.md` / `task_plan.md` 中写 `Coordinator Handoff`，状态使用
+`pending-coordinator-pass`。这样模块分支不会互相抢同一张总表。
 
 ### AGENTS.md 必须包含的段落
 
@@ -138,7 +150,7 @@ docs/09-PLANNING/MODULES/_shared/TASKS/
 4. 在模块对应的 worktree 上工作
 5. 不跨模块修改文件（不修改 write scope 之外的代码）
 6. 如果作为 worker subagent 改代码/测试/文档，必须在 coordinator 分配的独立 worktree / branch 中工作，提交自己的 commit，并 handoff commit SHA / checks / residual risks
-7. 会话结束时更新 module_plan.md；Module Registry 是 shared lock，只能在持锁或 coordinator pass 中更新
+7. 会话结束时更新 module_plan.md 和模块任务的 Coordinator Handoff；Module Registry / Harness Ledger 是 coordinator-owned，只能在 coordinator pass 或显式 shared lock 中更新
 ```
 
 如果主 agent 作为 coordinator 启动多个模块 worker，禁止让它们共享 coordinator 当前 checkout。
@@ -180,6 +192,21 @@ shell、data layer、design system 等共享基础设施的修改：
 - 或模块 task_plan 中的 `Shared Coordination` 段落，必须写明 owner、touched files、allowed change、reviewer、merge order。
 
 Module Registry 本身也是 shared lock。活跃模块会话默认更新自己的 module_plan 和 TASKS；Registry 的 Current Step / Status 只在持锁或 coordinator pass 中更新，避免多个会话同时改同一个表。
+
+Checker 必须反向扫描模块任务目录：
+
+- 模块任务必须被本模块 `module_plan.md` 索引。
+- 普通模块 worker 分支上，如果全局总表尚未同步，必须在任务文件里留下 `Coordinator Handoff: pending-coordinator-pass`。
+- coordinator 集成 pass 必须清掉 pending handoff，并同步 `Module-Registry.md`、`Harness-Ledger.md`、必要的 Closeout / Regression 表。
+- 最终集成门禁可启用严格模式，要求活跃模块任务已经完成全局总表同步。
+
+严格模式命令：
+
+```bash
+HARNESS_REQUIRE_GLOBAL_MODULE_SYNC=1 node scripts/check-harness.mjs <repo-path>
+```
+
+这条规则的目的不是让每个 worker 都改总表，而是让总表同步变成单一 owner 的串行步骤。
 
 ## 跨模块重构
 

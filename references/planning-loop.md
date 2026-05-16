@@ -71,7 +71,9 @@ docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/
 - 任务目录位于模块内：`docs/09-PLANNING/MODULES/<key>/TASKS/<PREFIX>-NN-<name>/`
 - 跨模块基础设施任务位于：`docs/09-PLANNING/MODULES/_shared/TASKS/YYYY-MM-DD-<name>/`
 - task_plan.md 应填写"模块关联"段（Module、Step、Module Plan link）
-- 会话结束时除了更新 progress.md，还需更新 Module Registry 和 module_plan.md
+- 会话结束时除了更新 progress.md，还需更新 module_plan.md。
+- 模块 worker 不直接写 Module Registry / Harness Ledger / Closeout SSoT。需要总表同步时，在 task_plan.md 或 progress.md 的 `Coordinator Handoff` 段标记 `pending-coordinator-pass`，由 coordinator 串行同步。
+- coordinator pass 完成后，才更新 Module Registry、Harness Ledger、必要的 Closeout / Regression 表，并把 handoff 标记为 `synced`。
 
 ## 为什么这套东西有效
 

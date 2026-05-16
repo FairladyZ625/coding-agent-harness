@@ -23,5 +23,6 @@
 ## 使用说明
 
 - 新会话开始时读此表，定位目标模块
-- 会话结束时更新对应行的 Status、Current Step、Updated
+- 模块 worker 会话结束时只更新本模块 module_plan / task / progress，并在 Coordinator Handoff 里标记需要同步的总表项
+- coordinator pass 或显式 shared lock owner 才更新对应行的 Status、Current Step、Updated
 - 模块完成后标记 `completed`，定期归档到 `MODULES/_archive/`
