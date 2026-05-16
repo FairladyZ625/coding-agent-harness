@@ -11,7 +11,7 @@
 ## Archived
 
 > 旧条目按季度归档到
-> `docs/01-GOVERNANCE/archive/Harness-Ledger-archive-YYYY-QN.md`。
+> `docs/01-GOVERNANCE/_archive/Harness-Ledger-archive-YYYY-QN.md`。
 
 | Archive | Range | Notes |
 | --- | --- | --- |

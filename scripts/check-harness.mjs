@@ -11,7 +11,6 @@ const requiredFiles = [
   "docs/Harness-Ledger.md",
   "docs/11-REFERENCE/testing-standard.md",
   "docs/11-REFERENCE/execution-workflow-standard.md",
-  "docs/11-REFERENCE/delivery-operating-model-standard.md",
   "docs/11-REFERENCE/repo-governance-standard.md",
   "docs/11-REFERENCE/ci-cd-standard.md",
   "docs/11-REFERENCE/long-running-task-standard.md",
@@ -21,20 +20,22 @@ const requiredFiles = [
   "docs/11-REFERENCE/harness-ledger-standard.md",
   "docs/10-WALKTHROUGH/_walkthrough-template.md",
   "docs/10-WALKTHROUGH/Closeout-SSoT.md",
-  "docs/09-PLANNING/TASKS/_task-template/task_plan.md",
-  "docs/09-PLANNING/TASKS/_task-template/findings.md",
-  "docs/09-PLANNING/TASKS/_task-template/progress.md",
-  "docs/09-PLANNING/TASKS/_task-template/review.md",
-  "docs/09-PLANNING/TASKS/_task-template/long-running-task-contract.md",
   "docs/05-TEST-QA/Regression-SSoT.md",
   "docs/05-TEST-QA/Cadence-Ledger.md",
   "docs/01-GOVERNANCE/Lessons-SSoT.md",
 ];
 
+const legacyPlanningFiles = [
+  "docs/09-PLANNING/TASKS/_task-template/task_plan.md",
+  "docs/09-PLANNING/TASKS/_task-template/findings.md",
+  "docs/09-PLANNING/TASKS/_task-template/progress.md",
+  "docs/09-PLANNING/TASKS/_task-template/review.md",
+  "docs/09-PLANNING/TASKS/_task-template/long-running-task-contract.md",
+];
+
 const agAgentsRefs = [
   "repo-governance-standard.md",
   "ci-cd-standard.md",
-  "delivery-operating-model-standard.md",
   "execution-workflow-standard.md",
   "adversarial-review-standard.md",
   "review-routing-standard.md",
@@ -103,12 +104,115 @@ function checkRequiredFiles() {
   }
 }
 
+function checkPlanningStructure() {
+  if (exists("docs/09-PLANNING/Module-Registry.md")) {
+    checkModuleParallelStructure();
+    return;
+  }
+  for (const legacyFile of legacyPlanningFiles) {
+    requireFile(legacyFile);
+  }
+}
+
+function stripMarkdownCode(value) {
+  return String(value || "").replace(/`/g, "").trim();
+}
+
+function modulePromptBlock(content, key) {
+  const heading = `## Module: ${key}`;
+  const start = content.indexOf(heading);
+  if (start < 0) return "";
+  const rest = content.slice(start + heading.length);
+  const next = rest.search(/\n## Module: /);
+  return next >= 0 ? rest.slice(0, next) : rest;
+}
+
+function checkModuleParallelStructure() {
+  if (!exists("docs/09-PLANNING/Module-Registry.md")) return;
+
+  requireFile("docs/09-PLANNING/MODULES/Session-Prompt-Pack.md");
+  const hasPromptPack = exists("docs/09-PLANNING/MODULES/Session-Prompt-Pack.md");
+  for (const templateFile of [
+    "docs/09-PLANNING/MODULES/_task-template/task_plan.md",
+    "docs/09-PLANNING/MODULES/_task-template/progress.md",
+    "docs/09-PLANNING/MODULES/_task-template/findings.md",
+    "docs/09-PLANNING/MODULES/_task-template/review.md",
+  ]) {
+    requireFile(templateFile);
+  }
+
+  const registryContent = read("docs/09-PLANNING/Module-Registry.md");
+  for (const term of ["PREFIX", "Current Step", "Status", "Write Scope"]) {
+    if (!registryContent.includes(term)) {
+      fail(`docs/09-PLANNING/Module-Registry.md missing registry column or section: ${term}`);
+    }
+  }
+
+  const registryRows = markdownTable(registryContent)
+    .filter((cells) => cells.length >= 6)
+    .filter((cells) => /^(_shared|[a-z][a-z0-9-]*)$/.test(cells[0] || "") && /^[A-Z]{2,5}$/.test(cells[2] || ""));
+
+  if (registryRows.length === 0) {
+    fail("docs/09-PLANNING/Module-Registry.md has no active module rows");
+  }
+
+  const promptPack = hasPromptPack ? read("docs/09-PLANNING/MODULES/Session-Prompt-Pack.md") : "";
+  for (const cells of registryRows) {
+    const [key, , prefix, branch, currentStep, status] = cells;
+    requireFile(`docs/09-PLANNING/MODULES/${key}/module_plan.md`);
+    if (!/^(planned|in-progress|paused|completed)$/.test(status)) {
+      fail(`docs/09-PLANNING/Module-Registry.md row ${key} has invalid status: ${status}`);
+    }
+    if (currentStep !== `${prefix}-00` && !currentStep.startsWith(`${prefix}-`)) {
+      fail(`docs/09-PLANNING/Module-Registry.md row ${key} current step does not match prefix ${prefix}: ${currentStep}`);
+    }
+    const branchName = stripMarkdownCode(branch);
+    if (!branchName.startsWith("codex/")) {
+      fail(`docs/09-PLANNING/Module-Registry.md row ${key} branch must use codex/ prefix: ${branch}`);
+    }
+
+    const block = modulePromptBlock(promptPack, key);
+    if (!block) {
+      if (!exists(`docs/09-PLANNING/MODULES/${key}/session_prompt.md`)) {
+        fail(`missing module session prompt for ${key}`);
+      }
+      continue;
+    }
+    for (const term of [
+      "Current Step",
+      branchName,
+      "Preflight:",
+      "Before code edits:",
+      "Write scope:",
+      "Forbidden without coordination:",
+      "Shared Coordination:",
+      "Verification:",
+      "Closeout:",
+      "Stop conditions:",
+    ]) {
+      if (!block.includes(term)) {
+        fail(`module session prompt for ${key} missing required term: ${term}`);
+      }
+    }
+  }
+}
+
 function checkAgentsIndex() {
   if (!exists("AGENTS.md")) return;
   const content = read("AGENTS.md");
   for (const ref of agAgentsRefs) {
     if (!content.includes(ref)) {
       fail(`AGENTS.md does not route to ${ref}`);
+    }
+  }
+  if (exists("docs/11-REFERENCE/delivery-operating-model-standard.md") && !content.includes("delivery-operating-model-standard.md")) {
+    fail("AGENTS.md does not route to delivery-operating-model-standard.md");
+  }
+  if (exists("docs/09-PLANNING/Module-Registry.md")) {
+    for (const ref of ["Module-Registry.md", "Session-Prompt-Pack.md"]) {
+      if (!content.includes(ref)) {
+        fail(`AGENTS.md does not route to ${ref}`);
+      }
     }
   }
 }
@@ -439,6 +543,7 @@ function main() {
   }
 
   checkRequiredFiles();
+  checkPlanningStructure();
   checkAgentsIndex();
   checkGovernanceContent();
   checkCiCdContent();

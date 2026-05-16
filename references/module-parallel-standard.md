@@ -51,11 +51,37 @@
 - 记录该模块的步骤序列、当前进度、完成标准
 - 每个步骤对应一个 task_plan（在模块的 TASKS/ 子目录下）
 
+## 模块会话启动 Prompt（Module Session Prompt）
+
+安装位置由项目选择，推荐二选一：
+
+- 单文件 Prompt Pack：`docs/09-PLANNING/MODULES/Session-Prompt-Pack.md`
+- 每模块 Prompt：`docs/09-PLANNING/MODULES/<key>/session_prompt.md`
+
+使用模板：`templates/planning/module_session_prompt.md`
+
+职责：
+
+- 给用户提供可直接粘贴到新会话的模块启动文本
+- 明确模块目标、读取顺序、branch/worktree、write scope、共享/禁止修改范围、验证命令、收口动作和 stop conditions
+- 让多个模块会话能独立冷启动，而不是依赖上一轮聊天上下文
+
+硬规则：
+
+- 每个 Active Module 必须能在 Prompt Pack 或自己的 `session_prompt.md` 中找到对应启动 prompt。
+- Prompt 必须写清楚 allowed scope 和 forbidden/shared scope。
+- Prompt 必须写清楚至少一个项目级 check 和该模块的 targeted checks。
+- Prompt 必须包含 start gate：校验 registry 当前步骤、branch/worktree、dirty state、共享锁和过期 prompt。
+- Prompt 必须要求开始改代码前创建或更新模块 task_plan，并记录 scope、acceptance、verification、worktree 和 shared coordination。
+- Prompt 必须包含 closeout：review.md 或 skipped-with-reason、walkthrough Lessons Reflection、Closeout SSoT、Lessons Check、Regression SSoT / Harness Ledger 条件更新。
+- Prompt 中不得要求 agent 修改其他模块代码；需要跨模块文件时，必须先进入 `_shared` task 或指定单一 owner。
+
 ## 模块目录结构
 
 ```
 docs/09-PLANNING/MODULES/<key>/
 ├── module_plan.md          ← 模块总览和步骤序列
+├── session_prompt.md       ← 可选：该模块专用启动 prompt
 └── TASKS/                  ← 该模块的所有 task
     ├── <PREFIX>-NN-<name>/
     │   ├── task_plan.md
@@ -88,14 +114,16 @@ docs/09-PLANNING/MODULES/_shared/TASKS/
 
 1. `AGENTS.md` — 获取项目总览和模块并行指引
 2. `docs/09-PLANNING/Module-Registry.md` — 了解全局模块状态
-3. 目标模块的 `docs/09-PLANNING/MODULES/<key>/module_plan.md` — 了解模块进度
-4. 当前步骤的 `task_plan.md` — 了解具体任务
+3. `docs/09-PLANNING/MODULES/Session-Prompt-Pack.md` 或目标模块的 `session_prompt.md` — 获取会话启动合同
+4. 目标模块的 `docs/09-PLANNING/MODULES/<key>/module_plan.md` — 了解模块进度
+5. 当前步骤的 `task_plan.md` — 了解具体任务
 
 会话开始时，用户告知目标模块（如"做 Reader"），agent 据此定位。
 
 会话结束时必须更新：
-- Module Registry 的状态行（Status、Current Step、Updated）
 - module_plan.md 的步骤状态和"当前状态"段落
+- 模块 TASKS 下的 progress / findings / review / walkthrough 相关引用
+- Module Registry 的状态行（Status、Current Step、Updated）只有在持有 registry shared lock 或 coordinator pass 中更新
 
 ### AGENTS.md 必须包含的段落
 
@@ -105,10 +133,11 @@ docs/09-PLANNING/MODULES/_shared/TASKS/
 本项目启用了模块并行开发。开始任何模块工作前：
 
 1. 读 docs/09-PLANNING/Module-Registry.md 了解全局状态
-2. 读目标模块的 docs/09-PLANNING/MODULES/<key>/module_plan.md
-3. 在模块对应的 worktree 上工作
-4. 不跨模块修改文件（不修改 write scope 之外的代码）
-5. 会话结束时更新 Module Registry 和 module_plan.md
+2. 读 docs/09-PLANNING/MODULES/Session-Prompt-Pack.md 或目标模块的 session_prompt.md
+3. 读目标模块的 docs/09-PLANNING/MODULES/<key>/module_plan.md
+4. 在模块对应的 worktree 上工作
+5. 不跨模块修改文件（不修改 write scope 之外的代码）
+6. 会话结束时更新 module_plan.md；Module Registry 是 shared lock，只能在持锁或 coordinator pass 中更新
 ```
 
 ## 发布打包
@@ -140,6 +169,13 @@ shell、data layer、design system 等共享基础设施的修改：
 - 不属于任何模块
 - 走独立的"基础设施 task"（见下文）
 - 修改期间，其他模块暂停对该区域的修改
+
+最小协调产物：
+
+- `_shared` task：`docs/09-PLANNING/MODULES/_shared/TASKS/<id>/task_plan.md`
+- 或模块 task_plan 中的 `Shared Coordination` 段落，必须写明 owner、touched files、allowed change、reviewer、merge order。
+
+Module Registry 本身也是 shared lock。活跃模块会话默认更新自己的 module_plan 和 TASKS；Registry 的 Current Step / Status 只在持锁或 coordinator pass 中更新，避免多个会话同时改同一个表。
 
 ## 跨模块重构
 
@@ -185,6 +221,13 @@ shell、data layer、design system 等共享基础设施的修改：
 
 **禁止**：同一个工作项同时出现在 module_plan 和 Feature SSoT 中。
 
+切换时必须收缩 Feature SSoT：
+
+- Feature SSoT Active 表只保留非模块、未完成、仍需操作的 feature。
+- Phase 历史和 completed 明细移到 `docs/09-PLANNING/_archive/<feature-ssot-name>-phase-<range>.md`。
+- Feature SSoT 主文件保留 freeze notice、当前 active 指针、completed summary、archive index。
+- 不允许把历史大表留在 Feature SSoT 主文件底部作为"文件内归档"；这会让 Active SSoT 继续膨胀。
+
 ## 归档与过期检测
 
 ### 归档
@@ -204,11 +247,13 @@ shell、data layer、design system 等共享基础设施的修改：
 对已有线性 Phase 历史的项目：
 
 1. 冻结 Feature SSoT 当前状态，标注"后续工作按模块推进"
-2. 将历史 `docs/09-PLANNING/TASKS/` 移入 `docs/09-PLANNING/_archive/`
-3. 将历史 walkthrough 移入 `docs/10-WALKTHROUGH/_archive/`
-4. 从最后一个 Phase 的未完成项中识别模块
-5. 创建 Module Registry 和各模块的 module_plan.md
-6. 定义切换日期，此后不再创建新 Phase
+2. 将 Feature SSoT 的历史 completed 明细移入 `docs/09-PLANNING/_archive/`，主文件只保留 active 指针、summary 和 archive index
+3. 将历史 `docs/09-PLANNING/TASKS/` 移入 `docs/09-PLANNING/_archive/`
+4. 将历史 walkthrough 移入 `docs/10-WALKTHROUGH/_archive/`
+5. 从最后一个 Phase 的未完成项中识别模块
+6. 创建 Module Registry 和各模块的 module_plan.md
+7. 创建 Module Session Prompt Pack 或每模块 `session_prompt.md`
+8. 定义切换日期，此后不再创建新 Phase
 
 不做的事：
 - 不回溯重写历史 Ledger 条目

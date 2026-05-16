@@ -27,6 +27,9 @@
 | CI/CD | `11-REFERENCE/ci-cd-standard.md` | CI profile、workflow、release/CD residual |
 | 任务计划 | `09-PLANNING/TASKS/` | 每个任务一个子目录，包含 task plan / progress / findings / review |
 | Delivery SSoT | `09-PLANNING/Delivery-SSoT.md` | 多人、多 agent、多仓或传统流程下的 feature block 分配与集成顺序 |
+| Module Registry | `09-PLANNING/Module-Registry.md` | 模块并行开发时的活跃模块总表 |
+| Module Plan | `09-PLANNING/MODULES/<key>/module_plan.md` | 单模块步骤、状态、写入范围 |
+| Archive | `<folder>/_archive/` | 该目录下历史事实和过期文档归档 |
 | Walkthrough | `10-WALKTHROUGH/` | 每个 wave 一篇 |
 | Closeout SSoT | `10-WALKTHROUGH/Closeout-SSoT.md` | closed task 的 walkthrough / skip reason 索引 |
 | 标准文件 | `11-REFERENCE/` | agent 按需加载的规范 |
@@ -34,7 +37,12 @@
 
 ## 归档规则
 
-- 已完成的任务计划保留在原位，不移动
+- 每个会持续增长的目录必须有同级 `_archive/`；第一次归档前必须创建
+- Active 文件只保留当前事实；历史事实必须移入同级 `_archive/`，不能无限追加在 Active 表底部
+- 已完成任务可保留在原任务目录；当整个线性阶段迁移或目录过大时，将历史任务批量移动到 `09-PLANNING/_archive/`
+- Feature SSoT / Delivery SSoT / Module Registry / Regression SSoT / Lessons SSoT / Harness Ledger 都必须有归档策略
+- 归档不改原始 ID，不删除 task plan、walkthrough、SSoT 或 Ledger 的可追溯引用
+- Active 文件必须留下归档索引或指针，说明历史在哪里
 - `review.md` 保留在对应任务目录，不移动到 walkthrough 或根目录
 - `docs/Harness-Ledger.md` 保留在 docs 根目录，是根目录过程文件禁令的唯一例外
 - 99-TMP/ 下的文件超过 7 天未更新应清理

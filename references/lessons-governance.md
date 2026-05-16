@@ -30,7 +30,7 @@ docs/01-GOVERNANCE/
 ├── lessons/                     ← 具体沉淀内容存放
 │   ├── L-2026-05-07-001-xxx.md  ← 单条沉淀建议的详细内容
 │   └── ...
-└── archive/                     ← 已处理的历史条目归档
+└── _archive/                    ← 已处理的历史条目归档
     └── Lessons-SSoT-archive-YYYY-QN.md
 ```
 
@@ -127,7 +127,7 @@ Agent 在产出任何沉淀建议之前，**必须完整读一遍 Lessons SSoT**
 
 ### 归档格式
 ```
-docs/01-GOVERNANCE/archive/Lessons-SSoT-archive-YYYY-QN.md
+docs/01-GOVERNANCE/_archive/Lessons-SSoT-archive-YYYY-QN.md
 ```
 
 ### 归档后

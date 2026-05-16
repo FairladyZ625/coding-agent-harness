@@ -44,6 +44,12 @@
 |-------|------|-------|--------|-----------------|
 | SRB-010 | 2026-04-12 | Full | 9/9 🟢 | SRB-011 after wave-14 |
 | ...
+
+## Archive Index
+
+| Archive | Range | Notes |
+|---------|-------|-------|
+| `docs/05-TEST-QA/_archive/Regression-SSoT-archive-YYYY-QN.md` | RG-XXX-RG-YYY | retired gates |
 ```
 
 ## Cadence Ledger
@@ -78,3 +84,6 @@ Harness Ledger 只在当前任务收口时记录 `Regression=updated`、`Regress
 4. 定义 Cadence Rules
 5. 跑第一轮 Shared Batch，记录结果
 6. 持续迭代：每次新增 surface 或 evidence depth 提升时更新 SSoT
+
+废弃 gate 或过期 shared batch 明细不要长期堆在 Active 表底部；移动到
+`docs/05-TEST-QA/_archive/`，并在 Regression SSoT 中保留 Archive Index。

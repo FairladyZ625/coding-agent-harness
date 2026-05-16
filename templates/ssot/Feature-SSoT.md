@@ -15,6 +15,14 @@
 |----|---------|-----------|-------------|
 | | | | |
 
+## Archive Index
+
+> Active 表只保留仍需操作的 feature。completed / superseded 历史行超过 20 条、release 收束、或模块并行切换时，移动到 `docs/09-PLANNING/_archive/`。
+
+| Archive | Range | Notes |
+|---------|-------|-------|
+| | | |
+
 ## Status Legend
 
 - 🔴 未开始
