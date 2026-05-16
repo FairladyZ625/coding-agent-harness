@@ -20,6 +20,9 @@
 ## Worktree
 - 路径：[worktree 路径，如 `.worktrees/feat/xxx`]
 - 分支：[分支名]
+- Worker owner：[coordinator / subagent id / 不适用]
+- Worker handoff commit required：[yes / no / 不适用]
+- Coordinator integration branch：[分支名 / 不适用]
 - 若未开 worktree，原因：[说明]
 
 ## 长程任务判定

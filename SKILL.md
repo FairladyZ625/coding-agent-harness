@@ -26,6 +26,7 @@ description: >
 - **Repo 护栏是地基。** CI/CD、PR policy、branch protection、required checks、worktree concurrency 必须项目级定制，不能停留在模板。
 - **长程任务先设计合同，再开放执行。** 连续跑数小时的前提是 Goal、Scope、Review Loop、Evidence、Stop Condition 都清楚。
 - **审查必须落盘。** 对抗性 review 是独立交付物，不应只留在对话、progress 或 walkthrough 里；reviewer 必须用 Confidence Challenge 反复挑战方案，直到没有 open material finding。
+- **Worker handoff 必须 commit-backed。** 可写 subagent 不是 reviewer；它必须在独立 worktree / branch 内实现、验证并提交，再由 coordinator 集成。
 - **严肃项目用顶级模型。** 便宜模型的返工成本远高于差价。
 - **强制流程优于口头约定。** 每个步骤都应该是 agent 可自主执行的。
 
@@ -162,7 +163,8 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 
 ### Phase 11: 初始化 Worktree 规范
 
-读 `references/worktree-parallel.md`，确认 worktree 命名和分支规范，写入 AGENTS.md 或对应 reference 文件。
+读 `references/worktree-parallel.md`，确认 worktree 命名、分支规范、subagent worker
+handoff 和 coordinator integration 规则，写入 AGENTS.md 或对应 reference 文件。
 
 ### Phase 11b: 初始化模块并行启动 Prompt（如启用）
 
@@ -172,7 +174,7 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 - `docs/09-PLANNING/MODULES/<key>/module_plan.md`
 - `docs/09-PLANNING/MODULES/Session-Prompt-Pack.md` 或 `docs/09-PLANNING/MODULES/<key>/session_prompt.md`
 
-使用 `templates/planning/module_session_prompt.md` 填充每个模块的启动 prompt。Prompt 必须包含 start gate、worktree/branch preflight、write scope、shared coordination、verification、review/Lessons/Closeout 收口。
+使用 `templates/planning/module_session_prompt.md` 填充每个模块的启动 prompt。Prompt 必须包含 start gate、worktree/branch preflight、Subagent Worker Invariant、write scope、shared coordination、verification、review/Lessons/Closeout 收口。
 
 ### Phase 12: 输出 Bootstrap Summary
 
@@ -236,14 +238,15 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 5. **SSoT 排期** — 回写到 Feature SSoT；多人/多仓时回写 Delivery SSoT
 6. **Repo Governance / CI-CD** — 确认 PR policy、required checks、branch protection、worktree concurrency
 7. **Worktree / Branch 并行开发** — 按 operating model 决定 worktree、feature branch、contract branch 或 release branch
-8. **Adversarial Review Report（如适用）** — 在任务目录写 `review.md`，记录 material findings / no-finding / residual risk
-9. **Review Routing** — planned task 收口前自动触发 subagent / reviewer 审查，或记录 skip reason
-10. **Merge + 自动回归** — Cadence Ledger 触发对应回归面
-11. **Walkthrough 收口** — 写收口记录并引用 review report
-12. **Closeout SSoT 回写** — 每个 closed 任务必须记录 walkthrough 路径或受控 skip reason
-13. **Lessons Reflection** — 写 walkthrough 时主动反思共性/反复问题；`checked-created` 必须有详情文档和 SSoT 表行，`checked-none` 必须写明原因
-14. **Harness Ledger 回写** — 记录本轮上下文维护是否完成
-15. **Worktree 清理** — 删除已 merge 的 worktree
+8. **Subagent Worker Handoff（如适用）** — coordinator 分配独立 worktree / branch / write scope；worker 提交自己的 commit 并 handoff commit SHA / checks / residuals
+9. **Adversarial Review Report（如适用）** — 在任务目录写 `review.md`，记录 material findings / no-finding / residual risk
+10. **Review Routing** — planned task 收口前自动触发 subagent / reviewer 审查，或记录 skip reason
+11. **Merge + 自动回归** — Cadence Ledger 触发对应回归面；coordinator 只集成 worker commit，不混合多个 worker 的未提交改动
+12. **Walkthrough 收口** — 写收口记录并引用 review report
+13. **Closeout SSoT 回写** — 每个 closed 任务必须记录 walkthrough 路径或受控 skip reason
+14. **Lessons Reflection** — 写 walkthrough 时主动反思共性/反复问题；`checked-created` 必须有详情文档和 SSoT 表行，`checked-none` 必须写明原因
+15. **Harness Ledger 回写** — 记录本轮上下文维护是否完成
+16. **Worktree 清理** — 删除已 merge 的 worktree
 
 ---
 

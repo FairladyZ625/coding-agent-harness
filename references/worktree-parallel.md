@@ -108,6 +108,31 @@ git worktree list  # 不应该再看到该 worktree
 3. **Merge 顺序由人决定** — agent 不应自行决定 merge 顺序
 4. **冲突解决需要人工确认** — agent 可以尝试自动解决简单冲突，但复杂冲突必须报告给人
 
+## Subagent Worker Handoff / Coordinator Integration
+
+当主 agent 作为 coordinator 调用 subagent 时，必须先区分角色：
+
+- **reviewer**：只读审查，输出 `review.md` / findings / report，不改业务代码。
+- **worker**：会改代码、测试、产品文档或 harness 文档，必须使用独立 worktree / branch。
+
+Worker handoff 的最低字段：
+
+- worktree path
+- branch
+- task directory
+- write scope
+- commit SHA
+- checks run and result
+- residual risks / shared-file conflicts
+
+Coordinator 集成规则：
+
+1. coordinator 先分配 worker 的 worktree、branch、任务目录和 write scope。
+2. worker 只在自己的 worktree 内编辑并提交；不得把改动直接写进 coordinator 当前 checkout。
+3. coordinator 通过 worker commit / branch 集成结果，解决冲突并运行最终 gates。
+4. 若工具限制、用户要求或紧急情况导致未使用独立 worktree，必须在 progress、walkthrough
+   或 Harness Ledger 记录 deviation reason、风险和补偿验证。
+
 ## 并发上限
 
 项目必须在 `docs/11-REFERENCE/repo-governance-standard.md` 的 Worktree Concurrency
@@ -157,4 +182,3 @@ git worktree list  # 不应该再看到该 worktree
 | 生命周期 | 一个 task，merge 后删除 | 模块活跃期间持续存在 |
 | 适用场景 | 独立短期任务 | 长期演进的功能域 |
 | 清理时机 | task 完成后立即清理 | 模块所有步骤完成后清理 |
-

@@ -157,6 +157,9 @@ function checkModuleParallelStructure() {
   }
 
   const promptPack = hasPromptPack ? read("docs/09-PLANNING/MODULES/Session-Prompt-Pack.md") : "";
+  if (hasPromptPack && !/Subagent Worker Invariant|worker[\s\S]{0,120}worktree[\s\S]{0,120}commit SHA/i.test(promptPack)) {
+    fail("docs/09-PLANNING/MODULES/Session-Prompt-Pack.md missing subagent worker worktree/commit handoff rule");
+  }
   for (const cells of registryRows) {
     const [key, , prefix, branch, currentStep, status] = cells;
     requireFile(`docs/09-PLANNING/MODULES/${key}/module_plan.md`);
@@ -213,6 +216,9 @@ function checkAgentsIndex() {
       if (!content.includes(ref)) {
         fail(`AGENTS.md does not route to ${ref}`);
       }
+    }
+    if (!/Subagent|worker/i.test(content) || !/worktree/i.test(content) || !/commit SHA|commit/i.test(content)) {
+      fail("AGENTS.md does not define subagent worker worktree/commit handoff rule");
     }
   }
 }

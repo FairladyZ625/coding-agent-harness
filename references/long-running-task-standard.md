@@ -94,6 +94,16 @@
 - reviewer 是否必须执行 Confidence Challenge：“你对这个方案、实现和策略有 100% 的信心吗？”
 - 几轮 review 后才允许停止
 
+如果子代理可改代码、测试、产品文档或 harness 文档，它必须按 worker 合同执行：
+
+- coordinator 先分配独立 worktree / branch、任务目录和 write scope
+- worker 只在自己的 worktree 内实现、验证并提交
+- handoff 必须包含 worktree path、branch、commit SHA、checks、residual risks
+- coordinator 负责 merge / conflict resolution / final gates
+
+只读 reviewer 和可写 worker 不能混用同一个口径。若原本是 reviewer，后来需要改代码，
+必须先升级为 worker 并补齐 worktree 合同。
+
 如果 review loop 使用 reviewer agent、subagent 或外部审查者，必须在任务目录写
 `review.md`，并按 `docs/11-REFERENCE/adversarial-review-standard.md` 记录 material findings、
 no-finding statement、evidence checked 和 residual risk。
@@ -136,6 +146,7 @@ no-finding statement、evidence checked 和 residual risk。
 - 测试或 regression gate
 - docs / task plan / progress / findings 回写
 - review report（如适用）
+- worker branch / commit SHA / integration evidence（如使用 worker subagent）
 - walkthrough
 - Harness Ledger
 - PR / commit / release note

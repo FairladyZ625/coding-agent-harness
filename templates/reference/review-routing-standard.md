@@ -28,6 +28,20 @@
 | L2 | External agent reviewer | 用户或项目要求，如 Claude Code / Gemini / Codex 另一实例 | 必须写 `review.md`，并记录 reviewer identity |
 | L3 | Human reviewer | 高风险产品、架构、安全、数据、发布判断 | Agent 必须在内部审查结束后明确询问是否需要人工审查 |
 
+## Subagent Worker Routing
+
+Review routing 默认把 subagent 当 reviewer。若 subagent 被要求直接改代码、测试、产品文档
+或 harness 文档，它不再是 reviewer，而是 worker。
+
+Worker 必须走 `worktree-standard.md`：
+
+- coordinator 先分配独立 worktree / branch、任务目录和 write scope
+- worker 在自己的 worktree 内实现、验证并提交
+- worker handoff 写入 branch、commit SHA、checks、residual risks
+- coordinator 负责 merge / conflict resolution / final gates
+
+禁止把多个 worker 的未提交改动混在 coordinator 当前 checkout，再由 coordinator 一次性提交。
+
 ## 项目级外部 reviewer policy
 
 如用户指定 Claude Code、Gemini、Codex 另一实例或人工作为长期 reviewer，必须在项目级本文件中记录：
@@ -55,4 +69,5 @@
 - [ ] Confidence Challenge 已回答并记录 final confidence basis
 - [ ] open P0/P1 findings 为 0
 - [ ] material P2 已修复或 accepted residual 并路由
+- [ ] 如使用 worker subagent，已记录 worker branch、commit SHA、checks 和 integration evidence
 - [ ] walkthrough / Harness Ledger 引用了 review report 或 skip reason

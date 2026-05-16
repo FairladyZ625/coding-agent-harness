@@ -90,6 +90,7 @@ Required fields:
 - Naming pattern
 - Branch pattern
 - Ownership rule
+- Subagent worker rule: each code-changing worker uses its own worktree / branch and hands off a commit SHA
 - Merge ordering rule
 - Cleanup rule
 

@@ -83,6 +83,15 @@
 - no-finding 的判断口径
 - 是否必须回答“你对这个方案、实现和策略有 100% 的信心吗？”
 
+若 subagent 可改代码、测试、产品文档或 harness 文档，它必须按 worker 合同执行：
+
+- 独立 worktree / branch
+- 明确 task directory 和 write scope
+- 自己运行 checks
+- 提交自己的改动
+- handoff 包含 branch、commit SHA、checks、residual risks
+- coordinator 合并 worker commit 后运行最终 gates
+
 如果使用 reviewer agent、subagent 或外部审查者，必须在任务目录写 `review.md`，
 并按 `adversarial-review-standard.md` 记录 material findings、no-finding statement、
 evidence checked 和 residual risk。
@@ -119,6 +128,7 @@ evidence checked 和 residual risk。
 - docs updates
 - planning progress / findings
 - review report（如适用）
+- worker branch / commit SHA / integration evidence（如使用 worker subagent）
 - walkthrough
 - Harness Ledger
 - PR / commit / release note

@@ -54,9 +54,35 @@ Type：
 ## 多 Agent 并行规则
 
 1. 每个 agent 只操作自己的 worktree
-2. 共享文件的修改需要串行协调
-3. merge 顺序由人决定
-4. 复杂冲突必须报告给人
+2. 会改代码、测试或文档的 subagent worker 必须使用独立 worktree / branch
+3. reviewer subagent 默认只读；如要改代码，必须升级为 worker 并分配 worktree
+4. 共享文件的修改需要串行协调
+5. merge 顺序由 coordinator 或人工决定
+6. 复杂冲突必须报告给人
+
+## Subagent Worker Handoff
+
+Coordinator 启动 worker subagent 前，必须给出：
+
+- worktree 路径
+- 分支名
+- 任务目录
+- write scope
+- 允许触碰的共享文件（如有）
+- 必跑 checks
+
+Worker 收口前必须：
+
+- 只在自己的 worktree 内修改
+- 提交自己的改动
+- handoff 中写明 worktree path、branch、commit SHA、checks、residual risks
+
+Coordinator 必须：
+
+- 只通过 commit / branch 集成 worker 结果
+- 不让多个 worker 在 coordinator 当前 checkout 里同时留下未提交改动
+- 集成后运行最终 regression / smoke
+- 把偏离 worktree 规则的原因写入 progress、walkthrough 或 Harness Ledger
 
 ## 并发上限
 

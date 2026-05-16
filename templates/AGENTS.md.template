@@ -57,6 +57,27 @@
 13. 更新 Harness Ledger（`docs/Harness-Ledger.md`）
 14. 清理 worktree
 
+## Subagent / Worker Rule
+
+当主 agent 作为 coordinator 调用 subagent、外部 agent 或 reviewer 时，必须先判断它是
+`reviewer` 还是 `worker`：
+
+- `reviewer`：默认只读，只写 `review.md` / findings / 报告，不直接改业务代码。
+- `worker`：任何会改代码、测试、产品文档或 harness 文档的 subagent，必须在独立
+  worktree / branch 内工作。
+
+Worker subagent 的最低交付合同：
+
+1. coordinator 先分配 worktree 路径、分支名、任务目录和 write scope。
+2. worker 只在自己的 worktree 内编辑，不写 coordinator 当前 checkout。
+3. worker 完成后运行约定检查，并提交自己的改动。
+4. worker handoff 必须包含 worktree path、branch、commit SHA、checks、residual risks。
+5. coordinator 只集成 worker 的 commit，不把多个 worker 的未提交改动混在同一个 checkout。
+6. coordinator 合并后运行最终回归，并更新 walkthrough / Harness Ledger / Lessons。
+
+若环境或用户明确要求不使用独立 worktree，必须在 task progress / walkthrough / Harness Ledger
+记录 deviation reason、风险和补偿验证。
+
 ## SSoT 与 Ledger 文件
 
 - **Feature SSoT**：`docs/09-PLANNING/[Feature-SSoT].md`

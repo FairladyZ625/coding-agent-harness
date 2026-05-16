@@ -55,6 +55,12 @@ Minimum loop count or no-finding requirement:
 
 - Reviewer role: [read-only review / code-change worker / test verifier]
 - Reviewer scope: [文件 / 模块 / 问题域]
+- If code-change worker:
+  - Worktree path: [路径 / 不适用]
+  - Branch: [分支 / 不适用]
+  - Task directory: [路径 / 不适用]
+  - Commit before handoff: [yes / no / 不适用]
+  - Handoff must include: [worktree path / branch / commit SHA / checks / residual risks]
 - Reviewer must report:
   - [bugs]
   - [regressions]

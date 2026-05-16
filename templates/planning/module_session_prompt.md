@@ -5,6 +5,12 @@ Use this template when starting a long-running session for one module in a modul
 ```text
 You are working in <repo-path> on the <module-key> module.
 
+Subagent Worker Invariant:
+- If this prompt is handed to a code-changing worker subagent, the coordinator must assign a dedicated worktree and branch before edits begin.
+- The worker must only edit inside <worktree-path>, commit its own changes, and hand off worktree path, branch, commit SHA, checks, and residual risks.
+- Reviewer subagents are read-only unless explicitly upgraded to worker with the same worktree contract.
+- The coordinator integrates worker commits and runs final gates; do not mix multiple workers' uncommitted edits in one checkout.
+
 Goal:
 - Execute the Current Step listed for <module-key> in docs/09-PLANNING/Module-Registry.md and docs/09-PLANNING/MODULES/<module-key>/module_plan.md.
 - Continue until the step is implemented, verified, documented, and ready for review, unless a stop condition below is hit.

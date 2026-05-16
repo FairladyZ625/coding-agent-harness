@@ -36,6 +36,21 @@
 默认策略：planned task 至少 L1。若当前环境无法调用 subagent，必须记录
 `skipped-with-reason`，并升级 self-review 的 Confidence Challenge 严格度。
 
+## Subagent Worker Routing
+
+本标准默认把 subagent 当 reviewer：只读审查、写 `review.md`、报告 material findings。
+
+如果 subagent 被要求直接改代码、测试、产品文档或 harness 文档，它就不是 reviewer，
+而是 worker。Worker 必须按 `worktree-parallel.md` / 项目级 `worktree-standard.md`
+执行：
+
+- coordinator 先分配独立 worktree / branch、任务目录和 write scope
+- worker 只在自己的 worktree 内实现、验证并提交
+- handoff 必须包含 worktree path、branch、commit SHA、checks、residual risks
+- coordinator 负责 merge / conflict resolution / final gates
+
+禁止把多个 worker 的未提交改动混在 coordinator 当前 checkout，再由 coordinator 一次性提交。
+
 ## 外部审查人工触发
 
 如果用户要求外部审查或人工审查，Agent 不应把这当成一次聊天请求。它应转化为项目规则：
@@ -84,4 +99,5 @@
 - [ ] Confidence Challenge 已回答并记录 final confidence basis
 - [ ] open P0/P1 findings 为 0
 - [ ] material P2 已修复或 accepted residual 并路由
+- [ ] 如使用 worker subagent，已记录 worker branch、commit SHA、checks 和 integration evidence
 - [ ] walkthrough / Harness Ledger 引用了 review report 或 skip reason
