@@ -54,6 +54,74 @@ assert(dashboardHtml.includes("Harness Dashboard"), "dashboard HTML missing titl
 assert(dashboardHtml.includes("Evidence"), "dashboard HTML missing evidence section");
 assert(dashboardHtml.includes("Recent Activity"), "dashboard HTML missing recent activity section");
 
+const dashboardDir = path.join(tmpRoot, "dashboard-folder");
+expectPass(["dashboard", "--out-dir", dashboardDir, "examples/minimal-project"]);
+for (const required of [
+  "index.html",
+  "assets/app.css",
+  "assets/app.js",
+  "assets/i18n.js",
+  "assets/markdown-reader.js",
+  "assets/mermaid-renderer.js",
+  "assets/dashboard-data.js",
+  "data/status.json",
+  "data/tables.json",
+  "data/documents.json",
+  "data/graph.json",
+  "data/adoption.json",
+]) {
+  assert(fs.existsSync(path.join(dashboardDir, required)), `dashboard folder missing ${required}`);
+}
+const folderIndex = fs.readFileSync(path.join(dashboardDir, "index.html"), "utf8");
+assert(folderIndex.includes("dashboard-data.js"), "dashboard folder index missing embedded data script");
+assert(folderIndex.includes("rel=\"icon\""), "dashboard index should suppress favicon request");
+const folderStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8"));
+assert(folderStatus.tasks[0].roadmapSource === "standalone", "folder status should use standalone visual_roadmap.md");
+const documents = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/documents.json"), "utf8"));
+assert(documents.documents.some((doc) => doc.path.endsWith("execution_strategy.md")), "documents missing execution strategy");
+assert(documents.documents.some((doc) => doc.path.endsWith("visual_roadmap.md")), "documents missing visual roadmap");
+const tables = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/tables.json"), "utf8"));
+assert(tables.tables.some((table) => table.kind === "harness-ledger"), "documents missing harness ledger table");
+assert(JSON.stringify(tables).includes("alpha|beta"), "markdown table parser should preserve escaped pipes");
+const graph = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/graph.json"), "utf8"));
+assert(graph.edges.length > 0, "graph should include task/phase edges");
+assertGraphIntegrity(graph, "example graph");
+const dashboardApp = fs.readFileSync(path.join(dashboardDir, "assets/app.js"), "utf8");
+const dashboardMarkdown = fs.readFileSync(path.join(dashboardDir, "assets/markdown-reader.js"), "utf8");
+const dashboardMermaid = fs.readFileSync(path.join(dashboardDir, "assets/mermaid-renderer.js"), "utf8");
+assert(dashboardApp.includes("data-render-mode"), "dashboard missing render/source toggle");
+assert(dashboardApp.includes("escapeHtml(pageTitle())"), "dashboard page title must be escaped");
+assert(dashboardMarkdown.includes("rendered-table"), "dashboard missing rendered markdown table support");
+assert(dashboardMermaid.includes("mermaid-rendered"), "dashboard missing rendered mermaid output");
+for (const generated of ["data/status.json", "data/tables.json", "data/documents.json", "data/graph.json", "data/adoption.json", "assets/dashboard-data.js"]) {
+  const content = fs.readFileSync(path.join(dashboardDir, generated), "utf8");
+  assert(!content.includes(repoRoot), `${generated} leaked absolute repo path`);
+  assert(!content.includes("file://"), `${generated} leaked file URL`);
+  assert(!hasLocalAbsolutePath(content), `${generated} leaked local absolute path`);
+}
+assert(!JSON.stringify(documents.documents.map((doc) => doc.path)).includes("_task-template"), "documents included task template paths");
+
+const unsafeOut = run(["dashboard", "--out-dir", ".", "examples/minimal-project"]);
+assert(unsafeOut.status !== 0, "dashboard --out-dir . should be refused");
+const unsafeDocsOut = run(["dashboard", "--out-dir", "examples/minimal-project/docs", "examples/minimal-project"]);
+assert(unsafeDocsOut.status !== 0, "dashboard --out-dir target docs should be refused");
+const unsafeDocsChildOut = run(["dashboard", "--out-dir", "examples/minimal-project/docs/generated-dashboard", "examples/minimal-project"]);
+assert(unsafeDocsChildOut.status !== 0, "dashboard --out-dir inside target docs should be refused");
+
+const redactionTarget = path.join(tmpRoot, "redaction-target");
+fs.mkdirSync(path.join(redactionTarget, "docs/09-PLANNING/TASKS/path-check"), { recursive: true });
+fs.writeFileSync(path.join(redactionTarget, "AGENTS.md"), "# AGENTS\n");
+fs.writeFileSync(path.join(redactionTarget, "docs/09-PLANNING/TASKS/path-check/task_plan.md"), "# Path Check\n");
+fs.writeFileSync(
+  path.join(redactionTarget, "docs/09-PLANNING/TASKS/path-check/progress.md"),
+  "# Progress\n\n## Status\n\nin_progress\n\ncommand:TARGET:logs/check.txt: touched /tmp/secret and C:\\Users\\name\\secret\n",
+);
+const redactionDir = path.join(tmpRoot, "redaction-dashboard");
+expectPass(["dashboard", "--out-dir", redactionDir, redactionTarget]);
+const redactionData = fs.readFileSync(path.join(redactionDir, "assets/dashboard-data.js"), "utf8");
+assert(redactionData.includes("LOCAL_PATH_REDACTED"), "dashboard data should include redacted local paths");
+assert(!hasLocalAbsolutePath(redactionData), "dashboard data leaked generic local path");
+
 const dryRunTarget = path.join(tmpRoot, "dry-run-target");
 fs.mkdirSync(dryRunTarget);
 const dryRun = expectJson(["init", "--dry-run", "--capabilities", "core,dashboard", dryRunTarget]);
@@ -98,6 +166,16 @@ fs.writeFileSync(
 const invalidVerifier = run(["check", "--profile", "target-project", invalidVerifierTarget]);
 assert(invalidVerifier.status !== 0, "verifier review without template_id/verdict should fail");
 
+const legacyContractTarget = path.join(tmpRoot, "legacy-contract");
+fs.mkdirSync(path.join(legacyContractTarget, "docs/09-PLANNING/TASKS/old"), { recursive: true });
+fs.writeFileSync(path.join(legacyContractTarget, "AGENTS.md"), "# AGENTS\n");
+fs.writeFileSync(path.join(legacyContractTarget, "docs/09-PLANNING/TASKS/old/task_plan.md"), "# Old\n");
+fs.writeFileSync(path.join(legacyContractTarget, "docs/09-PLANNING/TASKS/old/progress.md"), "# Progress\n\n## Status\n\nplanned\n");
+const legacyLoose = run(["check", "--profile", "target-project", legacyContractTarget]);
+assert(legacyLoose.status === 0, "legacy contract gaps should be advisory without strict");
+const legacyStrict = run(["check", "--profile", "target-project", "--strict", legacyContractTarget]);
+assert(legacyStrict.status !== 0, "strict legacy contract gaps should fail");
+
 const mingjingDocs = "/Users/lizeyu/Projects/mingjing-app/docs";
 if (fs.existsSync(mingjingDocs)) {
   const mingjingRepo = path.dirname(mingjingDocs);
@@ -116,8 +194,36 @@ if (fs.existsSync(mingjingDocs)) {
   const mingjingDashboard = path.join(tmpRoot, "mingjing-dashboard.html");
   expectPass(["dashboard", "--out", mingjingDashboard, mingjingDocs]);
   assert(fs.existsSync(mingjingDashboard), "mingjing dashboard file was not created");
+  const mingjingDashboardDir = path.join(tmpRoot, "mingjing-dashboard-folder");
+  expectPass(["dashboard", "--out-dir", mingjingDashboardDir, mingjingDocs]);
+  assert(fs.existsSync(path.join(mingjingDashboardDir, "index.html")), "mingjing dashboard folder index was not created");
+  for (const generated of ["data/status.json", "data/tables.json", "data/documents.json", "data/graph.json", "data/adoption.json", "assets/dashboard-data.js"]) {
+    const content = fs.readFileSync(path.join(mingjingDashboardDir, generated), "utf8");
+    assert(!content.includes("/Users/lizeyu"), `mingjing ${generated} leaked local user path`);
+    assert(!content.includes("file://"), `mingjing ${generated} leaked file URL`);
+  }
+  const mingjingDocuments = JSON.parse(fs.readFileSync(path.join(mingjingDashboardDir, "data/documents.json"), "utf8"));
+  const mingjingTables = JSON.parse(fs.readFileSync(path.join(mingjingDashboardDir, "data/tables.json"), "utf8"));
+  assert(!JSON.stringify(mingjingDocuments.documents.map((doc) => doc.path)).includes("_task-template"), "mingjing documents included task template paths");
+  assert(!JSON.stringify(mingjingTables.tables.map((table) => table.source)).includes("_task-template"), "mingjing tables included task template sources");
+  const mingjingGraph = JSON.parse(fs.readFileSync(path.join(mingjingDashboardDir, "data/graph.json"), "utf8"));
+  assert(mingjingGraph.nodes.some((node) => node.type === "module"), "mingjing graph missing module nodes");
+  assert(mingjingGraph.edges.length > 0, "mingjing graph missing dependency edges");
+  assertGraphIntegrity(mingjingGraph, "mingjing graph");
   const after = spawnSync("git", ["-C", mingjingRepo, "status", "--short", "--", "docs"], { encoding: "utf8" }).stdout;
   assert(before === after, "mingjing docs changed during status/check/dashboard smoke");
 }
 
 console.log("Harness v1 tests passed");
+
+function hasLocalAbsolutePath(content) {
+  return /(?:^|[\s"'(])(?:\/Users\/|\/Volumes\/|\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/home\/|[A-Za-z]:\\)/.test(content);
+}
+
+function assertGraphIntegrity(graph, label) {
+  const nodes = new Set((graph.nodes || []).map((node) => node.id));
+  for (const edge of graph.edges || []) {
+    assert(nodes.has(edge.from), `${label} has dangling edge source ${edge.from}`);
+    assert(nodes.has(edge.to), `${label} has dangling edge target ${edge.to}`);
+  }
+}

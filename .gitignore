@@ -9,3 +9,5 @@ docs/plans/
 
 # Generated local dashboards and smoke-test output.
 tmp/
+.playwright-mcp/
+harness-dashboard-*.png

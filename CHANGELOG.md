@@ -5,6 +5,8 @@
 - Added the `harness` CLI with `check`, `status`, `dashboard`, `init`, and
   `add-capability`.
 - Added capability-aware status JSON and read-only HTML dashboard rendering.
+- Added static dashboard folder output with normalized table, document, graph,
+  and adoption JSON snapshots.
 - Added safe legacy adoption mode for existing harness projects.
 - Added v1.0 planning templates for standalone `execution_strategy.md`,
   `visual_roadmap.md`, task IA budget, evidence indexes, and review gate schema.

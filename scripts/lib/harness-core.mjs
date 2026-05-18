@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { writeDashboardDirectory } from "./dashboard-writer.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../..");
@@ -178,7 +179,108 @@ function markdownTableRows(content) {
   return content
     .split(/\r?\n/)
     .filter((line) => line.trim().startsWith("|"))
-    .map((line) => line.split("|").slice(1, -1).map((cell) => cell.trim()));
+    .map(splitMarkdownRow);
+}
+
+function slug(value) {
+  return String(value || "item")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "item";
+}
+
+function prefixedPath(target, filePath) {
+  return `TARGET:${toPosix(path.relative(target.projectRoot, filePath))}`;
+}
+
+function sanitizeText(value) {
+  return String(value ?? "")
+    .replace(/file:\/\/\/[^\s)"'`<>\]]+/g, "LOCAL_FILE_URL_REDACTED")
+    .replace(/\/Users\/[^/\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
+    .replace(/\/Volumes\/[^\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
+    .replace(/\/(?:private\/)?tmp\/[^\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
+    .replace(/\/var\/folders\/[^\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
+    .replace(/\/home\/[^/\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
+    .replace(/[A-Za-z]:\\[^\s)"'`<>\]]+(?:\\[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED");
+}
+
+function sanitizeDeep(value) {
+  if (typeof value === "string") return sanitizeText(value);
+  if (Array.isArray(value)) return value.map(sanitizeDeep);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, sanitizeDeep(entry)]));
+  }
+  return value;
+}
+
+function titleFromMarkdown(content, fallback) {
+  const match = content.match(/^#\s+(.+)$/m);
+  return match ? match[1].trim() : fallback;
+}
+
+function parseAllMarkdownTables(content, source, kindPrefix) {
+  const lines = content.split(/\r?\n/);
+  const tables = [];
+  let index = 0;
+  let tableIndex = 1;
+  while (index < lines.length) {
+    if (!lines[index].trim().startsWith("|")) {
+      index += 1;
+      continue;
+    }
+    const start = index;
+    const block = [];
+    while (index < lines.length && lines[index].trim().startsWith("|")) {
+      block.push(lines[index]);
+      index += 1;
+    }
+    if (block.length < 2) continue;
+    const rows = block.map(splitMarkdownRow);
+    const separator = rows[1] || [];
+    if (!separator.every((cell) => /^:?-{3,}:?$/.test(cell))) continue;
+    const columns = rows[0];
+    const dataRows = rows.slice(2).filter((row) => row.length === columns.length);
+    tables.push({
+      id: `${slug(kindPrefix)}-${String(tableIndex).padStart(2, "0")}`,
+      kind: kindPrefix,
+      source,
+      line: start + 1,
+      columns,
+      rows: dataRows.map((row, rowIndex) => ({
+        id: `${slug(kindPrefix)}-${String(tableIndex).padStart(2, "0")}-row-${String(rowIndex + 1).padStart(3, "0")}`,
+        cells: Object.fromEntries(columns.map((column, columnIndex) => [column, sanitizeText(row[columnIndex] || "")])),
+      })),
+    });
+    tableIndex += 1;
+  }
+  return tables;
+}
+
+function splitMarkdownRow(line) {
+  let text = String(line || "").trim();
+  if (text.startsWith("|")) text = text.slice(1);
+  if (text.endsWith("|") && !text.endsWith("\\|")) text = text.slice(0, -1);
+  const cells = [];
+  let current = "";
+  let inCode = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === "\\" && text[index + 1] === "|") {
+      current += "|";
+      index += 1;
+      continue;
+    }
+    if (char === "`") inCode = !inCode;
+    if (char === "|" && !inCode) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current.trim());
+  return cells;
 }
 
 function tableAfterHeading(content, headerPattern) {
@@ -227,7 +329,7 @@ function parsePhases(taskPlanContent) {
   };
   return rows.map((row) => ({
     id: row[indexes.id] || "",
-    dependsOn: (row[indexes.dependsOn] || "").split(",").map((item) => item.trim()).filter(Boolean).filter((item) => item !== "none"),
+    dependsOn: splitDependencies(row[indexes.dependsOn] || ""),
     state: row[indexes.state] || "planned",
     completion: Number.parseInt(String(row[indexes.completion] || "0").replace("%", ""), 10) || 0,
     output: row[indexes.output] || "",
@@ -251,6 +353,15 @@ function splitList(value) {
     .map((item) => item.trim())
     .filter(Boolean)
     .filter((item) => item.toLowerCase() !== "none");
+}
+
+function splitDependencies(value) {
+  return String(value || "")
+    .split(/\s*(?:,|;|\+|&|\/|\band\b|\bAND\b)\s*/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => !/^(none|n\/a|na|-|—|–|无)$/i.test(item))
+    .filter((item) => !/^same\b/i.test(item));
 }
 
 function listTaskPlanPaths(target) {
@@ -297,6 +408,238 @@ export function collectTasks(target) {
       dependencies: [],
     };
   });
+}
+
+function collectMarkdownDocuments(target) {
+  const docs = collectDashboardDocumentPaths(target);
+  return docs.map((file, index) => {
+    const content = sanitizeText(readFileSafe(file));
+    const source = prefixedPath(target, file);
+    return {
+      id: `doc-${String(index + 1).padStart(4, "0")}-${slug(path.basename(file, ".md"))}`,
+      path: source,
+      title: titleFromMarkdown(content, path.basename(file)),
+      content,
+    };
+  });
+}
+
+function collectDashboardDocumentPaths(target) {
+  const selected = new Set();
+  const addDocsPath = (relativePath) => {
+    const file = path.join(target.docsRoot, relativePath);
+    if (fs.existsSync(file)) selected.add(file);
+  };
+  for (const relativePath of [
+    "Harness-Ledger.md",
+    "09-PLANNING/Module-Registry.md",
+    "05-TEST-QA/Regression-SSoT.md",
+    "05-TEST-QA/Cadence-Ledger.md",
+    "01-GOVERNANCE/Lessons-SSoT.md",
+    "10-WALKTHROUGH/Closeout-SSoT.md",
+  ]) {
+    addDocsPath(relativePath);
+  }
+  for (const taskPlanPath of listTaskPlanPaths(target)) {
+    const taskDir = path.dirname(taskPlanPath);
+    for (const fileName of ["task_plan.md", "execution_strategy.md", "visual_roadmap.md", "progress.md", "review.md", "findings.md"]) {
+      const file = path.join(taskDir, fileName);
+      if (fs.existsSync(file)) selected.add(file);
+    }
+    for (const indexFile of ["references/INDEX.md", "artifacts/INDEX.md"]) {
+      const file = path.join(taskDir, indexFile);
+      if (fs.existsSync(file)) selected.add(file);
+    }
+  }
+  for (const file of walkFiles(path.join(target.docsRoot, "09-PLANNING/MODULES"))) {
+    if (file.endsWith("module_plan.md")) selected.add(file);
+  }
+  for (const file of walkFiles(path.join(target.docsRoot, "01-GOVERNANCE/lessons"))) {
+    if (file.endsWith(".md")) selected.add(file);
+  }
+  return [...selected]
+    .filter((file) => !file.includes(`${path.sep}_archive${path.sep}`))
+    .filter((file) => !file.includes(`${path.sep}_task-template${path.sep}`))
+    .filter((file) => !file.includes(`${path.sep}_optional-structures${path.sep}`))
+    .sort();
+}
+
+function documentKind(source) {
+  const lower = source.toLowerCase();
+  if (lower.includes("harness-ledger.md")) return "harness-ledger";
+  if (lower.includes("module-registry.md")) return "module-registry";
+  if (lower.includes("regression-ssot.md")) return "regression-ssot";
+  if (lower.includes("cadence-ledger.md")) return "cadence-ledger";
+  if (lower.includes("lessons-ssot.md")) return "lessons-ssot";
+  if (lower.endsWith("/progress.md")) return "task-progress";
+  if (lower.endsWith("/review.md")) return "task-review";
+  if (lower.endsWith("/references/index.md")) return "task-references";
+  if (lower.endsWith("/artifacts/index.md")) return "task-artifacts";
+  if (lower.endsWith("/execution_strategy.md")) return "execution-strategy";
+  if (lower.endsWith("/visual_roadmap.md")) return "visual-roadmap";
+  if (lower.endsWith("/module_plan.md")) return "module-plan";
+  return "markdown-table";
+}
+
+function collectTables(documents) {
+  return {
+    tables: documents.flatMap((document) => parseAllMarkdownTables(document.content, document.path, documentKind(document.path))),
+  };
+}
+
+function collectGraph(status, tables = { tables: [] }) {
+  const nodes = [];
+  const edges = [];
+  const seenNodes = new Set();
+  const addNode = (node) => {
+    if (seenNodes.has(node.id)) return;
+    seenNodes.add(node.id);
+    nodes.push(node);
+  };
+  const addEdge = (edge) => {
+    if (!edge.from || !edge.to || edge.from === edge.to) return;
+    edges.push(edge);
+  };
+  for (const task of status.tasks) {
+    addNode({ id: `task:${task.id}`, type: "task", label: task.title, state: task.state, completion: task.completion });
+    for (const phase of task.phases || []) {
+      const phaseId = `phase:${task.id}:${phase.id}`;
+      addNode({ id: phaseId, type: "phase", label: phase.id, state: phase.state, completion: phase.completion, taskId: task.id });
+      addEdge({ from: `task:${task.id}`, to: phaseId, type: "contains" });
+      for (const dependency of phase.dependsOn || []) {
+        addEdge({ from: `phase:${task.id}:${dependency}`, to: phaseId, type: "depends_on" });
+      }
+    }
+    for (const handoff of task.handoffs || []) {
+      const handoffId = `handoff:${handoff.id}`;
+      addNode({ id: handoffId, type: "handoff", label: handoff.summary, state: handoff.state });
+      addEdge({ from: `task:${task.id}`, to: handoffId, type: "handoff" });
+    }
+  }
+  for (const table of tables.tables || []) {
+    if (table.kind === "module-registry") {
+      for (const row of table.rows) {
+        const key = row.cells.Key || row.cells.Module || "";
+        if (!key) continue;
+        const moduleId = `module:${key}`;
+        addNode({ id: moduleId, type: "module", label: row.cells.Name || key, state: row.cells.Status || "unknown", currentStep: row.cells["Current Step"] || "" });
+        if (row.cells["Current Step"]) {
+          const stepId = `step:${row.cells["Current Step"]}`;
+          addNode({ id: stepId, type: "step", label: row.cells["Current Step"], state: row.cells.Status || "unknown", module: key });
+          addEdge({ from: moduleId, to: stepId, type: "current_step" });
+        }
+      }
+    }
+    if (table.kind === "module-plan") {
+      const moduleMatch = table.source.match(/MODULES\/([^/]+)\/module_plan\.md$/);
+      const moduleKey = moduleMatch ? moduleMatch[1] : slug(table.source);
+      const moduleId = `module:${moduleKey}`;
+      addNode({ id: moduleId, type: "module", label: moduleKey, state: "planned" });
+      for (const row of table.rows) {
+        const step = row.cells["Step ID"];
+        if (!step) continue;
+        const stepId = `step:${step}`;
+        addNode({ id: stepId, type: "step", label: `${step} ${row.cells.Name || ""}`.trim(), state: row.cells.Status || "unknown", module: moduleKey });
+        addEdge({ from: moduleId, to: stepId, type: "contains" });
+        for (const dependency of splitDependencies(row.cells["Depends On"] || "")) {
+          addEdge({ from: `step:${dependency}`, to: stepId, type: "depends_on" });
+        }
+      }
+    }
+  }
+  for (const edge of edges) {
+    if (edge.type === "depends_on" && !seenNodes.has(edge.from)) {
+      addNode({ id: edge.from, type: "external-dependency", label: edge.from.replace(/^(phase:[^:]+:|step:)/, ""), state: "external" });
+    }
+  }
+  return { nodes, edges: edges.filter((edge) => seenNodes.has(edge.from) && seenNodes.has(edge.to)) };
+}
+
+function categorizeWarning(message) {
+  if (/missing execution_strategy\.md|missing visual_roadmap\.md|Visual Roadmap/i.test(message)) return "Plan Contract Missing";
+  if (/legacy-compat|adoption-needed|legacy check/i.test(message)) return "Adoption Advice";
+  if (/Evidence|evidence/i.test(message)) return "Missing Evidence";
+  if (/schema|missing .*columns|invalid/i.test(message)) return "Schema Drift";
+  return "Review Finding";
+}
+
+function collectAdoption(status) {
+  const warnings = status.checkState.details.warnings.flatMap((message) => splitWarningMessage(message)).map((message, index) => ({
+    id: `AD-${String(index + 1).padStart(3, "0")}`,
+    category: categorizeWarning(message),
+    severity: status.mode === "legacy-compat" ? "advice" : "warning",
+    title: warningTitle(message),
+    affected: warningAffected(message),
+    requiredAction: warningAction(message),
+    detail: sanitizeText(message),
+  }));
+  return {
+    mode: status.mode,
+    project: status.project,
+    summary: {
+      blockers: status.checkState.failures,
+      advice: warnings.length,
+    },
+    warnings,
+    manualSteps: {
+      zh: [
+        "先查看升级建议，决定当前项目要采用哪些 v1.0 能力合同。",
+        "为仍在活跃的任务手工补齐 execution_strategy.md 和 visual_roadmap.md。",
+        "只有在项目明确声明 v1.0 capability 后，再把 strict check 当成阻塞门禁。",
+      ],
+      en: [
+        "Review adoption advice and decide which v1.0 capability contracts should be adopted.",
+        "Manually add execution_strategy.md and visual_roadmap.md for active tasks.",
+        "Treat strict check as blocking only after the project intentionally declares v1.0 capabilities.",
+      ],
+    },
+  };
+}
+
+function splitWarningMessage(message) {
+  return String(message || "")
+    .split(/\n-\s+/)
+    .map((item, index) => (index === 0 ? item : `- ${item}`))
+    .filter(Boolean);
+}
+
+function warningTitle(message) {
+  if (/missing execution_strategy\.md/i.test(message)) return "Missing execution strategy";
+  if (/missing visual_roadmap\.md|Visual Roadmap/i.test(message)) return "Missing visual roadmap";
+  if (/legacy-compat/i.test(message)) return "Legacy compatibility mode";
+  if (/legacy check failed/i.test(message)) return "Legacy checker finding";
+  if (/review\.md missing/i.test(message)) return "Review schema gap";
+  if (/findings table missing/i.test(message)) return "Review findings schema gap";
+  return String(message).split(":")[0].slice(0, 96);
+}
+
+function warningAffected(message) {
+  const target = String(message).match(/(?:docs|\.harness-private)\/[^\s:]+/);
+  return target ? target[0] : "project";
+}
+
+function warningAction(message) {
+  if (/execution_strategy\.md/i.test(message)) return "Add standalone execution strategy file.";
+  if (/visual_roadmap\.md|Visual Roadmap/i.test(message)) return "Add standalone visual roadmap phase table.";
+  if (/review\.md missing/i.test(message)) return "Update review.md to v1 review schema.";
+  if (/legacy/i.test(message)) return "Review manually; do not auto-migrate.";
+  return "Inspect source document and decide whether to adopt v1 contract.";
+}
+
+export function buildDashboardBundle(targetInput, options = {}) {
+  const status = buildStatus(targetInput, options);
+  const target = normalizeTarget(targetInput);
+  const documents = { documents: collectMarkdownDocuments(target) };
+  const tables = collectTables(documents.documents);
+  const graph = collectGraph(status, tables);
+  const adoption = collectAdoption(status);
+  return sanitizeDeep({ status, tables, documents, graph, adoption });
+}
+
+export function writeDashboardFolder(outDir, targetInput, options = {}) {
+  const target = normalizeTarget(targetInput);
+  const bundle = buildDashboardBundle(targetInput, options);
+  return writeDashboardDirectory(outDir, bundle, { repoRoot, projectRoot: target.projectRoot, docsRoot: target.docsRoot });
 }
 
 function collectHandoffs(progressContent, taskId) {
@@ -483,9 +826,10 @@ export function buildStatus(targetInput, options = {}) {
   const capabilityState = validateCapabilities(target);
   const shouldRunLegacy = !options.skipLegacyCheck && capabilityState.registry.mode === "legacy-compat";
   const legacy = shouldRunLegacy ? runLegacyCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
-  const reviews = validateReviewSchema(target, { strict: capabilityState.registry.mode !== "legacy-compat" });
+  const contractStrict = Boolean(options.strict) || capabilityState.registry.mode !== "legacy-compat";
+  const reviews = validateReviewSchema(target, { strict: contractStrict });
   const roadmaps = validateVisualRoadmaps(target);
-  const planContracts = validatePlanContracts(target, { strict: capabilityState.registry.mode !== "legacy-compat" });
+  const planContracts = validatePlanContracts(target, { strict: contractStrict });
   const failures = [...capabilityState.failures, ...reviews.failures, ...roadmaps.failures, ...planContracts.failures];
   const warnings = [...capabilityState.warnings, ...reviews.warnings, ...roadmaps.warnings, ...planContracts.warnings];
   if (legacy.status === "fail") {

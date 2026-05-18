@@ -18,3 +18,4 @@ jobs:
       - run: node scripts/harness.mjs check --profile source-package .
       - run: node scripts/harness.mjs check --profile target-project examples/minimal-project
       - run: node scripts/harness.mjs dashboard --out tmp/example-dashboard.html examples/minimal-project
+      - run: npm run smoke:dashboard

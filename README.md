@@ -174,17 +174,25 @@ v1.0 额外提供一个无依赖 CLI。旧入口 `scripts/check-harness.mjs` 继
 
 ```bash
 npm test
+npm run smoke:dashboard
 node scripts/harness.mjs check --profile source-package .
 node scripts/harness.mjs check --profile target-project examples/minimal-project
 node scripts/harness.mjs status --json /path/to/project
 node scripts/harness.mjs status --json --strict /path/to/project
 node scripts/harness.mjs dashboard --out tmp/harness-dashboard.html /path/to/project
+node scripts/harness.mjs dashboard --out-dir tmp/harness-dashboard /path/to/project
 node scripts/harness.mjs init --dry-run --capabilities core,dashboard /path/to/project
 node scripts/harness.mjs add-capability dashboard --dry-run /path/to/project
 ```
 
-`status --json` 是 HTML dashboard 的唯一数据源。dashboard 不解析任意
-Markdown，也不写项目文件。
+`dashboard --out` 保留旧的单文件 HTML 输出。`dashboard --out-dir` 生成静态
+dashboard 文件夹，包含 `index.html`、`assets/`、`data/status.json`、
+`data/tables.json`、`data/documents.json`、`data/graph.json` 和
+`data/adoption.json`。
+
+`status --json` 仍是基础状态源；文件夹 dashboard 会额外生成规范化表格、
+Markdown 文档快照、任务/模块图数据和 legacy adoption 建议。dashboard 只读，
+不写项目文件。
 
 ### Capability Registry
 

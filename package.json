@@ -10,7 +10,9 @@
     "check": "node scripts/harness.mjs check --profile source-package .",
     "check:private": "node scripts/harness.mjs check --profile private-harness .harness-private",
     "status": "node scripts/harness.mjs status --json .",
-    "dashboard": "node scripts/harness.mjs dashboard --out tmp/harness-dashboard.html .",
+    "dashboard": "node scripts/harness.mjs dashboard --out tmp/harness-dashboard.html examples/minimal-project",
+    "dashboard:folder": "node scripts/harness.mjs dashboard --out-dir tmp/harness-dashboard examples/minimal-project",
+    "smoke:dashboard": "node scripts/smoke-dashboard.mjs",
     "test": "node scripts/test-harness.mjs"
   },
   "files": [

@@ -6,6 +6,7 @@ import {
   addCapability,
   buildStatus,
   renderDashboard,
+  writeDashboardFolder,
   writeInitFiles,
 } from "./lib/harness-core.mjs";
 
@@ -37,7 +38,7 @@ function printHelp() {
 Usage:
   harness check [--profile source-package|private-harness|target-project] [target]
   harness status [--json] [--strict] [target]
-  harness dashboard [--out file.html] [target]
+  harness dashboard [--out file.html] [--out-dir folder] [target]
   harness init [--dry-run] [--capabilities core,dashboard] [target]
   harness add-capability <name> [--dry-run] [target]
 `);
@@ -64,7 +65,7 @@ if (command === "help" || command === "--help" || command === "-h") {
     }
   }
 
-  const status = buildStatus(target, { skipLegacyCheck: profile === "source-package", strictLegacy: strict });
+  const status = buildStatus(target, { skipLegacyCheck: profile === "source-package", strictLegacy: strict, strict });
   failures.push(...status.checkState.details.failures);
   warnings.push(...status.checkState.details.warnings);
 
@@ -74,7 +75,7 @@ if (command === "help" || command === "--help" || command === "-h") {
 } else if (command === "status") {
   const json = takeFlag("--json");
   const strict = takeFlag("--strict");
-  const status = buildStatus(targetArg(), { strictLegacy: strict });
+  const status = buildStatus(targetArg(), { strictLegacy: strict, strict });
   if (json) {
     console.log(JSON.stringify(status, null, 2));
   } else {
@@ -86,11 +87,16 @@ if (command === "help" || command === "--help" || command === "-h") {
   process.exit(status.checkState.status === "fail" ? 1 : 0);
 } else if (command === "dashboard") {
   const out = takeOption("--out", "harness-dashboard.html");
-  const status = buildStatus(targetArg());
-  const html = renderDashboard(status);
-  fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
-  fs.writeFileSync(path.resolve(out), html);
-  console.log(path.resolve(out));
+  const outDir = takeOption("--out-dir", "");
+  if (outDir) {
+    console.log(writeDashboardFolder(outDir, targetArg()));
+  } else {
+    const status = buildStatus(targetArg());
+    const html = renderDashboard(status);
+    fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
+    fs.writeFileSync(path.resolve(out), html);
+    console.log(path.resolve(out));
+  }
   process.exit(0);
 } else if (command === "init") {
   const dryRun = takeFlag("--dry-run");
