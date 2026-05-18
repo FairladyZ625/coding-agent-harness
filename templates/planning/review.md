@@ -1,5 +1,11 @@
 # [任务名称] - Review
 
+## Reviewer Identity
+
+| Reviewer | Type | Scope |
+| --- | --- | --- |
+| coordinator | self-check / verifier / adversarial-review / human | task |
+
 ## Review Scope
 
 - Reviewer: [agent / subagent / human / self-review]
@@ -20,10 +26,13 @@
 
 ## Material Findings
 
-| ID | Severity | Area | Finding | Evidence | Required Action | Status |
-|----|----------|------|---------|----------|-----------------|--------|
+| ID | Severity | Finding | Evidence Checked | Required Action | Open | Disposition | Blocks Release | Follow-up |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
 Do not leave example findings in this table. If there are no material findings, leave only the header and complete the No-Finding Statement.
+
+Allowed `Disposition`: `open`, `mitigated`, `closed`, `deferred`,
+`accepted-risk`, `not-reproducible`, `out-of-scope`.
 
 ## Non-Material Notes
 
@@ -31,13 +40,9 @@ Do not leave example findings in this table. If there are no material findings, 
 
 ## Evidence Checked
 
-- [ ] [lint / typecheck / build]
-- [ ] [unit / integration / e2e]
-- [ ] [local smoke]
-- [ ] [browser / UI inspection]
-- [ ] [live smoke]
-- [ ] [logs / screenshots / traces]
-- [ ] [diff / PR / commit review]
+| Evidence ID | Type | Path | Summary |
+| --- | --- | --- | --- |
+| E-001 | command / diff / fixture / screenshot / review / report | PUBLIC:path or PRIVATE:path or TARGET:path or EXTERNAL:path or URL:https://example.com | What was checked |
 
 ## No-Finding Statement
 
@@ -55,3 +60,8 @@ Do not leave example findings in this table. If there are no material findings, 
 - Regression SSoT: [新增/调整/无]
 - Lessons SSoT: [checked-created: L-YYYY-MM-DD-NNN / checked-none: 一句话原因]
 - Walkthrough: [收口时引用路径]
+
+## Final Confidence Basis
+
+State whether this is self-only, verifier-backed, adversarial-reviewed, or
+human-approved. Release final review cannot be self-only.

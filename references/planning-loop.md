@@ -15,6 +15,22 @@ docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/
 └── long-running-task-contract.md ← 长程任务合同（仅长程任务需要）
 ```
 
+复杂任务可以启用 optional structure，但不能默认创建空目录：
+
+```
+references/INDEX.md        ← 任务本地参考、外部链接、reviewer packet
+artifacts/INDEX.md         ← 命令输出、截图、fixture、review transcript
+slices/<slice-id>/brief.md ← 多切片任务的单切片输入和范围
+slices/<slice-id>/evidence.md
+slices/<slice-id>/review.md
+```
+
+启用条件：
+
+- reviewer/subagent 输入包需要复用：启用 `references/INDEX.md`
+- 命令输出、截图、fixture、review transcript 会污染主文件：启用 `artifacts/INDEX.md`
+- 超过 5 个 slice、多 worker、release gate、L2+ evidence：启用 `slices/`
+
 ## 执行规则
 
 1. **每个阶段前读 task_plan.md** — agent 重新对齐目标
@@ -24,6 +40,9 @@ docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/
 5. **对抗性审查必须写 review.md** — 如果任务使用 reviewer / subagent / release review，按 `adversarial-review-standard.md` 写报告
 6. **长程任务必须补合同** — 如果任务需要连续执行、多轮审查或子代理 review，先补 `long-running-task-contract.md`
 7. **任务收口必须回写 Harness Ledger** — 只在任务完成或上下文回写状态变化时记录，不记录每次 `progress.md` 更新
+8. **复杂任务必须记录 Execution Strategy** — 是否使用 subagent、reviewer、worktree、handoff 都写入任务文件。
+9. **非平凡任务必须记录 Visual Roadmap** — HTML dashboard 从 phase table 计算完成度、阻塞和证据状态。
+10. **路径必须带来源前缀** — 使用 `PUBLIC:`, `PRIVATE:`, `TARGET:`, `EXTERNAL:`, `URL:`，避免脆弱相对路径。
 
 ## task_plan.md 模板
 
@@ -35,6 +54,26 @@ docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/
 
 ## 范围
 [做什么、不做什么]
+
+## Task IA Budget
+[simple / complex；如果 complex，列出启用哪些 optional structure 和原因]
+
+## Context Packet
+| ID | Type | Path | Why It Matters | Used By |
+| --- | --- | --- | --- | --- |
+
+## Execution Strategy
+| Decision | Choice | Notes |
+| --- | --- | --- |
+
+## Visual Roadmap
+```mermaid
+flowchart LR
+  A["Phase 1"] --> B["Phase 2"]
+```
+
+| Phase ID | Depends On | State | Completion | Output | Required Evidence | Evidence Status | Blocking Risk | Owner / Handoff |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
 ## 步骤
 1. [步骤1]
@@ -119,10 +158,13 @@ task_plan + findings + progress 是同一思路的更细粒度表达；`review.m
 
 ## 进度记录
 
+Evidence values use `type:path:summary`.
+
 ### [YYYY-MM-DD HH:MM] - [阶段名称]
 - 做了什么：[具体操作]
 - 验证结果：[跑了什么测试，结果如何]
 - 下一步：[接下来做什么]
+- Evidence：[type:path:summary]
 
 ### [YYYY-MM-DD HH:MM] - [阶段名称]
 ...

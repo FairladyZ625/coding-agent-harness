@@ -4,10 +4,15 @@
 
 ## 进度记录
 
+Evidence values use `type:path:summary`.
+Allowed types: `command`, `diff`, `fixture`, `screenshot`, `review`, `report`.
+For heavy evidence, reference `artifacts/INDEX.md` instead of pasting output.
+
 ### [YYYY-MM-DD HH:MM] - [阶段名称]
 - 做了什么：[具体操作]
 - 验证结果：[跑了什么测试，结果如何]
 - 下一步：[接下来做什么]
+- Evidence：[type:path:summary]
 
 ## Residual
 - [遗留问题，如无则写"无"]

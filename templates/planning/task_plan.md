@@ -7,6 +7,74 @@
 - 做什么：[具体范围]
 - 不做什么：[明确排除]
 
+## Task IA Budget
+
+| Budget | Use When | Required Structure |
+| --- | --- | --- |
+| simple | One owner, no subagent, L0/L1 evidence | Standard five task files only |
+| complex | L2/L3 evidence, subagent/reviewer, external references, generated artifacts, or more than 5 slices | Enable only the needed optional indexes |
+
+Optional task subdirectories are trigger-based, not default scaffold:
+
+- `references/INDEX.md` for task-local source notes, external links, reviewer packets, or cross-repo context.
+- `artifacts/INDEX.md` for command output, screenshots, fixtures, generated reports, or review transcripts.
+- `slices/<slice-id>/` for multi-slice work. Each slice uses `brief.md`, `evidence.md`, and `review.md`.
+
+Do not create optional directories without an index and a real trigger.
+
+## Context Packet
+
+| ID | Type | Path | Why It Matters | Used By |
+| --- | --- | --- | --- | --- |
+| C-001 | public-doc / private-plan / external / code | PUBLIC:path or PRIVATE:path or TARGET:path or EXTERNAL:path or URL:https://example.com | Reason this context is needed | coordinator / reviewer / worker |
+
+Use repo-root prefixes instead of fragile relative paths:
+
+- `PUBLIC:` for files in the public source repository.
+- `PRIVATE:` for files in the private harness repository.
+- `TARGET:` for files in an installed target project.
+- `EXTERNAL:` or `URL:` for outside references.
+
+## Execution Strategy
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| execution mode | solo / coordinator-only / subagent-reviewed / worker-split | Why this mode is enough |
+| subagents | none / reviewer / worker | List roles if used |
+| conflict control | coordinator owns shared files | State shared write boundaries |
+| verification depth | L0 / L1 / L2 / L3 | Required evidence |
+
+If subagents/workers are used, record their allowed input packet, write scope,
+and handoff format here.
+
+## Visual Roadmap
+
+Use this section to make the task readable in the HTML dashboard. The dashboard
+parser expects the phase table schema below.
+
+```mermaid
+flowchart LR
+  A["Phase 1"] --> B["Phase 2"] --> C["Phase 3"]
+```
+
+| Phase ID | Depends On | State | Completion | Output | Required Evidence | Evidence Status | Blocking Risk | Owner / Handoff |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| PH-01 | none | planned | 0 | Planned output | Required evidence | missing | none | coordinator |
+
+Allowed `State`: `planned`, `in_progress`, `review`, `blocked`, `done`, `skipped`.
+Allowed `Evidence Status`: `missing`, `partial`, `present`, `waived`.
+`Completion` is an integer `0..100`; `done=100`, `planned=0`, and `skipped`
+is excluded from overall dashboard average.
+
+## Artifact Index
+
+Use this inline table for simple tasks. For larger artifacts, create
+`artifacts/INDEX.md` and reference its IDs here.
+
+| Artifact ID | Type | Path | Summary |
+| --- | --- | --- | --- |
+| A-001 | command / diff / fixture / screenshot / review / report | PUBLIC:path or PRIVATE:path or TARGET:path or EXTERNAL:path or URL:https://example.com | What this proves |
+
 ## 步骤
 1. [步骤1]
 2. [步骤2]
