@@ -6,3 +6,6 @@ docs/plans/
 # This directory is versioned by its own local/private git repository and must not be
 # published with the open-source package.
 .harness-private/
+
+# Generated local dashboards and smoke-test output.
+tmp/

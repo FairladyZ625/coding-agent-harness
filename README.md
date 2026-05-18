@@ -167,6 +167,46 @@ node scripts/check-harness.mjs /path/to/project
 CI/CD、PR template、workflow 或 residual、review template、Harness Ledger、Closeout SSoT、Lessons 双写，以及
 reference 文档里是否还残留泛化占位符。检查失败时不能声称 harness complete。
 
+## v1.0 CLI
+
+v1.0 额外提供一个无依赖 CLI。旧入口 `scripts/check-harness.mjs` 继续保留；
+新入口用于能力声明、只读状态、可视化 dashboard 和安全 scaffold。
+
+```bash
+npm test
+node scripts/harness.mjs check --profile source-package .
+node scripts/harness.mjs check --profile target-project examples/minimal-project
+node scripts/harness.mjs status --json /path/to/project
+node scripts/harness.mjs status --json --strict /path/to/project
+node scripts/harness.mjs dashboard --out tmp/harness-dashboard.html /path/to/project
+node scripts/harness.mjs init --dry-run --capabilities core,dashboard /path/to/project
+node scripts/harness.mjs add-capability dashboard --dry-run /path/to/project
+```
+
+`status --json` 是 HTML dashboard 的唯一数据源。dashboard 不解析任意
+Markdown，也不写项目文件。
+
+### Capability Registry
+
+项目可以声明 `.harness-capabilities.json`：
+
+```json
+{
+  "version": 1,
+  "capabilities": [
+    {"name": "core", "state": "configured"},
+    {"name": "review-contract", "state": "verified"},
+    {"name": "dashboard", "state": "verified"}
+  ]
+}
+```
+
+没有 capability registry 的旧项目进入 `legacy-compat` 模式：CLI 会保留旧
+checker 结果，同时把新 v1.0 review schema、visual roadmap、capability registry
+差异作为 adoption warning，而不是自动改写项目历史。
+
+需要把旧 checker 失败作为阻塞时，给 `status` 或 `check` 加 `--strict`。
+
 ### 让 Agent 直接执行
 
 把下面这段话复制给你的 Agent（Claude Code / Codex / Gemini CLI / 任何支持

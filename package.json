@@ -1,0 +1,31 @@
+{
+  "name": "coding-agent-harness",
+  "version": "1.0.0",
+  "description": "Document governance kernel for long-running coding agents.",
+  "type": "module",
+  "bin": {
+    "harness": "./scripts/harness.mjs"
+  },
+  "scripts": {
+    "check": "node scripts/harness.mjs check --profile source-package .",
+    "check:private": "node scripts/harness.mjs check --profile private-harness .harness-private",
+    "status": "node scripts/harness.mjs status --json .",
+    "dashboard": "node scripts/harness.mjs dashboard --out tmp/harness-dashboard.html .",
+    "test": "node scripts/test-harness.mjs"
+  },
+  "files": [
+    "README.md",
+    "CHANGELOG.md",
+    "SKILL.md",
+    "LICENSE",
+    "references/",
+    "templates/",
+    "scripts/",
+    "docs-release/",
+    "examples/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
