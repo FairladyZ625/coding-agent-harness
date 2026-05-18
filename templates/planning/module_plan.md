@@ -15,6 +15,19 @@
 | XXX-01 | [步骤名] | planned | — | — |
 | XXX-02 | [步骤名] | planned | — | XXX-01 |
 
+## Execution & Visualization Files
+
+Module-level execution strategy and roadmap are sibling files in this module
+folder, not embedded sections in `module_plan.md`.
+
+| Contract File | Required | Purpose |
+| --- | --- | --- |
+| `execution_strategy.md` | yes | Module execution mode, write boundary, subagent use, global sync owner, verification depth |
+| `visual_roadmap.md` | yes | Module phase graph, status, completion, evidence state, blocking risk |
+
+For legacy module folders only, dashboard/checker may read old `module_plan.md`
+sections as a fallback. New module folders must use the standalone files.
+
 ### Status 定义
 
 - `planned` — 尚未开始

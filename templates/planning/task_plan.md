@@ -35,36 +35,19 @@ Use repo-root prefixes instead of fragile relative paths:
 - `TARGET:` for files in an installed target project.
 - `EXTERNAL:` or `URL:` for outside references.
 
-## Execution Strategy
+## Execution & Visualization Files
 
-| Decision | Choice | Notes |
+Execution strategy and visual roadmap are sibling files, not embedded sections.
+This keeps the dashboard parser stable and lets task detail pages render each
+view directly.
+
+| Contract File | Required | Purpose |
 | --- | --- | --- |
-| execution mode | solo / coordinator-only / subagent-reviewed / worker-split | Why this mode is enough |
-| subagents | none / reviewer / worker | List roles if used |
-| conflict control | coordinator owns shared files | State shared write boundaries |
-| verification depth | L0 / L1 / L2 / L3 | Required evidence |
+| `execution_strategy.md` | yes | Execution mode, subagent use, conflict control, evidence depth, handoff rules |
+| `visual_roadmap.md` | yes | Mermaid route, phase table, completion, evidence status, blocking risk |
 
-If subagents/workers are used, record their allowed input packet, write scope,
-and handoff format here.
-
-## Visual Roadmap
-
-Use this section to make the task readable in the HTML dashboard. The dashboard
-parser expects the phase table schema below.
-
-```mermaid
-flowchart LR
-  A["Phase 1"] --> B["Phase 2"] --> C["Phase 3"]
-```
-
-| Phase ID | Depends On | State | Completion | Output | Required Evidence | Evidence Status | Blocking Risk | Owner / Handoff |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| PH-01 | none | planned | 0 | Planned output | Required evidence | missing | none | coordinator |
-
-Allowed `State`: `planned`, `in_progress`, `review`, `blocked`, `done`, `skipped`.
-Allowed `Evidence Status`: `missing`, `partial`, `present`, `waived`.
-`Completion` is an integer `0..100`; `done=100`, `planned=0`, and `skipped`
-is excluded from overall dashboard average.
+For legacy tasks only, dashboard/checker may read old `task_plan.md` sections as
+a fallback. New tasks must use the standalone files.
 
 ## Artifact Index
 

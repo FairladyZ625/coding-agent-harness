@@ -238,6 +238,13 @@ function parsePhases(taskPlanContent) {
   }));
 }
 
+function readTaskContractFile(taskDir, fileName, legacyContent = "") {
+  const filePath = path.join(taskDir, fileName);
+  const content = readFileSafe(filePath);
+  if (content.trim()) return { path: filePath, content, source: "standalone" };
+  return { path: filePath, content: legacyContent, source: legacyContent.trim() ? "legacy" : "missing" };
+}
+
 function splitList(value) {
   return String(value || "")
     .split(/[,+;]/)
@@ -263,9 +270,10 @@ export function collectTasks(target) {
   return listTaskPlanPaths(target).map((taskPlanPath) => {
     const taskDir = path.dirname(taskPlanPath);
     const taskPlan = readFileSafe(taskPlanPath);
+    const roadmap = readTaskContractFile(taskDir, "visual_roadmap.md", taskPlan);
     const progress = readFileSafe(path.join(taskDir, "progress.md"));
     const review = readFileSafe(path.join(taskDir, "review.md"));
-    const phases = parsePhases(taskPlan);
+    const phases = parsePhases(roadmap.content);
     const completion =
       phases.length > 0
         ? Math.round(
@@ -279,6 +287,7 @@ export function collectTasks(target) {
       id: title,
       title,
       path: `TARGET:${relative}`,
+      roadmapSource: roadmap.source,
       state: parseTaskState(progress),
       completion,
       phases,
@@ -421,15 +430,18 @@ export function validateVisualRoadmaps(target) {
   const failures = [];
   const warnings = [];
   for (const taskPlanPath of listTaskPlanPaths(target)) {
-    const relative = toPosix(path.relative(target.projectRoot, taskPlanPath));
+    const taskDir = path.dirname(taskPlanPath);
+    const roadmapPath = path.join(taskDir, "visual_roadmap.md");
+    const relative = toPosix(path.relative(target.projectRoot, roadmapPath));
     const taskPlan = readFileSafe(taskPlanPath);
-    const { header, rows } = tableAfterHeading(taskPlan, /^Phase ID$/i);
+    const roadmap = readTaskContractFile(taskDir, "visual_roadmap.md", taskPlan);
+    const { header, rows } = tableAfterHeading(roadmap.content, /^Phase ID$/i);
     if (rows.length > 0) {
       for (const column of ["Phase ID", "Depends On", "State", "Completion", "Output", "Required Evidence", "Evidence Status", "Blocking Risk", "Owner / Handoff"]) {
         if (getColumn(header, column) < 0) failures.push(`${relative} Visual Roadmap missing column: ${column}`);
       }
     }
-    const phases = parsePhases(taskPlan);
+    const phases = parsePhases(roadmap.content);
     for (const phase of phases) {
       if (!allowedPhaseStates.has(phase.state)) failures.push(`${relative} phase ${phase.id} invalid state: ${phase.state}`);
       if (!allowedEvidenceStatus.has(phase.evidenceStatus)) {
@@ -441,7 +453,27 @@ export function validateVisualRoadmaps(target) {
       if (phase.state === "done" && phase.completion !== 100) failures.push(`${relative} phase ${phase.id} done must be 100`);
       if (phase.state === "planned" && phase.completion !== 0) failures.push(`${relative} phase ${phase.id} planned must be 0`);
     }
-    if (phases.length === 0) warnings.push(`${relative} has no Visual Roadmap phase table`);
+    if (roadmap.source === "standalone" && phases.length === 0) warnings.push(`${relative} has no Visual Roadmap phase table`);
+    if (roadmap.source === "legacy" && phases.length > 0) warnings.push(`${relative} missing; using legacy task_plan.md Visual Roadmap fallback`);
+  }
+  return { failures, warnings };
+}
+
+export function validatePlanContracts(target, { strict = true } = {}) {
+  const failures = [];
+  const warnings = [];
+  const report = (message) => {
+    if (strict) failures.push(message);
+    else warnings.push(`adoption-needed: ${message}`);
+  };
+  for (const taskPlanPath of listTaskPlanPaths(target)) {
+    const taskDir = path.dirname(taskPlanPath);
+    const relativeDir = toPosix(path.relative(target.projectRoot, taskDir));
+    for (const fileName of ["execution_strategy.md", "visual_roadmap.md"]) {
+      if (!fs.existsSync(path.join(taskDir, fileName))) {
+        report(`${relativeDir} missing ${fileName}`);
+      }
+    }
   }
   return { failures, warnings };
 }
@@ -453,8 +485,9 @@ export function buildStatus(targetInput, options = {}) {
   const legacy = shouldRunLegacy ? runLegacyCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
   const reviews = validateReviewSchema(target, { strict: capabilityState.registry.mode !== "legacy-compat" });
   const roadmaps = validateVisualRoadmaps(target);
-  const failures = [...capabilityState.failures, ...reviews.failures, ...roadmaps.failures];
-  const warnings = [...capabilityState.warnings, ...reviews.warnings, ...roadmaps.warnings];
+  const planContracts = validatePlanContracts(target, { strict: capabilityState.registry.mode !== "legacy-compat" });
+  const failures = [...capabilityState.failures, ...reviews.failures, ...roadmaps.failures, ...planContracts.failures];
+  const warnings = [...capabilityState.warnings, ...reviews.warnings, ...roadmaps.warnings, ...planContracts.warnings];
   if (legacy.status === "fail") {
     if (options.strictLegacy) failures.push("legacy check failed");
     else warnings.push(`adoption-needed: legacy check failed: ${(legacy.stderr || legacy.stdout).trim()}`);
@@ -604,6 +637,8 @@ export function plannedInitFiles(capabilities = ["core"]) {
     ["CLAUDE.md", "templates/CLAUDE.md.template"],
     ["docs/Harness-Ledger.md", "templates/ledger/Harness-Ledger.md"],
     ["docs/09-PLANNING/TASKS/_task-template/task_plan.md", "templates/planning/task_plan.md"],
+    ["docs/09-PLANNING/TASKS/_task-template/execution_strategy.md", "templates/planning/execution_strategy.md"],
+    ["docs/09-PLANNING/TASKS/_task-template/visual_roadmap.md", "templates/planning/visual_roadmap.md"],
     ["docs/09-PLANNING/TASKS/_task-template/findings.md", "templates/planning/findings.md"],
     ["docs/09-PLANNING/TASKS/_task-template/progress.md", "templates/planning/progress.md"],
     ["docs/09-PLANNING/TASKS/_task-template/review.md", "templates/planning/review.md"],
@@ -620,6 +655,8 @@ export function plannedInitFiles(capabilities = ["core"]) {
   if (capabilities.includes("module-parallel")) {
     files.push(["docs/09-PLANNING/Module-Registry.md", "templates/ssot/Module-Registry.md"]);
     files.push(["docs/09-PLANNING/MODULES/_task-template/task_plan.md", "templates/planning/task_plan.md"]);
+    files.push(["docs/09-PLANNING/MODULES/_task-template/execution_strategy.md", "templates/planning/execution_strategy.md"]);
+    files.push(["docs/09-PLANNING/MODULES/_task-template/visual_roadmap.md", "templates/planning/visual_roadmap.md"]);
   }
   return files;
 }

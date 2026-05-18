@@ -28,6 +28,8 @@ Start gate:
 - Inspect dirty state before editing and do not revert unrelated changes.
 - If another active session owns this module or a required shared file, stop and record the conflict.
 - Before code edits, create or update docs/09-PLANNING/MODULES/<module-key>/TASKS/<current-step>-<short-name>/task_plan.md from the project planning template. Record scope, acceptance criteria, verification, branch/worktree, and shared coordination.
+- Before code edits, confirm that the module task folder contains `execution_strategy.md` and `visual_roadmap.md`. If missing, stop and add them before implementation.
+- If docs/09-PLANNING/MODULES/<module-key>/ lacks module-level `execution_strategy.md` or `visual_roadmap.md`, add or update those files before dispatching workers.
 
 Branch and worktree:
 - Worktree path: <worktree-path>.

@@ -71,7 +71,7 @@ coding-agent-harness/
 └── templates/                        # 可直接写入项目的模板
     ├── AGENTS.md.template
     ├── CLAUDE.md.template            # Claude Code 兼容 shim，指向 AGENTS.md
-    ├── planning/ (task_plan, findings, progress, review, long-running-task-contract)
+    ├── planning/ (task_plan, execution_strategy, visual_roadmap, findings, progress, review, long-running-task-contract)
     ├── ledger/ (Harness-Ledger)
     ├── ssot/ (Feature-SSoT, Delivery-SSoT, Regression-SSoT)
     ├── regression/ (Cadence-Ledger)
