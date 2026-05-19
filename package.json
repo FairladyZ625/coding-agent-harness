@@ -4,7 +4,7 @@
   "description": "Document governance kernel for long-running coding agents.",
   "type": "module",
   "bin": {
-    "harness": "./scripts/harness.mjs"
+    "harness": "scripts/harness.mjs"
   },
   "scripts": {
     "check": "node scripts/harness.mjs check --profile source-package .",
