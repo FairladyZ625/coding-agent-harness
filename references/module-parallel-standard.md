@@ -150,7 +150,7 @@ docs/09-PLANNING/MODULES/_shared/TASKS/
 4. 在模块对应的 worktree 上工作
 5. 不跨模块修改文件（不修改 write scope 之外的代码）
 6. 如果作为 worker subagent 改代码/测试/文档，必须在 coordinator 分配的独立 worktree / branch 中工作，提交自己的 commit，并 handoff commit SHA / checks / residual risks
-7. 会话结束时更新 module_plan.md 和模块任务的 Coordinator Handoff；Module Registry / Harness Ledger 是 coordinator-owned，只能在 coordinator pass 或显式 shared lock 中更新
+7. 会话结束时更新 module_plan.md 和模块任务的 Coordinator Handoff；Module Registry / Harness Ledger 是 coordinator-owned shared state，只能在 coordinator pass 或显式 shared lock 中更新
 ```
 
 如果主 agent 作为 coordinator 启动多个模块 worker，禁止让它们共享 coordinator 当前 checkout。
