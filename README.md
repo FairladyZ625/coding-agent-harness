@@ -94,6 +94,8 @@ npx skills list --global --agent codex
 
 ```bash
 node scripts/harness.mjs init --locale zh-CN --capabilities core,dashboard /path/to/project
+node scripts/harness.mjs install-user --agent codex --global
+node scripts/harness.mjs doctor-user --agent codex
 node scripts/harness.mjs add-capability safe-adoption --locale zh-CN /path/to/old-project
 node scripts/harness.mjs status --json /path/to/project
 node scripts/harness.mjs dashboard --out tmp/harness-dashboard.html /path/to/project

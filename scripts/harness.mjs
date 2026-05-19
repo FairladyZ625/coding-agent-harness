@@ -6,6 +6,8 @@ import { createInterface } from "node:readline/promises";
 import {
   addCapability,
   buildStatus,
+  doctorUserSkill,
+  installUserSkill,
   renderDashboard,
   normalizeLocale,
   writeDashboardFolder,
@@ -52,6 +54,18 @@ async function resolveInitLocale(requestedLocale) {
   }
 }
 
+async function confirmUserInstall({ yes = false, dryRun = false, agent = "codex" } = {}) {
+  if (yes || dryRun) return true;
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
+  const reader = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = (await reader.question(`Install Coding Agent Harness into user skill directory for ${agent}? [y/N] `)).trim().toLowerCase();
+    return ["y", "yes"].includes(answer);
+  } finally {
+    reader.close();
+  }
+}
+
 function targetArg() {
   return args[args.length - 1] && !args[args.length - 1].startsWith("-") ? args[args.length - 1] : ".";
 }
@@ -65,6 +79,8 @@ Usage:
   harness dashboard [--out file.html] [--out-dir folder] [target]
   harness init [--dry-run] [--locale zh-CN|en-US] [--capabilities core,dashboard] [target]
   harness add-capability <name> [--dry-run] [--locale zh-CN|en-US] [target]
+  harness install-user [--agent codex|claude|gemini|openclaw|agents|all] [--home dir] [--dry-run] [--force] [--yes]
+  harness doctor-user [--agent codex|claude|gemini|openclaw|agents|all] [--home dir]
 
 If init runs in an interactive terminal and --locale is omitted, it asks for a
 language. Non-interactive init defaults to en-US.
@@ -147,6 +163,34 @@ if (command === "help" || command === "--help" || command === "-h") {
   try {
     const result = addCapability(targetArg(), capability, { dryRun, locale });
     console.log(JSON.stringify({ dryRun, registry: result.registry, changes: result.changes, report: result.report }, null, 2));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "install-user") {
+  const dryRun = takeFlag("--dry-run");
+  const force = takeFlag("--force");
+  const yes = takeFlag("--yes") || takeFlag("-y");
+  takeFlag("--global");
+  const agent = takeOption("--agent", "codex");
+  const home = takeOption("--home", "");
+  if (!(await confirmUserInstall({ yes, dryRun, agent }))) {
+    console.error("Refusing to write user skill files without confirmation. Re-run with --yes or --dry-run.");
+    process.exit(2);
+  }
+  try {
+    console.log(JSON.stringify(installUserSkill({ agent, home, dryRun, force }), null, 2));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "doctor-user") {
+  const agent = takeOption("--agent", "codex");
+  const home = takeOption("--home", "");
+  try {
+    const report = doctorUserSkill({ agent, home });
+    console.log(JSON.stringify(report, null, 2));
+    process.exit(report.status === "pass" ? 0 : 1);
   } catch (error) {
     console.error(error.message);
     process.exit(1);
