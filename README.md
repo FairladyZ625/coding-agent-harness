@@ -68,15 +68,16 @@ coding-agent-harness/
 ├── scripts/
 │   └── check-harness.mjs             # 可执行 harness 完成度检查
 ├── docs/plans/                       # 本仓本地 review 草稿；默认被 .gitignore 忽略
-└── templates/                        # 可直接写入项目的模板
+├── templates/                        # English templates written directly into target projects
     ├── AGENTS.md.template
     ├── CLAUDE.md.template            # Claude Code 兼容 shim，指向 AGENTS.md
-    ├── planning/ (task_plan, findings, progress, review, long-running-task-contract)
+    ├── planning/ (task_plan, execution_strategy, visual_roadmap, findings, progress, review, long-running-task-contract)
     ├── ledger/ (Harness-Ledger)
     ├── ssot/ (Feature-SSoT, Delivery-SSoT, Regression-SSoT)
     ├── regression/ (Cadence-Ledger)
     ├── walkthrough/ (walkthrough-template, Closeout-SSoT)
     └── reference/ (14 个标准文件模板)
+└── templates-zh-CN/                  # 中文模板，文件结构与 templates/ 完全一致
 ```
 
 ## 快速开始
@@ -155,6 +156,20 @@ references/、templates/，只做增量更新：
 
 判断标准：**重装 Skill 不会删除项目历史；更新 Harness 是一次 delta merge，不是重建文档库。**
 
+### Agent 安装语言规则
+
+这套 CLI 主要给目标项目里的 agent 使用。Agent 不能把语言选择丢给用户自己研究命令：
+
+- 如果用户在场，先询问中文还是英文，然后显式运行
+  `harness init --locale zh-CN|en-US --capabilities ...`。
+- 如果是非交互安装，不要依赖 CLI 默认值；agent 必须根据用户语境或项目语言显式传
+  `--locale`。无法判断时先问。
+- 中文用户或中文项目默认 `zh-CN`；英文团队、英文文档项目或用户明确要求英文时用
+  `en-US`。
+- 安装后检查 `.harness-capabilities.json`、task template、review template 和 dashboard
+  是否来自同一套 locale 模板。
+- 如果只是 dogfood 测试，默认清理目标项目里的测试产物，不提交。
+
 ### 校验 Harness 完成度
 
 bootstrap 或 harness update 收口前，运行：
@@ -167,6 +182,100 @@ node scripts/check-harness.mjs /path/to/project
 CI/CD、PR template、workflow 或 residual、review template、Harness Ledger、Closeout SSoT、Lessons 双写，以及
 reference 文档里是否还残留泛化占位符。检查失败时不能声称 harness complete。
 
+## v1.0 CLI
+
+v1.0 额外提供一个无依赖 CLI。旧入口 `scripts/check-harness.mjs` 继续保留；
+新入口用于能力声明、只读状态、可视化 dashboard 和安全 scaffold。
+
+```bash
+npm test
+npm run smoke:dashboard
+node scripts/harness.mjs check --profile source-package .
+node scripts/harness.mjs check --profile target-project examples/minimal-project
+node scripts/harness.mjs status --json /path/to/project
+node scripts/harness.mjs status --json --strict /path/to/project
+node scripts/harness.mjs dashboard --out tmp/harness-dashboard.html /path/to/project
+node scripts/harness.mjs dashboard --out-dir tmp/harness-dashboard /path/to/project
+node scripts/harness.mjs init --capabilities core,dashboard /path/to/project
+node scripts/harness.mjs init --dry-run --locale zh-CN --capabilities core,dashboard /path/to/project
+node scripts/harness.mjs add-capability dashboard --dry-run /path/to/project
+```
+
+`dashboard --out` 保留旧的单文件 HTML 输出。`dashboard --out-dir` 生成静态
+dashboard 文件夹，包含 `index.html`、`assets/`、`data/status.json`、
+`data/tables.json`、`data/documents.json`、`data/graph.json` 和
+`data/adoption.json`。
+
+`status --json` 仍是基础状态源；文件夹 dashboard 会额外生成规范化表格、
+Markdown 文档快照、任务/模块图数据和 legacy adoption 建议。dashboard 只读，
+不写项目文件。
+
+### Capability Registry
+
+项目可以声明 `.harness-capabilities.json`：
+
+```json
+{
+  "version": 1,
+  "locale": "zh-CN",
+  "capabilities": [
+    {"name": "core", "state": "configured"},
+    {"name": "adversarial-review", "state": "verified"},
+    {"name": "dashboard", "state": "verified"}
+  ]
+}
+```
+
+`locale` 支持 `zh-CN` 和 `en-US`。`harness init` 在交互式终端中未传
+`--locale` 时会询问初始化语言；非交互场景默认 `en-US`，脚本和 Agent 可用
+`--locale zh-CN|en-US` 显式指定。`templates/` 是纯英文模板树，
+`templates-zh-CN/` 是同构中文模板树；CLI 按 locale 选择整棵模板树，不能在同一
+模板内混用中英文。CLI scaffold 只创建模板、空表和索引；项目级 reference standards
+需要 Agent 在 Configure 阶段根据项目事实和用户讨论后定制。
+
+`init` 和 `add-capability` 的 JSON 输出包含 `report`。面向 agent 的安装流程必须读取
+这份 report，并在交付 summary 中复述：
+
+- locale
+- selected capabilities
+- created / skipped files
+- agentInstructions
+- verificationCommands
+
+这避免 agent 只看命令成功就声称安装完成。
+
+### Capability 选择规则
+
+| Capability | 默认 | 何时选择 |
+| --- | --- | --- |
+| `core` | 是 | 永远安装，提供任务、回归、walkthrough、Lessons 和 Harness Ledger 内核。 |
+| `dashboard` | 否 | 需要本地只读状态页时安装。 |
+| `safe-adoption` | 否 | 只在旧 harness 项目接入 v1.0 且需要保留历史文档时安装；新项目不要为了消 warning 乱装。 |
+| `adversarial-review` | 否 | 发布、架构、安全、数据或策略风险需要独立 review artifact 时安装。 |
+| `long-running-task` | 否 | agent 会连续多轮执行且不能每步确认时安装。 |
+| `module-parallel` | 否 | 有 2 个以上独立模块并需要模块 registry / owner / 同步规则时安装。 |
+| `subagent-worker` | 否 | 会改代码的 subagent 需要独立 worktree 和 commit-backed handoff 时安装；依赖 `module-parallel`。 |
+
+没有 capability registry 的旧项目进入 `legacy-compat` 模式：CLI 会保留旧
+checker 结果，同时把新 v1.0 review schema、visual roadmap、capability registry
+差异作为 adoption warning，而不是自动改写项目历史。
+
+已声明 `safe-adoption` 的旧项目同样按平滑迁移处理：CLI 会补齐缺失的 v1.0
+模板和 `.harness-capabilities.json`，但不会覆盖已有 `AGENTS.md`、`CLAUDE.md`、
+`Harness-Ledger` 或历史 task。历史任务缺少 `execution_strategy.md`、
+`visual_roadmap.md`、新版 review 段落时，默认进入 `adoption-needed` warning。
+
+需要把旧 checker 失败作为阻塞时，给 `status` 或 `check` 加 `--strict`。
+
+### 必跑回归路径
+
+v1.0 内核改动必须同时覆盖两条回归路径：
+
+| 路径 | 验收重点 |
+| --- | --- |
+| 新项目初始化 | 从空项目运行 `init --locale zh-CN|en-US --capabilities core,...`；检查模板语言一致、registry 正确、`status --json` 不误报 `safe-adoption`。 |
+| 老项目迁移 | 在已有旧 harness 文档的项目上运行 `add-capability safe-adoption --locale ...`；确认旧文件不被覆盖、缺失模板被补齐、普通检查只给 adoption warning、`--strict` 仍可阻塞历史缺口。 |
+
 ### 让 Agent 直接执行
 
 把下面这段话复制给你的 Agent（Claude Code / Codex / Gemini CLI / 任何支持
@@ -175,9 +284,12 @@ harness 体系：
 
 ```text
 请克隆 https://github.com/FairladyZ625/coding-agent-harness 到本地，
-读取其中的 SKILL.md 作为执行协议，然后按照 12 Phase SOP 的顺序，
-在我当前的项目上搭建完整的 harness 体系。
-先从 Phase 1（项目诊断）开始，逐步执行到 Phase 12（输出 Bootstrap Summary）。
+读取其中的 SKILL.md 作为执行协议，然后按照 v1.0 六阶段流程
+Diagnose → Decide → Scaffold → Configure → Verify → Deliver，
+在我当前的项目上搭建 harness 体系。
+先询问我使用中文还是英文模板；运行 init 时必须显式传
+`--locale zh-CN` 或 `--locale en-US`，不要依赖默认值。
+再根据项目诊断推荐 capability packs。
 每完成一个 Phase 告诉我结果，再继续下一个。
 ```
 
@@ -187,11 +299,11 @@ harness 体系：
 `npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness`
 安装到兼容的 agent。也可以手动将本仓库克隆到 OpenClaw 或其他兼容平台的
 skills 目录。当你说"帮我搭建 harness"时，agent 会自动触发完整的
-12 Phase SOP。
+六阶段安装流程。
 
 **作为参考文档**：直接读 `references/` 下的方法论文档，了解每个模块的设计思路。
 
-**作为模板库**：从 `templates/` 目录复制模板文件到你的项目中，按需修改。
+**作为模板库**：英文项目使用 `templates/`，中文项目使用 `templates-zh-CN/`。
 
 ## Base Harness = 地基
 

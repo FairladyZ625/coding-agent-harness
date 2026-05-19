@@ -50,7 +50,114 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 
 一句话：harness update 是 delta merge，不是重新搭一遍。
 
-当用户要求在项目上搭建 harness 时，严格按以下顺序执行：
+当用户要求在项目上搭建 harness 时，使用 v1.0 的六阶段安装流程。安装不是
+`npm install` 式复制文件，而是 CLI scaffold 与 Agent configure 配合完成。
+
+### Agent 安装合同
+
+这个 CLI 的主要操作者通常是目标项目里的 agent，而不是最终用户。Agent 不应要求用户
+记命令、读模板目录或手动判断 locale；这些决策必须由 agent 在安装流程中完成。
+
+- 交互式安装：如果用户在场，agent 必须先确认文档语言，再运行
+  `harness init --locale zh-CN|en-US --capabilities ...`。也可以让 CLI 交互提问，
+  但 agent 仍要在收口说明中写明最终选择。
+- 非交互式安装：agent 不得依赖 CLI 的 `en-US` 默认值；必须从用户语境、项目语言或
+  明确配置中推断 locale，并显式传 `--locale`。如果无法判断，先暂停询问。
+- 中文用户或中文项目默认选择 `zh-CN`；英文团队、英文代码库或用户明确要求英文时选择
+  `en-US`。
+- scaffold 后必须检查 `.harness-capabilities.json` 的 `locale`，并确认 dashboard、
+  task template、review template 来自同一套模板树。
+- `templates/` 和 `templates-zh-CN/` 是两套完整模板树。不要在目标项目里混拷两套模板；
+  只允许保留 schema 字段、文件名、状态枚举、命令和跨工具协议 token 的英文。
+- 如果只是 dogfood 测试，默认清理目标项目里的测试产物，不提交。
+
+### Phase 1: Diagnose / 项目诊断
+
+读 `references/project-onboarding-audit.md`，扫描项目技术栈、目录结构、现有文档、
+CI、团队/agent 协作方式和风险面，输出诊断报告。
+
+### Phase 2: Decide / 方案决策
+
+与用户确认三件事：
+
+1. 文档语言：`zh-CN` 或 `en-US`。中文用户默认应获得中文任务、评审、
+   ledger、SSoT、walkthrough 和 reference draft。
+2. Delivery Operating Model：solo-orchestrator、team-feature-lead、
+   split-repo-contract、program-multi-repo、waterfall-stage-gate 或
+   kanban-continuous。
+3. Capability Packs：core 必装；按需选择 module-parallel、subagent-worker、
+   adversarial-review、long-running-task、dashboard、safe-adoption。
+
+Capability 选择规则必须按表执行，不得凭感觉多装：
+
+| Capability | 何时选择 |
+| --- | --- |
+| `core` | 永远安装。它是任务计划、回归、walkthrough、Lessons 和 Harness Ledger 的最小内核。 |
+| `dashboard` | 用户或 agent 需要本地只读状态页时安装。它不写目标项目文件。 |
+| `safe-adoption` | 只在已有旧 harness 项目接入 v1.0、且需要保留历史文档时安装。新项目默认不装。 |
+| `adversarial-review` | 发布、架构、安全、数据、策略风险需要独立 review artifact 时安装。 |
+| `long-running-task` | 用户允许 agent 多轮连续执行、不能每步都询问时安装。 |
+| `module-parallel` | 项目有 2 个以上可独立演进模块，且需要模块 owner / registry / 同步规则时安装。 |
+| `subagent-worker` | 会改代码的 subagent 需要独立 worktree + commit-backed handoff 时安装；它依赖 `module-parallel`。 |
+
+如果选择了某个可选 capability，bootstrap summary 必须写清触发它的项目事实。
+
+### Phase 3: Scaffold / 脚手架
+
+运行或模拟 `harness init --locale zh-CN|en-US --capabilities ...`。面向 agent 的安装
+必须显式传 `--locale`；只有人直接在终端运行且未传 `--locale` 时，CLI 才交互询问。CLI 只创建
+目录、模板、空表、索引和 `.harness-capabilities.json`，不得把项目级 reference
+伪装成已经定制完成的标准。
+
+CLI 会在 JSON 输出中返回 `report`。Agent 必须读取这份 report，并把其中的
+`locale`、`selectedCapabilities`、`created/skipped`、`agentInstructions` 和
+`verificationCommands` 转化为交付 summary；不能只看命令退出码。
+
+### Phase 4: Configure / 对话式定制
+
+Agent 根据项目事实与用户讨论后定制 AGENTS.md、reference standards、CI/CD、
+Regression surface、Delivery SSoT、Module Registry、review routing 和
+worktree/subagent handoff 规则。已有项目事实只能 merge/append/residual，
+不能模板覆盖。
+
+### Phase 5: Verify / 验证
+
+运行当前 repo 支持的检查命令，例如：
+
+```bash
+node scripts/harness.mjs check --profile target-project /path/to/project
+node scripts/harness.mjs status --json /path/to/project
+```
+
+如果是在开发或修改本 harness 自身，Phase 5 必须覆盖两条回归路径：
+
+| 回归路径 | 必须证明 |
+| --- | --- |
+| 新项目初始化 | 空项目 `init --locale zh-CN|en-US --capabilities core,...` 后，模板语言一致、registry 正确、`status --json` 不误报 `safe-adoption`。 |
+| 老项目迁移 | 已有旧 harness 文档的项目 `add-capability safe-adoption --locale ...` 后，旧 `AGENTS.md`、`CLAUDE.md`、`Harness-Ledger` 和历史 task 不被覆盖；缺失 v1.0 模板被补齐；普通检查只给 `adoption-needed` warning；`--strict` 仍可阻塞历史合同缺口。 |
+
+检查失败时不能声称 harness complete；必须修复或记录 owner/action/status 明确的
+residual。
+
+### Phase 6: Deliver / 交付
+
+输出 bootstrap summary，说明创建/定制了哪些文件、启用了哪些 capability、当前
+语言是什么、哪些检查通过、哪些 residual 仍需用户或后续任务处理，并建议首批任务。
+
+Summary 至少包含：
+
+- `locale`
+- selected capabilities 及选择理由
+- scaffold 创建和跳过的文件
+- Configure 阶段做了哪些项目化改动
+- 验证命令和结果
+- residual owner / action / status
+- 是否提交；若只是 dogfood 测试，必须清理测试产物
+
+### Historical 12-Phase Bootstrap（旧版参考）
+
+以下 12-phase 流程是历史参考，用于理解旧版 harness 的组成，不再作为 v1.0
+`init` 的默认执行协议。
 
 ### Phase 1: 项目诊断
 
@@ -88,6 +195,7 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 3. 创建 `docs/09-PLANNING/Module-Registry.md`（使用 `templates/ssot/Module-Registry.md`）
 4. 为每个活跃模块创建 `docs/09-PLANNING/MODULES/<key>/module_plan.md`（使用 `templates/planning/module_plan.md`）
 5. 在 AGENTS.md 中添加模块冷启动指引段落
+6. 启用检查器的模块任务反向索引规则：模块 worker 必须把活跃任务写入 `module_plan.md`，并用 Coordinator Handoff 标记总表同步需求；只有 coordinator pass 或显式 shared lock owner 写 `Module-Registry.md` / Harness Ledger。
 
 如果项目从线性 Phase 模型迁移，还需执行迁移步骤（见 `references/module-parallel-standard.md` 的"从线性 Phase 迁移"段落）。
 
@@ -235,7 +343,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 2. **Planning with Files** — 建任务目录，task plan / findings / progress / review 文件
 3. **Long-Running Contract（如适用）** — 明确连续执行权限、review loop、evidence、stop condition
 4. **Delivery Operating Model** — 确认本轮属于 solo / team / split-repo / program / stage-gate / kanban 哪种交付形态
-5. **SSoT 排期** — 回写到 Feature SSoT；多人/多仓时回写 Delivery SSoT
+5. **SSoT 排期** — 回写到 Feature SSoT；模块并行时 worker 回写 module_plan + Coordinator Handoff，coordinator pass 回写 Module Registry / Harness Ledger；多人/多仓时回写 Delivery SSoT
 6. **Repo Governance / CI-CD** — 确认 PR policy、required checks、branch protection、worktree concurrency
 7. **Worktree / Branch 并行开发** — 按 operating model 决定 worktree、feature branch、contract branch 或 release branch
 8. **Subagent Worker Handoff（如适用）** — coordinator 分配独立 worktree / branch / write scope；worker 提交自己的 commit 并 handoff commit SHA / checks / residuals

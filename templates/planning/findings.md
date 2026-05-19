@@ -1,14 +1,24 @@
-# [任务名称] - Findings
+# [Task Name] - Findings
 
-## 研究发现
+Use this file for defects, risks, unclear requirements, research notes, and review follow-up that may affect delivery.
 
-### [发现主题 1]
-- 背景：[为什么要研究这个]
-- 发现：[具体发现了什么]
-- 影响：[对任务计划有什么影响]
+## Open Findings
 
-## 技术决策
+| ID | Severity | Finding | Evidence | Owner | Required Action | Status |
+| --- | --- | --- | --- | --- | --- | --- |
 
-| 决策 | 选择 | 原因 | 替代方案 |
-|------|------|------|----------|
-| [决策1] | [选了什么] | [为什么] | [没选什么] |
+Do not keep sample findings. Add rows only for real findings discovered during the task.
+
+## Resolved Findings
+
+| ID | Resolution | Evidence | Date |
+| --- | --- | --- | --- |
+
+Add rows only after a real finding is resolved or accepted with owner-routed risk.
+
+## Severity Guide
+
+- P0: Blocks release or risks data loss, security exposure, or production outage.
+- P1: Blocks the task goal or a required workflow.
+- P2: Material quality, maintainability, or evidence gap.
+- P3: Follow-up improvement that does not block closeout.

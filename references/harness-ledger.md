@@ -51,10 +51,11 @@ Harness Ledger 不记录：
 3. 同步或升级最新版 coding-agent-harness
 4. 新增或修改 AGENTS.md / CLAUDE.md / reference / template
 5. 创建或更新 required review report
-6. 修改 Repo Governance / CI-CD / required checks / branch protection 状态
-7. 修改 Feature SSoT、Regression SSoT、Lessons SSoT 任一文件
-8. 创建 walkthrough
-9. Lessons approved 后合入正式 reference
+6. coordinator pass 同步模块任务的全局状态、review、closeout 或 regression 结果
+7. 修改 Repo Governance / CI-CD / required checks / branch protection 状态
+8. 修改 Feature SSoT、Regression SSoT、Lessons SSoT 任一文件
+9. 创建 walkthrough
+10. Lessons approved 后合入正式 reference
 
 不需要更新 Harness Ledger：
 
@@ -111,7 +112,7 @@ docs/01-GOVERNANCE/_archive/Harness-Ledger-archive-YYYY-QN.md
 
 1. 更新 `progress.md`
 2. 跑必要验证和 regression gate
-3. 回写 Feature SSoT
+3. 回写 Feature SSoT；模块并行 worker 只回写 module_plan 和 Coordinator Handoff，coordinator pass 再同步 Module Registry / Harness Ledger
 4. 完成 `review.md` 并处理 material findings（如适用）
 5. 回写 Repo Governance / CI-CD 状态（如适用）
 6. 回写 Regression SSoT / Cadence Ledger（如适用）

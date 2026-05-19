@@ -1,12 +1,12 @@
-# CLAUDE.md
+# Claude Code Entry
 
-This project uses `AGENTS.md` as the canonical coding-agent instruction file.
+This repository uses `AGENTS.md` as the primary operating contract for all coding agents.
 
-Claude Code should:
+Before making changes:
 
-1. Read `AGENTS.md` first.
-2. Follow the Task-Type Reading Matrix in `AGENTS.md`.
-3. Load only the referenced `docs/11-REFERENCE/` files needed for the current task.
-4. Treat this file as a compatibility shim, not a second source of truth.
+1. Read `AGENTS.md`.
+2. Follow its reading matrix for the work type.
+3. Create or update task files for non-trivial work.
+4. Keep this file as a thin Claude Code compatibility entry. Do not copy the full policy here.
 
-Do not duplicate project rules here. Keep durable project instructions in `AGENTS.md` and the referenced docs to avoid drift.
+When policy changes are needed, update `AGENTS.md` or the referenced standards, then keep this file pointing back to them.

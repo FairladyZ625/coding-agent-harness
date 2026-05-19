@@ -1,13 +1,33 @@
-# [任务名称] - Progress
+# [Task Name] - Progress
 
-## 状态：未开始
+## Current Status
 
-## 进度记录
+planned
 
-### [YYYY-MM-DD HH:MM] - [阶段名称]
-- 做了什么：[具体操作]
-- 验证结果：[跑了什么测试，结果如何]
-- 下一步：[接下来做什么]
+## Log
+
+| Time | Actor | Action | Evidence | Next |
+| --- | --- | --- | --- | --- |
+| YYYY-MM-DD HH:MM | coordinator | [action taken] | type:path:summary | [next step] |
+
+## Decisions
+
+| Date | Decision | Reason | Owner |
+| --- | --- | --- | --- |
+| YYYY-MM-DD | [decision] | [reason] | [owner] |
+
+## Evidence Ledger
+
+| Evidence ID | Type | Path or Command | Result | Used For |
+| --- | --- | --- | --- | --- |
+| E-001 | command / file / runtime / review | [path or command] | pass / fail / observed / waived | [claim supported] |
 
 ## Residual
-- [遗留问题，如无则写"无"]
+
+none
+
+## Coordinator Handoff
+
+- Global sync status: pending-coordinator-pass / synced / n/a
+- Owner: coordinator / n/a
+- Required shared updates: [none]

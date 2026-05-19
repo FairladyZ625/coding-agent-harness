@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const targetRoot = path.resolve(process.argv[2] || process.cwd());
+const requireGlobalModuleSync = process.env.HARNESS_REQUIRE_GLOBAL_MODULE_SYNC === "1";
 
 const requiredFiles = [
   "AGENTS.md",
@@ -198,6 +199,153 @@ function checkModuleParallelStructure() {
       }
     }
   }
+  checkModuleTaskSsotIndex(registryRows);
+}
+
+function checkModuleTaskSsotIndex(registryRows) {
+  const registryByModule = new Map(registryRows.map((cells) => [cells[0], cells]));
+  const ledgerContent = exists("docs/Harness-Ledger.md") ? read("docs/Harness-Ledger.md") : "";
+  const taskPlans = listModuleTaskPlans();
+
+  for (const taskPlanPath of taskPlans) {
+    const parsed = parseModuleTaskPath(taskPlanPath);
+    if (!parsed) continue;
+    const { moduleKey, taskDir } = parsed;
+    const modulePlanPath = `docs/09-PLANNING/MODULES/${moduleKey}/module_plan.md`;
+    if (!exists(modulePlanPath)) continue;
+
+    const taskPlan = read(taskPlanPath);
+    const taskProgress = readTaskProgress(taskPlanPath);
+    const taskProgressStatus = readTaskProgressStatus(taskPlanPath);
+    const taskIsActive = isActiveModuleTaskStatus(taskProgressStatus);
+    const stepId = extractStepId(taskPlan, taskDir);
+    if (!stepId) {
+      if (taskIsActive) {
+        fail(`${taskPlanPath} does not expose a Step ID and task directory does not start with <PREFIX-NN>`);
+      }
+      continue;
+    }
+
+    const modulePlan = read(modulePlanPath);
+    const moduleRelativeTaskPlan = `TASKS/${taskDir}/task_plan.md`;
+    if (!modulePlan.includes(stepId) || !modulePlan.includes(moduleRelativeTaskPlan)) {
+      fail(`${modulePlanPath} does not index ${stepId} task plan ${moduleRelativeTaskPlan}`);
+    }
+
+    if (!taskIsActive) continue;
+
+    const registryRow = registryByModule.get(moduleKey);
+    const reviewPath = taskPlanPath.replace(/task_plan\.md$/, "review.md");
+    const registrySynced = Boolean(registryRow && registryRow[4] === stepId);
+    const ledgerSynced = ledgerContent.includes(taskPlanPath) && (!exists(reviewPath) || ledgerContent.includes(reviewPath));
+    if (registrySynced && ledgerSynced) continue;
+
+    if (requireGlobalModuleSync) {
+      if (!registryRow) {
+        fail(`docs/09-PLANNING/Module-Registry.md does not include active module ${moduleKey} for ${taskPlanPath}`);
+      } else if (registryRow[4] !== stepId) {
+        fail(`docs/09-PLANNING/Module-Registry.md row ${moduleKey} current step is ${registryRow[4]}, but active task is ${stepId}`);
+      }
+      if (!ledgerContent.includes(taskPlanPath)) {
+        fail(`docs/Harness-Ledger.md does not index active module task plan ${taskPlanPath}`);
+      }
+      if (exists(reviewPath) && !ledgerContent.includes(reviewPath)) {
+        fail(`docs/Harness-Ledger.md does not index active module review ${reviewPath}`);
+      }
+      continue;
+    }
+
+    if (hasPendingCoordinatorHandoff(taskPlan, taskProgress)) {
+      warn(`${taskPlanPath} has pending coordinator handoff; run coordinator pass before final integration or set HARNESS_REQUIRE_GLOBAL_MODULE_SYNC=1 for strict gate`);
+      continue;
+    }
+    fail(`${taskPlanPath} is active but is neither globally synced nor marked with Coordinator Handoff: pending-coordinator-pass`);
+  }
+}
+
+function listModuleTaskPlans() {
+  const modulesRoot = filePath("docs/09-PLANNING/MODULES");
+  if (!fs.existsSync(modulesRoot)) return [];
+  const results = [];
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir)) {
+      const full = path.join(dir, entry);
+      const relativePath = rel(path.relative(targetRoot, full));
+      const stat = fs.statSync(full);
+      if (stat.isDirectory()) {
+        if (relativePath.includes("/_archive/") || relativePath.endsWith("/_task-template")) continue;
+        walk(full);
+      } else if (/\/TASKS\/[^/]+\/task_plan\.md$/.test(relativePath)) {
+        results.push(relativePath);
+      }
+    }
+  }
+  walk(modulesRoot);
+  return results;
+}
+
+function parseModuleTaskPath(taskPlanPath) {
+  const match = taskPlanPath.match(/^docs\/09-PLANNING\/MODULES\/([^/]+)\/TASKS\/([^/]+)\/task_plan\.md$/);
+  if (!match) return null;
+  return { moduleKey: match[1], taskDir: match[2] };
+}
+
+function extractStepId(taskPlanContent, taskDir) {
+  const fromPlan = taskPlanContent.match(/^- Step ID:\s*`?([A-Z]{2,5}-\d{2})`?/m);
+  if (fromPlan) return fromPlan[1];
+  const fromModuleSection = taskPlanContent.match(/^- Step:\s*`?([A-Z]{2,5}-\d{2})`?/m);
+  if (fromModuleSection) return fromModuleSection[1];
+  const fromDir = taskDir.match(/^([A-Z]{2,5}-\d{2})-/);
+  return fromDir ? fromDir[1] : "";
+}
+
+function readTaskProgress(taskPlanPath) {
+  const progressPath = taskPlanPath.replace(/task_plan\.md$/, "progress.md");
+  return exists(progressPath) ? read(progressPath) : "";
+}
+
+function readTaskProgressStatus(taskPlanPath) {
+  const progress = readTaskProgress(taskPlanPath);
+  if (!progress) return "";
+  const match = progress.match(/^##\s*(?:Status|状态)\s*[:：]?\s*(?:\n\s*)?([^\n]+)/im);
+  return match ? normalizeModuleTaskStatus(stripMarkdownCode(match[1])) : "";
+}
+
+function normalizeModuleTaskStatus(status) {
+  const value = String(status || "").trim().toLowerCase();
+  const aliases = new Map([
+    ["未开始", "not-started"],
+    ["未启动", "not-started"],
+    ["进行中", "in-progress"],
+    ["开发中", "in-progress"],
+    ["规划审查", "planning-review"],
+    ["已完成", "completed"],
+    ["完成", "completed"],
+    ["已关闭", "closed"],
+    ["关闭", "closed"],
+    ["已阻塞", "blocked"],
+    ["阻塞", "blocked"],
+  ]);
+  return aliases.get(value) || value;
+}
+
+function isActiveModuleTaskStatus(status) {
+  if (!status) return false;
+  return !new Set([
+    "not-started",
+    "blocked-not-started",
+    "complete",
+    "completed",
+    "closed",
+    "closed-with-residual",
+    "closed-local-only",
+    "superseded",
+  ]).has(status);
+}
+
+function hasPendingCoordinatorHandoff(taskPlanContent, progressContent) {
+  const combined = `${taskPlanContent}\n${progressContent}`;
+  return /Coordinator Handoff/i.test(combined) && /pending-coordinator-pass/i.test(combined);
 }
 
 function checkAgentsIndex() {

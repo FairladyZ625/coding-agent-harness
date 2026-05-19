@@ -1,69 +1,29 @@
 # Repository Governance Standard
 
-## Repo Platform Profile
+## Purpose
 
-- Platform: [GitHub / GitLab / local-only / other]
-- Remote: [owner/repo or URL]
-- Default branch: [main / master / other]
-- Repo type: [single app / monorepo / multi-repo / library / service]
-- Admin access available to agent: [yes / no / unknown]
+Define repository-level rules for branches, commits, pull requests, ownership, generated files, and merge safety.
 
-## Branch Model
+## Rules
 
-- Protected branch(es):
-- Feature branch naming:
-- Release branch naming:
-- Hotfix branch naming:
-- Direct push policy:
+1. Respect the current worktree state. Do not revert or overwrite unrelated changes from other people or agents.
+2. Use task-scoped branches and worktrees for non-trivial changes, especially when multiple workers are active.
+3. Keep commits focused on the requested scope and avoid mixing unrelated cleanup with feature work.
+4. Generated files, caches, build output, local runtime state, and secrets must be ignored or stored in the approved location.
+5. Pull requests must describe intent, changed surfaces, checks run, checks not run, review status, and residual risk.
+6. Required checks and material review findings block merge unless an approved exception is recorded.
+7. Merge or release ownership must be explicit when several branches or workers contribute to the same outcome.
 
-## PR Policy
+## Required Checklist
 
-- PR required before merge:
-- PR title format:
-- PR body requirements:
-- Required reviewers:
-- Required review type:
-- Merge method:
-- Merge order owner:
+- Branch and worktree ownership are clear.
+- Allowed and forbidden paths are respected.
+- Dirty worktree state was checked before edits.
+- Generated and private files are not accidentally staged.
+- PR summary includes evidence and residuals.
+- Review findings are resolved or explicitly accepted.
+- Merge strategy and rollback or revert path are understood.
 
-## Required Checks
+## Closeout Expectations
 
-| Check | Command / Workflow | Required? | Evidence |
-|-------|--------------------|-----------|----------|
-| lint | [command] | yes/no | [evidence path] |
-| typecheck | [command] | yes/no | [evidence path] |
-| build | [command] | yes/no | [evidence path] |
-| test | [command] | yes/no | [evidence path] |
-| smoke | [command] | yes/no | [evidence path] |
-
-## Branch Protection Plan
-
-- Status: [designed / implemented / verified / blocked-with-owner]
-- Required status checks:
-- Required PR review count:
-- Dismiss stale reviews:
-- Require branches up to date:
-- Block force push:
-- Block deletion:
-- Bypass actors:
-- Verification command:
-- Manual setup residual:
-
-## Worktree Concurrency
-
-- Max active worktrees:
-- Naming pattern:
-- Branch pattern:
-- Ownership rule:
-- Subagent worker rule: each code-changing worker uses its own worktree / branch and hands off a commit SHA
-- Merge ordering rule:
-- Cleanup rule:
-
-## Evidence Status
-
-| Item | Status | Evidence | Residual |
-|------|--------|----------|----------|
-| PR policy | [designed / implemented / verified / blocked-with-owner] | [path] | [residual] |
-| Required checks | [designed / implemented / verified / blocked-with-owner] | [path] | [residual] |
-| Branch protection | [designed / implemented / verified / blocked-with-owner] | [path] | [residual] |
-| Worktree concurrency | [designed / implemented / verified / blocked-with-owner] | [path] | [residual] |
+Repository closeout must list changed paths, confirm scope boundaries were honored, report git status relevant to the task, summarize checks, and identify unrelated dirty files left untouched.

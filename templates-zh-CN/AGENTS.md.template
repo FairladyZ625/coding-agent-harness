@@ -1,0 +1,92 @@
+# [项目名称]
+
+> Agent 进入本仓库时先读这个文件。它负责说明项目边界、工作顺序和文档入口，不承载所有细节。
+
+## 项目概况
+
+- **项目名**：[项目名称]
+- **技术栈**：[语言 / 框架 / 运行时]
+- **仓库形态**：[单仓 / monorepo / 多仓协作]
+- **主要模块**：[列出主要子项目、包或服务]
+- **默认分支**：[例如 `main`]
+
+## 不可违反的规则
+
+1. [架构约束，例如：外部依赖必须通过 adapter 层隔离]
+2. [安全约束，例如：不得提交密钥、令牌、用户隐私数据]
+3. [流程约束，例如：非平凡任务必须先建立任务目录和计划文件]
+4. [发布约束，例如：未通过指定回归门禁不得合并或发布]
+
+## 任务阅读矩阵
+
+按任务类型读取最少但足够的上下文。不要一次性加载整套文档。
+
+| 任务类型 | 先读文件 |
+| --- | --- |
+| 架构、核心模块、跨模块改动 | `docs/11-REFERENCE/engineering-standard.md` |
+| 测试、冒烟、回归 | `docs/11-REFERENCE/testing-standard.md` |
+| 开发执行、提交、PR | `docs/11-REFERENCE/execution-workflow-standard.md` |
+| 多人协作、多仓交付、前后端分工 | `docs/11-REFERENCE/delivery-operating-model-standard.md`，再读 `docs/09-PLANNING/Delivery-SSoT.md` |
+| 仓库治理、PR 规则、分支保护 | `docs/11-REFERENCE/repo-governance-standard.md` |
+| CI/CD、必跑检查、发布门禁 | `docs/11-REFERENCE/ci-cd-standard.md` |
+| 长程任务、连续执行、子代理审查 | `docs/11-REFERENCE/long-running-task-standard.md` |
+| 对抗性审查、reviewer 报告 | `docs/11-REFERENCE/adversarial-review-standard.md` |
+| reviewer、subagent、外部审查路由 | `docs/11-REFERENCE/review-routing-standard.md` |
+| 文档治理、planning、任务目录 | `docs/11-REFERENCE/docs-library-standard.md` |
+| Harness Ledger 回写 | `docs/11-REFERENCE/harness-ledger-standard.md` |
+| Regression SSoT 维护 | `docs/11-REFERENCE/regression-ssot-governance.md` |
+| 收口记录、Closeout、Lessons | `docs/11-REFERENCE/walkthrough-standard.md`，再读 `docs/01-GOVERNANCE/Lessons-SSoT.md` 与 `docs/10-WALKTHROUGH/Closeout-SSoT.md` |
+| Worktree、并行开发、worker 隔离 | `docs/11-REFERENCE/worktree-standard.md` |
+| [前端任务] | `docs/11-REFERENCE/frontend-standard.md` |
+| [API 任务] | `docs/11-REFERENCE/api-standard.md` |
+
+## 标准执行流程
+
+1. 判断任务是否非平凡；非平凡任务先在 `docs/09-PLANNING/TASKS/` 建任务目录。
+2. 填写 `task_plan.md`，并补齐同级 `execution_strategy.md` 与 `visual_roadmap.md`。
+3. 确认本任务的 delivery operating model；涉及多人、多仓或共享交付时更新 Delivery SSoT。
+4. 如果任务可能长时间连续执行，先填写 `long-running-task-contract.md`。
+5. 如需 reviewer、subagent、release review，在任务目录维护 `review.md`。
+6. 涉及合并、PR、CI 或发布时，先读仓库治理和 CI/CD 标准。
+7. 根据任务类型回写功能 SSoT、Delivery SSoT 或 Regression SSoT。
+8. 按 worktree 标准创建独立 worktree、feature branch、contract branch 或 release branch。
+9. 实现后运行约定检查和回归门禁，并把证据写入 `progress.md` 或 artifacts index。
+10. 收口前按 `review-routing-standard.md` 触发所需审查，处理所有阻塞发现。
+11. 写 walkthrough，并引用任务计划、证据、审查结论和残余风险。
+12. 执行 Lessons 检查：有可复用经验则写入 `docs/01-GOVERNANCE/lessons/` 并更新 Lessons SSoT；无经验也要记录 `checked-none: <原因>`。
+13. 更新 `docs/10-WALKTHROUGH/Closeout-SSoT.md` 与 `docs/Harness-Ledger.md`。
+14. 清理已完成并合并的 worktree。
+
+## 子代理 / Worker 规则
+
+主 agent 作为 coordinator 调用 subagent、外部 agent 或 reviewer 时，必须先判断对方角色。
+
+- `reviewer`：默认只读，只能写审查报告、findings 或 `review.md`，不得直接改业务代码。
+- `worker`：凡是会改代码、测试、产品文档或 harness 文档的 subagent，都必须在独立 worktree 和分支内工作。
+
+Worker 的最低交付合同：
+
+1. coordinator 先分配 worktree 路径、分支名、任务目录和允许写入范围。
+2. worker 只在自己的 worktree 内编辑，不写 coordinator 当前 checkout。
+3. worker 完成后运行约定检查，并提交自己的改动。
+4. worker handoff 必须包含 worktree path、branch、commit SHA、checks、residual risks。
+5. coordinator 只集成 worker 的 commit，不把多个 worker 的未提交改动混在同一个 checkout。
+6. coordinator 合并后运行最终回归，并更新 walkthrough、Harness Ledger 和 Lessons。
+
+如果环境或用户明确要求不使用独立 worktree，必须在 `progress.md`、walkthrough 或 Harness Ledger 记录偏离原因、风险和补偿验证。
+
+## SSoT 与总账
+
+- **功能 SSoT**：`docs/09-PLANNING/[功能-SSoT].md`
+- **Delivery SSoT**：`docs/09-PLANNING/Delivery-SSoT.md`
+- **Regression SSoT**：`docs/05-TEST-QA/Regression-SSoT.md`
+- **Lessons SSoT**：`docs/01-GOVERNANCE/Lessons-SSoT.md`
+- **Cadence Ledger**：`docs/05-TEST-QA/Cadence-Ledger.md`
+- **Harness Ledger**：`docs/Harness-Ledger.md`
+- **Closeout SSoT**：`docs/10-WALKTHROUGH/Closeout-SSoT.md`
+- **仓库治理标准**：`docs/11-REFERENCE/repo-governance-standard.md`
+- **CI/CD 标准**：`docs/11-REFERENCE/ci-cd-standard.md`
+
+## 协作补充
+
+[按项目实际填写：模块 owner、共享文件锁、merge 顺序、发布审批人、环境限制等。]

@@ -1,42 +1,44 @@
-# Lessons SSoT - [项目名称]
+# Lessons SSoT
 
-> 单一事实源：管理所有经验沉淀建议的生命周期。
-> Agent 在 Walkthrough 收口后写入建议；人审批后决定是否合入正式 reference。
-> **表行不能单独存在：每条 Active Lesson 必须有 `docs/01-GOVERNANCE/lessons/` 下的详情文档。**
-> **开始写新建议前，必须完整读一遍本表，了解当前所有 pending 状态的条目。**
+## Purpose
 
-## Active Lessons
-
-| ID | Date | Source | Type | Target | Summary | Detail Doc | Status | Conflict |
-|----|------|--------|------|--------|---------|------------|--------|----------|
-| | | | | | | | | |
-
-## Archived (see _archive/ for full history)
-
-| ID | Date | Resolution | Resolved |
-|----|------|------------|----------|
-| | | | |
+Track reusable lessons discovered during closeout and route them into standards, templates, checkers, or explicit no-action decisions.
 
 ## Status Legend
 
-- 🟡 pending — 等待人审批
-- 🟢 approved — 已批准，待合入
-- ✅ merged — 已合入正式 reference
-- ❌ rejected — 不采纳
-- 🔀 superseded — 被后续条目取代
+| Status | Meaning | Required Next Step |
+| --- | --- | --- |
+| candidate | Lesson was proposed during review or walkthrough. | Decide whether it is reusable. |
+| accepted | Lesson is valid and needs a durable change. | Assign implementation target and owner. |
+| applied | Durable change has landed. | Link changed file, checker, or template. |
+| rejected | Lesson is not reusable or not worth adopting. | Record reason. |
+| superseded | A newer lesson replaces this one. | Link replacement. |
+| archived | Lesson is historical. | Keep detail doc and final disposition. |
 
-## Type Legend
+## Active Lessons
 
-- `ref-change` — 修改现有 reference 文档
-- `new-doc` — 新增文档/规范
-- `arch-change` — 架构层面的改动建议
-- `process-change` — 流程/工作方式的改动建议
+| ID | Lesson | Source | Type | Owner | Status | Target Change | Detail Doc | Evidence | Updated |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| L-YYYY-MM-DD-001 | Short lesson title | walkthrough, review, incident, or verifier | ref-change / new-doc / arch-process-change | owner | candidate | file, checker, template, or no-action | docs/01-GOVERNANCE/lessons/...md | source link | YYYY-MM-DD |
 
-## Rules
+## Type Routing
 
-1. Agent 写新建议前必须完整读本表。
-2. 先写 `docs/01-GOVERNANCE/lessons/L-YYYY-MM-DD-NNN-<slug>.md` 详情文档，再追加本表行。
-3. `Detail Doc` 必须是详情文档路径，不能写散文摘要。
-4. 副本始终基于正式版本，不基于其他 pending 副本。
-5. 如有冲突，以解决冲突方式编写，并在 Conflict 列互相标记。
-6. Active 表超过 20 条时归档已完结条目到 `_archive/`。
+| Type | Use When | Required Artifact |
+| --- | --- | --- |
+| ref-change | Existing standard, template, or checker needs an update. | `templates/lessons/lesson-ref-change.md` detail doc. |
+| new-doc | A missing durable reference document is needed. | `templates/lessons/lesson-new-doc.md` detail doc. |
+| arch-process-change | Operating model, phase gate, ownership, or architecture process needs to change. | `templates/lessons/lesson-arch-process-change.md` detail doc. |
+
+## Routing Rules
+
+1. Walkthrough closeout must record whether a lessons check was performed.
+2. Do not create a lesson for one-off trivia; create one only when a future agent could repeat the failure or benefit from the rule.
+3. Accepted lessons must name the durable target: reference doc, template, checker, workflow, or operating model.
+4. `applied` requires evidence of the durable change, not just agreement in chat.
+5. Rejected lessons must explain why no durable change is needed.
+
+## Archive Rules
+
+- Keep candidate and accepted lessons in this file until resolved.
+- Archive applied, rejected, or superseded lessons after the next closeout cycle.
+- Preserve the detail doc and source walkthrough link for every archived lesson.

@@ -1,3 +1,13 @@
 # Local review / planning drafts generated while evolving this harness.
 # Task-local plans belong under templates/planning or target-project docs/09-PLANNING/TASKS.
 docs/plans/
+
+# Private self-hosted harness for this source repository.
+# This directory is versioned by its own local/private git repository and must not be
+# published with the open-source package.
+.harness-private/
+
+# Generated local dashboards and smoke-test output.
+tmp/
+.playwright-mcp/
+harness-dashboard-*.png

@@ -1,0 +1,81 @@
+# 执行工作流标准
+
+## 职责
+
+本标准规定非平凡任务从开始、执行到收口的固定路径。它把 task plan、Delivery SSoT、worktree、review、testing、Regression SSoT、walkthrough 和 Harness Ledger 串成一条可检查的交付链。
+
+## 开始任务前
+
+1. 读取 AGENTS.md 和与本任务相关的 reference 标准。
+2. 读取功能 SSoT 或 Delivery SSoT，确认任务状态、owner 和依赖。
+3. 读取 `task_plan.md`，确认目标、范围、证据、stop condition 和允许修改的路径。
+4. 读取 `delivery-operating-model-standard.md`，判断本轮是 solo、team、split-repo、program、waterfall 还是 kanban 交付形态。
+5. 多人、多 agent、多仓、共享文件或阶段交付任务必须更新 `docs/09-PLANNING/Delivery-SSoT.md`。
+6. 判断是否属于长程任务；如属于，按 `long-running-task-standard.md` 补齐合同。
+7. 判断是否需要对抗性审查；如需要，按 `adversarial-review-standard.md` 创建或更新 `review.md`。
+8. planned task 默认需要 closeout review；先读取 `review-routing-standard.md`。
+9. 触及 PR、branch protection、required checks、CI/CD 或 release 时，读取 `repo-governance-standard.md` 和 `ci-cd-standard.md`。
+10. 按运行模型确认是否需要 worktree、feature branch、contract branch 或 release branch。
+11. 如需调用可写 subagent worker，先分配独立 worktree / branch、任务目录、write scope 和必跑 checks。
+
+## 执行过程中
+
+1. 每完成一个阶段，更新 `progress.md`。
+2. 调查事实、约束和异常写入 `findings.md`，不要只留在聊天记录。
+3. 长程任务每轮执行 evidence loop 和 review loop。
+4. reviewer 或 subagent 审查结果写入任务目录的 `review.md`。
+5. 可写 worker 必须在自己的 worktree 内实现、验证、提交，并 handoff branch、commit SHA、checks、residual。
+6. 遇到共享文件冲突，由 coordinator 或人工决定串行顺序。
+7. 遇到目标失效、权限阻塞、高风险决策或 stop condition 不适用，立即暂停并记录。
+8. 有意义地提交中间成果；commit message 应说明变更类型和范围。
+
+## 完成任务后
+
+1. 按 `testing-standard.md` 和 Regression SSoT 运行对应检查。
+2. 确认 repo governance、CI/CD required checks 已执行、更新或 residualized。
+3. 更新功能 SSoT；多人、多仓、多模块任务同时更新 Delivery SSoT 或 Module Registry。
+4. 更新 Regression SSoT 和 Cadence Ledger（如适用）。
+5. 确认 `review.md` 没有 open P0/P1 finding；material P2 已修复或写为 `accepted-risk` 并路由。
+6. planned task 必须完成 closeout review，或写明 `skipped-with-reason`。
+7. 写 walkthrough，引用 task plan、review、证据、residual、Regression SSoT 和 commit。
+8. 执行 Lessons 检查：有可复用经验则写 lesson 详情并更新 Lessons SSoT；没有也记录 `checked-none: <reason>`。
+9. 最后更新 Harness Ledger，因为它记录本轮上下文维护的最终状态。
+10. 完成 commit / PR / release note，并确认本任务工作区没有未解释的遗留改动。
+11. 如使用 worker，coordinator 集成 worker commit 后运行最终 gates，并记录 integration evidence。
+12. 如使用 worktree，按 `worktree-standard.md` 清理或记录保留原因。
+
+## 提交规范
+
+推荐格式：
+
+```text
+<type>(<scope>): <description>
+```
+
+常用类型：
+
+- `feat`：新功能。
+- `fix`：缺陷修复。
+- `refactor`：重构。
+- `test`：测试相关。
+- `docs`：文档。
+- `chore`：构建、工具、配置或维护。
+
+## PR 与合并规范
+
+PR 描述必须包含：
+
+- 改了什么，为什么改。
+- 关联 task plan、SSoT、review 或 issue。
+- 实际运行的检查和证据。
+- residual、owner 和不阻塞理由。
+- required checks、reviewer、merge method 是否满足 `repo-governance-standard.md`。
+
+## 禁止事项
+
+- 非平凡任务跳过 task plan 直接实现。
+- 把 task plan、progress、review 等过程文件放在项目根目录。
+- 需要对抗性审查时只在聊天里讨论，不写 `review.md`。
+- 让多个可写 worker 在 coordinator 当前 checkout 混合未提交改动。
+- 把 `designed` 或 `implemented` 的 CI/CD、branch protection 说成 `verified`。
+- merge 后不跑回归、不写 walkthrough、不更新 Harness Ledger。
