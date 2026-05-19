@@ -16,6 +16,7 @@ ignored by the open-source repository and versioned separately.
 
 - `architecture/overview.md` — public architecture overview.
 - `architecture/release-roadmap.md` — v1.0 to v2.0 release line.
+- `guides/agent-installation.md` — operational installation guide for target-project agents.
 - `release/v1.0-document-kernel-plan.md` — public v1.0 execution scope.
 - `release/v1.0-final-check-cn.md` — Chinese final-check walkthrough for v1.0.
 - `release/v1.0-visual-roadmap-cn.md` — Chinese visual roadmap for final review.

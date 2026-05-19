@@ -53,6 +53,10 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 当用户要求在项目上搭建 harness 时，使用 v1.0 的六阶段安装流程。安装不是
 `npm install` 式复制文件，而是 CLI scaffold 与 Agent configure 配合完成。
 
+面向 agent 的详细安装和迁移说明见
+`docs-release/guides/agent-installation.md`。如果本 Skill 与该指南出现差异，以
+本 Skill 的执行约束为准，并把差异记录为需要修复的文档漂移。
+
 ### Agent 安装合同
 
 这个 CLI 的主要操作者通常是目标项目里的 agent，而不是最终用户。Agent 不应要求用户
