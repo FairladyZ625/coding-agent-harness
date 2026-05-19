@@ -1,57 +1,28 @@
 # Delivery Operating Model Standard
 
-## Operating Model Profile
+## Purpose
 
-- Model:
-- Team shape:
-- Repo topology:
-- Primary planning owner:
-- Merge / integration owner:
-- Release owner:
-- Agent visibility:
+Define how work is organized across owners, agents, branches, reviews, and release gates before implementation starts.
 
-## Work Decomposition Rule
+## Rules
 
-| Level | Owner | Artifact | Rule |
-|-------|-------|----------|------|
-| Roadmap | | | |
-| Feature block | | `docs/09-PLANNING/Delivery-SSoT.md` / Feature SSoT | |
-| Task | | `docs/09-PLANNING/TASKS/<task>/task_plan.md` | |
-| Review | | `review.md` / PR review | |
-| Integration | | PR / release branch / integration branch | |
+1. Select the operating model before coding: solo owner, coordinator plus workers, review-only workers, or release steward model.
+2. Work must have a named coordinator when multiple agents or humans touch related surfaces.
+3. Shared files, global styles, build configuration, schemas, and release scripts require coordinator ownership. Workers must not make unplanned edits to shared surfaces.
+4. Parallel work must be split by low-conflict boundaries such as module, route, package, document area, or test surface.
+5. Each worker must have a scope statement, allowed paths, forbidden paths, expected artifacts, and handoff format.
+6. The coordinator owns final merge, conflict resolution, evidence consolidation, and residual risk summary.
+7. The operating model must identify which decisions can be made by workers and which require coordinator approval.
 
-## Selected Model Contract
+## Required Artifacts
 
-- Why this model fits:
-- How feature blocks are assigned:
-- How shared files are locked or sequenced:
-- How merge order is decided:
-- How cross-repo contracts are changed:
-- How agents know what context they may read:
+- Delivery model statement in the task plan.
+- Scope map for each owner or worker.
+- Shared-surface ownership list.
+- Handoff requirements for code, tests, review notes, and evidence.
+- Merge and release gate checklist.
+- Residual risk owner for unresolved items.
 
-## Delivery SSoT Requirement
+## Closeout Expectations
 
-- Required: yes / no
-- Path: `docs/09-PLANNING/Delivery-SSoT.md`
-- Reason if not required:
-
-## Cross-Repo Interface Contract
-
-- API/schema source of truth:
-- Request/response examples:
-- Error semantics:
-- Compatibility rule:
-- Mock/stub strategy:
-- Breaking-change owner:
-- Frontend verification:
-- Backend verification:
-
-## Evidence Status
-
-| Item | Status | Evidence | Residual |
-|------|--------|----------|----------|
-| Operating model selected | designed / implemented / verified / blocked-with-owner | | |
-| Planning owner named | designed / implemented / verified / blocked-with-owner | | |
-| Integration owner named | designed / implemented / verified / blocked-with-owner | | |
-| Feature block assignment rule | designed / implemented / verified / blocked-with-owner | | |
-| Shared-file / cross-repo conflict rule | designed / implemented / verified / blocked-with-owner | | |
+Closeout must show that all worker handoffs were reviewed, shared-surface changes were reconciled by the coordinator, required checks were run from the integration branch, and remaining residuals have owners.

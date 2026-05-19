@@ -1,20 +1,41 @@
-# Cadence Ledger - [项目名称]
+# Cadence Ledger
 
-> 定义"什么情况下自动触发哪些回归面"。
-> 新增 regression gate 时必须同步更新 trigger rules。
-> 改变 trigger rules、gate 结构或 evidence depth 时，在当前任务的 Harness Ledger row 记录 `Regression=updated`。
+## Purpose
 
-## Trigger Rules
+Map change scopes to required regression gates and recurring check cadence. This file turns Regression SSoT gates into an operating schedule.
 
-| 改动范围 | 触发的 Regression Gates | 说明 |
-|----------|----------------------|------|
-| [范围1，如 API 路由层] | RG-001, RG-003 | [为什么这些 gate] |
-| [范围2，如前端组件] | RG-005 | |
-| [范围3，如数据库 schema] | RG-001, RG-002, RG-004 | |
-| 任何 merge 到主干 | Full Shared Batch | |
+## Status Legend
 
-## Shared Regression Batch Log
+| Status | Meaning | Required Next Step |
+| --- | --- | --- |
+| active | Cadence rule is enforced. | Run when triggered and record evidence. |
+| paused | Rule is temporarily disabled. | Record approver, reason, and resume date. |
+| failing | Latest scheduled run failed. | Assign fix owner and block affected closeout. |
+| replaced | Rule has a newer owner or gate. | Link replacement. |
+| archived | Rule is historical. | Preserve final evidence and replacement pointer. |
 
-| Batch | Date | Scope | Trigger | Result | Notes | Next Checkpoint |
-|-------|------|-------|---------|--------|-------|-----------------|
-| SRB-001 | YYYY-MM-DD | Full | Initial bootstrap | [X/Y 🟢] | [备注] | SRB-002 after [条件] |
+## Cadence Rules
+
+| ID | Change Scope or Trigger | Required Gates | Minimum Evidence Depth | Frequency | Owner | Status | Latest Run | Next Run or Trigger | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| C-000 | paths, modules, labels, release, or schedule | RG-000, RG-001 | E2 | per PR / daily / release | owner | active | YYYY-MM-DD evidence path | next trigger | none |
+
+## Run Log
+
+| Run ID | Date | Trigger | Gates Run | Result | Evidence | Follow-up |
+| --- | --- | --- | --- | --- | --- | --- |
+| CR-YYYY-MM-DD-001 | YYYY-MM-DD | PR, release, schedule, or manual | RG-000 | pass / fail / waived | path, CI run, log, or screenshot | none |
+
+## Routing Rules
+
+1. Every active Regression SSoT gate that must run repeatedly should have a cadence rule.
+2. Path-based triggers must be specific enough for agents to choose the right checks without guessing.
+3. Failed cadence runs remain visible until a passing replacement run or documented waiver exists.
+4. Waived runs must link the corresponding Regression SSoT waiver.
+5. Release closeout must cite the latest run log entries for release-blocking gates.
+
+## Archive Rules
+
+- Keep the current release cycle and any failing runs in this file.
+- Archive older passing runs after their release or milestone is closed.
+- Preserve run ID, trigger, result, and evidence link in archived records.

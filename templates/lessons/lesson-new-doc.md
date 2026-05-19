@@ -1,40 +1,50 @@
-# L-[ID]: [一句话标题]
+# L-YYYY-MM-DD-001: Short New-Document Lesson
 
-## 元信息
+## Lesson Type
 
-- **ID**: L-[NNN]
-- **Date**: YYYY-MM-DD
-- **Source**: `docs/10-WALKTHROUGH/[walkthrough文件名].md`
-- **Type**: new-doc
-- **Suggested Path**: `docs/11-REFERENCE/[建议文件名].md`
-- **Author Agent**: [agent session / model]
+new-doc
 
-## 背景
+## Source
 
-[为什么需要这个新文档？在哪个 walkthrough 中发现了缺失？]
+| Field | Value |
+| --- | --- |
+| Discovered in | walkthrough, review, incident, verifier, or release |
+| Source link | path or URL |
+| Related task | F-000, D-000, HL-000, or task plan path |
+| Owner | owner |
+| Status | candidate / accepted / applied / rejected / superseded |
 
-## 共性问题
+## Gap
 
-[这个缺失是否跨多轮、多个模块、多个 agent 或多个阶段反复出现？如果是，说明共同模式；如果不是，说明为什么仍值得新增文档。]
+Describe the missing reference document, template, checklist, or operating guide that caused ambiguity or repeat work.
 
-## 现行规范缺口
+## Why Existing Docs Are Not Enough
 
-[为什么现有 reference / template / checker 放不下这个规则？]
+| Existing Doc | Gap |
+| --- | --- |
+| path or none | what it does not cover |
 
-## 建议路径
+## Proposed Document
 
-`docs/11-REFERENCE/[建议文件名].md`
+| Field | Value |
+| --- | --- |
+| Target path | docs/.../document-name.md |
+| Primary reader | agent, reviewer, maintainer, release owner, or operator |
+| Required sections | concise section list |
+| Related standards | paths or none |
 
-## 文档内容
+## Adoption Plan
 
-[完整的新文档内容]
+| Step | Owner | Due | Status |
+| --- | --- | --- | --- |
+| Draft, review, link, and add checker coverage if needed | owner | YYYY-MM-DD | planned |
 
-## 下次如何触发
+## Acceptance Criteria
 
-[写清下次 agent 在什么动作点会被提醒，例如写 walkthrough 时、closeout 前、review 后、checker 运行时。]
+- The new document exists at the target path and is linked from the relevant index or entrypoint.
+- The document contains operational rules, not background essay content.
+- The Lessons SSoT row links this detail doc and the new document.
 
-## 冲突声明
+## Disposition
 
-- 当前是否有其他 pending 条目涉及相同范围：是/否
-- 如果有，涉及条目：L-[XXX]
-- 本建议是否已考虑兼容：是/否
+accepted / rejected / applied / superseded, with reason and evidence link.

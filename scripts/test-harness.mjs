@@ -9,6 +9,13 @@ const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "
 const node = process.execPath;
 const cli = path.join(repoRoot, "scripts/harness.mjs");
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-v1-"));
+const chineseCharacterPattern = /\p{Script=Han}/u;
+const brokenMechanicalTemplatePattern = /\bfill in(?:[A-Z]|\w)|(?:[a-z])fill in\b|TODO/;
+const staleDispositionPattern = /\b((?:open\s*\/\s*)?fixed\s*\/\s*accepted\s*\/\s*deferred\s*\/\s*n\/a|accepted[- ]residuals?|accepted\s+(?:with|as)\s+residual|accepted\s+by\s+owner|accepted\s+waiver)\b/i;
+const sampleOpenFindingPattern = /^\|\s*(?:F|R|SR|V|RR|HL)-\d+\s*\|.*\|\s*(?:open|yes\s*\|\s*open|yes\s*\/\s*no\s*\|\s*open)\s*\|?\s*$/im;
+const englishFirstZhHeadingPattern = /^#{1,6}\s+(?:Reviewer Identity|Confidence Challenge|Material Findings|Non-Material Notes|Evidence Checked|Final Confidence Basis|Follow-Up Routing|Phase Graph|Phase Table|Context Packet|Artifact Index|Stop Condition|Pause Conditions|Deliverables|Module Session Prompt|Subagent\s*\/\s*Worker|Coordinator|Worktree|Slice ID|Parent Phase|Inputs|Verifier\b|Harness\b|Closeout\b|Lessons\b)/m;
+const zhMechanicalEnglishWorkflowPattern = /^\s*\d+\.\s*(?:implement|run locally|self-review|rerun evidence)\b/im;
+const zhMechanicalEvidencePhrasePattern = /\b(?:local smoke|browser or UI inspection|live environment smoke|reviewer findings|PR checks\s*\/\s*workflow run)\b/i;
 
 function run(args, options = {}) {
   const result = spawnSync(node, [cli, ...args], {
@@ -37,6 +44,35 @@ function expectJson(args) {
 expectPass(["check", "--profile", "source-package", "."]);
 if (fs.existsSync(path.join(repoRoot, ".harness-private"))) {
   expectPass(["check", "--profile", "private-harness", ".harness-private"]);
+}
+
+const englishTemplateFiles = relativeFiles(path.join(repoRoot, "templates"));
+const chineseTemplateFiles = relativeFiles(path.join(repoRoot, "templates-zh-CN"));
+assert(englishTemplateFiles.length > 0, "templates/ should contain English templates");
+assert(chineseTemplateFiles.length > 0, "templates-zh-CN/ should contain Chinese templates");
+assert(
+  JSON.stringify(englishTemplateFiles) === JSON.stringify(chineseTemplateFiles),
+  "templates/ and templates-zh-CN/ should expose the same template file set",
+);
+for (const relativeFile of englishTemplateFiles) {
+  const content = fs.readFileSync(path.join(repoRoot, "templates", relativeFile), "utf8");
+  assert(!chineseCharacterPattern.test(content), `English template contains Chinese text: ${relativeFile}`);
+  assert(!brokenMechanicalTemplatePattern.test(content), `English template contains mechanical placeholder text: ${relativeFile}`);
+  assert(!staleDispositionPattern.test(content), `English template contains stale disposition vocabulary: ${relativeFile}`);
+  assert(!sampleOpenFindingPattern.test(content), `English template contains a real open sample finding row: ${relativeFile}`);
+}
+assert(
+  fs.readFileSync(path.join(repoRoot, "templates-zh-CN", "AGENTS.md.template"), "utf8").includes("项目概况"),
+  "templates-zh-CN should provide Chinese AGENTS.md content",
+);
+for (const relativeFile of chineseTemplateFiles) {
+  const content = fs.readFileSync(path.join(repoRoot, "templates-zh-CN", relativeFile), "utf8");
+  assert(!brokenMechanicalTemplatePattern.test(content), `Chinese template contains mechanical placeholder text: ${relativeFile}`);
+  assert(!staleDispositionPattern.test(content), `Chinese template contains stale disposition vocabulary: ${relativeFile}`);
+  assert(!sampleOpenFindingPattern.test(content), `Chinese template contains a real open sample finding row: ${relativeFile}`);
+  assert(!englishFirstZhHeadingPattern.test(content), `Chinese template contains English-first review heading: ${relativeFile}`);
+  assert(!zhMechanicalEnglishWorkflowPattern.test(content), `Chinese template contains unlocalized workflow phrase: ${relativeFile}`);
+  assert(!zhMechanicalEvidencePhrasePattern.test(content), `Chinese template contains unlocalized evidence phrase: ${relativeFile}`);
 }
 
 const exampleStatus = expectJson(["status", "--json", "examples/minimal-project"]);
@@ -124,16 +160,54 @@ assert(!hasLocalAbsolutePath(redactionData), "dashboard data leaked generic loca
 
 const dryRunTarget = path.join(tmpRoot, "dry-run-target");
 fs.mkdirSync(dryRunTarget);
-const dryRun = expectJson(["init", "--dry-run", "--capabilities", "core,dashboard", dryRunTarget]);
+const dryRun = expectJson(["init", "--dry-run", "--locale", "zh-CN", "--capabilities", "core,dashboard", dryRunTarget]);
 assert(dryRun.dryRun === true, "init dry-run did not report dryRun true");
+assert(dryRun.locale === "zh-CN", "init dry-run did not preserve zh-CN locale");
+assert(!dryRun.changes.some((change) => change.destination.startsWith("docs/11-REFERENCE/")), "init scaffold should not mechanically copy reference standards");
+assert(
+  dryRun.changes.some((change) => change.source === "templates-zh-CN/planning/task_plan.md"),
+  "init zh-CN dry-run should use localized task_plan template when available",
+);
 assert(!fs.existsSync(path.join(dryRunTarget, "AGENTS.md")), "init dry-run mutated target");
+
+const zhInitTarget = path.join(tmpRoot, "zh-init-target");
+fs.mkdirSync(zhInitTarget);
+expectPass(["init", "--locale", "zh-CN", "--capabilities", "core,dashboard", zhInitTarget]);
+const zhRegistry = JSON.parse(fs.readFileSync(path.join(zhInitTarget, ".harness-capabilities.json"), "utf8"));
+assert(zhRegistry.locale === "zh-CN", "init should persist zh-CN locale");
+assert(fs.readFileSync(path.join(zhInitTarget, "AGENTS.md"), "utf8").includes("项目概况"), "zh-CN init should write Chinese AGENTS.md");
+const zhReviewTemplate = fs.readFileSync(path.join(zhInitTarget, "docs/09-PLANNING/TASKS/_task-template/review.md"), "utf8");
+assert(zhReviewTemplate.includes("| ID | Severity | Finding | Evidence Checked | Required Action | Open | Disposition | Blocks Release | Follow-up |"), "zh-CN review template should preserve checker table headers");
+const zhDashboardDir = path.join(tmpRoot, "zh-dashboard");
+expectPass(["dashboard", "--out-dir", zhDashboardDir, zhInitTarget]);
+const zhDashboardIndex = fs.readFileSync(path.join(zhDashboardDir, "index.html"), "utf8");
+const zhDashboardApp = fs.readFileSync(path.join(zhDashboardDir, "assets/app.js"), "utf8");
+assert(zhDashboardIndex.includes("Harness 控制台"), "zh-CN dashboard should use localized index template");
+assert(zhDashboardApp.includes("项目驾驶舱"), "zh-CN dashboard should use localized app template");
+
+const enRunTarget = path.join(tmpRoot, "en-run-target");
+fs.mkdirSync(enRunTarget);
+const enRun = expectJson(["init", "--dry-run", "--locale", "en-US", "--capabilities", "core", enRunTarget]);
+assert(enRun.locale === "en-US", "init dry-run did not preserve en-US locale");
+assert(
+  enRun.changes.some((change) => change.source === "templates/planning/task_plan.md"),
+  "init en-US dry-run should use default English task_plan template",
+);
 
 const capTarget = path.join(tmpRoot, "cap-target");
 fs.mkdirSync(capTarget);
 expectPass(["add-capability", "dashboard", capTarget]);
 const registry = JSON.parse(fs.readFileSync(path.join(capTarget, ".harness-capabilities.json"), "utf8"));
+assert(registry.locale === "en-US", "add-capability registry missing default locale");
 assert(registry.capabilities.some((capability) => capability.name === "dashboard"), "add-capability missing dashboard");
 assert(registry.capabilities.some((capability) => capability.name === "core"), "add-capability missing dependency core");
+
+const zhCapTarget = path.join(tmpRoot, "zh-cap-target");
+fs.mkdirSync(zhCapTarget);
+expectPass(["add-capability", "dashboard", "--locale", "zh-CN", zhCapTarget]);
+const zhCapRegistry = JSON.parse(fs.readFileSync(path.join(zhCapTarget, ".harness-capabilities.json"), "utf8"));
+assert(zhCapRegistry.locale === "zh-CN", "add-capability should support zh-CN locale for legacy targets");
+assert(fs.readFileSync(path.join(zhCapTarget, "AGENTS.md"), "utf8").includes("项目概况"), "zh-CN add-capability should write Chinese templates");
 
 const mismatch = run(["init", "--capabilities", "core,module-parallel", capTarget]);
 assert(mismatch.status !== 0, "init with mismatched existing capabilities should fail");
@@ -142,7 +216,7 @@ const invalidReviewTarget = path.join(tmpRoot, "invalid-review");
 fs.mkdirSync(path.join(invalidReviewTarget, "docs/09-PLANNING/TASKS/bad"), { recursive: true });
 fs.writeFileSync(
   path.join(invalidReviewTarget, ".harness-capabilities.json"),
-  JSON.stringify({ version: 1, capabilities: [{ name: "core", state: "configured" }, { name: "review-contract", state: "configured" }] }, null, 2),
+  JSON.stringify({ version: 1, locale: "en-US", capabilities: [{ name: "core", state: "configured" }, { name: "adversarial-review", state: "configured" }] }, null, 2),
 );
 fs.writeFileSync(path.join(invalidReviewTarget, "docs/09-PLANNING/TASKS/bad/task_plan.md"), "# Bad\n");
 fs.writeFileSync(
@@ -156,7 +230,7 @@ const invalidVerifierTarget = path.join(tmpRoot, "invalid-verifier");
 fs.mkdirSync(path.join(invalidVerifierTarget, "docs/09-PLANNING/TASKS/bad"), { recursive: true });
 fs.writeFileSync(
   path.join(invalidVerifierTarget, ".harness-capabilities.json"),
-  JSON.stringify({ version: 1, capabilities: [{ name: "core", state: "configured" }, { name: "review-contract", state: "configured" }] }, null, 2),
+  JSON.stringify({ version: 1, locale: "en-US", capabilities: [{ name: "core", state: "configured" }, { name: "adversarial-review", state: "configured" }] }, null, 2),
 );
 fs.writeFileSync(path.join(invalidVerifierTarget, "docs/09-PLANNING/TASKS/bad/task_plan.md"), "# Bad\n");
 fs.writeFileSync(
@@ -226,4 +300,25 @@ function assertGraphIntegrity(graph, label) {
     assert(nodes.has(edge.from), `${label} has dangling edge source ${edge.from}`);
     assert(nodes.has(edge.to), `${label} has dangling edge target ${edge.to}`);
   }
+}
+
+function relativeFiles(root) {
+  const results = [];
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir)) {
+      const full = path.join(dir, entry);
+      const stat = fs.statSync(full);
+      if (stat.isDirectory()) {
+        walk(full);
+      } else {
+        results.push(toPosix(path.relative(root, full)));
+      }
+    }
+  }
+  walk(root);
+  return results.sort();
+}
+
+function toPosix(value) {
+  return value.split(path.sep).join("/");
 }

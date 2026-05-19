@@ -1,24 +1,33 @@
-# [任务名称] - Progress
+# [Task Name] - Progress
 
-## 状态：未开始
+## Current Status
 
-## 进度记录
+planned
 
-Evidence values use `type:path:summary`.
-Allowed types: `command`, `diff`, `fixture`, `screenshot`, `review`, `report`.
-For heavy evidence, reference `artifacts/INDEX.md` instead of pasting output.
+## Log
 
-### [YYYY-MM-DD HH:MM] - [阶段名称]
-- 做了什么：[具体操作]
-- 验证结果：[跑了什么测试，结果如何]
-- 下一步：[接下来做什么]
-- Evidence：[type:path:summary]
+| Time | Actor | Action | Evidence | Next |
+| --- | --- | --- | --- | --- |
+| YYYY-MM-DD HH:MM | coordinator | [action taken] | type:path:summary | [next step] |
+
+## Decisions
+
+| Date | Decision | Reason | Owner |
+| --- | --- | --- | --- |
+| YYYY-MM-DD | [decision] | [reason] | [owner] |
+
+## Evidence Ledger
+
+| Evidence ID | Type | Path or Command | Result | Used For |
+| --- | --- | --- | --- | --- |
+| E-001 | command / file / runtime / review | [path or command] | pass / fail / observed / waived | [claim supported] |
 
 ## Residual
-- [遗留问题，如无则写"无"]
 
-## Coordinator Handoff（启用模块并行时填写）
+none
+
+## Coordinator Handoff
+
 - Global sync status: pending-coordinator-pass / synced / n/a
-- Registry update needed: [module key, step, status, branch, updated / 不适用]
-- Harness Ledger update needed: [task plan path, review path, closeout status / 不适用]
-- Owner: coordinator / 不适用
+- Owner: coordinator / n/a
+- Required shared updates: [none]

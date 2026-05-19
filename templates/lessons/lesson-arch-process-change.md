@@ -1,40 +1,47 @@
-# L-[ID]: [一句话标题]
+# L-YYYY-MM-DD-001: Short Architecture or Process Lesson
 
-## 元信息
+## Lesson Type
 
-- **ID**: L-[NNN]
-- **Date**: YYYY-MM-DD
-- **Source**: `docs/10-WALKTHROUGH/[walkthrough文件名].md`
-- **Type**: arch-change / process-change
-- **Target**: [受影响的文档或模块]
-- **Author Agent**: [agent session / model]
+arch-process-change
 
-## 背景
+## Source
 
-[为什么提出这个改动？在实际开发中遇到了什么问题？]
+| Field | Value |
+| --- | --- |
+| Discovered in | walkthrough, review, incident, verifier, or release |
+| Source link | path or URL |
+| Related task | F-000, D-000, HL-000, or task plan path |
+| Owner | owner |
+| Status | candidate / accepted / applied / rejected / superseded |
 
-## 共性问题
+## Problem
 
-[这个问题是否跨多轮、多个模块、多个 agent 或多个阶段反复出现？如果是，说明共同模式；如果不是，说明为什么仍值得沉淀。]
+Describe the recurring architecture, ownership, phase-gate, or operating-process problem in one short paragraph.
 
-## 现状分析
+## Impact
 
-[当前的架构/流程是什么样的？问题出在哪里？是 prompt 不够明确、模板缺字段、checker 没拦住，还是流程顺序有问题？]
+| Impact Area | Evidence | Severity |
+| --- | --- | --- |
+| delivery, quality, safety, review load, or agent repeatability | source evidence | low / medium / high |
 
-## 建议方案
+## Proposed Change
 
-[具体建议怎么改？改完之后是什么样的？]
+| Area | Current Rule | Proposed Rule |
+| --- | --- | --- |
+| operating model, phase gate, ownership, or architecture boundary | current behavior | new behavior |
 
-## 影响范围
+## Adoption Plan
 
-[这个改动会影响哪些文件、流程、或团队成员？]
+| Step | Owner | Target File or Process | Due | Status |
+| --- | --- | --- | --- | --- |
+| Update standard, template, checker, or workflow | owner | path or process name | YYYY-MM-DD | planned |
 
-## 下次如何触发
+## Acceptance Criteria
 
-[写清下次 agent 在什么动作点会被提醒，例如写 walkthrough 时、closeout 前、review 后、checker 运行时。]
+- The new rule has a durable home in a reference, template, checker, or project operating model.
+- The Lessons SSoT row links this detail doc and the applied change.
+- Existing active tasks know whether the new rule applies immediately or only to future work.
 
-## 冲突声明
+## Disposition
 
-- 当前是否有其他 pending 条目涉及相同范围：是/否
-- 如果有，涉及条目：L-[XXX]
-- 本建议是否已考虑兼容：是/否
+accepted / rejected / applied / superseded, with reason and evidence link.

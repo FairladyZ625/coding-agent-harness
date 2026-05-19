@@ -19,10 +19,20 @@ export const capabilityDefinitions = {
     dependencies: ["core"],
     artifacts: ["docs/09-PLANNING/Module-Registry.md", "docs/09-PLANNING/MODULES"],
   },
-  "review-contract": {
-    description: "Machine-gateable review reports and verifier output contract.",
+  "subagent-worker": {
+    description: "Commit-backed worker handoff protocol for code-changing subagents.",
+    dependencies: ["module-parallel"],
+    artifacts: ["docs/09-PLANNING/MODULES"],
+  },
+  "adversarial-review": {
+    description: "Machine-gateable adversarial review reports and verifier output contract.",
     dependencies: ["core"],
     artifacts: ["docs/09-PLANNING/TASKS"],
+  },
+  "long-running-task": {
+    description: "Long-running task contract with review cadence and stop conditions.",
+    dependencies: ["core"],
+    artifacts: ["docs/09-PLANNING/TASKS/_task-template/long-running-task-contract.md"],
   },
   "dashboard": {
     description: "Read-only HTML dashboard generated from harness status JSON.",
@@ -36,6 +46,11 @@ export const capabilityDefinitions = {
   },
 };
 
+export const capabilityAliases = {
+  "review-contract": "adversarial-review",
+};
+
+export const supportedLocales = new Set(["zh-CN", "en-US"]);
 export const allowedCapabilityStates = new Set(["scaffolded", "configured", "verified"]);
 export const allowedReviewDispositions = new Set([
   "open",
@@ -108,6 +123,7 @@ export function readCapabilityRegistry(target) {
       mode: "legacy-compat",
       path: registryPath,
       capabilities: [{ name: "core", state: "configured" }],
+      locale: "en-US",
       raw: null,
       errors: [],
     };
@@ -115,23 +131,38 @@ export function readCapabilityRegistry(target) {
 
   try {
     const raw = JSON.parse(fs.readFileSync(registryPath, "utf8"));
+    const locale = normalizeLocale(raw.locale);
     const capabilities = Array.isArray(raw.capabilities)
       ? raw.capabilities.map((entry) =>
           typeof entry === "string"
-            ? { name: entry, state: "scaffolded" }
-            : { name: entry.name, state: entry.state || "scaffolded" },
+            ? { name: normalizeCapabilityName(entry), state: "scaffolded" }
+            : { name: normalizeCapabilityName(entry.name), state: entry.state || "scaffolded" },
         )
       : [];
-    return { mode: "declared-capability", path: registryPath, capabilities, raw, errors: [] };
+    return { mode: "declared-capability", path: registryPath, capabilities, raw, locale, errors: [] };
   } catch (error) {
     return { mode: "declared-capability", path: registryPath, capabilities: [], raw: null, errors: [error.message] };
   }
 }
 
+function normalizeCapabilityName(name) {
+  return capabilityAliases[name] || name;
+}
+
+export function normalizeLocale(locale = "en-US") {
+  return supportedLocales.has(locale) ? locale : "en-US";
+}
+
 export function detectCapabilities(target) {
   const detected = new Set(["core"]);
   if (existsInDocs(target, "09-PLANNING/Module-Registry.md")) detected.add("module-parallel");
-  if (existsInDocs(target, "09-PLANNING/TASKS") || existsInDocs(target, "09-PLANNING/MODULES")) detected.add("review-contract");
+  if (existsInDocs(target, "11-REFERENCE/adversarial-review-standard.md")) detected.add("adversarial-review");
+  if (
+    existsInDocs(target, "11-REFERENCE/long-running-task-standard.md") ||
+    existsInDocs(target, "09-PLANNING/TASKS/_task-template/long-running-task-contract.md")
+  ) {
+    detected.add("long-running-task");
+  }
   if (existsInDocs(target, "01-GOVERNANCE/Lessons-SSoT.md")) detected.add("safe-adoption");
   return [...detected];
 }
@@ -638,8 +669,9 @@ export function buildDashboardBundle(targetInput, options = {}) {
 
 export function writeDashboardFolder(outDir, targetInput, options = {}) {
   const target = normalizeTarget(targetInput);
+  const registry = readCapabilityRegistry(target);
   const bundle = buildDashboardBundle(targetInput, options);
-  return writeDashboardDirectory(outDir, bundle, { repoRoot, projectRoot: target.projectRoot, docsRoot: target.docsRoot });
+  return writeDashboardDirectory(outDir, bundle, { repoRoot, projectRoot: target.projectRoot, docsRoot: target.docsRoot, locale: registry.locale });
 }
 
 function collectHandoffs(progressContent, taskId) {
@@ -975,7 +1007,12 @@ function evidenceCompletion(phases) {
   return Math.round(score / scored.length);
 }
 
-export function plannedInitFiles(capabilities = ["core"]) {
+function localizedTemplateSource(source, locale) {
+  const localeSource = normalizeLocale(locale) === "zh-CN" ? source.replace(/^templates\//, "templates-zh-CN/") : source;
+  return fs.existsSync(path.join(repoRoot, localeSource)) ? localeSource : source;
+}
+
+export function plannedInitFiles(capabilities = ["core"], { locale = "en-US" } = {}) {
   const files = [
     ["AGENTS.md", "templates/AGENTS.md.template"],
     ["CLAUDE.md", "templates/CLAUDE.md.template"],
@@ -986,31 +1023,32 @@ export function plannedInitFiles(capabilities = ["core"]) {
     ["docs/09-PLANNING/TASKS/_task-template/findings.md", "templates/planning/findings.md"],
     ["docs/09-PLANNING/TASKS/_task-template/progress.md", "templates/planning/progress.md"],
     ["docs/09-PLANNING/TASKS/_task-template/review.md", "templates/planning/review.md"],
-    ["docs/09-PLANNING/TASKS/_task-template/long-running-task-contract.md", "templates/planning/long-running-task-contract.md"],
     ["docs/05-TEST-QA/Regression-SSoT.md", "templates/ssot/Regression-SSoT.md"],
     ["docs/05-TEST-QA/Cadence-Ledger.md", "templates/regression/Cadence-Ledger.md"],
     ["docs/01-GOVERNANCE/Lessons-SSoT.md", "templates/ssot/Lessons-SSoT.md"],
     ["docs/10-WALKTHROUGH/_walkthrough-template.md", "templates/walkthrough/walkthrough-template.md"],
     ["docs/10-WALKTHROUGH/Closeout-SSoT.md", "templates/walkthrough/Closeout-SSoT.md"],
   ];
-  for (const ref of fs.readdirSync(path.join(repoRoot, "templates/reference"))) {
-    if (ref.endsWith(".md")) files.push([`docs/11-REFERENCE/${ref}`, `templates/reference/${ref}`]);
-  }
   if (capabilities.includes("module-parallel")) {
     files.push(["docs/09-PLANNING/Module-Registry.md", "templates/ssot/Module-Registry.md"]);
     files.push(["docs/09-PLANNING/MODULES/_task-template/task_plan.md", "templates/planning/task_plan.md"]);
     files.push(["docs/09-PLANNING/MODULES/_task-template/execution_strategy.md", "templates/planning/execution_strategy.md"]);
     files.push(["docs/09-PLANNING/MODULES/_task-template/visual_roadmap.md", "templates/planning/visual_roadmap.md"]);
   }
-  return files;
+  if (capabilities.includes("long-running-task")) {
+    files.push(["docs/09-PLANNING/TASKS/_task-template/long-running-task-contract.md", "templates/planning/long-running-task-contract.md"]);
+  }
+  return files.map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
 }
 
-export function writeInitFiles(targetInput, capabilities, { dryRun = true } = {}) {
+export function writeInitFiles(targetInput, capabilities, { dryRun = true, locale = "en-US" } = {}) {
   const target = normalizeTarget(targetInput);
+  const normalizedCapabilities = [...new Set(capabilities.map(normalizeCapabilityName))];
+  const normalizedLocale = normalizeLocale(locale);
   const existingRegistry = readCapabilityRegistry(target);
   if (existingRegistry.raw) {
     const installed = new Set(existingRegistry.capabilities.map((capability) => capability.name));
-    const requested = new Set(capabilities);
+    const requested = new Set(normalizedCapabilities);
     const same =
       installed.size === requested.size &&
       [...installed].every((capability) => requested.has(capability));
@@ -1018,7 +1056,7 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true } = {}
       throw new Error("Existing capability registry differs from requested init capabilities; use add-capability instead.");
     }
   }
-  const planned = plannedInitFiles(capabilities);
+  const planned = plannedInitFiles(normalizedCapabilities, { locale: normalizedLocale });
   const changes = [];
   for (const [destination, source] of planned) {
     const destinationPath = path.join(target.projectRoot, destination);
@@ -1032,26 +1070,29 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true } = {}
   }
   const registry = {
     version: 1,
-    capabilities: capabilities.map((name) => ({ name, state: "scaffolded" })),
+    locale: normalizedLocale,
+    capabilities: normalizedCapabilities.map((name) => ({ name, state: "scaffolded" })),
   };
   if (!dryRun) {
     const registryPath = path.join(target.projectRoot, ".harness-capabilities.json");
     if (!fs.existsSync(registryPath)) fs.writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
   }
-  return { target, capabilities, changes };
+  return { target, capabilities: normalizedCapabilities, locale: normalizedLocale, changes };
 }
 
-export function addCapability(targetInput, capabilityName, { dryRun = true } = {}) {
+export function addCapability(targetInput, capabilityName, { dryRun = true, locale = "" } = {}) {
   const target = normalizeTarget(targetInput);
-  if (!capabilityDefinitions[capabilityName]) throw new Error(`Unknown capability: ${capabilityName}`);
+  const normalizedCapability = normalizeCapabilityName(capabilityName);
+  if (!capabilityDefinitions[normalizedCapability]) throw new Error(`Unknown capability: ${capabilityName}`);
   const registry = readCapabilityRegistry(target);
+  const normalizedLocale = normalizeLocale(registry.raw ? registry.locale : locale || "en-US");
   const capabilityMap = new Map(registry.capabilities.map((capability) => [capability.name, capability]));
-  for (const dependency of capabilityDefinitions[capabilityName].dependencies) {
+  for (const dependency of capabilityDefinitions[normalizedCapability].dependencies) {
     if (!capabilityMap.has(dependency)) capabilityMap.set(dependency, { name: dependency, state: "scaffolded" });
   }
-  if (!capabilityMap.has(capabilityName)) capabilityMap.set(capabilityName, { name: capabilityName, state: "scaffolded" });
-  const next = { version: 1, capabilities: [...capabilityMap.values()] };
-  const scaffold = plannedInitFiles([...capabilityMap.keys()]);
+  if (!capabilityMap.has(normalizedCapability)) capabilityMap.set(normalizedCapability, { name: normalizedCapability, state: "scaffolded" });
+  const next = { version: 1, locale: normalizedLocale, capabilities: [...capabilityMap.values()] };
+  const scaffold = plannedInitFiles([...capabilityMap.keys()], { locale: normalizedLocale });
   const changes = [];
   for (const [destination, source] of scaffold) {
     const destinationPath = path.join(target.projectRoot, destination);

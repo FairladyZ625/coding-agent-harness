@@ -1,28 +1,40 @@
-# Execution Strategy
+# [Task Name] - Execution Strategy
 
-## Decision Table
+## Strategy Summary
 
-| Decision | Choice | Notes |
-| --- | --- | --- |
-| Primary executor | coordinator | The coordinator owns sequencing and final judgment. |
-| Subagents | none / reviewer-only / worker-worktree | Choose the smallest mode that fits the task. |
-| Review model | self-check / predefined verifier / adversarial review | Record why this level is enough. |
-| Worktree strategy | same checkout / dedicated worktree | Code-writing subagents require dedicated worktree + commit handoff. |
-| Conflict control | coordinator owns shared files | Subagents may not edit coordinator-owned global tables. |
-| Evidence depth | L0 / L1 / L2 / L3 | Match evidence to risk. |
+[Describe the execution approach, including why this operating model fits the risk and scope.]
 
-## Subagent / Worker Contract
+## Operating Model
 
-If subagents or workers are used, record the allowed input packet, write scope,
-handoff format, and final integration owner here.
+- Model: solo / team / split-repo / program / waterfall / kanban / module-parallel
+- Primary executor: coordinator / worker / human
+- Shared sync owner: coordinator
+- Worktree required: yes / no
+- Review required: yes / no
 
-| Role | Input Packet | Write Scope | Handoff Required | Owner |
+## Work Allocation
+
+| Role | Input Package | Write Scope | Handoff Required | Owner |
 | --- | --- | --- | --- | --- |
-| reviewer / worker / n/a | C-001 | read-only / path list / n/a | report / commit SHA / n/a | coordinator |
+| coordinator | task plan, strategy, roadmap | shared ledgers and integration | yes | [owner] |
+| worker | assigned slice | assigned files only | yes | [owner] |
 
-## Stop / Escalation Conditions
+## Coordination Rules
 
-- Required work crosses the approved write scope.
-- Shared tables need updates and no coordinator lock exists.
-- Verification depth needs to increase beyond the planned level.
-- Reviewer finds a P0/P1/P2 issue that changes scope.
+1. Shared files are coordinator-owned unless a lock is explicitly assigned.
+2. Workers update only assigned files and route shared-table changes through handoff.
+3. Parallel work must use non-overlapping write scopes.
+4. Integration runs final checks after worker commits are merged or applied.
+
+## Verification Strategy
+
+| Check | Command or Evidence | Required | Owner |
+| --- | --- | --- | --- |
+| Static check | [command or path] | yes / no | [owner] |
+| Unit test | [command or path] | yes / no | [owner] |
+| Integration or smoke | [command, URL, or log] | yes / no | [owner] |
+| Review | `review.md` / verifier output / n/a | yes / no | [owner] |
+
+## Closeout Rule
+
+Do not mark the task complete until required evidence is present, material findings are closed or accepted, and shared updates are either completed or assigned to the coordinator.

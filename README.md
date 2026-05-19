@@ -68,7 +68,7 @@ coding-agent-harness/
 ├── scripts/
 │   └── check-harness.mjs             # 可执行 harness 完成度检查
 ├── docs/plans/                       # 本仓本地 review 草稿；默认被 .gitignore 忽略
-└── templates/                        # 可直接写入项目的模板
+├── templates/                        # English templates written directly into target projects
     ├── AGENTS.md.template
     ├── CLAUDE.md.template            # Claude Code 兼容 shim，指向 AGENTS.md
     ├── planning/ (task_plan, execution_strategy, visual_roadmap, findings, progress, review, long-running-task-contract)
@@ -77,6 +77,7 @@ coding-agent-harness/
     ├── regression/ (Cadence-Ledger)
     ├── walkthrough/ (walkthrough-template, Closeout-SSoT)
     └── reference/ (14 个标准文件模板)
+└── templates-zh-CN/                  # 中文模板，文件结构与 templates/ 完全一致
 ```
 
 ## 快速开始
@@ -181,7 +182,7 @@ node scripts/harness.mjs status --json /path/to/project
 node scripts/harness.mjs status --json --strict /path/to/project
 node scripts/harness.mjs dashboard --out tmp/harness-dashboard.html /path/to/project
 node scripts/harness.mjs dashboard --out-dir tmp/harness-dashboard /path/to/project
-node scripts/harness.mjs init --dry-run --capabilities core,dashboard /path/to/project
+node scripts/harness.mjs init --dry-run --locale zh-CN --capabilities core,dashboard /path/to/project
 node scripts/harness.mjs add-capability dashboard --dry-run /path/to/project
 ```
 
@@ -201,13 +202,20 @@ Markdown 文档快照、任务/模块图数据和 legacy adoption 建议。dashb
 ```json
 {
   "version": 1,
+  "locale": "zh-CN",
   "capabilities": [
     {"name": "core", "state": "configured"},
-    {"name": "review-contract", "state": "verified"},
+    {"name": "adversarial-review", "state": "verified"},
     {"name": "dashboard", "state": "verified"}
   ]
 }
 ```
+
+`locale` 支持 `zh-CN` 和 `en-US`。`harness init` 应由 Agent 先询问用户使用中文
+还是英文；非交互场景使用 `--locale zh-CN|en-US`。`templates/` 是纯英文模板树，
+`templates-zh-CN/` 是同构中文模板树；CLI 按 locale 选择整棵模板树，不能在同一
+模板内混用中英文。CLI scaffold 只创建模板、空表和索引；项目级 reference standards
+需要 Agent 在 Configure 阶段根据项目事实和用户讨论后定制。
 
 没有 capability registry 的旧项目进入 `legacy-compat` 模式：CLI 会保留旧
 checker 结果，同时把新 v1.0 review schema、visual roadmap、capability registry
@@ -223,9 +231,10 @@ harness 体系：
 
 ```text
 请克隆 https://github.com/FairladyZ625/coding-agent-harness 到本地，
-读取其中的 SKILL.md 作为执行协议，然后按照 12 Phase SOP 的顺序，
-在我当前的项目上搭建完整的 harness 体系。
-先从 Phase 1（项目诊断）开始，逐步执行到 Phase 12（输出 Bootstrap Summary）。
+读取其中的 SKILL.md 作为执行协议，然后按照 v1.0 六阶段流程
+Diagnose → Decide → Scaffold → Configure → Verify → Deliver，
+在我当前的项目上搭建 harness 体系。
+先询问我使用中文还是英文模板，再根据项目诊断推荐 capability packs。
 每完成一个 Phase 告诉我结果，再继续下一个。
 ```
 
@@ -235,11 +244,11 @@ harness 体系：
 `npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness`
 安装到兼容的 agent。也可以手动将本仓库克隆到 OpenClaw 或其他兼容平台的
 skills 目录。当你说"帮我搭建 harness"时，agent 会自动触发完整的
-12 Phase SOP。
+六阶段安装流程。
 
 **作为参考文档**：直接读 `references/` 下的方法论文档，了解每个模块的设计思路。
 
-**作为模板库**：从 `templates/` 目录复制模板文件到你的项目中，按需修改。
+**作为模板库**：英文项目使用 `templates/`，中文项目使用 `templates-zh-CN/`。
 
 ## Base Harness = 地基
 

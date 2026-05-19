@@ -1,49 +1,29 @@
 # Engineering Standard
 
-## 项目架构原则
+## Purpose
 
-[根据项目实际情况填写核心架构约束]
+Define baseline engineering expectations for code, configuration, tests, and maintainability in this repository.
 
-示例：
-1. **分层解耦**：[如 adapter / core / runtime 三层分离]
-2. **依赖方向**：[如 core 不依赖 adapter，adapter 不依赖 runtime]
-3. **接口优先**：[如所有外部依赖通过接口抽象]
+## Rules
 
-## 代码风格
+1. Prefer the repository's existing architecture, language, framework, and helper patterns over new abstractions.
+2. Keep changes scoped to the task. Do not refactor unrelated code or clean up unrelated files during feature work.
+3. Design changes around clear ownership boundaries: module, package, API, data contract, UI surface, or operational script.
+4. Treat configuration, migrations, generated artifacts, and scripts as first-class engineering surfaces with review and tests where risk warrants it.
+5. Make behavior explicit through typed contracts, structured data, schema validation, or tests rather than fragile string conventions.
+6. Avoid hidden global state, broad side effects, and undocumented environment assumptions.
+7. Include observability or diagnostics when a failure would otherwise be hard to explain.
 
-- 语言：[TypeScript / Python / Go / ...]
-- Linter：[ESLint / Prettier / Ruff / ...]
-- 格式化：[配置文件路径]
+## Required Checklist
 
-## 模块组织
+- Scope and ownership boundary are clear.
+- Existing local patterns were followed or the departure is justified.
+- User-facing or API-facing behavior has tests or documented verification.
+- Error handling covers expected failure modes.
+- Configuration and environment assumptions are documented.
+- Security, privacy, and data-retention implications were considered when relevant.
+- Residual technical debt is recorded with owner and reason.
 
-```
-[根据项目实际情况填写目录结构]
-```
+## Closeout Expectations
 
-## 命名规范
-
-| 类型 | 规范 | 示例 |
-|------|------|------|
-| 文件名 | [kebab-case / camelCase] | [示例] |
-| 类名 | [PascalCase] | [示例] |
-| 函数名 | [camelCase] | [示例] |
-| 常量 | [UPPER_SNAKE_CASE] | [示例] |
-
-## 错误处理
-
-[根据项目约定填写错误处理策略]
-
-## 日志规范
-
-[根据项目约定填写日志级别和格式]
-
-## 性能约束
-
-[如有性能要求，在此定义]
-
-## 安全约束
-
-1. 不允许在代码中硬编码密钥或凭证
-2. 敏感配置通过环境变量注入
-3. [其他安全约束]
+Engineering closeout must name the changed surfaces, summarize the behavioral impact, list verification evidence, and identify any residual risk or follow-up that should not be hidden inside implementation notes.

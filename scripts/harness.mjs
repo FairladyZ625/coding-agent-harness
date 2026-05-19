@@ -6,6 +6,7 @@ import {
   addCapability,
   buildStatus,
   renderDashboard,
+  normalizeLocale,
   writeDashboardFolder,
   writeInitFiles,
 } from "./lib/harness-core.mjs";
@@ -39,8 +40,8 @@ Usage:
   harness check [--profile source-package|private-harness|target-project] [target]
   harness status [--json] [--strict] [target]
   harness dashboard [--out file.html] [--out-dir folder] [target]
-  harness init [--dry-run] [--capabilities core,dashboard] [target]
-  harness add-capability <name> [--dry-run] [target]
+  harness init [--dry-run] [--locale zh-CN|en-US] [--capabilities core,dashboard] [target]
+  harness add-capability <name> [--dry-run] [--locale zh-CN|en-US] [target]
 `);
 }
 
@@ -100,23 +101,25 @@ if (command === "help" || command === "--help" || command === "-h") {
   process.exit(0);
 } else if (command === "init") {
   const dryRun = takeFlag("--dry-run");
+  const locale = normalizeLocale(takeOption("--locale", "en-US"));
   const capabilities = takeOption("--capabilities", "core").split(",").map((item) => item.trim()).filter(Boolean);
   try {
-    const result = writeInitFiles(targetArg(), capabilities, { dryRun });
-    console.log(JSON.stringify({ dryRun, capabilities, changes: result.changes }, null, 2));
+    const result = writeInitFiles(targetArg(), capabilities, { dryRun, locale });
+    console.log(JSON.stringify({ dryRun, locale: result.locale, capabilities: result.capabilities, changes: result.changes }, null, 2));
   } catch (error) {
     console.error(error.message);
     process.exit(1);
   }
 } else if (command === "add-capability") {
   const dryRun = takeFlag("--dry-run");
+  const locale = normalizeLocale(takeOption("--locale", ""));
   const capability = args.shift();
   if (!capability) {
     console.error("Missing capability name");
     process.exit(2);
   }
   try {
-    const result = addCapability(targetArg(), capability, { dryRun });
+    const result = addCapability(targetArg(), capability, { dryRun, locale });
     console.log(JSON.stringify({ dryRun, registry: result.registry }, null, 2));
   } catch (error) {
     console.error(error.message);

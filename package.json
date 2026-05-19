@@ -22,6 +22,7 @@
     "LICENSE",
     "references/",
     "templates/",
+    "templates-zh-CN/",
     "scripts/",
     "docs-release/",
     "examples/"

@@ -50,7 +50,60 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 
 一句话：harness update 是 delta merge，不是重新搭一遍。
 
-当用户要求在项目上搭建 harness 时，严格按以下顺序执行：
+当用户要求在项目上搭建 harness 时，使用 v1.0 的六阶段安装流程。安装不是
+`npm install` 式复制文件，而是 CLI scaffold 与 Agent configure 配合完成。
+
+### Phase 1: Diagnose / 项目诊断
+
+读 `references/project-onboarding-audit.md`，扫描项目技术栈、目录结构、现有文档、
+CI、团队/agent 协作方式和风险面，输出诊断报告。
+
+### Phase 2: Decide / 方案决策
+
+与用户确认三件事：
+
+1. 文档语言：`zh-CN` 或 `en-US`。中文用户默认应获得中文任务、评审、
+   ledger、SSoT、walkthrough 和 reference draft。
+2. Delivery Operating Model：solo-orchestrator、team-feature-lead、
+   split-repo-contract、program-multi-repo、waterfall-stage-gate 或
+   kanban-continuous。
+3. Capability Packs：core 必装；按需选择 module-parallel、subagent-worker、
+   adversarial-review、long-running-task、dashboard、safe-adoption。
+
+### Phase 3: Scaffold / 脚手架
+
+运行或模拟 `harness init --locale zh-CN|en-US --capabilities ...`。CLI 只创建
+目录、模板、空表、索引和 `.harness-capabilities.json`，不得把项目级 reference
+伪装成已经定制完成的标准。
+
+### Phase 4: Configure / 对话式定制
+
+Agent 根据项目事实与用户讨论后定制 AGENTS.md、reference standards、CI/CD、
+Regression surface、Delivery SSoT、Module Registry、review routing 和
+worktree/subagent handoff 规则。已有项目事实只能 merge/append/residual，
+不能模板覆盖。
+
+### Phase 5: Verify / 验证
+
+运行当前 repo 支持的检查命令，例如：
+
+```bash
+node scripts/harness.mjs check --profile target-project /path/to/project
+node scripts/harness.mjs status --json /path/to/project
+```
+
+检查失败时不能声称 harness complete；必须修复或记录 owner/action/status 明确的
+residual。
+
+### Phase 6: Deliver / 交付
+
+输出 bootstrap summary，说明创建/定制了哪些文件、启用了哪些 capability、当前
+语言是什么、哪些检查通过、哪些 residual 仍需用户或后续任务处理，并建议首批任务。
+
+### Historical 12-Phase Bootstrap（旧版参考）
+
+以下 12-phase 流程是历史参考，用于理解旧版 harness 的组成，不再作为 v1.0
+`init` 的默认执行协议。
 
 ### Phase 1: 项目诊断
 

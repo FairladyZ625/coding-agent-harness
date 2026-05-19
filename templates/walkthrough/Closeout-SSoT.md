@@ -1,28 +1,43 @@
 # Closeout SSoT
 
-> Single source of truth for task closeout evidence. Every closed Harness Ledger row must be represented here.
+## Purpose
+
+Track whether planned work has completed the required closeout contract: implementation evidence, regression evidence, review disposition, walkthrough, residual routing, lessons check, and ledger update.
+
+## Status Legend
+
+| Status | Meaning | Required Next Step |
+| --- | --- | --- |
+| open | Work is not ready for closeout. | Continue implementation or evidence collection. |
+| evidence | Implementation is done but verification is incomplete. | Run required checks and attach evidence. |
+| review | Evidence exists and review is pending. | Resolve findings or record `accepted-risk`. |
+| closing | Final walkthrough and ledger updates are in progress. | Finish lessons check and routing. |
+| closed | Closeout contract is complete. | Archive after the retention window. |
+| blocked | Closeout cannot finish. | Record blocker owner and unblock condition. |
+| archived | Closeout is historical. | Keep archive pointer. |
 
 ## Active Closeouts
 
-| Harness ID | Date | Task | Task Plan | Review Report | Walkthrough | Evidence | Residual | Lessons Check | Closeout Status |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ID | Work Item | Owner | Status | Implementation Evidence | Regression Evidence | Review Disposition | Walkthrough | Lessons Check | Harness Ledger | Residual | Updated |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| CO-YYYY-MM-DD-001 | F-000 or D-000 title | owner | [open / closed / blocked] | path or pending | RG-000 or pending | pending | pending | pending | HL-000 | none | YYYY-MM-DD |
 
-## Walkthrough Skip Reasons
+## Release-Blocking Residuals
 
-Only these skip reasons are allowed:
+| Residual | Source | Owner | Blocks Release? | Decision | Due |
+| --- | --- | --- | --- | --- | --- |
+| risk or unresolved finding | review, regression, or walkthrough | owner | yes / no | fix, accept, defer, or waive | YYYY-MM-DD |
 
-- `walkthrough skipped-with-reason: docs-only`
-- `walkthrough skipped-with-reason: no-runtime`
-- `walkthrough skipped-with-reason: superseded`
-- `walkthrough skipped-with-reason: historical-backfill`
-- `walkthrough skipped-with-reason: owner-deferred`
+## Routing Rules
 
-## Rules
+1. Every shipped feature, delivery, release, and harness update needs a closeout row.
+2. Move to `closed` only after walkthrough, regression evidence, review disposition, lessons check, and Harness Ledger link are complete.
+3. `not run` verification is a residual, not a pass.
+4. Release-blocking residuals must stay visible until fixed, accepted by an owner, or moved to a follow-up with a due date.
+5. Closeout rows should link durable files rather than summarize chat decisions.
 
-1. Every `closed`, `closed-with-residual`, or `closed-local-only` Harness Ledger row must have a row in this file.
-2. The Walkthrough column must contain either `docs/10-WALKTHROUGH/<file>.md` or one allowed skip reason.
-3. Implementation waves should write a walkthrough. Skip reasons are for constrained cases, not convenience.
-4. The Evidence column must name the checks, smoke, review, or runtime proof used for closeout.
-5. The Residual column must say `none` or route the residual to an owner, task, Regression SSoT, or Harness Ledger row.
-6. The Lessons Check column must say `checked-created: L-YYYY-MM-DD-NNN` or `checked-none: <reason>`.
-7. `checked-created` requires both a Lessons SSoT row and a detail document under `docs/01-GOVERNANCE/lessons/`.
+## Archive Rules
+
+- Keep open, evidence, review, closing, and blocked rows in this file.
+- Archive closed rows after the next release or maintenance cycle.
+- Preserve final evidence, walkthrough, lessons check, residual decision, and archive date.

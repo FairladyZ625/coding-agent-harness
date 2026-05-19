@@ -1,42 +1,63 @@
-# [Wave/Feature 名称] Walkthrough
+# Walkthrough: Short Task or Release Title
 
-## 概要
-[一句话说清楚这个 wave 做了什么]
+## Summary
 
-## 改动范围
-- [改了哪些包/模块]
-- [新增了哪些文件]
-- [删除了哪些文件]
+One sentence describing what changed and why it matters.
 
-## 关键决策
-| 决策 | 选择 | 原因 |
-|------|------|------|
-| [决策1] | [选了什么] | [为什么] |
+## Scope
 
-## 验证结果
-- 跑了哪些测试：[列出]
-- 回归结果：[通过/失败，引用 Regression SSoT]
-- Evidence Depth：[到了哪一层]
+| Area | Details |
+| --- | --- |
+| Changed modules | List paths or module IDs. |
+| New files | List files or `none`. |
+| Removed files | List files or `none`. |
+| Out of scope | List explicitly excluded work. |
 
-## Review Report
-- Report：[review.md 路径 / 不适用]
-- Material findings：[无 / 已修复 / accepted residual，列出 ID]
-- No-finding statement：[有 / 无 / 不适用]
+## Decisions
 
-## Residual
-- [遗留问题1，如无则写"无"]
+| Decision | Choice | Reason | Owner |
+| --- | --- | --- | --- |
+| Decision title | Selected option | Why this choice is acceptable | owner |
+
+## Verification
+
+| Check | Command or Procedure | Result | Evidence |
+| --- | --- | --- | --- |
+| Unit, integration, browser, CI, or manual check | command or procedure | pass / fail / not run | path, log, screenshot, or reason |
+
+## Regression Linkage
+
+| Gate | Required? | Result | Evidence Depth | Notes |
+| --- | --- | --- | --- | --- |
+| RG-000 | yes / no | pass / fail / waived / not run | E0/E1/E2/E3 | link to Regression SSoT or waiver |
+
+## Review Disposition
+
+| Source | Material Findings | Resolution | Evidence |
+| --- | --- | --- | --- |
+| reviewer, verifier, CI, or self-review | none / finding IDs | closed / mitigated / accepted-risk / out-of-scope / n/a | review path or note |
+
+## Residual Risk
+
+| Risk | Owner | Accepted? | Follow-up |
+| --- | --- | --- | --- |
+| none | owner | n/a | none |
 
 ## Lessons Reflection
-- 本轮有没有发现 reference / workflow / checker 不够用或有误：[有/无，写一句理由]
-- 有没有反复出现、跨页面/跨模块/跨阶段的共性问题：[有/无，写一句理由]
-- 有没有下次 agent 也可能重复踩的坑：[有/无，写一句理由]
-- Lessons 结果：[checked-created: L-YYYY-MM-DD-NNN / checked-none: 一句话原因]
-- Lessons Detail Doc：[如 checked-created，填 `docs/01-GOVERNANCE/lessons/...md`；否则写"无"]
 
-## 关联
-- Task Plan：[路径]
-- Review Report：[路径 / 不适用]
-- Feature SSoT 条目：[引用]
-- Regression Gate：[引用]
-- Harness Ledger：[HL-...]
-- Commit：[hash]
+| Question | Answer |
+| --- | --- |
+| Did this reveal a reusable reference, workflow, or checker gap? | yes / no, reason |
+| Could a future agent repeat the same mistake? | yes / no, reason |
+| Was a lesson created or updated? | L-YYYY-MM-DD-001 or checked-none: reason |
+| Lessons detail doc | path or none |
+
+## Closeout Links
+
+| Artifact | Link |
+| --- | --- |
+| Task plan | docs/09-PLANNING/TASKS/.../task_plan.md |
+| Feature or Delivery SSoT | F-000 or D-000 |
+| Harness Ledger | HL-YYYY-MM-DD-001 |
+| Closeout SSoT | CO-YYYY-MM-DD-001 |
+| Pull request or commit | link or hash |

@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const dashboardTemplateRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../templates/dashboard");
+const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+const dashboardTemplateRoot = path.join(repoRoot, "templates/dashboard");
 const dashboardMarker = ".harness-dashboard";
 
 export function writeJsonFile(filePath, value) {
@@ -9,15 +10,15 @@ export function writeJsonFile(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-export function copyDashboardAssets(outDir) {
-  copyDirectory(dashboardTemplateRoot, outDir);
+export function copyDashboardAssets(outDir, options = {}) {
+  copyDirectory(dashboardTemplateRootForLocale(options.locale), outDir);
 }
 
 export function writeDashboardDirectory(outDir, bundle, options = {}) {
   const target = path.resolve(outDir);
   assertSafeDashboardTarget(target, options);
   if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true });
-  copyDashboardAssets(target);
+  copyDashboardAssets(target, options);
   fs.writeFileSync(path.join(target, dashboardMarker), "generated dashboard directory\n");
   writeJsonFile(path.join(target, "data/status.json"), bundle.status);
   writeJsonFile(path.join(target, "data/tables.json"), bundle.tables);
@@ -42,6 +43,7 @@ export function writeDashboardDirectory(outDir, bundle, options = {}) {
 }
 
 function assertSafeDashboardTarget(target, options) {
+  const localizedDashboardTemplateRoot = dashboardTemplateRootForLocale(options.locale);
   const protectedRoots = [
     path.parse(target).root,
     process.env.HOME,
@@ -49,11 +51,12 @@ function assertSafeDashboardTarget(target, options) {
     options.projectRoot,
     options.docsRoot,
     dashboardTemplateRoot,
+    localizedDashboardTemplateRoot,
   ].filter(Boolean).map((item) => path.resolve(item));
   if (protectedRoots.includes(target)) {
     throw new Error(`Refusing unsafe dashboard output directory: ${target}`);
   }
-  for (const root of [options.docsRoot, dashboardTemplateRoot].filter(Boolean).map((item) => path.resolve(item))) {
+  for (const root of [options.docsRoot, dashboardTemplateRoot, localizedDashboardTemplateRoot].filter(Boolean).map((item) => path.resolve(item))) {
     if (isPathInside(target, root)) {
       throw new Error(`Refusing dashboard output inside protected directory: ${target}`);
     }
@@ -65,6 +68,11 @@ function assertSafeDashboardTarget(target, options) {
       throw new Error(`Refusing to overwrite non-dashboard directory: ${target}`);
     }
   }
+}
+
+function dashboardTemplateRootForLocale(locale = "en-US") {
+  const localized = locale === "zh-CN" ? path.join(repoRoot, "templates-zh-CN/dashboard") : dashboardTemplateRoot;
+  return fs.existsSync(localized) ? localized : dashboardTemplateRoot;
 }
 
 function isPathInside(candidate, parent) {

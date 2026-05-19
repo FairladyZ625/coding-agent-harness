@@ -1,7 +1,7 @@
 const bundle = window.__HARNESS_DASHBOARD__ || {};
 const state = {
   page: "overview",
-  lang: localStorage.getItem("harness.lang") || "zh",
+  lang: "en",
   theme: localStorage.getItem("harness.theme") || "system",
   density: localStorage.getItem("harness.density") || "comfortable",
   selected: null,
@@ -22,14 +22,14 @@ const taskDocTabs = [
 ];
 
 function t(key) {
-  return (window.HarnessI18n?.[state.lang] || window.HarnessI18n.zh)[key] || key;
+  return (window.HarnessI18n?.en || {})[key] || key;
 }
 
 function app() {
   const systemTheme = window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   document.documentElement.dataset.theme = state.theme === "system" ? systemTheme : state.theme;
   document.documentElement.dataset.density = state.density;
-  document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
+  document.documentElement.lang = "en";
   const root = document.getElementById("app");
   root.innerHTML = `
     <div class="layout">
@@ -60,10 +60,6 @@ function topbar() {
     </div>
     <div class="controls">
       <div class="control">
-        <button data-lang="zh" class="${state.lang === "zh" ? "active" : ""}">中文</button>
-        <button data-lang="en" class="${state.lang === "en" ? "active" : ""}">EN</button>
-      </div>
-      <div class="control">
         <button data-theme="light" class="${state.theme === "light" ? "active" : ""}">${t("light")}</button>
         <button data-theme="dark" class="${state.theme === "dark" ? "active" : ""}">${t("dark")}</button>
         <button data-theme="system" class="${state.theme === "system" ? "active" : ""}">${t("system")}</button>
@@ -78,7 +74,7 @@ function topbar() {
 
 function pageTitle() {
   const project = bundle.status?.project?.name || "project";
-  if (state.page === "overview") return state.lang === "zh" ? `${project} 项目驾驶舱` : `${project} project cockpit`;
+  if (state.page === "overview") return `${project} project cockpit`;
   return t(state.page);
 }
 
@@ -102,7 +98,7 @@ function overview() {
     <div class="readiness panel">
     <span class="state ${status.checkState?.status || "warn"}">${t("readiness")}: ${label(status.checkState?.status || "unknown")}</span>
       <h2>${nextActionText()}</h2>
-      <p class="muted">${state.lang === "zh" ? "这里把真实阻塞、证据缺口和旧版升级建议拆开显示。" : "Blockers, evidence gaps, and adoption advice are separated."}</p>
+      <p class="muted">Blockers, evidence gaps, and adoption advice are separated.</p>
     </div>
     ${metric(t("activeTasks"), status.tasks?.length || 0)}
     ${metric(t("blockers"), blockers)}
@@ -124,10 +120,10 @@ function metric(label, value) {
 
 function nextActionText() {
   const failures = bundle.status?.checkState?.failures || 0;
-  if (failures > 0) return state.lang === "zh" ? "先处理 release blocker" : "Resolve release blockers first";
+  if (failures > 0) return "Resolve release blockers first";
   const advice = bundle.adoption?.warnings?.length || 0;
-  if (advice > 0) return state.lang === "zh" ? "可以继续，但需要处理升级建议" : "Proceed, with adoption advice to address";
-  return state.lang === "zh" ? "当前快照没有阻塞项" : "No blockers in this snapshot";
+  if (advice > 0) return "Proceed, with adoption advice to address";
+  return "No blockers in this snapshot";
 }
 
 function overviewTasks() {
@@ -144,10 +140,10 @@ function riskPanel() {
   const warnings = bundle.adoption?.warnings || [];
   const grouped = groupBy(warnings, (item) => item.category);
   return `<section class="panel" style="padding:16px;margin-top:16px">
-    <h2>${state.lang === "zh" ? "风险与升级建议" : "Risks and adoption advice"}</h2>
+    <h2>Risks and adoption advice</h2>
     <div class="risk-list">${Object.entries(grouped).map(([category, items]) => `
-      <div class="risk-item"><strong>${escapeHtml(category)}</strong><p class="muted">${items.length} ${state.lang === "zh" ? "项" : "items"}</p></div>
-    `).join("") || `<p class="empty">${state.lang === "zh" ? "没有建议" : "No advice"}</p>`}</div>
+      <div class="risk-item"><strong>${escapeHtml(category)}</strong><p class="muted">${items.length} items</p></div>
+    `).join("") || `<p class="empty">No advice</p>`}</div>
   </section>`;
 }
 
@@ -180,14 +176,14 @@ function ledgerSummary() {
 
 function ledgerTable() {
   const tables = (bundle.tables?.tables || []).filter((table) => table.kind === "harness-ledger");
-  if (tables.length === 0) return emptyTable(t("ledger"), state.lang === "zh" ? "未找到 Harness Ledger。" : "No Harness Ledger found.");
+  if (tables.length === 0) return emptyTable(t("ledger"), "No Harness Ledger found.");
   return genericTables(t("ledger"), tables);
 }
 
 function moduleTable() {
   const tables = (bundle.tables?.tables || []).filter((table) => table.kind === "module-registry");
   const graph = graphPanel();
-  if (tables.length === 0) return `${graph}${emptyTable(t("modules"), state.lang === "zh" ? "未找到 Module Registry。" : "No Module Registry found.")}`;
+  if (tables.length === 0) return `${graph}${emptyTable(t("modules"), "No Module Registry found.")}`;
   return `${graph}${genericTables(t("modules"), tables)}`;
 }
 
@@ -236,7 +232,7 @@ function evidenceItems() {
 
 function lessonsTable() {
   const tables = (bundle.tables?.tables || []).filter((table) => table.kind === "lessons-ssot");
-  if (tables.length === 0) return emptyTable(t("lessons"), state.lang === "zh" ? "未找到 Lessons SSoT。" : "No Lessons SSoT found.");
+  if (tables.length === 0) return emptyTable(t("lessons"), "No Lessons SSoT found.");
   return genericTables(t("lessons"), tables);
 }
 
@@ -263,8 +259,8 @@ function adoption() {
 function settings() {
   return `<section class="panel" style="padding:18px">
     <h2>${t("settings")}</h2>
-    <p class="muted">${state.lang === "zh" ? "这些设置只保存在浏览器本地，不会写回项目。" : "These settings are browser-local and never write back to the project."}</p>
-    <p>${t("rendered")} / ${t("source")}: ${state.lang === "zh" ? "在详情抽屉里切换。" : "Switch inside the detail drawer."}</p>
+    <p class="muted">These settings are browser-local and never write back to the project.</p>
+    <p>${t("rendered")} / ${t("source")}: Switch inside the detail drawer.</p>
   </section>`;
 }
 
@@ -297,7 +293,7 @@ function graphPanel() {
     <div class="graph-lanes">${laneNodes.slice(0, 12).map((module) => {
       const owned = edges.filter((edge) => edge.from === module.id).slice(0, 8);
       return `<div class="lane"><strong>${escapeHtml(module.label)}</strong><span>${label(module.state || "")}</span>${owned.map((edge) => `<small>${escapeHtml(edge.type)} → ${escapeHtml(edge.to.replace(/^step:/, ""))}</small>`).join("")}</div>`;
-    }).join("") || `<p class="empty">${state.lang === "zh" ? "暂无模块图数据" : "No module graph data"}</p>`}</div>
+    }).join("") || `<p class="empty">No module graph data</p>`}</div>
   </section>`;
 }
 
@@ -346,48 +342,26 @@ function tag(value, text = value) {
 
 function label(value) {
   const labels = {
-    zh: {
-      pass: "通过",
-      warn: "需关注",
-      fail: "阻塞",
-      in_progress: "进行中",
-      planned: "计划中",
-      done: "完成",
-      blocked: "阻塞",
-      missing: "缺失",
-      present: "已有",
-      closed: "关闭",
-      advice: "建议",
-      standalone: "独立文件",
-      legacy: "旧版兼容",
-      "task-review": "审查",
-      "task-progress": "进度",
-      "regression-ssot": "回归",
-      "cadence-ledger": "节奏",
-      unknown: "未知",
-    },
-    en: {
-      pass: "pass",
-      warn: "warn",
-      fail: "fail",
-      in_progress: "in progress",
-      planned: "planned",
-      done: "done",
-      blocked: "blocked",
-      missing: "missing",
-      present: "present",
-      closed: "closed",
-      advice: "advice",
-      standalone: "standalone",
-      legacy: "legacy",
-      "task-review": "review",
-      "task-progress": "progress",
-      "regression-ssot": "regression",
-      "cadence-ledger": "cadence",
-      unknown: "unknown",
-    },
+    pass: "pass",
+    warn: "warn",
+    fail: "fail",
+    in_progress: "in progress",
+    planned: "planned",
+    done: "done",
+    blocked: "blocked",
+    missing: "missing",
+    present: "present",
+    closed: "closed",
+    advice: "advice",
+    standalone: "standalone",
+    legacy: "legacy",
+    "task-review": "review",
+    "task-progress": "progress",
+    "regression-ssot": "regression",
+    "cadence-ledger": "cadence",
+    unknown: "unknown",
   };
-  return labels[state.lang][value] || value;
+  return labels[value] || value;
 }
 
 function progress(value) {
@@ -419,11 +393,6 @@ function bind() {
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => {
     state.page = button.dataset.page;
     state.selected = null;
-    app();
-  }));
-  document.querySelectorAll("[data-lang]").forEach((button) => button.addEventListener("click", () => {
-    state.lang = button.dataset.lang;
-    localStorage.setItem("harness.lang", state.lang);
     app();
   }));
   document.querySelectorAll("[data-theme]").forEach((button) => button.addEventListener("click", () => {

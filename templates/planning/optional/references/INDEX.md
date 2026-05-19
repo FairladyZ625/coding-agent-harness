@@ -1,8 +1,13 @@
-# Task References Index
+# References Index
 
-Use only when the task has external source notes, cross-repo context, reviewer
-packets, or generated references.
+Use this index for sources the task depends on but does not own.
 
-| ID | Type | Path | Summary | Used By |
-| --- | --- | --- | --- | --- |
-| REF-001 | public-doc / private-plan / external / code | PUBLIC:path or PRIVATE:path or TARGET:path or EXTERNAL:path or URL:https://example.com | Why this reference matters | coordinator |
+| Reference | Type | Why It Matters | Source |
+| --- | --- | --- | --- |
+| [name] | doc / link / transcript / code | [why this source is relevant] | [path or URL] |
+
+## Source Rules
+
+- Prefer canonical project files over summaries.
+- Record external links with enough context for a reviewer to re-check them.
+- Mark stale or uncertain references in `findings.md`.
