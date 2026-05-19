@@ -60,6 +60,34 @@ Capability 要保守选择：
 - residual owner / action / status
 - 是否提交；如果只是 dogfood 测试，是否已清理测试产物
 
+## 用户级注册
+
+如果用户已经通过 npm 或源码拿到了 `harness` CLI，可以把本 Skill 注册到用户级
+agent 目录，避免每个项目重复拷贝：
+
+```bash
+harness install-user --agent codex --global
+harness doctor-user --agent codex
+```
+
+支持的 agent target：
+
+| Agent | 用户级目录 |
+| --- | --- |
+| `codex` | `~/.codex/skills/coding-agent-harness` |
+| `claude` | `~/.claude/skills/coding-agent-harness` |
+| `gemini` | `~/.gemini/skills/coding-agent-harness` |
+| `openclaw` | `~/.openclaw/skills/coding-agent-harness` |
+| `agents` | `~/.agents/skills/coding-agent-harness` |
+| `all` | 安装到以上所有目录 |
+
+安全规则：
+
+- 默认交互确认；非交互场景必须传 `--yes` 或先用 `--dry-run`。
+- 默认不覆盖已有文件，只补缺失文件。
+- 需要强制更新时显式传 `--force`。
+- `doctor-user` 会检查 `SKILL.md`、模板、references、CLI scripts 和本指南是否存在。
+
 ## 旧 Harness 迁移
 
 目标项目已经有旧版 harness 时使用这条路径。不要把旧文档重建一遍：

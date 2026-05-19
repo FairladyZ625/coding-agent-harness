@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -66,6 +67,13 @@ export const capabilityAliases = {
 
 export const supportedLocales = new Set(["zh-CN", "en-US"]);
 export const allowedCapabilityStates = new Set(["scaffolded", "configured", "verified"]);
+export const userInstallTargets = {
+  codex: [".codex", "skills", "coding-agent-harness"],
+  claude: [".claude", "skills", "coding-agent-harness"],
+  gemini: [".gemini", "skills", "coding-agent-harness"],
+  openclaw: [".openclaw", "skills", "coding-agent-harness"],
+  agents: [".agents", "skills", "coding-agent-harness"],
+};
 export const allowedReviewDispositions = new Set([
   "open",
   "mitigated",
@@ -209,6 +217,156 @@ export function buildInstallReport({ target, locale, capabilities, changes, dryR
       `node scripts/harness.mjs status --json ${target.projectRoot}`,
       `node scripts/harness.mjs dashboard --out /tmp/harness-dashboard.html ${target.projectRoot}`,
     ],
+  };
+}
+
+function packageVersion() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+    return pkg.version || "";
+  } catch {
+    return "";
+  }
+}
+
+function userHome(home = "") {
+  return path.resolve(home || os.homedir());
+}
+
+function normalizeUserAgent(agent = "codex") {
+  const normalized = String(agent || "codex").toLowerCase();
+  if (normalized === "all") return Object.keys(userInstallTargets);
+  if (!userInstallTargets[normalized]) throw new Error(`Unknown user agent target: ${agent}`);
+  return [normalized];
+}
+
+function targetForUserAgent(agent, home = "") {
+  return path.join(userHome(home), ...userInstallTargets[agent]);
+}
+
+function skillPackageEntries() {
+  return [
+    "README.md",
+    "CHANGELOG.md",
+    "SKILL.md",
+    "LICENSE",
+    "package.json",
+    "references",
+    "templates",
+    "templates-zh-CN",
+    "scripts",
+    "docs-release",
+    "examples",
+  ];
+}
+
+function listPackageFiles() {
+  const files = [];
+  function walk(relativePath) {
+    const full = path.join(repoRoot, relativePath);
+    if (!fs.existsSync(full)) return;
+    const stat = fs.statSync(full);
+    if (stat.isDirectory()) {
+      for (const entry of fs.readdirSync(full)) walk(path.join(relativePath, entry));
+      return;
+    }
+    if (stat.isFile()) files.push(toPosix(relativePath));
+  }
+  for (const entry of skillPackageEntries()) walk(entry);
+  return files.sort();
+}
+
+function copySkillPackage(targetRoot, { dryRun = false, force = false } = {}) {
+  const changes = [];
+  for (const relativeFile of listPackageFiles()) {
+    const source = path.join(repoRoot, relativeFile);
+    const destination = path.join(targetRoot, relativeFile);
+    const existsAlready = fs.existsSync(destination);
+    const action = existsAlready ? (force ? "overwrite" : "skip-existing") : dryRun ? "would-create" : "create";
+    changes.push({ source: relativeFile, destination, action });
+    if (dryRun || (existsAlready && !force)) continue;
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.copyFileSync(source, destination);
+  }
+  return changes;
+}
+
+export function installUserSkill({ agent = "codex", home = "", dryRun = false, force = false } = {}) {
+  const agents = normalizeUserAgent(agent);
+  const targets = agents.map((targetAgent) => {
+    const target = targetForUserAgent(targetAgent, home);
+    const changes = copySkillPackage(target, { dryRun, force });
+    return {
+      agent: targetAgent,
+      target,
+      changes,
+      created: changes.filter((change) => ["create", "would-create"].includes(change.action)).length,
+      overwritten: changes.filter((change) => change.action === "overwrite").length,
+      skipped: changes.filter((change) => change.action === "skip-existing").length,
+    };
+  });
+  const changed = targets.some((target) => target.created > 0 || target.overwritten > 0);
+  const onlySkipped = targets.every((target) => target.created === 0 && target.overwritten === 0 && target.skipped > 0);
+  return {
+    operation: "install-user",
+    status: dryRun ? "dry-run" : changed ? "installed" : onlySkipped ? "already-present" : "no-op",
+    dryRun,
+    force,
+    version: packageVersion(),
+    source: repoRoot,
+    targets,
+  };
+}
+
+function readInstalledVersion(targetRoot) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(targetRoot, "package.json"), "utf8"));
+    return pkg.version || "";
+  } catch {
+    return "";
+  }
+}
+
+function commandOnPath(command) {
+  const paths = (process.env.PATH || "").split(path.delimiter).filter(Boolean);
+  const extensions = process.platform === "win32" ? (process.env.PATHEXT || ".EXE;.CMD;.BAT").split(";") : [""];
+  for (const base of paths) {
+    for (const extension of extensions) {
+      const candidate = path.join(base, `${command}${extension}`);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  }
+  return "";
+}
+
+export function doctorUserSkill({ agent = "codex", home = "" } = {}) {
+  const required = [
+    "SKILL.md",
+    "package.json",
+    "references",
+    "templates",
+    "templates-zh-CN",
+    "scripts/harness.mjs",
+    "docs-release/guides/agent-installation.md",
+  ];
+  const targets = normalizeUserAgent(agent).map((targetAgent) => {
+    const target = targetForUserAgent(targetAgent, home);
+    const missing = required.filter((relativePath) => !fs.existsSync(path.join(target, relativePath)));
+    return {
+      agent: targetAgent,
+      target,
+      status: missing.length === 0 ? "pass" : "fail",
+      version: readInstalledVersion(target),
+      missing,
+    };
+  });
+  const harnessCommand = commandOnPath("harness");
+  return {
+    operation: "doctor-user",
+    status: targets.every((target) => target.status === "pass") ? "pass" : "fail",
+    version: packageVersion(),
+    harnessCommand: harnessCommand || null,
+    targets,
   };
 }
 

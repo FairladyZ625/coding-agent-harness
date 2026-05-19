@@ -56,6 +56,8 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 面向 agent 的详细安装和迁移说明见
 `docs-release/guides/agent-installation.md`。如果本 Skill 与该指南出现差异，以
 本 Skill 的执行约束为准，并把差异记录为需要修复的文档漂移。
+如果用户询问 npm 发布或全局 CLI 分发，读取
+`docs-release/guides/npm-publishing.md`。
 
 ### Agent 安装合同
 
