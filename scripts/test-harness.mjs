@@ -41,6 +41,44 @@ function expectJson(args) {
   return JSON.parse(result.stdout);
 }
 
+function runInTty(args, options = {}) {
+  const input = options.input || "";
+  const timeout = options.timeout;
+  const expectLines = [
+    `set timeout ${Math.ceil((timeout || 5000) / 1000)}`,
+    `spawn ${[node, cli, ...args].map(tclWord).join(" ")}`,
+  ];
+  if (input) {
+    expectLines.push("expect -re {Language \\[1/2}");
+    expectLines.push(`send -- ${tclWord(input.replace(/\n/g, "\r"))}`);
+  }
+  expectLines.push("expect eof");
+  expectLines.push("catch wait result");
+  expectLines.push("exit [lindex $result 3]");
+  return spawnSync("expect", ["-c", expectLines.join("\n")], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    timeout,
+  });
+}
+
+function expectTtyJson(args, options = {}) {
+  const result = runInTty(args, options);
+  assert(result.status === 0, `tty ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
+  return parseJsonFromOutput(result.stdout);
+}
+
+function parseJsonFromOutput(output) {
+  const start = output.indexOf("{");
+  const end = output.lastIndexOf("}");
+  assert(start >= 0 && end > start, `output did not contain JSON\n${output}`);
+  return JSON.parse(output.slice(start, end + 1));
+}
+
+function tclWord(value) {
+  return `{${String(value).replace(/\\/g, "\\\\").replace(/}/g, "\\}")}}`;
+}
+
 expectPass(["check", "--profile", "source-package", "."]);
 if (fs.existsSync(path.join(repoRoot, ".harness-private"))) {
   expectPass(["check", "--profile", "private-harness", ".harness-private"]);
@@ -169,6 +207,25 @@ assert(
   "init zh-CN dry-run should use localized task_plan template when available",
 );
 assert(!fs.existsSync(path.join(dryRunTarget, "AGENTS.md")), "init dry-run mutated target");
+
+const nonInteractiveDefaultTarget = path.join(tmpRoot, "non-interactive-default-target");
+fs.mkdirSync(nonInteractiveDefaultTarget);
+const nonInteractiveDefault = expectJson(["init", "--dry-run", "--capabilities", "core", nonInteractiveDefaultTarget]);
+assert(nonInteractiveDefault.locale === "en-US", "non-interactive init without --locale should default to en-US");
+
+const interactiveZhTarget = path.join(tmpRoot, "interactive-zh-target");
+fs.mkdirSync(interactiveZhTarget);
+const interactiveZh = expectTtyJson(["init", "--dry-run", "--capabilities", "core,dashboard", interactiveZhTarget], { input: "1\n", timeout: 5000 });
+assert(interactiveZh.locale === "zh-CN", "interactive init option 1 should select zh-CN");
+assert(
+  interactiveZh.changes.some((change) => change.source === "templates-zh-CN/planning/task_plan.md"),
+  "interactive zh-CN init should use localized templates",
+);
+
+const ttyExplicitTarget = path.join(tmpRoot, "tty-explicit-target");
+fs.mkdirSync(ttyExplicitTarget);
+const ttyExplicit = expectTtyJson(["init", "--dry-run", "--locale", "en-US", "--capabilities", "core", ttyExplicitTarget], { timeout: 5000 });
+assert(ttyExplicit.locale === "en-US", "explicit --locale should win in TTY init");
 
 const zhInitTarget = path.join(tmpRoot, "zh-init-target");
 fs.mkdirSync(zhInitTarget);

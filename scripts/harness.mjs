@@ -2,6 +2,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { createInterface } from "node:readline/promises";
 import {
   addCapability,
   buildStatus,
@@ -29,6 +30,28 @@ function takeOption(name, fallback = "") {
   return value;
 }
 
+async function resolveInitLocale(requestedLocale) {
+  if (requestedLocale) return normalizeLocale(requestedLocale);
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return "en-US";
+
+  const prompt = [
+    "Select harness language / 选择初始化语言:",
+    "  1. 中文 (zh-CN)",
+    "  2. English (en-US)",
+    "Language [1/2, default 2]: ",
+  ].join("\n");
+  const reader = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = (await reader.question(prompt)).trim().toLowerCase();
+    if (["1", "zh", "zh-cn", "cn", "中文"].includes(answer)) return "zh-CN";
+    if (["2", "en", "en-us", "english", "英文", ""].includes(answer)) return "en-US";
+    console.error(`Unknown language selection: ${answer}. Falling back to en-US.`);
+    return "en-US";
+  } finally {
+    reader.close();
+  }
+}
+
 function targetArg() {
   return args[args.length - 1] && !args[args.length - 1].startsWith("-") ? args[args.length - 1] : ".";
 }
@@ -42,6 +65,9 @@ Usage:
   harness dashboard [--out file.html] [--out-dir folder] [target]
   harness init [--dry-run] [--locale zh-CN|en-US] [--capabilities core,dashboard] [target]
   harness add-capability <name> [--dry-run] [--locale zh-CN|en-US] [target]
+
+If init runs in an interactive terminal and --locale is omitted, it asks for a
+language. Non-interactive init defaults to en-US.
 `);
 }
 
@@ -101,7 +127,7 @@ if (command === "help" || command === "--help" || command === "-h") {
   process.exit(0);
 } else if (command === "init") {
   const dryRun = takeFlag("--dry-run");
-  const locale = normalizeLocale(takeOption("--locale", "en-US"));
+  const locale = await resolveInitLocale(takeOption("--locale", ""));
   const capabilities = takeOption("--capabilities", "core").split(",").map((item) => item.trim()).filter(Boolean);
   try {
     const result = writeInitFiles(targetArg(), capabilities, { dryRun, locale });

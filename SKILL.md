@@ -53,6 +53,23 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 当用户要求在项目上搭建 harness 时，使用 v1.0 的六阶段安装流程。安装不是
 `npm install` 式复制文件，而是 CLI scaffold 与 Agent configure 配合完成。
 
+### Agent 安装合同
+
+这个 CLI 的主要操作者通常是目标项目里的 agent，而不是最终用户。Agent 不应要求用户
+记命令、读模板目录或手动判断 locale；这些决策必须由 agent 在安装流程中完成。
+
+- 交互式安装：如果用户在场，agent 必须先确认文档语言，再运行
+  `harness init --locale zh-CN|en-US --capabilities ...`。也可以让 CLI 交互提问，
+  但 agent 仍要在收口说明中写明最终选择。
+- 非交互式安装：agent 不得依赖 CLI 的 `en-US` 默认值；必须从用户语境、项目语言或
+  明确配置中推断 locale，并显式传 `--locale`。如果无法判断，先暂停询问。
+- 中文用户或中文项目默认选择 `zh-CN`；英文团队、英文代码库或用户明确要求英文时选择
+  `en-US`。
+- scaffold 后必须检查 `.harness-capabilities.json` 的 `locale`，并确认 dashboard、
+  task template、review template 来自同一套模板树。
+- `templates/` 和 `templates-zh-CN/` 是两套完整模板树。不要在目标项目里混拷两套模板；
+  只允许保留 schema 字段、文件名、状态枚举、命令和跨工具协议 token 的英文。
+
 ### Phase 1: Diagnose / 项目诊断
 
 读 `references/project-onboarding-audit.md`，扫描项目技术栈、目录结构、现有文档、
@@ -72,7 +89,8 @@ CI、团队/agent 协作方式和风险面，输出诊断报告。
 
 ### Phase 3: Scaffold / 脚手架
 
-运行或模拟 `harness init --locale zh-CN|en-US --capabilities ...`。CLI 只创建
+运行或模拟 `harness init --locale zh-CN|en-US --capabilities ...`。面向 agent 的安装
+必须显式传 `--locale`；只有人直接在终端运行且未传 `--locale` 时，CLI 才交互询问。CLI 只创建
 目录、模板、空表、索引和 `.harness-capabilities.json`，不得把项目级 reference
 伪装成已经定制完成的标准。
 

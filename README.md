@@ -156,6 +156,19 @@ references/、templates/，只做增量更新：
 
 判断标准：**重装 Skill 不会删除项目历史；更新 Harness 是一次 delta merge，不是重建文档库。**
 
+### Agent 安装语言规则
+
+这套 CLI 主要给目标项目里的 agent 使用。Agent 不能把语言选择丢给用户自己研究命令：
+
+- 如果用户在场，先询问中文还是英文，然后显式运行
+  `harness init --locale zh-CN|en-US --capabilities ...`。
+- 如果是非交互安装，不要依赖 CLI 默认值；agent 必须根据用户语境或项目语言显式传
+  `--locale`。无法判断时先问。
+- 中文用户或中文项目默认 `zh-CN`；英文团队、英文文档项目或用户明确要求英文时用
+  `en-US`。
+- 安装后检查 `.harness-capabilities.json`、task template、review template 和 dashboard
+  是否来自同一套 locale 模板。
+
 ### 校验 Harness 完成度
 
 bootstrap 或 harness update 收口前，运行：
@@ -182,6 +195,7 @@ node scripts/harness.mjs status --json /path/to/project
 node scripts/harness.mjs status --json --strict /path/to/project
 node scripts/harness.mjs dashboard --out tmp/harness-dashboard.html /path/to/project
 node scripts/harness.mjs dashboard --out-dir tmp/harness-dashboard /path/to/project
+node scripts/harness.mjs init --capabilities core,dashboard /path/to/project
 node scripts/harness.mjs init --dry-run --locale zh-CN --capabilities core,dashboard /path/to/project
 node scripts/harness.mjs add-capability dashboard --dry-run /path/to/project
 ```
@@ -211,8 +225,9 @@ Markdown 文档快照、任务/模块图数据和 legacy adoption 建议。dashb
 }
 ```
 
-`locale` 支持 `zh-CN` 和 `en-US`。`harness init` 应由 Agent 先询问用户使用中文
-还是英文；非交互场景使用 `--locale zh-CN|en-US`。`templates/` 是纯英文模板树，
+`locale` 支持 `zh-CN` 和 `en-US`。`harness init` 在交互式终端中未传
+`--locale` 时会询问初始化语言；非交互场景默认 `en-US`，脚本和 Agent 可用
+`--locale zh-CN|en-US` 显式指定。`templates/` 是纯英文模板树，
 `templates-zh-CN/` 是同构中文模板树；CLI 按 locale 选择整棵模板树，不能在同一
 模板内混用中英文。CLI scaffold 只创建模板、空表和索引；项目级 reference standards
 需要 Agent 在 Configure 阶段根据项目事实和用户讨论后定制。
@@ -234,7 +249,9 @@ harness 体系：
 读取其中的 SKILL.md 作为执行协议，然后按照 v1.0 六阶段流程
 Diagnose → Decide → Scaffold → Configure → Verify → Deliver，
 在我当前的项目上搭建 harness 体系。
-先询问我使用中文还是英文模板，再根据项目诊断推荐 capability packs。
+先询问我使用中文还是英文模板；运行 init 时必须显式传
+`--locale zh-CN` 或 `--locale en-US`，不要依赖默认值。
+再根据项目诊断推荐 capability packs。
 每完成一个 Phase 告诉我结果，再继续下一个。
 ```
 
