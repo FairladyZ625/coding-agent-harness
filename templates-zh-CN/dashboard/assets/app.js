@@ -5,12 +5,14 @@ const state = {
   theme: localStorage.getItem("harness.theme") || "system",
   density: localStorage.getItem("harness.density") || "comfortable",
   selected: null,
-  tab: "plan",
+  tab: "brief",
   renderMode: "rendered",
+  query: "",
 };
 
 const pageKeys = ["overview", "ledger", "tasks", "modules", "evidence", "lessons", "adoption", "settings"];
 const taskDocTabs = [
+  ["brief", "brief.md"],
   ["plan", "task_plan.md"],
   ["strategy", "execution_strategy.md"],
   ["roadmap", "visual_roadmap.md"],
@@ -107,6 +109,7 @@ function overview() {
   <section class="page-grid">
     <div>
       ${overviewTasks()}
+      ${activeBriefs()}
       ${ledgerSummary()}
       ${riskPanel()}
     </div>
@@ -148,14 +151,42 @@ function riskPanel() {
 }
 
 function taskTable() {
-  const rows = bundle.status?.tasks || [];
-  return tablePanel(t("tasks"), [t("task"), t("state"), t("completion"), t("evidence"), t("roadmapSource")], rows.map((task) => [
+  const rows = filteredTasks();
+  return `${searchPanel()}${tablePanel(t("tasks"), [t("task"), t("state"), t("completion"), t("evidence"), t("roadmapSource")], rows.map((task) => [
     clickable(task.title, "task", task.id),
     tag(task.state, label(task.state)),
     progress(task.completion),
     progress(evidenceHealth([task])),
     escapeHtml(label(task.roadmapSource || "unknown")),
-  ]));
+  ]))}`;
+}
+
+function filteredTasks() {
+  const query = state.query.trim().toLowerCase();
+  const rows = bundle.status?.tasks || [];
+  if (!query) return rows;
+  return rows.filter((task) => [task.id, task.shortId, task.title, task.module, task.state].some((value) => String(value || "").toLowerCase().includes(query)));
+}
+
+function searchPanel() {
+  return `<section class="panel search-panel">
+    <input data-search value="${escapeAttr(state.query)}" placeholder="${t("searchTasks")}" aria-label="${t("searchTasks")}">
+    <span class="muted">${filteredTasks().length} / ${(bundle.status?.tasks || []).length}</span>
+  </section>`;
+}
+
+function activeBriefs() {
+  const tasks = (bundle.status?.tasks || []).filter((task) => task.state !== "done").slice(0, 4);
+  return `<section class="panel brief-panel">
+    <div class="panel-head"><h2>${t("briefs")}</h2><span class="muted">${tasks.length}</span></div>
+    <div class="brief-list">${tasks.map((task) => {
+      const doc = findDocument(`${task.path}/brief.md`);
+      return `<button class="brief-card" data-select-type="task" data-select-id="${escapeAttr(task.id)}" data-select-label="${escapeAttr(task.title)}">
+        <strong>${escapeHtml(task.title)}</strong>
+        <span>${escapeHtml(excerpt(doc?.content || ""))}</span>
+      </button>`;
+    }).join("") || `<p class="empty">暂无活跃任务 Brief</p>`}</div>
+  </section>`;
 }
 
 function ledgerSummary() {
@@ -290,11 +321,38 @@ function graphPanel() {
   const edges = graph.edges || [];
   return `<section class="panel graph-panel">
     <div class="panel-head"><h2>${t("graph")}</h2><span class="muted">${modules.length} modules · ${fallbackTasks.length} tasks · ${edges.length} edges</span></div>
+    <div class="topology">${window.HarnessMermaid.render(moduleTopologyMermaid(graph))}</div>
     <div class="graph-lanes">${laneNodes.slice(0, 12).map((module) => {
       const owned = edges.filter((edge) => edge.from === module.id).slice(0, 8);
       return `<div class="lane"><strong>${escapeHtml(module.label)}</strong><span>${label(module.state || "")}</span>${owned.map((edge) => `<small>${escapeHtml(edge.type)} → ${escapeHtml(edge.to.replace(/^step:/, ""))}</small>`).join("")}</div>`;
     }).join("") || `<p class="empty">暂无模块图数据</p>`}</div>
   </section>`;
+}
+
+function moduleTopologyMermaid(graph) {
+  const nodes = (graph.nodes || []).filter((node) => ["module", "step", "task"].includes(node.type)).slice(0, 24);
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const labels = new Map(nodes.map((node) => [node.id, String(node.label || node.id).replaceAll('"', "'")]));
+  const lines = ["flowchart LR"];
+  let edgeCount = 0;
+  for (const edge of graph.edges || []) {
+    if (nodeIds.has(edge.from) && nodeIds.has(edge.to)) {
+      lines.push(`  ${mermaidId(edge.from)}["${labels.get(edge.from)}"] --> ${mermaidId(edge.to)}["${labels.get(edge.to)}"]`);
+      edgeCount += 1;
+    }
+  }
+  if (edgeCount === 0 && nodes.length > 1) {
+    for (let index = 1; index < nodes.length; index += 1) {
+      const previous = nodes[index - 1];
+      const current = nodes[index];
+      lines.push(`  ${mermaidId(previous.id)}["${labels.get(previous.id)}"] --> ${mermaidId(current.id)}["${labels.get(current.id)}"]`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function mermaidId(value) {
+  return `N_${String(value).replace(/[^A-Za-z0-9_]/g, "_")}`;
 }
 
 function emptyTable(title, message) {
@@ -405,9 +463,13 @@ function bind() {
     localStorage.setItem("harness.density", state.density);
     app();
   }));
+  document.querySelectorAll("[data-search]").forEach((input) => input.addEventListener("input", () => {
+    state.query = input.value;
+    app();
+  }));
   document.querySelectorAll("[data-select-type]").forEach((button) => button.addEventListener("click", () => {
     state.selected = { type: button.dataset.selectType, id: button.dataset.selectId, label: button.dataset.selectLabel };
-    state.tab = "plan";
+    state.tab = "brief";
     app();
   }));
   document.querySelectorAll("[data-tab]").forEach((button) => button.addEventListener("click", () => {
@@ -430,6 +492,10 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value).replaceAll("'", "&#39;");
+}
+
+function excerpt(value) {
+  return String(value || "").replace(/^#.*$/gm, "").replace(/\s+/g, " ").trim().slice(0, 160) || "暂无 Brief 内容";
 }
 
 app();

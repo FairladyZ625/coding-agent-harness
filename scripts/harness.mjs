@@ -5,11 +5,18 @@ import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
   addCapability,
+  buildMigrationPlan,
   buildStatus,
+  createTask,
   doctorUserSkill,
   installUserSkill,
+  listLifecycleTasks,
   renderDashboard,
   normalizeLocale,
+  validateSourcePackageBoundary,
+  updateModuleStep,
+  updateTaskPhase,
+  updateTaskLifecycle,
   writeDashboardFolder,
   writeInitFiles,
 } from "./lib/harness-core.mjs";
@@ -79,6 +86,15 @@ Usage:
   harness dashboard [--out file.html] [--out-dir folder] [target]
   harness init [--dry-run] [--locale zh-CN|en-US] [--capabilities core,dashboard] [target]
   harness add-capability <name> [--dry-run] [--locale zh-CN|en-US] [target]
+  harness migrate-plan [--json] [--limit n] [target]
+  harness new-task <task-id> [--module key] [--budget standard|complex] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
+  harness task-start <task-id> [--message text] [target]
+  harness task-phase <task-id> <phase-id> [--state done] [--completion 100] [--evidence present] [target]
+  harness task-log <task-id> --message text [--evidence type:PATH:summary] [target]
+  harness task-block <task-id> [--message text] [target]
+  harness task-complete <task-id> [--message text] [target]
+  harness task-list [--json] [--state state] [--module key] [target]
+  harness module-step <module-key> <step-id> [--state done|in-progress|blocked] [target]
   harness install-user [--agent codex|claude|gemini|openclaw|agents|all] [--home dir] [--dry-run] [--force] [--yes]
   harness doctor-user [--agent codex|claude|gemini|openclaw|agents|all] [--home dir]
 
@@ -106,6 +122,9 @@ if (command === "help" || command === "--help" || command === "-h") {
     for (const required of ["package.json", "scripts/harness.mjs", "scripts/check-harness.mjs", "templates/planning/task_plan.md"]) {
       if (!fs.existsSync(path.resolve(target, required))) failures.push(`missing source package file: ${required}`);
     }
+    const boundary = validateSourcePackageBoundary(target);
+    failures.push(...boundary.failures);
+    warnings.push(...boundary.warnings);
   }
 
   const status = buildStatus(target, { skipLegacyCheck: profile === "source-package", strictLegacy: strict, strict });
@@ -163,6 +182,108 @@ if (command === "help" || command === "--help" || command === "-h") {
   try {
     const result = addCapability(targetArg(), capability, { dryRun, locale });
     console.log(JSON.stringify({ dryRun, registry: result.registry, changes: result.changes, report: result.report }, null, 2));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "migrate-plan") {
+  const json = takeFlag("--json");
+  const limit = Number.parseInt(takeOption("--limit", "20"), 10) || 20;
+  try {
+    const plan = buildMigrationPlan(targetArg(), { limit });
+    if (json) {
+      console.log(JSON.stringify(plan, null, 2));
+    } else {
+      console.log(`Migration Plan: ${plan.target}`);
+      console.log(`mode: ${plan.mode}`);
+      console.log(`warnings: ${plan.summary.warnings}`);
+      console.log(`recommended capabilities: ${plan.summary.recommendedCapabilities.join(", ") || "none"}`);
+      console.log("\nPhases:");
+      for (const phase of plan.phases) console.log(`- ${phase.id}: ${phase.title}`);
+      console.log("\nTop task actions:");
+      for (const action of plan.taskActions) console.log(`- ${action.taskId}: add ${action.files.join(", ")}`);
+      console.log("\nNext commands:");
+      for (const next of plan.nextCommands) console.log(`- ${next}`);
+    }
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "new-task") {
+  const dryRun = takeFlag("--dry-run");
+  const locale = takeOption("--locale", "");
+  const title = takeOption("--title", "");
+  const moduleKey = takeOption("--module", "");
+  const budget = takeOption("--budget", "standard");
+  const taskId = args.shift();
+  if (!taskId) {
+    console.error("Missing task id");
+    process.exit(2);
+  }
+  try {
+    console.log(JSON.stringify(createTask(targetArg(), taskId, { title, locale, dryRun, moduleKey, budget }), null, 2));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "task-phase") {
+  const state = takeOption("--state", "");
+  const completion = takeOption("--completion", "");
+  const evidenceStatus = takeOption("--evidence", "");
+  const taskId = args.shift();
+  const phaseId = args.shift();
+  if (!taskId || !phaseId) {
+    console.error("Missing task id or phase id");
+    process.exit(2);
+  }
+  try {
+    console.log(JSON.stringify(updateTaskPhase(targetArg(), taskId, phaseId, { state, completion, evidenceStatus }), null, 2));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (["task-start", "task-log", "task-block", "task-complete"].includes(command)) {
+  const message = takeOption("--message", "");
+  const evidence = takeOption("--evidence", "");
+  const taskId = args.shift();
+  if (!taskId) {
+    console.error("Missing task id");
+    process.exit(2);
+  }
+  const lifecycle = {
+    "task-start": { event: "task-start", state: "in_progress" },
+    "task-log": { event: "task-log", state: "" },
+    "task-block": { event: "task-block", state: "blocked" },
+    "task-complete": { event: "task-complete", state: "done" },
+  }[command];
+  try {
+    console.log(JSON.stringify(updateTaskLifecycle(targetArg(), taskId, { ...lifecycle, message, evidence }), null, 2));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "task-list") {
+  const json = takeFlag("--json");
+  const state = takeOption("--state", "");
+  const moduleKey = takeOption("--module", "");
+  const result = listLifecycleTasks(targetArg(), { state, moduleKey });
+  if (json) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    for (const task of result.tasks) {
+      console.log(`${task.id}\t${task.state}\t${task.completion}%\t${task.title}`);
+    }
+  }
+} else if (command === "module-step") {
+  const state = takeOption("--state", "done");
+  const moduleKey = args.shift();
+  const stepId = args.shift();
+  if (!moduleKey || !stepId) {
+    console.error("Missing module key or step id");
+    process.exit(2);
+  }
+  try {
+    console.log(JSON.stringify(updateModuleStep(targetArg(), moduleKey, stepId, { state }), null, 2));
   } catch (error) {
     console.error(error.message);
     process.exit(1);

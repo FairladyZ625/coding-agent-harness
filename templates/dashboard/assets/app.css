@@ -342,6 +342,50 @@ tr:hover td {
   margin-bottom: 16px;
   overflow: hidden;
 }
+.topology {
+  padding: 0 14px;
+}
+.search-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.search-panel input {
+  width: min(460px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink);
+  padding: 10px 12px;
+}
+.brief-panel {
+  margin-top: 16px;
+  overflow: hidden;
+}
+.brief-list {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+.brief-card {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink);
+  padding: 11px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.brief-card span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
 .graph-lanes {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));

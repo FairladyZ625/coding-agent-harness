@@ -83,6 +83,7 @@ export const allowedReviewDispositions = new Set([
   "not-reproducible",
   "out-of-scope",
 ]);
+export const allowedTaskStates = new Set(["not_started", "planned", "in_progress", "blocked", "done"]);
 export const allowedPhaseStates = new Set(["planned", "in_progress", "review", "blocked", "done", "skipped"]);
 export const allowedEvidenceStatus = new Set(["missing", "partial", "present", "waived"]);
 
@@ -173,6 +174,36 @@ function normalizeCapabilityName(name) {
 
 export function normalizeLocale(locale = "en-US") {
   return supportedLocales.has(locale) ? locale : "en-US";
+}
+
+export function validateSourcePackageBoundary(targetInput = ".") {
+  const root = path.resolve(targetInput || ".");
+  const gitProbe = spawnSync("git", ["-C", root, "rev-parse", "--is-inside-work-tree"], { encoding: "utf8" });
+  if (gitProbe.status !== 0) return { failures: [], warnings: [] };
+  const staged = spawnSync("git", ["-C", root, "diff", "--cached", "--name-only", "-z"], { encoding: "utf8" });
+  if (staged.status !== 0) return { failures: [], warnings: [`could not inspect staged files: ${staged.stderr.trim() || staged.status}`] };
+  const localOnly = staged.stdout
+    .split("\0")
+    .filter(Boolean)
+    .filter((file) => file === "AGENTS.md" || file === "CLAUDE.md" || file === "docs" || file.startsWith("docs/") || file === ".harness-private" || file.startsWith(".harness-private/"));
+  return {
+    failures: localOnly.map((file) => `private local-only file staged: ${file}`),
+    warnings: [],
+  };
+}
+
+function inferProjectLocale(target, fallback = "en-US") {
+  const candidates = [
+    path.join(target.projectRoot, "AGENTS.md"),
+    path.join(target.projectRoot, "CLAUDE.md"),
+    path.join(target.docsRoot, "AGENTS.md"),
+    path.join(target.docsRoot, "Harness-Ledger.md"),
+  ];
+  for (const file of candidates) {
+    const content = readFileSafe(file);
+    if (/\p{Script=Han}/u.test(content)) return "zh-CN";
+  }
+  return normalizeLocale(fallback);
 }
 
 export function detectCapabilities(target) {
@@ -431,6 +462,7 @@ function prefixedPath(target, filePath) {
 function sanitizeText(value) {
   return String(value ?? "")
     .replace(/file:\/\/\/[^\s)"'`<>\]]+/g, "LOCAL_FILE_URL_REDACTED")
+    .replaceAll("file://", "LOCAL_FILE_URL_REDACTED")
     .replace(/\/Users\/[^/\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
     .replace(/\/Volumes\/[^\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
     .replace(/\/(?:private\/)?tmp\/[^\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
@@ -536,11 +568,11 @@ function getColumn(header, name) {
 }
 
 function parseTaskState(progressContent) {
-  const match = progressContent.match(/^##\s*(?:Status|状态)\s*[:：]?\s*(?:\n\s*)?([^\n]+)/im);
+  const match = progressContent.match(/^##\s*(?:Current Status|Status|状态)\s*[:：]?\s*(?:\n\s*)?([^\n]+)/im);
   const raw = match ? match[1].replace(/`/g, "").trim() : "unknown";
   const aliases = new Map([
     ["进行中", "in_progress"],
-    ["已完成", "completed"],
+    ["已完成", "done"],
     ["未开始", "not_started"],
     ["已阻塞", "blocked"],
   ]);
@@ -611,10 +643,15 @@ function listTaskPlanPaths(target) {
     .filter((file) => !file.includes(`${path.sep}_archive${path.sep}`));
 }
 
+function taskIdForDirectory(target, taskDir) {
+  return toPosix(path.relative(path.join(target.docsRoot, "09-PLANNING"), taskDir));
+}
+
 export function collectTasks(target) {
   return listTaskPlanPaths(target).map((taskPlanPath) => {
     const taskDir = path.dirname(taskPlanPath);
     const taskPlan = readFileSafe(taskPlanPath);
+    const brief = readTaskContractFile(taskDir, "brief.md", "");
     const roadmap = readTaskContractFile(taskDir, "visual_roadmap.md", taskPlan);
     const progress = readFileSafe(path.join(taskDir, "progress.md"));
     const review = readFileSafe(path.join(taskDir, "review.md"));
@@ -627,11 +664,15 @@ export function collectTasks(target) {
           )
         : 0;
     const relative = toPosix(path.relative(target.projectRoot, taskDir));
-    const title = path.basename(taskDir);
+    const id = taskIdForDirectory(target, taskDir);
+    const title = titleFromMarkdown(brief.content || taskPlan, path.basename(taskDir));
     return {
-      id: title,
+      id,
+      shortId: path.basename(taskDir),
       title,
       path: `TARGET:${relative}`,
+      module: id.startsWith("MODULES/") ? id.split("/")[1] : null,
+      briefSource: brief.source,
       roadmapSource: roadmap.source,
       state: parseTaskState(progress),
       completion,
@@ -676,7 +717,7 @@ function collectDashboardDocumentPaths(target) {
   }
   for (const taskPlanPath of listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
-    for (const fileName of ["task_plan.md", "execution_strategy.md", "visual_roadmap.md", "progress.md", "review.md", "findings.md"]) {
+    for (const fileName of ["brief.md", "task_plan.md", "execution_strategy.md", "visual_roadmap.md", "progress.md", "review.md", "findings.md"]) {
       const file = path.join(taskDir, fileName);
       if (fs.existsSync(file)) selected.add(file);
     }
@@ -687,6 +728,7 @@ function collectDashboardDocumentPaths(target) {
   }
   for (const file of walkFiles(path.join(target.docsRoot, "09-PLANNING/MODULES"))) {
     if (file.endsWith("module_plan.md")) selected.add(file);
+    if (/09-PLANNING[\\/]+MODULES[\\/]+[^\\/]+[\\/]brief\.md$/.test(file)) selected.add(file);
   }
   for (const file of walkFiles(path.join(target.docsRoot, "01-GOVERNANCE/lessons"))) {
     if (file.endsWith(".md")) selected.add(file);
@@ -706,6 +748,7 @@ function documentKind(source) {
   if (lower.includes("cadence-ledger.md")) return "cadence-ledger";
   if (lower.includes("lessons-ssot.md")) return "lessons-ssot";
   if (lower.endsWith("/progress.md")) return "task-progress";
+  if (lower.endsWith("/brief.md")) return "task-brief";
   if (lower.endsWith("/review.md")) return "task-review";
   if (lower.endsWith("/references/index.md")) return "task-references";
   if (lower.endsWith("/artifacts/index.md")) return "task-artifacts";
@@ -828,6 +871,203 @@ function collectAdoption(status) {
       ],
     },
   };
+}
+
+export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
+  const target = normalizeTarget(targetInput);
+  const status = buildStatus(targetInput, { strict: false, strictLegacy: false });
+  const registry = readCapabilityRegistry(target);
+  const locale = registry.raw ? registry.locale : inferProjectLocale(target, registry.locale);
+  const warnings = status.checkState.details.warnings.flatMap((message) => splitWarningMessage(message)).filter(Boolean);
+  const taskActionsByTask = new Map();
+  const reviewActionsByPath = new Map();
+  const legacyActions = [];
+  const warningGroups = new Map();
+
+  for (const warning of warnings) {
+    const category = categorizeWarning(warning);
+    const group = warningGroups.get(category) || { category, count: 0, examples: [] };
+    group.count += 1;
+    if (group.examples.length < 3) group.examples.push(sanitizeText(warning));
+    warningGroups.set(category, group);
+
+    const taskContract = warning.match(/(?:adoption-needed:\s*)?(docs\/09-PLANNING\/TASKS\/([^/\s]+))\s+missing\s+(execution_strategy\.md|visual_roadmap\.md)/i);
+    if (taskContract) {
+      const key = taskContract[2];
+      const existing = taskActionsByTask.get(key) || {
+        taskId: key,
+        path: `TARGET:${taskContract[1]}`,
+        files: new Set(),
+        action: "For active or reopened tasks, add standalone v1 task contract files by adapting the localized task template. Leave closed historical tasks untouched unless strict gates require migration.",
+      };
+      existing.files.add(taskContract[3]);
+      taskActionsByTask.set(key, existing);
+      continue;
+    }
+
+    const reviewGap = warning.match(/(?:adoption-needed:\s*)?(docs\/[^\s]+\.md)\s+missing\s+(.+)/i);
+    if (reviewGap && /Reviewer Identity|Confidence Challenge|Evidence Checked|Final Confidence Basis/i.test(reviewGap[2])) {
+      const key = reviewGap[1];
+      const existing = reviewActionsByPath.get(key) || {
+        path: `TARGET:${key}`,
+        missing: new Set(),
+        action: "Upgrade this review only if it is active, release-blocking, or reused as current evidence. Otherwise keep it as historical material.",
+      };
+      existing.missing.add(reviewGap[2]);
+      reviewActionsByPath.set(key, existing);
+      continue;
+    }
+
+    const legacyRequired = warning.match(/-\s+missing required file:\s+([^\s]+)/i);
+    if (legacyRequired) {
+      legacyActions.push({
+        type: "missing-reference",
+        path: `TARGET:${legacyRequired[1]}`,
+        action: "Create or adapt this reference only when the related capability is intentionally adopted.",
+      });
+    }
+  }
+
+  const taskActions = [...taskActionsByTask.values()].map((action) => ({
+    ...action,
+    files: [...action.files].sort(),
+    commands: [
+      `copy/adapt docs/09-PLANNING/TASKS/_task-template/${action.files.has("execution_strategy.md") ? "execution_strategy.md" : "visual_roadmap.md"} into ${action.path}`,
+      `node scripts/harness.mjs task-log ${action.taskId} --message "migrated active task contract" ${target.projectRoot}`,
+    ],
+  }));
+  const reviewActions = [...reviewActionsByPath.values()].map((action) => ({
+    ...action,
+    missing: [...action.missing].sort(),
+  }));
+  const recommendedCapabilities = recommendedMigrationCapabilities(status, target, registry);
+  const missingExecutionStrategy = taskActions.filter((action) => action.files.includes("execution_strategy.md")).length;
+  const missingVisualRoadmap = taskActions.filter((action) => action.files.includes("visual_roadmap.md")).length;
+
+  return {
+    operation: "migrate-plan",
+    target: target.projectRoot,
+    locale,
+    mode: status.mode,
+    compatibility: {
+      preserves: [
+        "AGENTS.md and CLAUDE.md are never overwritten by safe-adoption.",
+        "Existing Harness-Ledger, SSoT, walkthrough, progress, review, and historical task plans are preserved.",
+        "Closed historical tasks may remain in legacy format unless they become active evidence for a strict gate.",
+      ],
+      strictGate: "Normal migration mode reports adoption-needed warnings; --strict remains available as the final cutover gate.",
+    },
+    summary: {
+      tasks: status.tasks.length,
+      warnings: warnings.length,
+      missingExecutionStrategy,
+      missingVisualRoadmap,
+      reviewSchemaGaps: reviewActions.length,
+      legacyReferenceGaps: legacyActions.length,
+      recommendedCapabilities: recommendedCapabilities.map((capability) => capability.name),
+    },
+    recommendedCapabilities,
+    phases: migrationPhases({ locale, recommendedCapabilities }),
+    taskActions: taskActions.slice(0, limit),
+    reviewActions: reviewActions.slice(0, limit),
+    legacyActions: legacyActions.slice(0, limit),
+    warningGroups: [...warningGroups.values()],
+    nextCommands: [
+      `node scripts/harness.mjs add-capability safe-adoption --locale ${locale} ${target.projectRoot}`,
+      `node scripts/harness.mjs migrate-plan --json ${target.projectRoot}`,
+      `node scripts/harness.mjs check --profile target-project ${target.projectRoot}`,
+      `node scripts/harness.mjs check --profile target-project --strict ${target.projectRoot}`,
+    ],
+  };
+}
+
+function recommendedMigrationCapabilities(status, target, registry) {
+  const declared = new Set(registry.capabilities.map((capability) => capability.name));
+  const detected = new Set(detectCapabilities(target));
+  const recommendations = [];
+  if (!declared.has("safe-adoption")) {
+    recommendations.push({
+      name: "safe-adoption",
+      priority: "required",
+      reason: "The project has legacy harness artifacts or missing v1 registry; migration must preserve existing documents.",
+    });
+  }
+  if (detected.has("long-running-task") && !declared.has("long-running-task")) {
+    recommendations.push({
+      name: "long-running-task",
+      priority: "candidate",
+      reason: "Long-running task artifacts exist; declare only if active work still uses continuous execution contracts.",
+    });
+  }
+  const moduleRegistry = existsInDocs(target, "09-PLANNING/Module-Registry.md");
+  const modulePlans = walkFiles(path.join(target.docsRoot, "09-PLANNING/MODULES")).some((file) => file.endsWith("module_plan.md"));
+  if ((moduleRegistry || modulePlans || status.tasks.length > 50) && !declared.has("module-parallel")) {
+    recommendations.push({
+      name: "module-parallel",
+      priority: moduleRegistry || modulePlans ? "candidate" : "consider",
+      reason: moduleRegistry || modulePlans
+        ? "Module planning artifacts already exist; verify owners, write scopes, and registry sync before declaring."
+        : "Large legacy task volume may need module grouping before strict migration.",
+    });
+  }
+  if (status.checkState.details.warnings.some((warning) => /review/i.test(warning)) && !declared.has("adversarial-review")) {
+    recommendations.push({
+      name: "adversarial-review",
+      priority: "consider",
+      reason: "Review artifacts exist but may not use the v1 schema; declare when active release or architecture reviews are migrated.",
+    });
+  }
+  return recommendations;
+}
+
+function migrationPhases({ locale, recommendedCapabilities }) {
+  return [
+    {
+      id: "MP-01",
+      title: "Stabilize legacy state",
+      goal: "Record current harness state without rewriting historical documents.",
+      actions: ["Run safe-adoption dry-run", "Confirm locale", "Confirm current git status is understood"],
+      exitCriteria: [".harness-capabilities.json exists", "Existing AGENTS.md/CLAUDE.md/history are preserved"],
+    },
+    {
+      id: "MP-02",
+      title: "Choose capability cutover",
+      goal: "Declare only capabilities that match real project facts.",
+      actions: recommendedCapabilities.map((capability) => `Evaluate ${capability.name}: ${capability.reason}`),
+      exitCriteria: ["Capability registry has no accidental declarations", "Every optional capability has a project fact trigger"],
+    },
+    {
+      id: "MP-03",
+      title: "Migrate active task contracts",
+      goal: "Upgrade active or reopened tasks to v1 task files first.",
+      actions: ["Add brief.md, execution_strategy.md, visual_roadmap.md for active tasks", "Keep closed historical tasks as legacy evidence"],
+      exitCriteria: ["Active task status is readable by status/dashboard", "Task evidence is logged through progress.md"],
+    },
+    {
+      id: "MP-04",
+      title: "Introduce modules if needed",
+      goal: "Move from single-line task history to module ownership only when the project has real independent domains.",
+      actions: ["Identify modules by product/domain, not file folders", "Create module registry after owner/write-scope decisions", "Route shared updates through coordinator"],
+      exitCriteria: ["Module owners and write scopes are explicit", "No worker owns shared global ledgers without coordinator sync"],
+    },
+    {
+      id: "MP-05",
+      title: "Upgrade current reviews and references",
+      goal: "Bring only active review and reference gates to v1 schema.",
+      actions: ["Upgrade release-blocking reviews first", "Create missing reference files only for adopted capabilities", "Record accepted historical gaps as residuals"],
+      exitCriteria: ["Current release gates have v1 review evidence", "Legacy-only gaps are categorized as residuals"],
+    },
+    {
+      id: "MP-06",
+      title: "Strict cutover",
+      goal: "Turn strict checks into the blocking gate after migration scope is complete.",
+      actions: ["Run normal check until warnings are understood", "Run --strict after active work is migrated", "Keep residual owner/action/status for deferred history"],
+      exitCriteria: ["Strict check passes or every remaining failure has owner/action/status"],
+    },
+  ].map((phase) => ({
+    ...phase,
+    locale,
+  }));
 }
 
 function splitWarningMessage(message) {
@@ -1086,6 +1326,7 @@ export function buildStatus(targetInput, options = {}) {
       root: `TARGET:${target.docsOnly ? toPosix(path.relative(target.projectRoot, target.docsRoot)) : "."}`,
       docsOnly: target.docsOnly,
     },
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     mode: capabilityState.registry.mode,
     checkState: {
@@ -1217,11 +1458,307 @@ function localizedTemplateSource(source, locale) {
   return fs.existsSync(path.join(repoRoot, localeSource)) ? localeSource : source;
 }
 
+function todayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function nowTimestamp() {
+  return new Date().toISOString().replace("T", " ").slice(0, 16);
+}
+
+export function normalizeTaskId(value) {
+  return slug(value || "task");
+}
+
+function renderTaskTemplate(content, { taskId, title, locale }) {
+  const date = todayDate();
+  return String(content)
+    .replaceAll("{{TASK_ID}}", taskId)
+    .replaceAll("{{TASK_TITLE}}", title)
+    .replaceAll("{{DATE}}", date)
+    .replaceAll("{{LOCALE}}", normalizeLocale(locale))
+    .replaceAll("[Task Name]", title)
+    .replaceAll("[任务名称]", title);
+}
+
+function taskTemplateFiles({ locale = "en-US" } = {}) {
+  return [
+    ["brief.md", "templates/planning/brief.md"],
+    ["task_plan.md", "templates/planning/task_plan.md"],
+    ["execution_strategy.md", "templates/planning/execution_strategy.md"],
+    ["visual_roadmap.md", "templates/planning/visual_roadmap.md"],
+    ["findings.md", "templates/planning/findings.md"],
+    ["progress.md", "templates/planning/progress.md"],
+    ["review.md", "templates/planning/review.md"],
+  ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
+}
+
+function optionalTaskTemplateFiles({ locale = "en-US" } = {}) {
+  return [
+    ["references/INDEX.md", "templates/planning/optional/references/INDEX.md"],
+    ["artifacts/INDEX.md", "templates/planning/optional/artifacts/INDEX.md"],
+  ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
+}
+
+function moduleTemplateFiles({ locale = "en-US" } = {}) {
+  return [["brief.md", "templates/planning/module_brief.md"]].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
+}
+
+function taskRoot(target, taskId, { moduleKey = "" } = {}) {
+  const normalizedTaskId = normalizeTaskId(taskId);
+  if (moduleKey) return path.join(target.docsRoot, "09-PLANNING/MODULES", normalizeTaskId(moduleKey), normalizedTaskId);
+  return path.join(target.docsRoot, "09-PLANNING/TASKS", normalizedTaskId);
+}
+
+function resolveTaskDirectory(target, taskRef) {
+  const raw = String(taskRef || "").replace(/^docs\/09-PLANNING\//, "").replace(/^\/+/, "");
+  if (!raw) throw new Error("Missing task id");
+  const direct = raw.startsWith("TASKS/") || raw.startsWith("MODULES/") ? path.join(target.docsRoot, "09-PLANNING", raw) : "";
+  if (direct && fs.existsSync(path.join(direct, "task_plan.md"))) return direct;
+  const normalized = normalizeTaskId(raw);
+  const candidates = listTaskPlanPaths(target)
+    .map((taskPlanPath) => path.dirname(taskPlanPath))
+    .filter((taskDir) => {
+      const id = taskIdForDirectory(target, taskDir);
+      return id === raw || id.endsWith(`/${raw}`) || path.basename(taskDir) === normalized;
+    });
+  if (candidates.length === 1) return candidates[0];
+  if (candidates.length > 1) {
+    const options = candidates.map((taskDir) => `- ${taskIdForDirectory(target, taskDir)}`).join("\n");
+    throw new Error(`Ambiguous task reference: ${taskRef}\n${options}`);
+  }
+  const legacy = taskRoot(target, normalized);
+  if (fs.existsSync(path.join(legacy, "task_plan.md"))) return legacy;
+  throw new Error(`Task not found: ${taskRef}`);
+}
+
+function findTaskByDirectory(target, taskDir) {
+  const id = taskIdForDirectory(target, taskDir);
+  return collectTasks(target).find((task) => task.id === id) || null;
+}
+
+function stateLabel(state, locale) {
+  if (normalizeLocale(locale) !== "zh-CN") return state;
+  return (
+    {
+      not_started: "未开始",
+      planned: "未开始",
+      in_progress: "进行中",
+      blocked: "已阻塞",
+      done: "已完成",
+    }[state] || state
+  );
+}
+
+function updateProgressState(content, state, locale) {
+  const label = stateLabel(state, locale);
+  if (/^##\s*状态[:：][^\n]*/im.test(content)) {
+    return content.replace(/^##\s*状态[:：][^\n]*/im, `## 状态：${label}`);
+  }
+  if (/^##\s*(?:Current Status|Status)\s*\n+\s*[^\n]+/im.test(content)) {
+    return content.replace(/^##\s*(Current Status|Status)\s*\n+\s*[^\n]+/im, `## $1\n\n${label}`);
+  }
+  return `${content.trimEnd()}\n\n## Status\n\n${label}\n`;
+}
+
+function appendProgressLog(content, { event, message, evidence, actor = "coordinator" }) {
+  const timestamp = nowTimestamp();
+  const safeMessage = String(message || event).replace(/\r?\n/g, " ").trim();
+  const safeEvidence = String(evidence || "n/a").replace(/\r?\n/g, " ").trim();
+  if (/^##\s*Log\s*$/im.test(content)) {
+    return content.replace(
+      /(^##\s*Log\s*$[\s\S]*?\| --- \| --- \| --- \| --- \| --- \|\n)/im,
+      `$1| ${timestamp} | ${actor} | ${event}: ${safeMessage} | ${safeEvidence} | ${event === "task-complete" ? "done" : "continue"} |\n`,
+    );
+  }
+  if (/^##\s*进度记录\s*$/im.test(content)) {
+    return `${content.trimEnd()}\n\n### [${timestamp}] - ${event}\n\n- 做了什么：${safeMessage}\n- 验证结果：已记录\n- 下一步：${event === "task-complete" ? "完成" : "继续执行"}\n- 证据：${safeEvidence}\n`;
+  }
+  return `${content.trimEnd()}\n\n## Log\n\n| Time | Actor | Action | Evidence | Next |\n| --- | --- | --- | --- | --- |\n| ${timestamp} | ${actor} | ${event}: ${safeMessage} | ${safeEvidence} | ${event === "task-complete" ? "done" : "continue"} |\n`;
+}
+
+export function createTask(targetInput, taskId, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard" } = {}) {
+  const target = normalizeTarget(targetInput);
+  const normalizedTaskId = normalizeTaskId(taskId);
+  if (!normalizedTaskId) throw new Error("Missing task id");
+  const normalizedModuleKey = moduleKey ? normalizeTaskId(moduleKey) : "";
+  const normalizedLocale = normalizeLocale(locale || readCapabilityRegistry(target).locale);
+  const taskTitle = title || normalizedTaskId;
+  const directory = taskRoot(target, normalizedTaskId, { moduleKey: normalizedModuleKey });
+  if (fs.existsSync(directory)) throw new Error(`Task already exists: ${normalizedTaskId}`);
+  const changes = [];
+  if (normalizedModuleKey) {
+    const moduleDirectory = path.dirname(directory);
+    for (const [destination, source] of moduleTemplateFiles({ locale: normalizedLocale })) {
+      const destinationPath = path.join(moduleDirectory, destination);
+      if (fs.existsSync(destinationPath)) continue;
+      const sourcePath = path.join(repoRoot, source);
+      changes.push({
+        destination: toPosix(path.relative(target.projectRoot, destinationPath)),
+        source,
+        action: dryRun ? "would-create" : "create",
+      });
+      if (dryRun) continue;
+      fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+      fs.writeFileSync(destinationPath, renderTaskTemplate(readFileSafe(sourcePath), { taskId: normalizedModuleKey, title: normalizedModuleKey, locale: normalizedLocale }));
+    }
+  }
+  const files = budget === "complex" ? [...taskTemplateFiles({ locale: normalizedLocale }), ...optionalTaskTemplateFiles({ locale: normalizedLocale })] : taskTemplateFiles({ locale: normalizedLocale });
+  for (const [destination, source] of files) {
+    const destinationPath = path.join(directory, destination);
+    const sourcePath = path.join(repoRoot, source);
+    changes.push({
+      destination: toPosix(path.relative(target.projectRoot, destinationPath)),
+      source,
+      action: dryRun ? "would-create" : "create",
+    });
+    if (dryRun) continue;
+    fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+    fs.writeFileSync(destinationPath, renderTaskTemplate(readFileSafe(sourcePath), { taskId: normalizedTaskId, title: taskTitle, locale: normalizedLocale }));
+  }
+  return {
+    dryRun,
+    task: {
+      id: taskIdForDirectory(target, directory),
+      shortId: normalizedTaskId,
+      title: taskTitle,
+      module: normalizedModuleKey || null,
+      path: `TARGET:${toPosix(path.relative(target.projectRoot, directory))}`,
+      locale: normalizedLocale,
+      budget,
+    },
+    changes,
+  };
+}
+
+export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", state = "", message = "", evidence = "" } = {}) {
+  const target = normalizeTarget(targetInput);
+  const taskDir = resolveTaskDirectory(target, taskId);
+  const progressPath = path.join(taskDir, "progress.md");
+  const registry = readCapabilityRegistry(target);
+  const normalizedState = state ? String(state).toLowerCase().replaceAll("-", "_") : "";
+  if (normalizedState && !allowedTaskStates.has(normalizedState)) throw new Error(`Invalid task state: ${state}`);
+  let content = readFileSafe(progressPath);
+  if (normalizedState) content = updateProgressState(content, normalizedState, registry.locale);
+  content = appendProgressLog(content, { event, message, evidence });
+  fs.writeFileSync(progressPath, content.endsWith("\n") ? content : `${content}\n`);
+  return {
+    event,
+    task: findTaskByDirectory(target, taskDir) || { id: taskIdForDirectory(target, taskDir), state: normalizedState || "unknown" },
+  };
+}
+
+export function updateTaskPhase(targetInput, taskId, phaseId, { state = "", completion = "", evidenceStatus = "" } = {}) {
+  const target = normalizeTarget(targetInput);
+  const taskDir = resolveTaskDirectory(target, taskId);
+  const roadmapPath = path.join(taskDir, "visual_roadmap.md");
+  if (!fs.existsSync(roadmapPath)) throw new Error(`Task visual roadmap not found: ${taskId}`);
+  let content = readFileSafe(roadmapPath);
+  const normalizedState = state ? String(state).toLowerCase().replaceAll("-", "_") : "";
+  if (normalizedState && !allowedPhaseStates.has(normalizedState)) throw new Error(`Invalid phase state: ${state}`);
+  const normalizedEvidence = evidenceStatus ? String(evidenceStatus).toLowerCase() : "";
+  if (normalizedEvidence && !allowedEvidenceStatus.has(normalizedEvidence)) throw new Error(`Invalid evidence status: ${evidenceStatus}`);
+  const nextCompletion = completion === "" ? "" : Number.parseInt(String(completion), 10);
+  if (nextCompletion !== "" && (!Number.isInteger(nextCompletion) || nextCompletion < 0 || nextCompletion > 100)) {
+    throw new Error(`Invalid completion: ${completion}`);
+  }
+  content = updateMarkdownTableRow(content, /^Phase ID$/i, (header, row) => {
+    const idIndex = getColumn(header, "Phase ID");
+    if ((row[idIndex] || "") !== phaseId) return row;
+    const next = [...row];
+    const stateIndex = getColumn(header, "State");
+    const completionIndex = getColumn(header, "Completion");
+    const evidenceIndex = getColumn(header, "Evidence Status");
+    if (normalizedState && stateIndex >= 0) next[stateIndex] = normalizedState;
+    if (nextCompletion !== "" && completionIndex >= 0) next[completionIndex] = String(nextCompletion);
+    if (normalizedEvidence && evidenceIndex >= 0) next[evidenceIndex] = normalizedEvidence;
+    return next;
+  });
+  fs.writeFileSync(roadmapPath, content);
+  return { event: "task-phase", task: findTaskByDirectory(target, taskDir), phaseId };
+}
+
+export function updateModuleStep(targetInput, moduleKey, stepId, { state = "" } = {}) {
+  const target = normalizeTarget(targetInput);
+  const normalizedModuleKey = normalizeTaskId(moduleKey);
+  const normalizedState = String(state || "done").toLowerCase().replaceAll("_", "-");
+  if (!["planned", "in-progress", "done", "blocked", "superseded"].includes(normalizedState)) throw new Error(`Invalid module step state: ${state}`);
+  const modulePlanPath = path.join(target.docsRoot, "09-PLANNING/MODULES", normalizedModuleKey, "module_plan.md");
+  if (!fs.existsSync(modulePlanPath)) throw new Error(`Module plan not found: ${normalizedModuleKey}`);
+  let content = readFileSafe(modulePlanPath);
+  content = updateMarkdownTableRow(content, /^(Step ID|步骤 ID)$/i, (header, row) => {
+    const idIndex = firstColumn(header, ["Step ID", "步骤 ID"]);
+    if ((row[idIndex] || "") !== stepId) return row;
+    const next = [...row];
+    const statusIndex = firstColumn(header, ["Status", "状态"]);
+    if (statusIndex >= 0) next[statusIndex] = normalizedState;
+    return next;
+  });
+  fs.writeFileSync(modulePlanPath, content);
+
+  const registryPath = path.join(target.docsRoot, "09-PLANNING/Module-Registry.md");
+  if (fs.existsSync(registryPath)) {
+    let registry = readFileSafe(registryPath);
+    registry = updateMarkdownTableRow(registry, /^ID$/i, (header, row) => {
+      const moduleIndex = firstColumn(header, ["Module", "模块"]);
+      const taskPlanIndex = getColumn(header, "Task Plan");
+      const matchesModule = normalizeTaskId(row[moduleIndex] || "") === normalizedModuleKey;
+      const matchesPlan = taskPlanIndex >= 0 && String(row[taskPlanIndex] || "").includes(`/MODULES/${normalizedModuleKey}/`);
+      if (!matchesModule && !matchesPlan) return row;
+      const next = [...row];
+      const statusIndex = getColumn(header, "Status");
+      const updatedIndex = getColumn(header, "Updated");
+      if (statusIndex >= 0) next[statusIndex] = normalizedState === "done" ? "merged" : normalizedState === "in-progress" ? "active" : normalizedState;
+      if (updatedIndex >= 0) next[updatedIndex] = todayDate();
+      return next;
+    });
+    fs.writeFileSync(registryPath, registry);
+  }
+  return { event: "module-step", moduleKey: normalizedModuleKey, stepId, state: normalizedState };
+}
+
+function firstColumn(header, names) {
+  for (const name of names) {
+    const index = getColumn(header, name);
+    if (index >= 0) return index;
+  }
+  return -1;
+}
+
+function updateMarkdownTableRow(content, headerPattern, updater) {
+  const lines = content.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!lines[index].trim().startsWith("|")) continue;
+    const header = splitMarkdownRow(lines[index]);
+    if (!header.some((cell) => headerPattern.test(cell))) continue;
+    let rowIndex = index + 2;
+    while (rowIndex < lines.length && lines[rowIndex].trim().startsWith("|")) {
+      const row = splitMarkdownRow(lines[rowIndex]);
+      if (row.length === header.length && !row.every((cell) => /^:?-{3,}:?$/.test(cell))) {
+        const next = updater(header, row);
+        lines[rowIndex] = `| ${next.join(" | ")} |`;
+      }
+      rowIndex += 1;
+    }
+    return lines.join("\n");
+  }
+  return content;
+}
+
+export function listLifecycleTasks(targetInput, { state = "", moduleKey = "" } = {}) {
+  const target = normalizeTarget(targetInput);
+  let tasks = collectTasks(target);
+  if (state) tasks = tasks.filter((task) => task.state === String(state).toLowerCase().replaceAll("-", "_"));
+  if (moduleKey) tasks = tasks.filter((task) => task.module === normalizeTaskId(moduleKey));
+  return { tasks };
+}
+
 export function plannedInitFiles(capabilities = ["core"], { locale = "en-US" } = {}) {
   const files = [
     ["AGENTS.md", "templates/AGENTS.md.template"],
     ["CLAUDE.md", "templates/CLAUDE.md.template"],
     ["docs/Harness-Ledger.md", "templates/ledger/Harness-Ledger.md"],
+    ["docs/09-PLANNING/TASKS/_task-template/brief.md", "templates/planning/brief.md"],
     ["docs/09-PLANNING/TASKS/_task-template/task_plan.md", "templates/planning/task_plan.md"],
     ["docs/09-PLANNING/TASKS/_task-template/execution_strategy.md", "templates/planning/execution_strategy.md"],
     ["docs/09-PLANNING/TASKS/_task-template/visual_roadmap.md", "templates/planning/visual_roadmap.md"],

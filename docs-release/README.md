@@ -16,6 +16,7 @@ ignored by the open-source repository and versioned separately.
 
 - `architecture/overview.md` — public architecture overview.
 - `guides/agent-installation.md` — operational installation guide for target-project agents.
+- `guides/migration-playbook.md` — smooth migration guide for existing legacy harness projects.
 
 Release roadmaps, staged plans, task execution strategy, final-check walkthroughs,
 and maintainer publishing notes are project operating state. Keep them in

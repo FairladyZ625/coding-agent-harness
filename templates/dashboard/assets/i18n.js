@@ -16,6 +16,8 @@ window.HarnessI18n = {
     activeTasks: "Active tasks",
     evidenceHealth: "Evidence health",
     detail: "Detail",
+    brief: "Brief",
+    briefs: "Briefs",
     plan: "Plan",
     strategy: "Execution strategy",
     roadmap: "Visual roadmap",
@@ -43,5 +45,6 @@ window.HarnessI18n = {
     message: "Detail",
     graph: "Graph",
     origin: "Source",
+    searchTasks: "Search tasks",
   },
 };

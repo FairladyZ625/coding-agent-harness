@@ -16,6 +16,8 @@ window.HarnessI18n = {
     activeTasks: "活跃任务",
     evidenceHealth: "证据完整度",
     detail: "详情",
+    brief: "Brief",
+    briefs: "Brief",
     plan: "计划",
     strategy: "执行策略",
     roadmap: "可视化路线",
@@ -43,5 +45,6 @@ window.HarnessI18n = {
     message: "详情",
     graph: "依赖图",
     origin: "来源",
+    searchTasks: "搜索任务",
   },
 };
