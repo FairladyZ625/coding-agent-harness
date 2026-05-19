@@ -107,6 +107,40 @@ node scripts/harness.mjs add-capability safe-adoption \
 - 历史合同缺口在普通模式下进入 `adoption-needed` warning。
 - `--strict` 必须仍然能因为旧 checker 失败或历史合同缺口而失败。
 
+## 任务生命周期
+
+初始化或迁移完成后，agent 不应手工复制任务目录。使用生命周期命令创建和推进任务：
+
+```bash
+node scripts/harness.mjs new-task phase-2-lifecycle \
+  --title "阶段二任务生命周期" \
+  --locale zh-CN \
+  /path/to/project
+
+node scripts/harness.mjs task-start phase-2-lifecycle \
+  --message "开始实现生命周期切片" \
+  /path/to/project
+
+node scripts/harness.mjs task-log phase-2-lifecycle \
+  --message "完成 CLI 与模板更新" \
+  --evidence "command:TARGET:npm-test:passed" \
+  /path/to/project
+
+node scripts/harness.mjs task-complete phase-2-lifecycle \
+  --message "验证闭环完成" \
+  /path/to/project
+```
+
+规则：
+
+- `new-task` 创建 `brief.md`、`task_plan.md`、`execution_strategy.md`、
+  `visual_roadmap.md`、`findings.md`、`progress.md` 和 `review.md`。
+- 已存在的任务目录不会被覆盖；需要改名或继续旧任务时，由 coordinator 决定。
+- `task-start`、`task-block`、`task-complete` 只更新 `progress.md` 的生命周期状态和日志。
+- `task-log` 只追加执行记录；证据使用 `type:PATH:summary`，例如
+  `command:TARGET:npm-test:passed`。
+- `task-list --json` 和 `status --json` 是 dashboard、reviewer 和后续 agent 的读取入口。
+
 ## 验证命令
 
 安装或升级收口前，至少运行：

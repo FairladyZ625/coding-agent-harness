@@ -83,6 +83,7 @@ export const allowedReviewDispositions = new Set([
   "not-reproducible",
   "out-of-scope",
 ]);
+export const allowedTaskStates = new Set(["not_started", "planned", "in_progress", "blocked", "done"]);
 export const allowedPhaseStates = new Set(["planned", "in_progress", "review", "blocked", "done", "skipped"]);
 export const allowedEvidenceStatus = new Set(["missing", "partial", "present", "waived"]);
 
@@ -431,6 +432,7 @@ function prefixedPath(target, filePath) {
 function sanitizeText(value) {
   return String(value ?? "")
     .replace(/file:\/\/\/[^\s)"'`<>\]]+/g, "LOCAL_FILE_URL_REDACTED")
+    .replaceAll("file://", "LOCAL_FILE_URL_REDACTED")
     .replace(/\/Users\/[^/\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
     .replace(/\/Volumes\/[^\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
     .replace(/\/(?:private\/)?tmp\/[^\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
@@ -536,11 +538,11 @@ function getColumn(header, name) {
 }
 
 function parseTaskState(progressContent) {
-  const match = progressContent.match(/^##\s*(?:Status|状态)\s*[:：]?\s*(?:\n\s*)?([^\n]+)/im);
+  const match = progressContent.match(/^##\s*(?:Current Status|Status|状态)\s*[:：]?\s*(?:\n\s*)?([^\n]+)/im);
   const raw = match ? match[1].replace(/`/g, "").trim() : "unknown";
   const aliases = new Map([
     ["进行中", "in_progress"],
-    ["已完成", "completed"],
+    ["已完成", "done"],
     ["未开始", "not_started"],
     ["已阻塞", "blocked"],
   ]);
@@ -615,6 +617,7 @@ export function collectTasks(target) {
   return listTaskPlanPaths(target).map((taskPlanPath) => {
     const taskDir = path.dirname(taskPlanPath);
     const taskPlan = readFileSafe(taskPlanPath);
+    const brief = readTaskContractFile(taskDir, "brief.md", "");
     const roadmap = readTaskContractFile(taskDir, "visual_roadmap.md", taskPlan);
     const progress = readFileSafe(path.join(taskDir, "progress.md"));
     const review = readFileSafe(path.join(taskDir, "review.md"));
@@ -627,11 +630,12 @@ export function collectTasks(target) {
           )
         : 0;
     const relative = toPosix(path.relative(target.projectRoot, taskDir));
-    const title = path.basename(taskDir);
+    const title = titleFromMarkdown(brief.content || taskPlan, path.basename(taskDir));
     return {
-      id: title,
+      id: path.basename(taskDir),
       title,
       path: `TARGET:${relative}`,
+      briefSource: brief.source,
       roadmapSource: roadmap.source,
       state: parseTaskState(progress),
       completion,
@@ -676,7 +680,7 @@ function collectDashboardDocumentPaths(target) {
   }
   for (const taskPlanPath of listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
-    for (const fileName of ["task_plan.md", "execution_strategy.md", "visual_roadmap.md", "progress.md", "review.md", "findings.md"]) {
+    for (const fileName of ["brief.md", "task_plan.md", "execution_strategy.md", "visual_roadmap.md", "progress.md", "review.md", "findings.md"]) {
       const file = path.join(taskDir, fileName);
       if (fs.existsSync(file)) selected.add(file);
     }
@@ -706,6 +710,7 @@ function documentKind(source) {
   if (lower.includes("cadence-ledger.md")) return "cadence-ledger";
   if (lower.includes("lessons-ssot.md")) return "lessons-ssot";
   if (lower.endsWith("/progress.md")) return "task-progress";
+  if (lower.endsWith("/brief.md")) return "task-brief";
   if (lower.endsWith("/review.md")) return "task-review";
   if (lower.endsWith("/references/index.md")) return "task-references";
   if (lower.endsWith("/artifacts/index.md")) return "task-artifacts";
@@ -1217,11 +1222,152 @@ function localizedTemplateSource(source, locale) {
   return fs.existsSync(path.join(repoRoot, localeSource)) ? localeSource : source;
 }
 
+function todayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function nowTimestamp() {
+  return new Date().toISOString().replace("T", " ").slice(0, 16);
+}
+
+export function normalizeTaskId(value) {
+  return slug(value || "task");
+}
+
+function renderTaskTemplate(content, { taskId, title, locale }) {
+  const date = todayDate();
+  return String(content)
+    .replaceAll("{{TASK_ID}}", taskId)
+    .replaceAll("{{TASK_TITLE}}", title)
+    .replaceAll("{{DATE}}", date)
+    .replaceAll("{{LOCALE}}", normalizeLocale(locale))
+    .replaceAll("[Task Name]", title)
+    .replaceAll("[任务名称]", title);
+}
+
+function taskTemplateFiles({ locale = "en-US" } = {}) {
+  return [
+    ["brief.md", "templates/planning/brief.md"],
+    ["task_plan.md", "templates/planning/task_plan.md"],
+    ["execution_strategy.md", "templates/planning/execution_strategy.md"],
+    ["visual_roadmap.md", "templates/planning/visual_roadmap.md"],
+    ["findings.md", "templates/planning/findings.md"],
+    ["progress.md", "templates/planning/progress.md"],
+    ["review.md", "templates/planning/review.md"],
+  ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
+}
+
+function taskRoot(target, taskId) {
+  return path.join(target.docsRoot, "09-PLANNING/TASKS", normalizeTaskId(taskId));
+}
+
+function findTaskById(target, taskId) {
+  const normalized = normalizeTaskId(taskId);
+  return collectTasks(target).find((task) => task.id === normalized) || null;
+}
+
+function stateLabel(state, locale) {
+  if (normalizeLocale(locale) !== "zh-CN") return state;
+  return (
+    {
+      not_started: "未开始",
+      planned: "未开始",
+      in_progress: "进行中",
+      blocked: "已阻塞",
+      done: "已完成",
+    }[state] || state
+  );
+}
+
+function updateProgressState(content, state, locale) {
+  const label = stateLabel(state, locale);
+  if (/^##\s*状态[:：][^\n]*/im.test(content)) {
+    return content.replace(/^##\s*状态[:：][^\n]*/im, `## 状态：${label}`);
+  }
+  if (/^##\s*(?:Current Status|Status)\s*\n+\s*[^\n]+/im.test(content)) {
+    return content.replace(/^##\s*(Current Status|Status)\s*\n+\s*[^\n]+/im, `## $1\n\n${label}`);
+  }
+  return `${content.trimEnd()}\n\n## Status\n\n${label}\n`;
+}
+
+function appendProgressLog(content, { event, message, evidence, actor = "coordinator" }) {
+  const timestamp = nowTimestamp();
+  const safeMessage = String(message || event).replace(/\r?\n/g, " ").trim();
+  const safeEvidence = String(evidence || "n/a").replace(/\r?\n/g, " ").trim();
+  if (/^##\s*Log\s*$/im.test(content)) {
+    return content.replace(
+      /(^##\s*Log\s*$[\s\S]*?\| --- \| --- \| --- \| --- \| --- \|\n)/im,
+      `$1| ${timestamp} | ${actor} | ${event}: ${safeMessage} | ${safeEvidence} | ${event === "task-complete" ? "done" : "continue"} |\n`,
+    );
+  }
+  if (/^##\s*进度记录\s*$/im.test(content)) {
+    return `${content.trimEnd()}\n\n### [${timestamp}] - ${event}\n\n- 做了什么：${safeMessage}\n- 验证结果：已记录\n- 下一步：${event === "task-complete" ? "完成" : "继续执行"}\n- 证据：${safeEvidence}\n`;
+  }
+  return `${content.trimEnd()}\n\n## Log\n\n| Time | Actor | Action | Evidence | Next |\n| --- | --- | --- | --- | --- |\n| ${timestamp} | ${actor} | ${event}: ${safeMessage} | ${safeEvidence} | ${event === "task-complete" ? "done" : "continue"} |\n`;
+}
+
+export function createTask(targetInput, taskId, { title = "", locale = "en-US", dryRun = false } = {}) {
+  const target = normalizeTarget(targetInput);
+  const normalizedTaskId = normalizeTaskId(taskId);
+  if (!normalizedTaskId) throw new Error("Missing task id");
+  const normalizedLocale = normalizeLocale(locale || readCapabilityRegistry(target).locale);
+  const taskTitle = title || normalizedTaskId;
+  const directory = taskRoot(target, normalizedTaskId);
+  if (fs.existsSync(directory)) throw new Error(`Task already exists: ${normalizedTaskId}`);
+  const changes = [];
+  for (const [destination, source] of taskTemplateFiles({ locale: normalizedLocale })) {
+    const destinationPath = path.join(directory, destination);
+    const sourcePath = path.join(repoRoot, source);
+    changes.push({
+      destination: toPosix(path.relative(target.projectRoot, destinationPath)),
+      source,
+      action: dryRun ? "would-create" : "create",
+    });
+    if (dryRun) continue;
+    fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+    fs.writeFileSync(destinationPath, renderTaskTemplate(readFileSafe(sourcePath), { taskId: normalizedTaskId, title: taskTitle, locale: normalizedLocale }));
+  }
+  return {
+    dryRun,
+    task: {
+      id: normalizedTaskId,
+      title: taskTitle,
+      path: `TARGET:${toPosix(path.relative(target.projectRoot, directory))}`,
+      locale: normalizedLocale,
+    },
+    changes,
+  };
+}
+
+export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", state = "", message = "", evidence = "" } = {}) {
+  const target = normalizeTarget(targetInput);
+  const normalizedTaskId = normalizeTaskId(taskId);
+  const progressPath = path.join(taskRoot(target, normalizedTaskId), "progress.md");
+  if (!fs.existsSync(progressPath)) throw new Error(`Task progress file not found: ${normalizedTaskId}`);
+  const registry = readCapabilityRegistry(target);
+  const normalizedState = state ? String(state).toLowerCase().replaceAll("-", "_") : "";
+  if (normalizedState && !allowedTaskStates.has(normalizedState)) throw new Error(`Invalid task state: ${state}`);
+  let content = readFileSafe(progressPath);
+  if (normalizedState) content = updateProgressState(content, normalizedState, registry.locale);
+  content = appendProgressLog(content, { event, message, evidence });
+  fs.writeFileSync(progressPath, content.endsWith("\n") ? content : `${content}\n`);
+  return {
+    event,
+    task: findTaskById(target, normalizedTaskId) || { id: normalizedTaskId, state: normalizedState || "unknown" },
+  };
+}
+
+export function listLifecycleTasks(targetInput) {
+  const target = normalizeTarget(targetInput);
+  return { tasks: collectTasks(target) };
+}
+
 export function plannedInitFiles(capabilities = ["core"], { locale = "en-US" } = {}) {
   const files = [
     ["AGENTS.md", "templates/AGENTS.md.template"],
     ["CLAUDE.md", "templates/CLAUDE.md.template"],
     ["docs/Harness-Ledger.md", "templates/ledger/Harness-Ledger.md"],
+    ["docs/09-PLANNING/TASKS/_task-template/brief.md", "templates/planning/brief.md"],
     ["docs/09-PLANNING/TASKS/_task-template/task_plan.md", "templates/planning/task_plan.md"],
     ["docs/09-PLANNING/TASKS/_task-template/execution_strategy.md", "templates/planning/execution_strategy.md"],
     ["docs/09-PLANNING/TASKS/_task-template/visual_roadmap.md", "templates/planning/visual_roadmap.md"],

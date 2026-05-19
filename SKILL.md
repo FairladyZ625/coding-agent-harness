@@ -124,6 +124,24 @@ Regression surface、Delivery SSoT、Module Registry、review routing 和
 worktree/subagent handoff 规则。已有项目事实只能 merge/append/residual，
 不能模板覆盖。
 
+### Phase 4b: Task Lifecycle / 任务生命周期
+
+初始化或迁移完成后，活跃任务必须通过 CLI 创建和推进，避免 agent 手工复制模板造成漂移：
+
+```bash
+node scripts/harness.mjs new-task <task-id> --title "<title>" --locale zh-CN|en-US /path/to/project
+node scripts/harness.mjs task-start <task-id> --message "<what started>" /path/to/project
+node scripts/harness.mjs task-log <task-id> --message "<what changed>" --evidence "command:TARGET:path:summary" /path/to/project
+node scripts/harness.mjs task-block <task-id> --message "<blocker>" /path/to/project
+node scripts/harness.mjs task-complete <task-id> --message "<closeout>" /path/to/project
+node scripts/harness.mjs task-list --json /path/to/project
+```
+
+- `new-task` 创建完整任务目录，包括 `brief.md`、计划、策略、路线图、进度、发现和审查文件。
+- 已存在任务不会被覆盖；旧项目迁移时先 `task-list --json`，再决定复用旧任务还是开新任务。
+- 状态推进只写 `progress.md`，不得重写历史 `task_plan.md`。
+- 证据必须进入 `task-log` 或 `progress.md`，并继续遵守 `type:PATH:summary` 格式。
+
 ### Phase 5: Verify / 验证
 
 运行当前 repo 支持的检查命令，例如：

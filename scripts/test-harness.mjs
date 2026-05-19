@@ -274,6 +274,44 @@ const enInitStatus = expectJson(["status", "--json", enInitTarget]);
 assert(enInitStatus.checkState.status === "pass", "en-US core+dashboard init should pass status check");
 assert(enInitStatus.checkState.warnings === 0, "en-US core+dashboard init should not warn about safe-adoption");
 
+const lifecycleTarget = path.join(tmpRoot, "lifecycle-target");
+fs.mkdirSync(lifecycleTarget);
+expectJson(["init", "--locale", "zh-CN", "--capabilities", "core,dashboard", lifecycleTarget]);
+const lifecycleDryRun = expectJson(["new-task", "phase-2-lifecycle", "--title", "阶段二任务生命周期", "--locale", "zh-CN", "--dry-run", lifecycleTarget]);
+assert(lifecycleDryRun.dryRun === true, "new-task dry-run should report dryRun true");
+assert(
+  lifecycleDryRun.changes.some((change) => change.destination.endsWith("brief.md") && change.action === "would-create"),
+  "new-task dry-run should plan brief.md",
+);
+assert(!fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/phase-2-lifecycle")), "new-task dry-run should not mutate target");
+const lifecycleCreate = expectJson(["new-task", "phase-2-lifecycle", "--title", "阶段二任务生命周期", "--locale", "zh-CN", lifecycleTarget]);
+assert(lifecycleCreate.task?.id === "phase-2-lifecycle", "new-task should report normalized task id");
+for (const required of ["brief.md", "task_plan.md", "execution_strategy.md", "visual_roadmap.md", "findings.md", "progress.md", "review.md"]) {
+  assert(
+    fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/phase-2-lifecycle", required)),
+    `new-task should create ${required}`,
+  );
+}
+assert(
+  fs.readFileSync(path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/phase-2-lifecycle/brief.md"), "utf8").includes("阶段二任务生命周期"),
+  "new-task should render the requested title into brief.md",
+);
+const duplicateLifecycle = run(["new-task", "phase-2-lifecycle", "--title", "duplicate", lifecycleTarget]);
+assert(duplicateLifecycle.status !== 0, "new-task should refuse to overwrite an existing task directory");
+expectJson(["task-start", "phase-2-lifecycle", "--message", "开始实现生命周期切片", lifecycleTarget]);
+expectJson(["task-log", "phase-2-lifecycle", "--message", "补齐 CLI 与模板", "--evidence", "command:TARGET:npm-test:passed", lifecycleTarget]);
+const lifecycleBlocked = expectJson(["task-block", "phase-2-lifecycle", "--message", "等待旧项目迁移验证", lifecycleTarget]);
+assert(lifecycleBlocked.task?.state === "blocked", "task-block should report blocked state");
+const lifecycleComplete = expectJson(["task-complete", "phase-2-lifecycle", "--message", "生命周期闭环完成", lifecycleTarget]);
+assert(lifecycleComplete.task?.state === "done", "task-complete should report done state");
+const lifecycleTasks = expectJson(["task-list", "--json", lifecycleTarget]);
+assert(lifecycleTasks.tasks.some((task) => task.id === "phase-2-lifecycle" && task.state === "done"), "task-list should include completed task");
+const lifecycleStatus = expectJson(["status", "--json", lifecycleTarget]);
+const lifecycleTask = lifecycleStatus.tasks.find((task) => task.id === "phase-2-lifecycle");
+assert(lifecycleTask?.briefSource === "standalone", "status should expose standalone task brief");
+assert(lifecycleTask?.state === "done", "status should read lifecycle task state from progress.md");
+assert(lifecycleTask?.evidence?.some((item) => item.summary.includes("passed")), "status should collect task-log evidence");
+
 const capTarget = path.join(tmpRoot, "cap-target");
 fs.mkdirSync(capTarget);
 expectPass(["add-capability", "dashboard", capTarget]);

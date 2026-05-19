@@ -6,10 +6,13 @@ import { createInterface } from "node:readline/promises";
 import {
   addCapability,
   buildStatus,
+  createTask,
   doctorUserSkill,
   installUserSkill,
+  listLifecycleTasks,
   renderDashboard,
   normalizeLocale,
+  updateTaskLifecycle,
   writeDashboardFolder,
   writeInitFiles,
 } from "./lib/harness-core.mjs";
@@ -79,6 +82,12 @@ Usage:
   harness dashboard [--out file.html] [--out-dir folder] [target]
   harness init [--dry-run] [--locale zh-CN|en-US] [--capabilities core,dashboard] [target]
   harness add-capability <name> [--dry-run] [--locale zh-CN|en-US] [target]
+  harness new-task <task-id> [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
+  harness task-start <task-id> [--message text] [target]
+  harness task-log <task-id> --message text [--evidence type:PATH:summary] [target]
+  harness task-block <task-id> [--message text] [target]
+  harness task-complete <task-id> [--message text] [target]
+  harness task-list [--json] [target]
   harness install-user [--agent codex|claude|gemini|openclaw|agents|all] [--home dir] [--dry-run] [--force] [--yes]
   harness doctor-user [--agent codex|claude|gemini|openclaw|agents|all] [--home dir]
 
@@ -166,6 +175,51 @@ if (command === "help" || command === "--help" || command === "-h") {
   } catch (error) {
     console.error(error.message);
     process.exit(1);
+  }
+} else if (command === "new-task") {
+  const dryRun = takeFlag("--dry-run");
+  const locale = takeOption("--locale", "");
+  const title = takeOption("--title", "");
+  const taskId = args.shift();
+  if (!taskId) {
+    console.error("Missing task id");
+    process.exit(2);
+  }
+  try {
+    console.log(JSON.stringify(createTask(targetArg(), taskId, { title, locale, dryRun }), null, 2));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (["task-start", "task-log", "task-block", "task-complete"].includes(command)) {
+  const message = takeOption("--message", "");
+  const evidence = takeOption("--evidence", "");
+  const taskId = args.shift();
+  if (!taskId) {
+    console.error("Missing task id");
+    process.exit(2);
+  }
+  const lifecycle = {
+    "task-start": { event: "task-start", state: "in_progress" },
+    "task-log": { event: "task-log", state: "" },
+    "task-block": { event: "task-block", state: "blocked" },
+    "task-complete": { event: "task-complete", state: "done" },
+  }[command];
+  try {
+    console.log(JSON.stringify(updateTaskLifecycle(targetArg(), taskId, { ...lifecycle, message, evidence }), null, 2));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "task-list") {
+  const json = takeFlag("--json");
+  const result = listLifecycleTasks(targetArg());
+  if (json) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    for (const task of result.tasks) {
+      console.log(`${task.id}\t${task.state}\t${task.completion}%\t${task.title}`);
+    }
   }
 } else if (command === "install-user") {
   const dryRun = takeFlag("--dry-run");
