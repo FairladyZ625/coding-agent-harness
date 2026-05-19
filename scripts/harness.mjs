@@ -131,7 +131,7 @@ if (command === "help" || command === "--help" || command === "-h") {
   const capabilities = takeOption("--capabilities", "core").split(",").map((item) => item.trim()).filter(Boolean);
   try {
     const result = writeInitFiles(targetArg(), capabilities, { dryRun, locale });
-    console.log(JSON.stringify({ dryRun, locale: result.locale, capabilities: result.capabilities, changes: result.changes }, null, 2));
+    console.log(JSON.stringify({ dryRun, locale: result.locale, capabilities: result.capabilities, changes: result.changes, report: result.report }, null, 2));
   } catch (error) {
     console.error(error.message);
     process.exit(1);
@@ -146,7 +146,7 @@ if (command === "help" || command === "--help" || command === "-h") {
   }
   try {
     const result = addCapability(targetArg(), capability, { dryRun, locale });
-    console.log(JSON.stringify({ dryRun, registry: result.registry }, null, 2));
+    console.log(JSON.stringify({ dryRun, registry: result.registry, changes: result.changes, report: result.report }, null, 2));
   } catch (error) {
     console.error(error.message);
     process.exit(1);

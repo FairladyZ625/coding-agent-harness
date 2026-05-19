@@ -168,6 +168,7 @@ references/、templates/，只做增量更新：
   `en-US`。
 - 安装后检查 `.harness-capabilities.json`、task template、review template 和 dashboard
   是否来自同一套 locale 模板。
+- 如果只是 dogfood 测试，默认清理目标项目里的测试产物，不提交。
 
 ### 校验 Harness 完成度
 
@@ -232,11 +233,48 @@ Markdown 文档快照、任务/模块图数据和 legacy adoption 建议。dashb
 模板内混用中英文。CLI scaffold 只创建模板、空表和索引；项目级 reference standards
 需要 Agent 在 Configure 阶段根据项目事实和用户讨论后定制。
 
+`init` 和 `add-capability` 的 JSON 输出包含 `report`。面向 agent 的安装流程必须读取
+这份 report，并在交付 summary 中复述：
+
+- locale
+- selected capabilities
+- created / skipped files
+- agentInstructions
+- verificationCommands
+
+这避免 agent 只看命令成功就声称安装完成。
+
+### Capability 选择规则
+
+| Capability | 默认 | 何时选择 |
+| --- | --- | --- |
+| `core` | 是 | 永远安装，提供任务、回归、walkthrough、Lessons 和 Harness Ledger 内核。 |
+| `dashboard` | 否 | 需要本地只读状态页时安装。 |
+| `safe-adoption` | 否 | 只在旧 harness 项目接入 v1.0 且需要保留历史文档时安装；新项目不要为了消 warning 乱装。 |
+| `adversarial-review` | 否 | 发布、架构、安全、数据或策略风险需要独立 review artifact 时安装。 |
+| `long-running-task` | 否 | agent 会连续多轮执行且不能每步确认时安装。 |
+| `module-parallel` | 否 | 有 2 个以上独立模块并需要模块 registry / owner / 同步规则时安装。 |
+| `subagent-worker` | 否 | 会改代码的 subagent 需要独立 worktree 和 commit-backed handoff 时安装；依赖 `module-parallel`。 |
+
 没有 capability registry 的旧项目进入 `legacy-compat` 模式：CLI 会保留旧
 checker 结果，同时把新 v1.0 review schema、visual roadmap、capability registry
 差异作为 adoption warning，而不是自动改写项目历史。
 
+已声明 `safe-adoption` 的旧项目同样按平滑迁移处理：CLI 会补齐缺失的 v1.0
+模板和 `.harness-capabilities.json`，但不会覆盖已有 `AGENTS.md`、`CLAUDE.md`、
+`Harness-Ledger` 或历史 task。历史任务缺少 `execution_strategy.md`、
+`visual_roadmap.md`、新版 review 段落时，默认进入 `adoption-needed` warning。
+
 需要把旧 checker 失败作为阻塞时，给 `status` 或 `check` 加 `--strict`。
+
+### 必跑回归路径
+
+v1.0 内核改动必须同时覆盖两条回归路径：
+
+| 路径 | 验收重点 |
+| --- | --- |
+| 新项目初始化 | 从空项目运行 `init --locale zh-CN|en-US --capabilities core,...`；检查模板语言一致、registry 正确、`status --json` 不误报 `safe-adoption`。 |
+| 老项目迁移 | 在已有旧 harness 文档的项目上运行 `add-capability safe-adoption --locale ...`；确认旧文件不被覆盖、缺失模板被补齐、普通检查只给 adoption warning、`--strict` 仍可阻塞历史缺口。 |
 
 ### 让 Agent 直接执行
 

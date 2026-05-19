@@ -69,6 +69,7 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
   task template、review template 来自同一套模板树。
 - `templates/` 和 `templates-zh-CN/` 是两套完整模板树。不要在目标项目里混拷两套模板；
   只允许保留 schema 字段、文件名、状态枚举、命令和跨工具协议 token 的英文。
+- 如果只是 dogfood 测试，默认清理目标项目里的测试产物，不提交。
 
 ### Phase 1: Diagnose / 项目诊断
 
@@ -87,12 +88,30 @@ CI、团队/agent 协作方式和风险面，输出诊断报告。
 3. Capability Packs：core 必装；按需选择 module-parallel、subagent-worker、
    adversarial-review、long-running-task、dashboard、safe-adoption。
 
+Capability 选择规则必须按表执行，不得凭感觉多装：
+
+| Capability | 何时选择 |
+| --- | --- |
+| `core` | 永远安装。它是任务计划、回归、walkthrough、Lessons 和 Harness Ledger 的最小内核。 |
+| `dashboard` | 用户或 agent 需要本地只读状态页时安装。它不写目标项目文件。 |
+| `safe-adoption` | 只在已有旧 harness 项目接入 v1.0、且需要保留历史文档时安装。新项目默认不装。 |
+| `adversarial-review` | 发布、架构、安全、数据、策略风险需要独立 review artifact 时安装。 |
+| `long-running-task` | 用户允许 agent 多轮连续执行、不能每步都询问时安装。 |
+| `module-parallel` | 项目有 2 个以上可独立演进模块，且需要模块 owner / registry / 同步规则时安装。 |
+| `subagent-worker` | 会改代码的 subagent 需要独立 worktree + commit-backed handoff 时安装；它依赖 `module-parallel`。 |
+
+如果选择了某个可选 capability，bootstrap summary 必须写清触发它的项目事实。
+
 ### Phase 3: Scaffold / 脚手架
 
 运行或模拟 `harness init --locale zh-CN|en-US --capabilities ...`。面向 agent 的安装
 必须显式传 `--locale`；只有人直接在终端运行且未传 `--locale` 时，CLI 才交互询问。CLI 只创建
 目录、模板、空表、索引和 `.harness-capabilities.json`，不得把项目级 reference
 伪装成已经定制完成的标准。
+
+CLI 会在 JSON 输出中返回 `report`。Agent 必须读取这份 report，并把其中的
+`locale`、`selectedCapabilities`、`created/skipped`、`agentInstructions` 和
+`verificationCommands` 转化为交付 summary；不能只看命令退出码。
 
 ### Phase 4: Configure / 对话式定制
 
@@ -110,6 +129,13 @@ node scripts/harness.mjs check --profile target-project /path/to/project
 node scripts/harness.mjs status --json /path/to/project
 ```
 
+如果是在开发或修改本 harness 自身，Phase 5 必须覆盖两条回归路径：
+
+| 回归路径 | 必须证明 |
+| --- | --- |
+| 新项目初始化 | 空项目 `init --locale zh-CN|en-US --capabilities core,...` 后，模板语言一致、registry 正确、`status --json` 不误报 `safe-adoption`。 |
+| 老项目迁移 | 已有旧 harness 文档的项目 `add-capability safe-adoption --locale ...` 后，旧 `AGENTS.md`、`CLAUDE.md`、`Harness-Ledger` 和历史 task 不被覆盖；缺失 v1.0 模板被补齐；普通检查只给 `adoption-needed` warning；`--strict` 仍可阻塞历史合同缺口。 |
+
 检查失败时不能声称 harness complete；必须修复或记录 owner/action/status 明确的
 residual。
 
@@ -117,6 +143,16 @@ residual。
 
 输出 bootstrap summary，说明创建/定制了哪些文件、启用了哪些 capability、当前
 语言是什么、哪些检查通过、哪些 residual 仍需用户或后续任务处理，并建议首批任务。
+
+Summary 至少包含：
+
+- `locale`
+- selected capabilities 及选择理由
+- scaffold 创建和跳过的文件
+- Configure 阶段做了哪些项目化改动
+- 验证命令和结果
+- residual owner / action / status
+- 是否提交；若只是 dogfood 测试，必须清理测试产物
 
 ### Historical 12-Phase Bootstrap（旧版参考）
 

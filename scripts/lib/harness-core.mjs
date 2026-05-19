@@ -11,36 +11,50 @@ const legacyChecker = path.join(repoRoot, "scripts/check-harness.mjs");
 export const capabilityDefinitions = {
   core: {
     description: "Planning loop and task execution records.",
+    selectWhen: "Always install. This is the required document kernel.",
+    default: true,
     dependencies: [],
     artifacts: ["docs/09-PLANNING"],
   },
   "module-parallel": {
     description: "Module registry, module plans, session prompts, and worker handoff.",
+    selectWhen: "Use only when the project has two or more independent modules that need parallel ownership.",
+    default: false,
     dependencies: ["core"],
     artifacts: ["docs/09-PLANNING/Module-Registry.md", "docs/09-PLANNING/MODULES"],
   },
   "subagent-worker": {
     description: "Commit-backed worker handoff protocol for code-changing subagents.",
+    selectWhen: "Use only when code-changing subagents will work in dedicated worktrees with commit-backed handoff.",
+    default: false,
     dependencies: ["module-parallel"],
     artifacts: ["docs/09-PLANNING/MODULES"],
   },
   "adversarial-review": {
     description: "Machine-gateable adversarial review reports and verifier output contract.",
+    selectWhen: "Use when release, architecture, security, data, or strategy risk requires an independent review artifact.",
+    default: false,
     dependencies: ["core"],
     artifacts: ["docs/09-PLANNING/TASKS"],
   },
   "long-running-task": {
     description: "Long-running task contract with review cadence and stop conditions.",
+    selectWhen: "Use when agents may run across many loops without user confirmation after every step.",
+    default: false,
     dependencies: ["core"],
     artifacts: ["docs/09-PLANNING/TASKS/_task-template/long-running-task-contract.md"],
   },
   "dashboard": {
     description: "Read-only HTML dashboard generated from harness status JSON.",
+    selectWhen: "Use when users or agents need a local read-only status surface.",
+    default: false,
     dependencies: ["core"],
     artifacts: [],
   },
   "safe-adoption": {
     description: "Legacy compatibility and assisted capability adoption.",
+    selectWhen: "Use when adopting v1.0 into an existing harness project without rewriting history.",
+    default: false,
     dependencies: ["core"],
     artifacts: [],
   },
@@ -163,8 +177,39 @@ export function detectCapabilities(target) {
   ) {
     detected.add("long-running-task");
   }
-  if (existsInDocs(target, "01-GOVERNANCE/Lessons-SSoT.md")) detected.add("safe-adoption");
   return [...detected];
+}
+
+export function buildInstallReport({ target, locale, capabilities, changes, dryRun = false, operation = "init" }) {
+  const selected = new Set(capabilities.map(normalizeCapabilityName));
+  return {
+    operation,
+    dryRun,
+    target: target.projectRoot,
+    locale,
+    capabilities: Object.entries(capabilityDefinitions).map(([name, definition]) => ({
+      name,
+      selected: selected.has(name),
+      default: definition.default === true,
+      dependencies: definition.dependencies,
+      description: definition.description,
+      selectWhen: definition.selectWhen,
+    })),
+    selectedCapabilities: capabilities,
+    created: changes.filter((change) => ["create", "would-create"].includes(change.action)).map((change) => change.destination),
+    skipped: changes.filter((change) => change.action === "skip-existing").map((change) => change.destination),
+    agentInstructions: [
+      "Agents must choose locale during Decide and pass --locale zh-CN|en-US explicitly in non-interactive installs.",
+      "Use core for every install; add optional capabilities only when their selectWhen rule is true.",
+      "After scaffold, run Configure before marking capabilities configured or verified.",
+      "Run harness check/status/dashboard and record residuals before delivery.",
+    ],
+    verificationCommands: [
+      `node scripts/harness.mjs check --profile target-project ${target.projectRoot}`,
+      `node scripts/harness.mjs status --json ${target.projectRoot}`,
+      `node scripts/harness.mjs dashboard --out /tmp/harness-dashboard.html ${target.projectRoot}`,
+    ],
+  };
 }
 
 export function validateCapabilities(target) {
@@ -856,9 +901,11 @@ export function validatePlanContracts(target, { strict = true } = {}) {
 export function buildStatus(targetInput, options = {}) {
   const target = normalizeTarget(targetInput);
   const capabilityState = validateCapabilities(target);
-  const shouldRunLegacy = !options.skipLegacyCheck && capabilityState.registry.mode === "legacy-compat";
+  const declaredCapabilities = new Set(capabilityState.registry.capabilities.map((capability) => capability.name));
+  const safeAdoptionMode = declaredCapabilities.has("safe-adoption");
+  const shouldRunLegacy = !options.skipLegacyCheck && (capabilityState.registry.mode === "legacy-compat" || safeAdoptionMode);
   const legacy = shouldRunLegacy ? runLegacyCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
-  const contractStrict = Boolean(options.strict) || capabilityState.registry.mode !== "legacy-compat";
+  const contractStrict = Boolean(options.strict) || (capabilityState.registry.mode !== "legacy-compat" && !safeAdoptionMode);
   const reviews = validateReviewSchema(target, { strict: contractStrict });
   const roadmaps = validateVisualRoadmaps(target);
   const planContracts = validatePlanContracts(target, { strict: contractStrict });
@@ -1077,7 +1124,8 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true, local
     const registryPath = path.join(target.projectRoot, ".harness-capabilities.json");
     if (!fs.existsSync(registryPath)) fs.writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
   }
-  return { target, capabilities: normalizedCapabilities, locale: normalizedLocale, changes };
+  const report = buildInstallReport({ target, locale: normalizedLocale, capabilities: normalizedCapabilities, changes, dryRun, operation: "init" });
+  return { target, capabilities: normalizedCapabilities, locale: normalizedLocale, changes, report };
 }
 
 export function addCapability(targetInput, capabilityName, { dryRun = true, locale = "" } = {}) {
@@ -1107,5 +1155,6 @@ export function addCapability(targetInput, capabilityName, { dryRun = true, loca
   if (!dryRun) {
     fs.writeFileSync(path.join(target.projectRoot, ".harness-capabilities.json"), `${JSON.stringify(next, null, 2)}\n`);
   }
-  return { target, dryRun, registry: next, changes };
+  const report = buildInstallReport({ target, locale: normalizedLocale, capabilities: [...capabilityMap.keys()], changes, dryRun, operation: "add-capability" });
+  return { target, dryRun, registry: next, changes, report };
 }

@@ -229,12 +229,19 @@ assert(ttyExplicit.locale === "en-US", "explicit --locale should win in TTY init
 
 const zhInitTarget = path.join(tmpRoot, "zh-init-target");
 fs.mkdirSync(zhInitTarget);
-expectPass(["init", "--locale", "zh-CN", "--capabilities", "core,dashboard", zhInitTarget]);
+const zhInit = expectJson(["init", "--locale", "zh-CN", "--capabilities", "core,dashboard", zhInitTarget]);
+assert(zhInit.report?.locale === "zh-CN", "init output should include install report locale");
+assert(zhInit.report?.capabilities?.some((capability) => capability.name === "core" && capability.default === true), "install report should explain core as default");
+assert(zhInit.report?.capabilities?.some((capability) => capability.name === "dashboard" && capability.selected === true), "install report should mark selected capabilities");
+assert(zhInit.report?.agentInstructions?.some((item) => item.includes("--locale")), "install report should remind agents to pass --locale explicitly");
 const zhRegistry = JSON.parse(fs.readFileSync(path.join(zhInitTarget, ".harness-capabilities.json"), "utf8"));
 assert(zhRegistry.locale === "zh-CN", "init should persist zh-CN locale");
 assert(fs.readFileSync(path.join(zhInitTarget, "AGENTS.md"), "utf8").includes("项目概况"), "zh-CN init should write Chinese AGENTS.md");
 const zhReviewTemplate = fs.readFileSync(path.join(zhInitTarget, "docs/09-PLANNING/TASKS/_task-template/review.md"), "utf8");
 assert(zhReviewTemplate.includes("| ID | Severity | Finding | Evidence Checked | Required Action | Open | Disposition | Blocks Release | Follow-up |"), "zh-CN review template should preserve checker table headers");
+const zhInitCheck = expectJson(["status", "--json", zhInitTarget]);
+assert(zhInitCheck.checkState.status === "pass", "core+dashboard init should pass status check without safe-adoption");
+assert(zhInitCheck.checkState.warnings === 0, "core+dashboard init should not warn about safe-adoption orphan artifacts");
 const zhDashboardDir = path.join(tmpRoot, "zh-dashboard");
 expectPass(["dashboard", "--out-dir", zhDashboardDir, zhInitTarget]);
 const zhDashboardIndex = fs.readFileSync(path.join(zhDashboardDir, "index.html"), "utf8");
@@ -250,6 +257,12 @@ assert(
   enRun.changes.some((change) => change.source === "templates/planning/task_plan.md"),
   "init en-US dry-run should use default English task_plan template",
 );
+const enInitTarget = path.join(tmpRoot, "en-init-target");
+fs.mkdirSync(enInitTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard", enInitTarget]);
+const enInitStatus = expectJson(["status", "--json", enInitTarget]);
+assert(enInitStatus.checkState.status === "pass", "en-US core+dashboard init should pass status check");
+assert(enInitStatus.checkState.warnings === 0, "en-US core+dashboard init should not warn about safe-adoption");
 
 const capTarget = path.join(tmpRoot, "cap-target");
 fs.mkdirSync(capTarget);
@@ -258,6 +271,8 @@ const registry = JSON.parse(fs.readFileSync(path.join(capTarget, ".harness-capab
 assert(registry.locale === "en-US", "add-capability registry missing default locale");
 assert(registry.capabilities.some((capability) => capability.name === "dashboard"), "add-capability missing dashboard");
 assert(registry.capabilities.some((capability) => capability.name === "core"), "add-capability missing dependency core");
+const addReport = expectJson(["add-capability", "dashboard", "--dry-run", capTarget]);
+assert(addReport.report?.capabilities?.some((capability) => capability.name === "dashboard"), "add-capability output should include install report");
 
 const zhCapTarget = path.join(tmpRoot, "zh-cap-target");
 fs.mkdirSync(zhCapTarget);
@@ -306,6 +321,62 @@ const legacyLoose = run(["check", "--profile", "target-project", legacyContractT
 assert(legacyLoose.status === 0, "legacy contract gaps should be advisory without strict");
 const legacyStrict = run(["check", "--profile", "target-project", "--strict", legacyContractTarget]);
 assert(legacyStrict.status !== 0, "strict legacy contract gaps should fail");
+
+const legacyAdoptionTarget = path.join(tmpRoot, "legacy-adoption");
+fs.mkdirSync(path.join(legacyAdoptionTarget, "docs/09-PLANNING/TASKS/old"), { recursive: true });
+const legacyAgents = "# Legacy Agents\n\nLEGACY_DO_NOT_OVERWRITE\n";
+const legacyClaude = "# Legacy Claude\n\nLEGACY_CLAUDE_DO_NOT_OVERWRITE\n";
+const legacyLedger = "# Legacy Ledger\n\nLEGACY_LEDGER_DO_NOT_OVERWRITE\n";
+const legacyTaskPlan = "# Legacy Task\n\nLEGACY_TASK_DO_NOT_OVERWRITE\n";
+fs.writeFileSync(path.join(legacyAdoptionTarget, "AGENTS.md"), legacyAgents);
+fs.writeFileSync(path.join(legacyAdoptionTarget, "CLAUDE.md"), legacyClaude);
+fs.mkdirSync(path.join(legacyAdoptionTarget, "docs"), { recursive: true });
+fs.writeFileSync(path.join(legacyAdoptionTarget, "docs/Harness-Ledger.md"), legacyLedger);
+fs.writeFileSync(path.join(legacyAdoptionTarget, "docs/09-PLANNING/TASKS/old/task_plan.md"), legacyTaskPlan);
+fs.writeFileSync(path.join(legacyAdoptionTarget, "docs/09-PLANNING/TASKS/old/progress.md"), "# Progress\n\n## Status\n\nplanned\n");
+const legacyAdoption = expectJson(["add-capability", "safe-adoption", "--locale", "zh-CN", legacyAdoptionTarget]);
+assert(legacyAdoption.report?.operation === "add-capability", "safe-adoption output should include add-capability report");
+assert(
+  legacyAdoption.report?.capabilities?.some((capability) => capability.name === "safe-adoption" && capability.selected === true),
+  "safe-adoption report should mark safe-adoption selected",
+);
+assert(
+  legacyAdoption.report?.skipped?.includes("AGENTS.md") &&
+    legacyAdoption.report?.skipped?.includes("CLAUDE.md") &&
+    legacyAdoption.report?.skipped?.includes("docs/Harness-Ledger.md"),
+  "safe-adoption report should show skipped legacy files",
+);
+const legacyAdoptionRegistry = JSON.parse(fs.readFileSync(path.join(legacyAdoptionTarget, ".harness-capabilities.json"), "utf8"));
+assert(legacyAdoptionRegistry.locale === "zh-CN", "safe-adoption should persist requested locale");
+assert(legacyAdoptionRegistry.capabilities.some((capability) => capability.name === "core"), "safe-adoption should include core dependency");
+assert(legacyAdoptionRegistry.capabilities.some((capability) => capability.name === "safe-adoption"), "safe-adoption registry missing capability");
+assert(fs.readFileSync(path.join(legacyAdoptionTarget, "AGENTS.md"), "utf8") === legacyAgents, "safe-adoption should not overwrite legacy AGENTS.md");
+assert(fs.readFileSync(path.join(legacyAdoptionTarget, "CLAUDE.md"), "utf8") === legacyClaude, "safe-adoption should not overwrite legacy CLAUDE.md");
+assert(fs.readFileSync(path.join(legacyAdoptionTarget, "docs/Harness-Ledger.md"), "utf8") === legacyLedger, "safe-adoption should not overwrite legacy ledger");
+assert(fs.readFileSync(path.join(legacyAdoptionTarget, "docs/09-PLANNING/TASKS/old/task_plan.md"), "utf8") === legacyTaskPlan, "safe-adoption should not overwrite old task plans");
+assert(
+  fs.readFileSync(path.join(legacyAdoptionTarget, "docs/09-PLANNING/TASKS/_task-template/review.md"), "utf8").includes("审查者身份"),
+  "safe-adoption should add missing localized v1 templates",
+);
+const adoptedStatus = expectJson(["status", "--json", legacyAdoptionTarget]);
+assert(adoptedStatus.checkState.status === "warn", "safe-adoption should warn on historical contract gaps without failing");
+assert(
+  adoptedStatus.checkState.details.warnings.some((warning) => warning.includes("adoption-needed")),
+  "safe-adoption warnings should be routed as adoption-needed",
+);
+const adoptedStrict = run(["status", "--json", "--strict", legacyAdoptionTarget]);
+assert(adoptedStrict.status !== 0, "safe-adoption strict status should still fail on historical contract gaps");
+
+const legacyCheckerOnlyTarget = path.join(tmpRoot, "legacy-checker-only");
+fs.mkdirSync(legacyCheckerOnlyTarget);
+expectPass(["add-capability", "safe-adoption", "--locale", "en-US", legacyCheckerOnlyTarget]);
+const legacyCheckerOnly = expectJson(["status", "--json", legacyCheckerOnlyTarget]);
+assert(legacyCheckerOnly.checkState.status === "warn", "safe-adoption should surface legacy checker gaps as warnings");
+assert(legacyCheckerOnly.checkState.legacy.status === "fail", "safe-adoption should keep legacy checker signal after registry creation");
+const legacyCheckerOnlyStrictStatus = run(["status", "--json", "--strict", legacyCheckerOnlyTarget]);
+assert(legacyCheckerOnlyStrictStatus.status !== 0, "safe-adoption strict status should fail when legacy checker fails even if v1 validators are clean");
+const legacyCheckerOnlyStrictCheck = run(["check", "--profile", "target-project", "--strict", legacyCheckerOnlyTarget]);
+assert(legacyCheckerOnlyStrictCheck.status !== 0, "safe-adoption strict check should fail when legacy checker fails even if v1 validators are clean");
 
 const mingjingDocs = "/Users/lizeyu/Projects/mingjing-app/docs";
 if (fs.existsSync(mingjingDocs)) {
