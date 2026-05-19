@@ -176,6 +176,22 @@ export function normalizeLocale(locale = "en-US") {
   return supportedLocales.has(locale) ? locale : "en-US";
 }
 
+export function validateSourcePackageBoundary(targetInput = ".") {
+  const root = path.resolve(targetInput || ".");
+  const gitProbe = spawnSync("git", ["-C", root, "rev-parse", "--is-inside-work-tree"], { encoding: "utf8" });
+  if (gitProbe.status !== 0) return { failures: [], warnings: [] };
+  const staged = spawnSync("git", ["-C", root, "diff", "--cached", "--name-only", "-z"], { encoding: "utf8" });
+  if (staged.status !== 0) return { failures: [], warnings: [`could not inspect staged files: ${staged.stderr.trim() || staged.status}`] };
+  const localOnly = staged.stdout
+    .split("\0")
+    .filter(Boolean)
+    .filter((file) => file === "AGENTS.md" || file === "CLAUDE.md" || file === "docs" || file.startsWith("docs/") || file === ".harness-private" || file.startsWith(".harness-private/"));
+  return {
+    failures: localOnly.map((file) => `private local-only file staged: ${file}`),
+    warnings: [],
+  };
+}
+
 function inferProjectLocale(target, fallback = "en-US") {
   const candidates = [
     path.join(target.projectRoot, "AGENTS.md"),

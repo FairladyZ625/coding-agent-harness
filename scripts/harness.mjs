@@ -13,6 +13,7 @@ import {
   listLifecycleTasks,
   renderDashboard,
   normalizeLocale,
+  validateSourcePackageBoundary,
   updateModuleStep,
   updateTaskPhase,
   updateTaskLifecycle,
@@ -121,6 +122,9 @@ if (command === "help" || command === "--help" || command === "-h") {
     for (const required of ["package.json", "scripts/harness.mjs", "scripts/check-harness.mjs", "templates/planning/task_plan.md"]) {
       if (!fs.existsSync(path.resolve(target, required))) failures.push(`missing source package file: ${required}`);
     }
+    const boundary = validateSourcePackageBoundary(target);
+    failures.push(...boundary.failures);
+    warnings.push(...boundary.warnings);
   }
 
   const status = buildStatus(target, { skipLegacyCheck: profile === "source-package", strictLegacy: strict, strict });

@@ -101,6 +101,26 @@ if (fs.existsSync(path.join(repoRoot, ".harness-private"))) {
   expectPass(["check", "--profile", "private-harness", ".harness-private"]);
 }
 
+const sourceBoundaryTarget = path.join(tmpRoot, "source-boundary-target");
+fs.mkdirSync(path.join(sourceBoundaryTarget, "scripts"), { recursive: true });
+fs.mkdirSync(path.join(sourceBoundaryTarget, "templates/planning"), { recursive: true });
+fs.mkdirSync(path.join(sourceBoundaryTarget, "docs/private"), { recursive: true });
+fs.mkdirSync(path.join(sourceBoundaryTarget, ".harness-private"), { recursive: true });
+fs.writeFileSync(path.join(sourceBoundaryTarget, "package.json"), "{}\n");
+fs.writeFileSync(path.join(sourceBoundaryTarget, "scripts/harness.mjs"), "#!/usr/bin/env node\n");
+fs.writeFileSync(path.join(sourceBoundaryTarget, "scripts/check-harness.mjs"), "#!/usr/bin/env node\n");
+fs.writeFileSync(path.join(sourceBoundaryTarget, "templates/planning/task_plan.md"), "# Task\n");
+fs.writeFileSync(path.join(sourceBoundaryTarget, "AGENTS.md"), "# Local only\n");
+fs.writeFileSync(path.join(sourceBoundaryTarget, "docs/private/plan.md"), "# Private\n");
+fs.writeFileSync(path.join(sourceBoundaryTarget, ".harness-private/AGENTS.md"), "# Private harness\n");
+spawnSync("git", ["init"], { cwd: sourceBoundaryTarget, encoding: "utf8" });
+spawnSync("git", ["add", "-f", "AGENTS.md", "docs/private/plan.md", ".harness-private/AGENTS.md"], { cwd: sourceBoundaryTarget, encoding: "utf8" });
+const sourceBoundaryCheck = run(["check", "--profile", "source-package", sourceBoundaryTarget]);
+assert(sourceBoundaryCheck.status !== 0, "source-package check should reject staged local-only harness files");
+assert(sourceBoundaryCheck.stderr.includes("private local-only file staged: AGENTS.md"), "source-package check should report staged AGENTS.md");
+assert(sourceBoundaryCheck.stderr.includes("private local-only file staged: docs/private/plan.md"), "source-package check should report staged docs/");
+assert(sourceBoundaryCheck.stderr.includes("private local-only file staged: .harness-private/AGENTS.md"), "source-package check should report staged .harness-private/");
+
 const englishTemplateFiles = relativeFiles(path.join(repoRoot, "templates"));
 const chineseTemplateFiles = relativeFiles(path.join(repoRoot, "templates-zh-CN"));
 assert(englishTemplateFiles.length > 0, "templates/ should contain English templates");
