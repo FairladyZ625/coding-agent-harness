@@ -41,6 +41,11 @@ function expectJson(args) {
   return JSON.parse(result.stdout);
 }
 
+function commandExists(command) {
+  const result = spawnSync(command, ["-v"], { encoding: "utf8" });
+  return !result.error && result.status === 0;
+}
+
 function runInTty(args, options = {}) {
   const input = options.input || "";
   const timeout = options.timeout;
@@ -213,19 +218,23 @@ fs.mkdirSync(nonInteractiveDefaultTarget);
 const nonInteractiveDefault = expectJson(["init", "--dry-run", "--capabilities", "core", nonInteractiveDefaultTarget]);
 assert(nonInteractiveDefault.locale === "en-US", "non-interactive init without --locale should default to en-US");
 
-const interactiveZhTarget = path.join(tmpRoot, "interactive-zh-target");
-fs.mkdirSync(interactiveZhTarget);
-const interactiveZh = expectTtyJson(["init", "--dry-run", "--capabilities", "core,dashboard", interactiveZhTarget], { input: "1\n", timeout: 5000 });
-assert(interactiveZh.locale === "zh-CN", "interactive init option 1 should select zh-CN");
-assert(
-  interactiveZh.changes.some((change) => change.source === "templates-zh-CN/planning/task_plan.md"),
-  "interactive zh-CN init should use localized templates",
-);
+if (commandExists("expect")) {
+  const interactiveZhTarget = path.join(tmpRoot, "interactive-zh-target");
+  fs.mkdirSync(interactiveZhTarget);
+  const interactiveZh = expectTtyJson(["init", "--dry-run", "--capabilities", "core,dashboard", interactiveZhTarget], { input: "1\n", timeout: 5000 });
+  assert(interactiveZh.locale === "zh-CN", "interactive init option 1 should select zh-CN");
+  assert(
+    interactiveZh.changes.some((change) => change.source === "templates-zh-CN/planning/task_plan.md"),
+    "interactive zh-CN init should use localized templates",
+  );
 
-const ttyExplicitTarget = path.join(tmpRoot, "tty-explicit-target");
-fs.mkdirSync(ttyExplicitTarget);
-const ttyExplicit = expectTtyJson(["init", "--dry-run", "--locale", "en-US", "--capabilities", "core", ttyExplicitTarget], { timeout: 5000 });
-assert(ttyExplicit.locale === "en-US", "explicit --locale should win in TTY init");
+  const ttyExplicitTarget = path.join(tmpRoot, "tty-explicit-target");
+  fs.mkdirSync(ttyExplicitTarget);
+  const ttyExplicit = expectTtyJson(["init", "--dry-run", "--locale", "en-US", "--capabilities", "core", ttyExplicitTarget], { timeout: 5000 });
+  assert(ttyExplicit.locale === "en-US", "explicit --locale should win in TTY init");
+} else {
+  console.log("Skipping TTY init tests: expect command is unavailable");
+}
 
 const zhInitTarget = path.join(tmpRoot, "zh-init-target");
 fs.mkdirSync(zhInitTarget);
