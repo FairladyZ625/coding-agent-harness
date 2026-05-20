@@ -12,6 +12,7 @@ const state = {
   warningPage: 1,
   renderMode: "rendered",
   theme: localStorage.getItem("harness.theme") || "system",
+  taskLayout: localStorage.getItem("harness.taskLayout") || "list",
 };
 
 const taskPageSize = 25;
@@ -311,21 +312,164 @@ function stateToColorVar(state) {
   return map[state] || "--muted";
 }
 
-function taskStatsBar() {
-  const allTasks = bundle.status?.tasks || [];
-  const count = (stateName) => allTasks.filter((task) => task.state === stateName).length;
-  const avgCompletion = allTasks.length ? clampCompletion(allTasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / allTasks.length) : 0;
-  return `<section class="task-stats-bar">
-    <div class="stat-chip"><span class="stat-value">${allTasks.length}</span><span class="stat-label">${t("statTotal")}</span></div>
-    <div class="stat-chip progress"><span class="stat-value">${count("in_progress")}</span><span class="stat-label">${t("statInProgress")}</span></div>
-    <div class="stat-chip review"><span class="stat-value">${count("review")}</span><span class="stat-label">${t("statReview")}</span></div>
-    <div class="stat-chip blocked"><span class="stat-value">${count("blocked")}</span><span class="stat-label">${t("statBlocked")}</span></div>
-    <div class="stat-chip done"><span class="stat-value">${count("done")}</span><span class="stat-label">${t("statDone")}</span></div>
-    <div class="stat-chip completion">
-      <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${avgCompletion}%"></div></div>
-      <span class="stat-label">${avgCompletion}% ${t("statOverall")}</span>
+function taskToolbarCard(filteredCount) {
+  return `<section class="sidebar-card">
+    <h3>${t("filterTitle")}</h3>
+    <div class="input-group">
+      <input data-search value="${escapeAttr(state.query)}" placeholder="${t("searchPlaceholder")}" aria-label="${t("searchTasks")}">
+    </div>
+    <div class="select-group">
+      <label>${t("stateFilter")}</label>
+      <select data-state-filter aria-label="${t("stateFilter")}">
+        ${["all", "in_progress", "review", "blocked", "planned", "done", "unknown"].map((value) => `<option value="${value}" ${state.taskState === value ? "selected" : ""}>${label(value)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="select-group">
+      <label>${t("groupBy")}</label>
+      <select data-group-mode aria-label="${t("groupBy")}">
+        ${["migration", "module", "month", "state"].map((value) => `<option value="${value}" ${state.taskGroupMode === value ? "selected" : ""}>${t(`group_${value}`)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="select-group">
+      <label>${t("layout")}</label>
+      <div class="layout-toggle-group">
+        <button class="layout-btn ${state.taskLayout === "list" ? "active" : ""}" data-layout="list" aria-label="${t("layoutList")}">
+          <svg style="width:12px;height:12px;vertical-align:middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          ${t("layoutList")}
+        </button>
+        <button class="layout-btn ${state.taskLayout === "grid" ? "active" : ""}" data-layout="grid" aria-label="${t("layoutGrid")}">
+          <svg style="width:12px;height:12px;vertical-align:middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          ${t("layoutGrid")}
+        </button>
+      </div>
+    </div>
+    <div class="search-stats">
+      ${t("showing")} <strong>${filteredCount}</strong> / ${(bundle.status?.tasks || []).length} ${t("tasks")}
     </div>
   </section>`;
+}
+
+function taskStatsCard() {
+  const allTasks = bundle.status?.tasks || [];
+  const avgCompletion = allTasks.length ? clampCompletion(allTasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / allTasks.length) : 0;
+  return `<section class="sidebar-card">
+    <h3>${t("releaseHealth")}</h3>
+    <div class="stats-hero-gauge">
+      <span class="gauge-percentage">${avgCompletion}%</span>
+      <span class="gauge-label">${t("statOverall")}</span>
+    </div>
+    <div class="stats-breakdown">
+      ${[
+        { state: "in_progress", label: t("statInProgress"), colorVar: "--accent" },
+        { state: "review", label: t("statReview"), colorVar: "--accent-2" },
+        { state: "blocked", label: t("statBlocked"), colorVar: "--danger" },
+        { state: "done", label: t("statDone"), colorVar: "--ok" }
+      ].map(({ state, label, colorVar }) => {
+        const count = allTasks.filter(t => t.state === state).length;
+        return `<div class="stats-breakdown-row">
+          <span class="stat-label">
+            <span class="state-dot" style="background:var(${colorVar})"></span>
+            ${label}
+          </span>
+          <span class="stat-value">${count}</span>
+        </div>`;
+      }).join("")}
+    </div>
+  </section>`;
+}
+
+function taskLegendCard() {
+  return `<section class="sidebar-card">
+    <h3>${t("legendTitle")}</h3>
+    <div class="legend-list">
+      <div class="legend-item">
+        <span class="badge brief ready" style="margin-top:2px">
+          <svg style="width:10px;height:10px;margin-right:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          ${t("badgeBrief")}
+        </span>
+        <span>${t("legendBriefDesc")}</span>
+      </div>
+      <div class="legend-item">
+        <span class="badge map ready" style="margin-top:2px">
+          <svg style="width:10px;height:10px;margin-right:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          ${t("badgeMap")}
+        </span>
+        <span>${t("legendMapDesc")}</span>
+      </div>
+    </div>
+  </section>`;
+}
+
+function taskStatsBar() {
+  const allTasks = bundle.status?.tasks || [];
+  const inProgress = allTasks.filter(t => t.state === "in_progress").length;
+  const blocked = allTasks.filter(t => t.state === "blocked").length;
+  const done = allTasks.filter(t => t.state === "done").length;
+  const review = allTasks.filter(t => t.state === "review").length;
+  const avgCompletion = allTasks.length ? clampCompletion(allTasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / allTasks.length) : 0;
+
+  return `<section class="task-stats-bar">
+    <div class="stat-chip">
+      <span class="stat-value">${allTasks.length}</span>
+      <span class="stat-label">${t("statTotal")}</span>
+    </div>
+    <div class="stat-chip in-progress">
+      <span class="stat-value">${inProgress}</span>
+      <span class="stat-label">${t("statInProgress")}</span>
+    </div>
+    <div class="stat-chip review">
+      <span class="stat-value">${review}</span>
+      <span class="stat-label">${t("statReview")}</span>
+    </div>
+    <div class="stat-chip blocked">
+      <span class="stat-value">${blocked}</span>
+      <span class="stat-label">${t("statBlocked")}</span>
+    </div>
+    <div class="stat-chip done">
+      <span class="stat-value">${done}</span>
+      <span class="stat-label">${t("statDone")}</span>
+    </div>
+    <div class="stat-chip completion">
+      <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${avgCompletion}%"></div></div>
+      <div style="text-align:right">
+        <span class="stat-value">${avgCompletion}%</span>
+        <span class="stat-label" style="display:block;margin-top:2px">${t("statOverall")}</span>
+      </div>
+    </div>
+  </section>`;
+}
+
+function taskRow(task) {
+  const completion = clampCompletion(task.completion);
+  const briefReady = task.briefSource === "standalone" || !!taskDocument(task, "brief.md");
+  const mapReady = !!taskDocument(task, "visual_map.md");
+  const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
+  const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
+
+  return `<a class="task-row-card" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(task.state)})">
+    <div class="row-accent-bar"></div>
+    <div class="row-main">
+      <strong>${escapeHtml(task.title)}</strong>
+      <span class="row-meta">${escapeHtml(task.id)} · ${escapeHtml(taskModuleKey(task))}</span>
+    </div>
+    <div class="row-status">${tag(task.state)}</div>
+    <div class="row-progress">
+      <div class="mini-progress-track"><div class="mini-progress-fill" style="width:${completion}%"></div></div>
+      <span class="row-pct">${completion}%</span>
+    </div>
+    <div class="row-brief ${briefReady ? "ready" : "missing"}" title="${escapeAttr(briefLabel)}" aria-label="${escapeAttr(briefLabel)}">
+      <span class="badge brief ${briefReady ? "ready" : "missing"}">
+        <svg style="width:10px;height:10px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        ${briefReady ? t("badgeBrief") : t("badgeBriefMissing")}
+      </span>
+    </div>
+    <div class="row-map ${mapReady ? "ready" : "missing"}" title="${escapeAttr(mapLabel)}" aria-label="${escapeAttr(mapLabel)}">
+      <span class="badge map ${mapReady ? "ready" : "missing"}">
+        <svg style="width:10px;height:10px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        ${mapReady ? t("badgeMap") : t("badgeMapMissing")}
+      </span>
+    </div>
+  </a>`;
 }
 
 function taskIndex() {
@@ -335,24 +479,98 @@ function taskIndex() {
   const groupPageCount = Math.max(1, Math.ceil(orderedGroups.length / taskGroupsPerPage));
   const groupPage = Math.min(Math.max(1, Number(state.taskGroupPage) || 1), groupPageCount);
   const visibleGroups = orderedGroups.slice((groupPage - 1) * taskGroupsPerPage, groupPage * taskGroupsPerPage);
-  return `<main class="stack">
-    ${taskStatsBar()}
-    <section class="index-toolbar">
-      <input data-search value="${escapeAttr(state.query)}" placeholder="${t("searchPlaceholder")}" aria-label="${t("searchTasks")}">
-      <select data-state-filter aria-label="${t("stateFilter")}">
-        ${["all", "in_progress", "review", "blocked", "planned", "done", "unknown"].map((value) => `<option value="${value}" ${state.taskState === value ? "selected" : ""}>${label(value)}</option>`).join("")}
-      </select>
-      <select data-group-mode aria-label="${t("groupBy")}">
-        ${["migration", "module", "month", "state"].map((value) => `<option value="${value}" ${state.taskGroupMode === value ? "selected" : ""}>${t(`group_${value}`)}</option>`).join("")}
-      </select>
-      <span>${tasks.length} / ${(bundle.status?.tasks || []).length}</span>
-    </section>
-    <section class="group-pager">
-      <span>${t("showingGroups")} ${visibleGroups.length ? (groupPage - 1) * taskGroupsPerPage + 1 : 0}-${Math.min(groupPage * taskGroupsPerPage, orderedGroups.length)} / ${orderedGroups.length}</span>
-      ${pager("task-groups", groupPage, groupPageCount)}
-    </section>
-    ${visibleGroups.map(([group, groupTasks]) => taskGroup(group, groupTasks)).join("")}
-  </main>`;
+
+  return `<div class="tasks-grid">
+    <div class="tasks-main stack">
+      ${taskStatsBar()}
+      ${visibleGroups.map(([group, groupTasks]) => taskGroup(group, groupTasks)).join("")}
+      <section class="group-pager">
+        <span>${t("showingGroups")} ${visibleGroups.length ? (groupPage - 1) * taskGroupsPerPage + 1 : 0}-${Math.min(groupPage * taskGroupsPerPage, orderedGroups.length)} / ${orderedGroups.length}</span>
+        ${pager("task-groups", groupPage, groupPageCount)}
+      </section>
+    </div>
+    <aside class="tasks-sidebar stack">
+      ${taskToolbarCard(tasks.length)}
+      ${taskStatsCard()}
+      ${taskLegendCard()}
+    </aside>
+  </div>`;
+}
+
+function taskGroup(group, tasks) {
+  const pageCount = Math.max(1, Math.ceil(tasks.length / taskPageSize));
+  const page = Math.min(Math.max(1, Number(state.taskPageByGroup[group]) || 1), pageCount);
+  const start = (page - 1) * taskPageSize;
+  const visibleTasks = tasks.slice(start, start + taskPageSize);
+  const avgCompletion = tasks.length ? clampCompletion(tasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / tasks.length) : 0;
+
+  const isGrid = state.taskLayout === "grid";
+  const layoutClass = isGrid ? "task-card-grid" : "task-list";
+  const itemRenderer = isGrid ? taskCard : taskRow;
+  const listHeader = isGrid ? "" : `<div class="task-list-header">
+    <div class="col-main">${t("columnTask")}</div>
+    <div class="col-status">${t("columnState")}</div>
+    <div class="col-progress">${t("columnCompletion")}</div>
+    <div class="col-brief">${t("columnBrief")}</div>
+    <div class="col-map">${t("badgeMap")}</div>
+  </div>`;
+
+  return `<section class="task-group">
+      <div class="section-head">
+        <div>
+          <h2>${taskGroupLabel(group)}</h2>
+          <p class="subtle">${t("showing")} ${Math.min(start + 1, tasks.length)}-${Math.min(start + visibleTasks.length, tasks.length)} / ${tasks.length}</p>
+        </div>
+        <div class="group-actions">
+          <div class="group-progress" aria-label="${escapeAttr(t("groupCompletion"))}">
+            <div class="group-progress-track"><div class="group-progress-fill" style="width:${avgCompletion}%"></div></div>
+            <span>${avgCompletion}%</span>
+          </div>
+          ${pager("task", page, pageCount, group)}
+        </div>
+      </div>
+      <div class="${layoutClass}">
+        ${listHeader}
+        ${visibleTasks.map(itemRenderer).join("")}
+      </div>
+    </section>`;
+}
+
+function taskCard(task) {
+  const completion = clampCompletion(task.completion);
+  const stateColor = stateToColorVar(task.state);
+  const briefReady = task.briefSource === "standalone" || !!taskDocument(task, "brief.md");
+  const mapReady = !!taskDocument(task, "visual_map.md");
+  const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
+  const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
+
+  return `<a class="task-card" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateColor})">
+    <div class="card-header">
+      <span class="card-id">${escapeHtml(task.id)}</span>
+      ${tag(task.state)}
+    </div>
+    <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
+    <div class="card-meta">
+      <span class="meta-module" title="${escapeAttr(taskModuleKey(task))}">
+        <svg style="width:12px;height:12px;vertical-align:middle;margin-right:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        ${escapeHtml(taskModuleKey(task))}
+      </span>
+    </div>
+    <div class="card-progress">
+      <div class="card-progress-track"><div class="card-progress-fill" style="width:${completion}%"></div></div>
+      <span class="progress-pct">${completion}%</span>
+    </div>
+    <div class="card-badges">
+      <span class="badge brief ${briefReady ? "ready" : "missing"}" title="${escapeAttr(briefLabel)}">
+        <svg style="width:10px;height:10px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        ${briefReady ? t("badgeBrief") : t("badgeBriefMissing")}
+      </span>
+      <span class="badge map ${mapReady ? "ready" : "missing"}" title="${escapeAttr(mapLabel)}">
+        <svg style="width:10px;height:10px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        ${mapReady ? t("badgeMap") : t("badgeMapMissing")}
+      </span>
+    </div>
+  </a>`;
 }
 
 function orderedTaskGroups(groups) {
@@ -390,39 +608,13 @@ function taskGroups(tasks) {
   });
 }
 
-function taskGroup(group, tasks) {
-  const pageCount = Math.max(1, Math.ceil(tasks.length / taskPageSize));
-  const page = Math.min(Math.max(1, Number(state.taskPageByGroup[group]) || 1), pageCount);
-  const start = (page - 1) * taskPageSize;
-  const visibleTasks = tasks.slice(start, start + taskPageSize);
-  const avgCompletion = tasks.length ? clampCompletion(tasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / tasks.length) : 0;
-  return `<section class="task-group">
-      <div class="section-head">
-        <div>
-          <h2>${taskGroupLabel(group)}</h2>
-          <p class="subtle">${t("showing")} ${Math.min(start + 1, tasks.length)}-${Math.min(start + visibleTasks.length, tasks.length)} / ${tasks.length}</p>
-        </div>
-        <div class="group-actions">
-          <div class="group-progress" aria-label="${escapeAttr(t("groupCompletion"))}">
-            <div class="group-progress-track"><div class="group-progress-fill" style="width:${avgCompletion}%"></div></div>
-            <span>${avgCompletion}%</span>
-          </div>
-          ${pager("task", page, pageCount, group)}
-        </div>
-      </div>
-      <div class="task-list">
-        ${visibleTasks.map(taskRow).join("")}
-      </div>
-    </section>`;
-}
-
 function taskGroupLabel(group) {
   if (group === "active") return t("activeCurrent");
   if (group === "brief-ready") return t("briefReadyGroup");
   if (group.startsWith("legacy:")) return `${t("legacyMonth")} ${group.slice("legacy:".length)}`;
-  if (group.startsWith("module:")) return `${t("inferredModule")} · ${group.slice("module:".length)}`;
+  if (group.startsWith("module:")) return `${t("inferredModule")} \u00b7 ${group.slice("module:".length)}`;
   if (group.startsWith("month:")) return `${t("legacyMonth")} ${group.slice("month:".length)}`;
-  if (group.startsWith("state:")) return `${t("columnState")} · ${label(group.slice("state:".length))}`;
+  if (group.startsWith("state:")) return `${t("columnState")} \u00b7 ${label(group.slice("state:".length))}`;
   return label(group);
 }
 
@@ -438,27 +630,6 @@ function filteredTasks() {
 
 function taskModuleKey(task) {
   return task.module || task.inferredModule || "legacy-unclassified";
-}
-
-function taskRow(task) {
-  const completion = clampCompletion(task.completion);
-  const briefReady = task.briefSource === "standalone";
-  const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
-  return `<a class="task-row-card" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(task.state)})">
-    <div class="row-accent-bar"></div>
-    <div class="row-main">
-      <strong>${escapeHtml(task.title)}</strong>
-      <span class="row-meta">${escapeHtml(task.id)} · ${escapeHtml(taskModuleKey(task))}</span>
-    </div>
-    <div class="row-status">${tag(task.state)}</div>
-    <div class="row-progress">
-      <div class="mini-progress-track"><div class="mini-progress-fill" style="width:${completion}%"></div></div>
-      <span class="row-pct">${completion}%</span>
-    </div>
-    <div class="row-brief ${briefReady ? "ready" : "missing"}" title="${escapeAttr(briefLabel)}" aria-label="${escapeAttr(briefLabel)}">
-      ${briefReady ? "\u2713" : "\u25CB"}
-    </div>
-  </a>`;
 }
 
 function taskDetail(route) {
@@ -563,7 +734,6 @@ function modulesView(moduleId = "") {
   }
   const modules = [...moduleMap.values()];
   return `<main class="stack">
-    ${flowPanel()}
     <section class="module-grid">
       ${modules.map((module) => moduleCard(module)).join("") || emptyState(t("noModules"))}
     </section>
@@ -584,15 +754,15 @@ function moduleTaskRow(task) {
 function moduleCard(module) {
   const moduleKey = module.id.replace(/^module:/, "");
   const tasks = (bundle.status?.tasks || []).filter((task) => taskModuleKey(task) === moduleKey);
-  
+
   // Inline Pagination
   state.modulePages = state.modulePages || {};
   const currentPage = state.modulePages[moduleKey] || 1;
   const pageCount = Math.ceil(tasks.length / 8) || 1;
   const visibleTasks = tasks.slice((currentPage - 1) * 8, currentPage * 8);
-  
+
   const brief = findDocument(`TARGET:docs/09-PLANNING/MODULES/${moduleKey}/brief.md`);
-  
+
   let pagerHtml = "";
   if (tasks.length > 8) {
     pagerHtml = `<div class="module-pager">
@@ -601,7 +771,7 @@ function moduleCard(module) {
       <button ${currentPage >= pageCount ? "disabled" : ""} onclick="window.setModulePage('${escapeAttr(moduleKey)}', ${currentPage + 1})">${t("nextPage")}</button>
     </div>`;
   }
-  
+
   return `<article class="module-card">
     <div class="card-head"><h2>${escapeHtml(module.label || moduleKey)}</h2>${tag(module.state || "unknown")}</div>
     <div class="markdown">${brief ? window.HarnessMarkdown.render(brief.content, "rendered") : `<p>${t("moduleBriefMissing")}</p>`}</div>
@@ -823,6 +993,11 @@ function bind() {
     state.taskGroupPage = 1;
     app();
   }));
+  document.querySelectorAll("[data-layout]").forEach((btn) => btn.addEventListener("click", () => {
+    state.taskLayout = btn.dataset.layout;
+    localStorage.setItem("harness.taskLayout", state.taskLayout);
+    app();
+  }));
   document.querySelectorAll("[data-render-toggle]").forEach((button) => button.addEventListener("click", () => {
     state.renderMode = state.renderMode === "rendered" ? "source" : "rendered";
     app();
@@ -874,7 +1049,7 @@ function bind() {
 function renderDrawerContent(taskId) {
   const task = (bundle.status?.tasks || []).find((item) => item.id === taskId);
   if (!task) return `<div class="empty">${t("taskNotFound")}</div>`;
-  
+
   const header = `
     <div class="task-drawer-header">
       <div>
@@ -936,7 +1111,7 @@ function renderLessonDrawerContent(lessonId) {
     const id = cells.ID || cells.Lesson || cells["Lesson ID"] || cells["ID"] || "";
     return id === lessonId;
   });
-  
+
   if (!row) {
     return `<div class="task-drawer-header">
       <h2>${escapeHtml(lessonId)}</h2>
@@ -946,11 +1121,11 @@ function renderLessonDrawerContent(lessonId) {
       <div class="empty">${t("lessonNotFound")}</div>
     </div>`;
   }
-  
+
   const cells = row.cells || {};
   const summary = cells.Summary || cells["\u6458\u8981"] || cells.Pattern || cells.Status || "";
   const docPath = cells["\u8be6\u60c5\u6587\u6863"] || cells.Document || cells.document || "";
-  
+
   let doc = null;
   if (docPath) {
     doc = findDocument(docPath);
@@ -958,7 +1133,7 @@ function renderLessonDrawerContent(lessonId) {
   if (!doc) {
     doc = (bundle.documents?.documents || []).find((d) => d.path.includes(lessonId) || d.path.endsWith(`${lessonId}.md`));
   }
-  
+
   const header = `
     <div class="task-drawer-header">
       <div>
@@ -968,7 +1143,7 @@ function renderLessonDrawerContent(lessonId) {
       <button class="btn-close" data-close-drawer>×</button>
     </div>
   `;
-  
+
   let markdownBody = "";
   if (doc && doc.content) {
     markdownBody = `<div class="markdown">${window.HarnessMarkdown.render(doc.content, "rendered")}</div>`;
@@ -985,13 +1160,13 @@ function renderLessonDrawerContent(lessonId) {
       </table>
     `;
   }
-  
+
   const body = `
     <div class="task-drawer-body stack">
       ${markdownBody}
     </div>
   `;
-  
+
   return header + body;
 }
 
@@ -1002,7 +1177,7 @@ function openLessonDrawer(lessonId) {
   drawer.innerHTML = renderLessonDrawerContent(lessonId);
   drawer.classList.add("active");
   overlay.classList.add("active");
-  
+
   drawer.querySelector("[data-close-drawer]").addEventListener("click", closeDrawer);
 }
 
@@ -1016,17 +1191,17 @@ function closeDrawer() {
 function ledgerPanel() {
   const ledgerTable = (bundle.tables?.tables || []).find((table) => table.kind === "harness-ledger");
   const rows = ledgerTable?.rows || [];
-  
+
   let closedCount = 0;
   let openCount = 0;
   let blockedCount = 0;
-  
+
   let lessonsReviewed = 0;
   let lessonsTotal = 0;
-  
+
   let evidenceAudited = 0;
   let evidenceTotal = 0;
-  
+
   for (const row of rows) {
     const cells = row.cells || {};
     const status = String(cells.Status || cells["\u72b6\u6001"] || "").toLowerCase();
@@ -1037,7 +1212,7 @@ function ledgerPanel() {
     } else {
       openCount++;
     }
-    
+
     const lesson = String(cells.Lessons || cells["\u7ecf\u9a8c"] || cells["\u7ecf\u9a8c\u5ba1\u67e5"] || cells["Lesson"] || "");
     if (lesson) {
       lessonsTotal++;
@@ -1045,7 +1220,7 @@ function ledgerPanel() {
         lessonsReviewed++;
       }
     }
-    
+
     const evidence = String(cells.Evidence || cells["\u8bc1\u636e"] || cells["\u9a8c\u8bc1\u8bc1\u636e"] || cells["Evidence Checked"] || "");
     if (evidence) {
       evidenceTotal++;
@@ -1054,17 +1229,17 @@ function ledgerPanel() {
       }
     }
   }
-  
+
   const total = closedCount + openCount + blockedCount || 1;
   const closedPct = Math.round((closedCount / total) * 100);
   const openPct = Math.round((openCount / total) * 100);
   const blockedPct = total - closedPct - openPct;
-  
+
   const lessonsPct = lessonsTotal ? Math.round((lessonsReviewed / lessonsTotal) * 100) : 0;
   const evidencePct = evidenceTotal ? Math.round((evidenceAudited / evidenceTotal) * 100) : 0;
-  
+
   if (rows.length === 0) return "";
-  
+
   return `<section class="ledger-panel">
     <h2>${t("ssotLedger")}</h2>
     <div class="ledger-split-bar" title="${t("tagClosed")}: ${closedCount}, ${t("tagOpen")}: ${openCount}, ${t("tagBlocked")}: ${blockedCount}">
