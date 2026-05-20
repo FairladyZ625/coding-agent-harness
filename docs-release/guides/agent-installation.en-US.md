@@ -8,7 +8,9 @@ This guide is written for coding agents that install or upgrade Harness inside a
 
 The main operator for this CLI is usually an agent inside the target project, not the end user. The agent should not ask the user to study command flags, template folders, or capability choices. Those decisions must happen during Diagnose / Decide and be explained in the delivery summary.
 
-This guide assumes the installed `harness` command. Maintainers debugging from the source checkout can replace the same command with `node scripts/harness.mjs`.
+Commands in this guide are written with an installed `harness` command. If the target environment does not have `harness`, run the same CLI with `npx --yes coding-agent-harness <command>`. Maintainers debugging from the source checkout can replace the same command with `node scripts/harness.mjs`.
+
+`harness init` does not add this npm package to the target project's dependencies. It only writes Harness docs, templates, and the registry. Delivery summaries must not imply that the target project now has an npm dependency installed. When CLI access is needed, keep using `npx --yes coding-agent-harness ...`, a global `harness`, or `node scripts/harness.mjs` from the source checkout.
 
 Use the v1.0 six-phase flow:
 
@@ -33,6 +35,15 @@ Use this path when the target project has no legacy Harness:
 
 ```bash
 harness init \
+  --locale zh-CN \
+  --capabilities core,dashboard \
+  /path/to/project
+```
+
+If the target environment does not have `harness`:
+
+```bash
+npx --yes coding-agent-harness init \
   --locale zh-CN \
   --capabilities core,dashboard \
   /path/to/project

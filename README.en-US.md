@@ -68,7 +68,7 @@ Coding Agent Harness is useful for:
 
 ### Install The Skill
 
-If your agent supports Skills, you can ask it to install and read this repository. You can also install it manually with `npx`:
+If your agent supports Skills, install this Skill with `npx`:
 
 ```bash
 npx skills add FairladyZ625/coding-agent-harness --list
@@ -85,18 +85,35 @@ npx skills add FairladyZ625/coding-agent-harness \
   -y
 ```
 
+The CLI is not automatically added to the target project's dependencies. Use `npx` when you need to run Harness commands:
+
+```bash
+npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
+npx --yes coding-agent-harness check --profile target-project .
+```
+
+If `harness` is already installed globally or exposed by the Skill, replace `npx --yes coding-agent-harness` with `harness`.
+
 ### Ask The Agent To Run It
 
 Send this to the agent inside your target project:
 
 ```text
-Install and read the coding-agent-harness Skill from FairladyZ625/coding-agent-harness.
+Install and read Coding Agent Harness first:
+
+npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
+
+If this environment does not have the harness command, run CLI commands with:
+npx --yes coding-agent-harness <command>
 
 Set up Coding Agent Harness in the current project.
 Use Chinese templates by default. If the project is clearly an English team or English documentation project, ask me before switching to English.
 
 First diagnose the project structure, then give me an initialization plan.
 After confirmation, execute Diagnose → Decide → Scaffold → Configure → Verify → Deliver.
+When initializing, run:
+npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
+
 Do not overwrite existing business docs, historical tasks, regression records, or user changes.
 When finished, report created files, check results, and recommended next steps.
 ```
@@ -104,7 +121,12 @@ When finished, report created files, check results, and recommended next steps.
 If the target already has an older Harness, use this:
 
 ```text
-Install and read the coding-agent-harness Skill from FairladyZ625/coding-agent-harness.
+Install and read Coding Agent Harness first:
+
+npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
+
+If this environment does not have the harness command, run CLI commands with:
+npx --yes coding-agent-harness <command>
 
 This project already has an older Harness. Do not edit files yet.
 
@@ -116,6 +138,10 @@ First run a detailed scan and give me a migration plan:
    - full-semantic-rewrite: rewrite task briefs / execution_strategy / visual_map so the old project becomes v1.0-readable.
 3. Report the recommended mode, rationale, expected write scope, estimated token/time cost, risks, and whether subagents are needed.
 4. Ask me the confirmation questions you need, then wait for my confirmation before writing files.
+
+During the scan phase, run at least:
+npx --yes coding-agent-harness status --json .
+npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 
 When the migration is complete, report the dashboard HTML, session.json, normal/strict checks, migrate-plan summary, and whether full-cutover verification passes.
 ```

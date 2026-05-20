@@ -11,8 +11,13 @@ English mirror: `docs-release/guides/agent-installation.en-US.md`
 研究命令参数、模板目录或 capability 选择；这些决策必须在 Diagnose / Decide 阶段完成，
 并在交付 summary 中说明依据。
 
-本文默认使用已安装的 `harness` 命令。维护者在本源码仓调试时，可以把同一命令替换为
-`node scripts/harness.mjs`。
+本文命令默认写成已安装的 `harness`。如果目标环境没有 `harness` 命令，用
+`npx --yes coding-agent-harness <command>` 运行同一条 CLI。维护者在本源码仓调试时，
+可以把同一命令替换为 `node scripts/harness.mjs`。
+
+`harness init` 不会把 npm 包写进目标项目依赖；它只写 Harness 文档、模板和 registry。
+因此 agent 交付时不能暗示目标项目已经安装了 npm dependency。需要 CLI 时继续用
+`npx --yes coding-agent-harness ...`、全局 `harness`，或源码仓的 `node scripts/harness.mjs`。
 
 使用 v1.0 六阶段流程：
 
@@ -38,6 +43,15 @@ English mirror: `docs-release/guides/agent-installation.en-US.md`
 
 ```bash
 harness init \
+  --locale zh-CN \
+  --capabilities core,dashboard \
+  /path/to/project
+```
+
+如果目标环境没有 `harness` 命令：
+
+```bash
+npx --yes coding-agent-harness init \
   --locale zh-CN \
   --capabilities core,dashboard \
   /path/to/project

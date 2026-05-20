@@ -68,7 +68,7 @@ Coding Agent Harness 适合：
 
 ### 安装 Skill
 
-如果你的 Agent 支持 Skills，可以直接让它安装并读取本仓库。也可以手动用 `npx` 安装：
+如果你的 Agent 支持 Skills，用 `npx` 安装本 Skill：
 
 ```bash
 npx skills add FairladyZ625/coding-agent-harness --list
@@ -85,18 +85,35 @@ npx skills add FairladyZ625/coding-agent-harness \
   -y
 ```
 
+CLI 不会自动写进目标项目依赖。需要运行 Harness 命令时，用 `npx` 即可：
+
+```bash
+npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
+npx --yes coding-agent-harness check --profile target-project .
+```
+
+如果你已经全局安装或通过 Skill 暴露了 `harness` 命令，也可以把上面的 `npx --yes coding-agent-harness` 换成 `harness`。
+
 ### 让 Agent 执行
 
 把下面这段话发给目标项目里的 Agent：
 
 ```text
-请安装并读取 FairladyZ625/coding-agent-harness 的 coding-agent-harness Skill。
+请先安装并读取 Coding Agent Harness：
+
+npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
+
+如果当前环境没有 harness 命令，后续 CLI 都用：
+npx --yes coding-agent-harness <command>
 
 在当前项目上搭建 Coding Agent Harness。
 默认使用中文模板；如果项目明确是英文团队或英文文档，请先询问我是否改用英文。
 
 请先诊断项目结构，再给出初始化计划。
 确认后，按照 Diagnose → Decide → Scaffold → Configure → Verify → Deliver 六阶段执行。
+执行初始化时使用：
+npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
+
 不要覆盖已有业务文档、历史任务、回归记录或用户改动。
 完成后请给出创建文件、检查结果和下一步建议。
 ```
@@ -104,7 +121,12 @@ npx skills add FairladyZ625/coding-agent-harness \
 如果目标项目已经有旧版 Harness，用这段：
 
 ```text
-请安装并读取 FairladyZ625/coding-agent-harness 的 coding-agent-harness Skill。
+请先安装并读取 Coding Agent Harness：
+
+npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
+
+如果当前环境没有 harness 命令，后续 CLI 都用：
+npx --yes coding-agent-harness <command>
 
 这个项目已有旧版 Harness。先不要改文件。
 
@@ -116,6 +138,10 @@ npx skills add FairladyZ625/coding-agent-harness \
    - full-semantic-rewrite：全量重写任务的 brief / execution_strategy / visual_map，让旧项目整体变成 v1.0 可读项目。
 3. 给出推荐模式、原因、预计改动范围、预计 token/时间成本、风险和是否需要 subagent。
 4. 向我提出需要确认的问题，等我确认后再开始写文件。
+
+扫描阶段至少运行：
+npx --yes coding-agent-harness status --json .
+npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 
 最终迁移完成时，必须给出 dashboard HTML、session.json、normal/strict check、migrate-plan summary，以及 full-cutover 验证是否通过。
 ```
