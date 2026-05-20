@@ -719,7 +719,7 @@ function taskIdForDirectory(target, taskDir) {
   return toPosix(path.relative(path.join(target.docsRoot, "09-PLANNING"), taskDir));
 }
 
-function inferTaskClassification({ id, title, relative, explicitModule }) {
+function inferTaskClassification({ id, title, relative, explicitModule, legacyCandidate = false }) {
   if (explicitModule) {
     return {
       module: explicitModule,
@@ -739,9 +739,9 @@ function inferTaskClassification({ id, title, relative, explicitModule }) {
   ];
   const match = rules.find(([, pattern]) => pattern.test(text));
   return {
-    module: match ? match[0] : "legacy-unclassified",
+    module: match ? match[0] : legacyCandidate ? "legacy-unclassified" : "unclassified",
     source: match ? "inferred" : "fallback",
-    bucket: "legacy",
+    bucket: legacyCandidate ? "legacy" : "current",
   };
 }
 
@@ -811,7 +811,8 @@ export function collectTasks(target) {
     const title = titleFromMarkdown(brief.content || taskPlan, path.basename(taskDir));
     const stateInfo = parseTaskStateInfo(progress);
     const explicitModule = id.startsWith("MODULES/") ? id.split("/")[1] : null;
-    const classification = inferTaskClassification({ id, title, relative, explicitModule });
+    const legacyCandidate = brief.source !== "standalone" || visualMap.status === "legacy-only" || !fs.existsSync(executionStrategyPath);
+    const classification = inferTaskClassification({ id, title, relative, explicitModule, legacyCandidate });
     const briefVisualStatus = explicitVisualMapStatus(brief.content);
     const visualMapStatus = briefVisualStatus === "not-needed" && visualMap.status === "missing" ? "not-needed" : visualMap.status;
     return {

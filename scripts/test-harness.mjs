@@ -381,6 +381,7 @@ assert(lifecycleStatus.schemaVersion === 2, "status should expose dashboard sche
 const lifecycleTask = lifecycleStatus.tasks.find((task) => task.id === "TASKS/phase-2-lifecycle");
 assert(lifecycleTask?.briefSource === "standalone", "status should expose standalone task brief");
 assert(lifecycleTask?.briefPath?.endsWith("/brief.md"), "status should expose the task brief path");
+assert(lifecycleTask?.classificationBucket === "current", "new v1 tasks should not be classified as legacy");
 assert(lifecycleStatus.summary?.briefCoverage?.missing === 0, "status should expose explicit brief coverage summary");
 assert(lifecycleTask?.state === "done", "status should read lifecycle task state from progress.md");
 assert(lifecycleTask?.evidence?.some((item) => item.summary.includes("passed")), "status should collect task-log evidence");
