@@ -1,15 +1,22 @@
 const bundle = window.__HARNESS_DASHBOARD__ || {};
-const localizedDashboardName = "项目驾驶舱";
 const locale = Object.keys(window.HarnessI18n || { en: {} })[0] || "en";
 const labels = window.HarnessI18n?.[locale] || {};
 
 const state = {
   query: "",
   taskState: "all",
+  taskGroupMode: "migration",
+  taskPageByGroup: {},
+  taskGroupPage: 1,
+  warningFilter: "all",
+  warningPage: 1,
   renderMode: "rendered",
   theme: localStorage.getItem("harness.theme") || "system",
-  expandedGroups: new Set(),
 };
+
+const taskPageSize = 25;
+const taskGroupsPerPage = 8;
+const warningPageSize = 18;
 
 const taskDocTabs = [
   ["brief", "brief.md"],
@@ -132,10 +139,12 @@ function flowPanel() {
       <span class="subtle">${graphSummary()}</span>
     </div>
     <div class="flow-canvas">${mermaid ? window.HarnessMermaid.render(mermaid) : emptyState(t("noFlow"))}</div>
+    ${usesAggregateFlow() ? migrationRunwayBreakdown() : ""}
   </section>`;
 }
 
 function projectMermaid() {
+  if (usesAggregateFlow()) return migrationAggregateMermaid();
   const graph = bundle.graph || { nodes: [], edges: [] };
   const preferredTypes = graph.nodes?.some((node) => node.type === "module") ? ["module", "step"] : ["task", "phase"];
   const nodes = (graph.nodes || [])
@@ -160,6 +169,45 @@ function projectMermaid() {
   return lines.join("\n");
 }
 
+function usesAggregateFlow() {
+  const graph = bundle.graph || { nodes: [], edges: [] };
+  const taskCount = (bundle.status?.tasks || []).length;
+  const taskNodes = (graph.nodes || []).filter((node) => node.type === "task").length;
+  const usefulEdges = (graph.edges || []).filter((edge) => ["depends_on", "current_step"].includes(edge.type)).length;
+  return taskCount > 80 || taskNodes > 80 || ((graph.nodes || []).length > 80 && usefulEdges < 6);
+}
+
+function migrationAggregateMermaid() {
+  const tasks = bundle.status?.tasks || [];
+  const warnings = warningQueue();
+  const activeContracts = warnings.filter((warning) => warning.phase === "active-task-contracts").length;
+  const moduleCount = new Set(tasks.map(taskModuleKey)).size;
+  const reviewWarnings = warnings.filter((warning) => ["review-evidence", "strict-cutover"].includes(warning.phase)).length;
+  const lines = [
+    "flowchart LR",
+    `  baseline["${t("runwayBaseline")}\\n${tasks.length} ${t("tasks")}"] --> triage["${t("runwayTriage")}\\n${warnings.length} ${t("warnings")}"]`,
+    `  triage --> contracts["${t("runwayContracts")}\\n${activeContracts} ${t("items")}"]`,
+    `  contracts --> modules["${t("runwayModules")}\\n${moduleCount} ${t("groups")}"]`,
+    `  modules --> cutover["${t("runwayCutover")}\\n${reviewWarnings} ${t("items")}"]`,
+  ];
+  return lines.join("\n");
+}
+
+function migrationRunwayBreakdown() {
+  const tasks = bundle.status?.tasks || [];
+  const warnings = warningQueue();
+  const phases = [
+    ["baseline", t("runwayBaseline"), tasks.length, t("tasks"), "#/tasks"],
+    ["triage", t("runwayTriage"), warnings.length, t("warnings"), "#/"],
+    ["active-task-contracts", t("runwayContracts"), warnings.filter((warning) => warning.phase === "active-task-contracts").length, t("items"), "#/"],
+    ["module-classification", t("runwayModules"), new Set(tasks.map(taskModuleKey)).size, t("groups"), "#/tasks"],
+    ["strict-cutover", t("runwayCutover"), warnings.filter((warning) => warning.phase === "strict-cutover").length, t("items"), "#/"],
+  ];
+  return `<div class="runway-breakdown">
+    ${phases.map(([phase, title, count, unit, href]) => `<a href="${href}" data-runway-phase="${escapeAttr(phase)}"><strong>${escapeHtml(title)}</strong><span>${count} ${escapeHtml(unit)}</span></a>`).join("")}
+  </div>`;
+}
+
 function mermaidFromBriefs() {
   const brief = activeTasks().map((task) => taskDocument(task, "brief.md")).find((doc) => doc?.content?.includes("```mermaid"));
   const match = brief?.content.match(/```mermaid\s*([\s\S]*?)```/i);
@@ -168,6 +216,7 @@ function mermaidFromBriefs() {
 
 function graphSummary() {
   const graph = bundle.graph || { nodes: [], edges: [] };
+  if (usesAggregateFlow()) return `${t("aggregateMigrationView")} · ${(bundle.status?.tasks || []).length} ${t("tasks")}`;
   return `${graph.nodes?.length || 0} ${t("nodes")} · ${graph.edges?.length || 0} ${t("edges")}`;
 }
 
@@ -217,21 +266,36 @@ function generatedBrief(task) {
 }
 
 function taskIndex() {
-  const groups = taskGroups(filteredTasks());
+  const tasks = filteredTasks();
+  const groups = taskGroups(tasks);
+  const orderedGroups = orderedTaskGroups(groups);
+  const groupPageCount = Math.max(1, Math.ceil(orderedGroups.length / taskGroupsPerPage));
+  const groupPage = Math.min(Math.max(1, Number(state.taskGroupPage) || 1), groupPageCount);
+  const visibleGroups = orderedGroups.slice((groupPage - 1) * taskGroupsPerPage, groupPage * taskGroupsPerPage);
   return `<main class="stack">
     <section class="index-toolbar">
       <input data-search value="${escapeAttr(state.query)}" placeholder="${t("searchPlaceholder")}" aria-label="${t("searchTasks")}">
       <select data-state-filter aria-label="${t("stateFilter")}">
         ${["all", "in_progress", "review", "blocked", "planned", "done", "unknown"].map((value) => `<option value="${value}" ${state.taskState === value ? "selected" : ""}>${label(value)}</option>`).join("")}
       </select>
-      <span>${filteredTasks().length} / ${(bundle.status?.tasks || []).length}</span>
+      <select data-group-mode aria-label="${t("groupBy")}">
+        ${["migration", "module", "month", "state"].map((value) => `<option value="${value}" ${state.taskGroupMode === value ? "selected" : ""}>${t(`group_${value}`)}</option>`).join("")}
+      </select>
+      <span>${tasks.length} / ${(bundle.status?.tasks || []).length}</span>
     </section>
-    ${orderedTaskGroups(groups).map(([group, tasks]) => taskGroup(group, tasks)).join("")}
+    <section class="group-pager">
+      <span>${t("showingGroups")} ${visibleGroups.length ? (groupPage - 1) * taskGroupsPerPage + 1 : 0}-${Math.min(groupPage * taskGroupsPerPage, orderedGroups.length)} / ${orderedGroups.length}</span>
+      ${pager("task-groups", groupPage, groupPageCount)}
+    </section>
+    ${visibleGroups.map(([group, groupTasks]) => taskGroup(group, groupTasks)).join("")}
   </main>`;
 }
 
 function orderedTaskGroups(groups) {
   const rank = (group) => {
+    if (group.startsWith("module:")) return 2;
+    if (group.startsWith("state:")) return 2;
+    if (group.startsWith("month:")) return 2;
     if (group === "active") return 0;
     if (group === "brief-ready") return 1;
     if (group.startsWith("legacy:")) return 2;
@@ -242,6 +306,18 @@ function orderedTaskGroups(groups) {
 }
 
 function taskGroups(tasks) {
+  if (state.taskGroupMode === "module") {
+    return groupBy(tasks, (task) => `module:${taskModuleKey(task)}`);
+  }
+  if (state.taskGroupMode === "month") {
+    return groupBy(tasks, (task) => {
+      const match = task.shortId?.match(/^(\d{4}-\d{2})/);
+      return match ? `month:${match[1]}` : "month:unknown";
+    });
+  }
+  if (state.taskGroupMode === "state") {
+    return groupBy(tasks, (task) => `state:${task.state || "unknown"}`);
+  }
   return groupBy(tasks, (task) => {
     if (["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state)) return "active";
     if (task.briefSource === "standalone") return "brief-ready";
@@ -251,16 +327,22 @@ function taskGroups(tasks) {
 }
 
 function taskGroup(group, tasks) {
-  const expanded = state.expandedGroups.has(group) || state.query || state.taskState !== "all";
-  const visibleTasks = expanded ? tasks : tasks.slice(0, 40);
-  const remaining = tasks.length - visibleTasks.length;
+  const pageCount = Math.max(1, Math.ceil(tasks.length / taskPageSize));
+  const page = Math.min(Math.max(1, Number(state.taskPageByGroup[group]) || 1), pageCount);
+  const start = (page - 1) * taskPageSize;
+  const visibleTasks = tasks.slice(start, start + taskPageSize);
   return `<section class="task-group">
-      <div class="section-head"><h2>${taskGroupLabel(group)}</h2><span>${tasks.length}</span></div>
+      <div class="section-head">
+        <div>
+          <h2>${taskGroupLabel(group)}</h2>
+          <p class="subtle">${t("showing")} ${Math.min(start + 1, tasks.length)}-${Math.min(start + visibleTasks.length, tasks.length)} / ${tasks.length}</p>
+        </div>
+        ${pager("task", page, pageCount, group)}
+      </div>
       <div class="task-list">
         <div class="task-row task-row-head"><span>${t("columnTask")}</span><span>${t("columnState")}</span><span>${t("columnCompletion")}</span><span>${t("columnBrief")}</span></div>
         ${visibleTasks.map(taskRow).join("")}
       </div>
-      ${remaining > 0 ? `<button class="show-more" data-expand-group="${escapeAttr(group)}">${t("showMore")} · ${remaining} (${t("showingFirst")} ${visibleTasks.length})</button>` : ""}
     </section>`;
 }
 
@@ -268,6 +350,9 @@ function taskGroupLabel(group) {
   if (group === "active") return t("activeCurrent");
   if (group === "brief-ready") return t("briefReadyGroup");
   if (group.startsWith("legacy:")) return `${t("legacyMonth")} ${group.slice("legacy:".length)}`;
+  if (group.startsWith("module:")) return `${t("inferredModule")} · ${group.slice("module:".length)}`;
+  if (group.startsWith("month:")) return `${t("legacyMonth")} ${group.slice("month:".length)}`;
+  if (group.startsWith("state:")) return `${t("columnState")} · ${label(group.slice("state:".length))}`;
   return label(group);
 }
 
@@ -277,13 +362,17 @@ function filteredTasks() {
     const stateMatch = state.taskState === "all" || task.state === state.taskState;
     if (!stateMatch) return false;
     if (!query) return true;
-    return [task.id, task.shortId, task.title, task.module, task.state].some((value) => String(value || "").toLowerCase().includes(query));
+    return [task.id, task.shortId, task.title, task.module, task.inferredModule, task.classificationSource, task.classificationBucket, task.state].some((value) => String(value || "").toLowerCase().includes(query));
   });
+}
+
+function taskModuleKey(task) {
+  return task.module || task.inferredModule || "legacy-unclassified";
 }
 
 function taskRow(task) {
   return `<a class="task-row" href="#/tasks/${encodeURIComponent(task.id)}">
-    <span data-label="${escapeAttr(t("columnTask"))}"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.id)}</small></span>
+    <span data-label="${escapeAttr(t("columnTask"))}"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.id)} · ${escapeHtml(taskModuleKey(task))}</small></span>
     <span data-label="${escapeAttr(t("columnState"))}">${tag(task.state)}</span>
     <span data-label="${escapeAttr(t("columnCompletion"))}">${task.completion}%</span>
     <span data-label="${escapeAttr(t("columnBrief"))}">${escapeHtml(task.briefSource === "standalone" ? t("briefReady") : t("briefMissing"))}</span>
@@ -383,7 +472,13 @@ function evidenceList(task) {
 
 function modulesView(moduleId = "") {
   const graph = bundle.graph || { nodes: [], edges: [] };
-  const modules = (graph.nodes || []).filter((node) => node.type === "module");
+  const explicitModules = (graph.nodes || []).filter((node) => node.type === "module");
+  const moduleMap = new Map(explicitModules.map((module) => [module.id.replace(/^module:/, ""), module]));
+  for (const task of bundle.status?.tasks || []) {
+    const key = taskModuleKey(task);
+    if (!moduleMap.has(key)) moduleMap.set(key, { id: `module:${key}`, type: "module", label: key, state: task.classificationSource || "inferred" });
+  }
+  const modules = [...moduleMap.values()];
   return `<main class="stack">
     ${flowPanel()}
     <section class="module-grid">
@@ -394,34 +489,113 @@ function modulesView(moduleId = "") {
 
 function moduleCard(module) {
   const moduleKey = module.id.replace(/^module:/, "");
-  const tasks = (bundle.status?.tasks || []).filter((task) => task.module === moduleKey);
+  const tasks = (bundle.status?.tasks || []).filter((task) => taskModuleKey(task) === moduleKey);
+  const visibleTasks = tasks.slice(0, taskPageSize);
   const brief = findDocument(`TARGET:docs/09-PLANNING/MODULES/${moduleKey}/brief.md`);
   return `<article class="module-card">
     <div class="card-head"><h2>${escapeHtml(module.label || moduleKey)}</h2>${tag(module.state || "unknown")}</div>
     <div class="markdown">${brief ? window.HarnessMarkdown.render(brief.content, "rendered") : `<p>${t("moduleBriefMissing")}</p>`}</div>
-    <h3>${t("moduleTasks")}</h3>
-    ${tasks.map(taskRow).join("") || `<p>${t("noModuleTasks")}</p>`}
+    <h3>${t("moduleTasks")} · ${tasks.length}</h3>
+    ${visibleTasks.map(taskRow).join("") || `<p>${t("noModuleTasks")}</p>`}
+    ${tasks.length > visibleTasks.length ? `<a class="module-more" href="#/tasks" data-runway-phase="module-classification">${t("openTaskIndex")} · ${tasks.length - visibleTasks.length}</a>` : ""}
   </article>`;
 }
 
 function migrationPanel() {
-  const advice = bundle.adoption?.warnings || [];
-  const missingBriefs = (bundle.status?.tasks || []).filter((task) => task.briefSource !== "standalone").length;
+  const advice = warningQueue();
+  const missingBriefs = advice.filter((warning) => warning.type === "missing-brief").length;
   if (advice.length === 0 && missingBriefs === 0) return "";
   const groups = groupBy(advice, (item) => item.category || "Advice");
+  const filters = ["all", ...Object.keys(groups).sort(), ...new Set(advice.map((item) => item.type).filter(Boolean)), "active-task-contracts", "strict-cutover"];
+  const filtered = state.warningFilter === "all" ? advice : advice.filter((item) => (item.category || "Advice") === state.warningFilter || item.phase === state.warningFilter || item.type === state.warningFilter);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / warningPageSize));
+  const page = Math.min(Math.max(1, Number(state.warningPage) || 1), pageCount);
+  const visible = filtered.slice((page - 1) * warningPageSize, page * warningPageSize);
   return `<section class="migration-panel">
     <div class="section-head">
       <div>
         <p class="eyebrow">${t("migration")}</p>
-        <h2>${t("migrationSummary")}</h2>
+        <h2>${t("migrationWorkbench")}</h2>
       </div>
       <span>${advice.length} ${t("advice")} · ${missingBriefs} ${t("briefMissing")}</span>
     </div>
     <div class="migration-grid">
-      ${Object.entries(groups).slice(0, 6).map(([category, items]) => `<div><strong>${escapeHtml(category)}</strong><p>${items.length} ${t("items")}</p></div>`).join("")}
+      ${Object.entries(groups).slice(0, 6).map(([category, items]) => `<button data-warning-filter="${escapeAttr(category)}" class="${state.warningFilter === category ? "active" : ""}"><strong>${escapeHtml(category)}</strong><p>${items.length} ${t("items")}</p></button>`).join("")}
       ${missingBriefs > 0 ? `<div><strong>${t("visibilityLayer")}</strong><p>${missingBriefs} ${t("missingBriefs")}</p></div>` : ""}
     </div>
+    <div class="warning-workbench">
+      <div class="warning-toolbar">
+        <select data-warning-filter-select aria-label="${t("warningFilter")}">
+          ${filters.map((filter) => `<option value="${escapeAttr(filter)}" ${state.warningFilter === filter ? "selected" : ""}>${filter === "all" ? t("allWarnings") : escapeHtml(filter)}</option>`).join("")}
+        </select>
+        <span>${t("showing")} ${visible.length ? (page - 1) * warningPageSize + 1 : 0}-${Math.min(page * warningPageSize, filtered.length)} / ${filtered.length}</span>
+        ${pager("warning", page, pageCount)}
+      </div>
+      <div class="warning-list">
+        ${visible.map(warningRow).join("") || emptyState(t("noWarnings"))}
+      </div>
+    </div>
   </section>`;
+}
+
+function warningRow(warning) {
+  const affected = warning.affectedPaths?.length ? warning.affectedPaths.join(", ") : warning.affected;
+  return `<article class="warning-row">
+    <div>
+      <strong>${escapeHtml(warning.id)} · ${escapeHtml(warning.title)}</strong>
+      <p>${escapeHtml(affected || "project")}</p>
+    </div>
+    <span>${tag(warning.priority || warning.severity)}</span>
+    <span>${escapeHtml(warning.status || "open")}</span>
+    <span>${escapeHtml(warning.fixability || "manual")}</span>
+    <span>${escapeHtml(warning.phase || "triage")}</span>
+    <p>${escapeHtml(warning.requiredAction || warning.detail || "")} · ${t("confidence")}: ${escapeHtml(warning.confidence || "medium")}</p>
+  </article>`;
+}
+
+function warningQueue() {
+  const adoptionWarnings = (bundle.adoption?.warnings || []).map((warning) => ({ ...warning }));
+  const existingBriefPaths = new Set(adoptionWarnings.filter((warning) => warning.type === "missing-brief").map((warning) => warning.affected));
+  const briefWarnings = (bundle.status?.tasks || [])
+    .filter((task) => task.briefSource !== "standalone")
+    .filter((task) => !existingBriefPaths.has(task.path))
+    .map((task, index) => ({
+      id: `VB-${String(index + 1).padStart(3, "0")}`,
+      category: "Visibility Layer",
+      type: "missing-brief",
+      scope: "task",
+      priority: ["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state) ? "P2" : "P3",
+      phase: "active-task-contracts",
+      fixability: "guided",
+      status: "open",
+      confidence: task.state === "unknown" ? "medium" : "high",
+      severity: "advice",
+      title: t("visibilityBriefMissing"),
+      affected: task.path,
+      affectedPaths: [task.path],
+      requiredAction: t("addVisibilityBrief"),
+      detail: `${task.id} ${task.title}`,
+    }));
+  return [...adoptionWarnings, ...briefWarnings].sort(warningSort);
+}
+
+function warningSort(left, right) {
+  const priorityRank = { P0: 0, P1: 1, P2: 2, P3: 3 };
+  const fixRank = { template: 0, guided: 1, "human-evidence": 2, decision: 3, manual: 4 };
+  return (priorityRank[left.priority] ?? 9) - (priorityRank[right.priority] ?? 9)
+    || (fixRank[left.fixability] ?? 9) - (fixRank[right.fixability] ?? 9)
+    || String(left.phase || "").localeCompare(String(right.phase || ""))
+    || String(left.id || "").localeCompare(String(right.id || ""));
+}
+
+function pager(kind, page, pageCount, group = "") {
+  if (pageCount <= 1) return `<span class="pager muted">${page}/${pageCount}</span>`;
+  const groupAttr = group ? ` data-page-group="${escapeAttr(group)}"` : "";
+  return `<div class="pager">
+    <button data-page-kind="${kind}" data-page="${page - 1}"${groupAttr} ${page <= 1 ? "disabled" : ""}>${t("prevPage")}</button>
+    <span>${page}/${pageCount}</span>
+    <button data-page-kind="${kind}" data-page="${page + 1}"${groupAttr} ${page >= pageCount ? "disabled" : ""}>${t("nextPage")}</button>
+  </div>`;
 }
 
 function lessonPanel() {
@@ -509,19 +683,50 @@ function groupBy(items, fn) {
 function bind() {
   document.querySelectorAll("[data-search]").forEach((input) => input.addEventListener("input", () => {
     state.query = input.value;
+    state.taskPageByGroup = {};
+    state.taskGroupPage = 1;
     app();
   }));
   document.querySelectorAll("[data-state-filter]").forEach((select) => select.addEventListener("change", () => {
     state.taskState = select.value;
+    state.taskPageByGroup = {};
+    state.taskGroupPage = 1;
+    app();
+  }));
+  document.querySelectorAll("[data-group-mode]").forEach((select) => select.addEventListener("change", () => {
+    state.taskGroupMode = select.value;
+    state.taskPageByGroup = {};
+    state.taskGroupPage = 1;
     app();
   }));
   document.querySelectorAll("[data-render-toggle]").forEach((button) => button.addEventListener("click", () => {
     state.renderMode = state.renderMode === "rendered" ? "source" : "rendered";
     app();
   }));
-  document.querySelectorAll("[data-expand-group]").forEach((button) => button.addEventListener("click", () => {
-    state.expandedGroups.add(button.dataset.expandGroup);
+  document.querySelectorAll("[data-warning-filter]").forEach((button) => button.addEventListener("click", () => {
+    state.warningFilter = button.dataset.warningFilter || "all";
+    state.warningPage = 1;
     app();
+  }));
+  document.querySelectorAll("[data-warning-filter-select]").forEach((select) => select.addEventListener("change", () => {
+    state.warningFilter = select.value;
+    state.warningPage = 1;
+    app();
+  }));
+  document.querySelectorAll("[data-page-kind]").forEach((button) => button.addEventListener("click", () => {
+    const page = Math.max(1, Number(button.dataset.page) || 1);
+    if (button.dataset.pageKind === "warning") state.warningPage = page;
+    if (button.dataset.pageKind === "task-groups") state.taskGroupPage = page;
+    if (button.dataset.pageKind === "task") state.taskPageByGroup[button.dataset.pageGroup || ""] = page;
+    app();
+  }));
+  document.querySelectorAll("[data-runway-phase]").forEach((link) => link.addEventListener("click", () => {
+    const phase = link.dataset.runwayPhase || "all";
+    if (phase === "module-classification") state.taskGroupMode = "module";
+    if (["triage", "active-task-contracts", "strict-cutover"].includes(phase)) state.warningFilter = phase === "triage" ? "all" : phase;
+    state.warningPage = 1;
+    state.taskGroupPage = 1;
+    if (link.getAttribute("href") === "#/") app();
   }));
   document.querySelectorAll("[data-theme-toggle]").forEach((button) => button.addEventListener("click", () => {
     state.theme = state.theme === "dark" ? "light" : state.theme === "light" ? "system" : "dark";

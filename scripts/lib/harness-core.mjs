@@ -694,6 +694,32 @@ function taskIdForDirectory(target, taskDir) {
   return toPosix(path.relative(path.join(target.docsRoot, "09-PLANNING"), taskDir));
 }
 
+function inferTaskClassification({ id, title, relative, explicitModule }) {
+  if (explicitModule) {
+    return {
+      module: explicitModule,
+      source: "explicit",
+      bucket: "module",
+    };
+  }
+  const text = `${id} ${title} ${relative}`.toLowerCase();
+  const rules = [
+    ["dashboard", /dashboard|visibility|cockpit|console|ui|frontend|view|页面|看板|驾驶舱/],
+    ["migration", /migration|migrate|adoption|legacy|safe-adoption|迁移|历史|兼容/],
+    ["task-lifecycle", /task|phase|lifecycle|planning|计划|任务|阶段/],
+    ["review-quality", /review|finding|evidence|qa|test|regression|审查|证据|回归|测试/],
+    ["release-docs", /docs-release|readme|guide|install|playbook|文档|安装|指南/],
+    ["repo-governance", /git|ci|source-package|private|boundary|repo|branch|pr|仓库|边界/],
+    ["automation-cli", /cli|command|script|harness\.mjs|自动化|命令/],
+  ];
+  const match = rules.find(([, pattern]) => pattern.test(text));
+  return {
+    module: match ? match[0] : "legacy-unclassified",
+    source: match ? "inferred" : "fallback",
+    bucket: "legacy",
+  };
+}
+
 export function collectTasks(target) {
   return listTaskPlanPaths(target).map((taskPlanPath) => {
     const taskDir = path.dirname(taskPlanPath);
@@ -714,12 +740,17 @@ export function collectTasks(target) {
     const id = taskIdForDirectory(target, taskDir);
     const title = titleFromMarkdown(brief.content || taskPlan, path.basename(taskDir));
     const stateInfo = parseTaskStateInfo(progress);
+    const explicitModule = id.startsWith("MODULES/") ? id.split("/")[1] : null;
+    const classification = inferTaskClassification({ id, title, relative, explicitModule });
     return {
       id,
       shortId: path.basename(taskDir),
       title,
       path: `TARGET:${relative}`,
-      module: id.startsWith("MODULES/") ? id.split("/")[1] : null,
+      module: explicitModule,
+      inferredModule: classification.module,
+      classificationSource: classification.source,
+      classificationBucket: classification.bucket,
       briefSource: brief.source,
       roadmapSource: roadmap.source,
       state: stateInfo.state,
@@ -903,22 +934,111 @@ function categorizeWarning(message) {
   return "Review Finding";
 }
 
+function warningType(message) {
+  if (/missing brief\.md|briefSource|brief/i.test(message) && /missing|缺少/i.test(message)) return "missing-brief";
+  if (/missing execution_strategy\.md/i.test(message)) return "missing-execution-strategy";
+  if (/missing visual_roadmap\.md|Visual Roadmap/i.test(message)) return "missing-visual-roadmap";
+  if (/Reviewer Identity|Confidence Challenge|Final Confidence Basis|Evidence Checked/i.test(message)) return "review-schema-gap";
+  if (/Evidence|evidence/i.test(message)) return "missing-evidence";
+  if (/missing required file/i.test(message)) return "legacy-reference-gap";
+  if (/legacy-compat|legacy check|adoption-needed/i.test(message)) return "capability-adoption";
+  if (/schema|missing .*columns|invalid/i.test(message)) return "schema-drift";
+  return "review-finding";
+}
+
+function warningScope(message) {
+  if (/docs\/09-PLANNING\/TASKS\//i.test(message)) return "task";
+  if (/docs\/09-PLANNING\/MODULES\//i.test(message)) return "module";
+  if (/review\.md|findings table/i.test(message)) return "review";
+  if (/docs\/11-REFERENCE\//i.test(message)) return "reference";
+  if (/\.harness-capabilities\.json|capability|legacy-compat/i.test(message)) return "capability";
+  return "project";
+}
+
+function warningPhase(type, scope) {
+  if (type === "capability-adoption") return "baseline";
+  if (type === "missing-brief" || type === "missing-execution-strategy" || type === "missing-visual-roadmap") return "active-task-contracts";
+  if (scope === "module") return "module-classification";
+  if (type === "review-schema-gap" || type === "missing-evidence") return "review-evidence";
+  if (type === "legacy-reference-gap" || type === "schema-drift") return "strict-cutover";
+  return "triage";
+}
+
+function warningFixability(type, scope) {
+  if (["missing-brief", "missing-execution-strategy", "missing-visual-roadmap"].includes(type)) return "guided";
+  if (type === "legacy-reference-gap" || scope === "reference") return "template";
+  if (type === "capability-adoption") return "decision";
+  if (type === "review-schema-gap" || type === "missing-evidence") return "human-evidence";
+  return "manual";
+}
+
+function warningPriority(type, scope, message) {
+  if (/fail|invalid|blocked/i.test(message) || type === "schema-drift") return "P1";
+  if (["missing-brief", "missing-execution-strategy", "missing-visual-roadmap"].includes(type) && scope === "task") return "P2";
+  if (type === "review-schema-gap" || type === "missing-evidence") return "P2";
+  if (type === "capability-adoption") return "P3";
+  return "P3";
+}
+
+function warningConfidence(message) {
+  if (/legacy|unknown|fallback/i.test(message)) return "medium";
+  return "high";
+}
+
+function warningAffectedPaths(message) {
+  const matches = String(message).match(/(?:docs|\.harness-private)\/[^\s:]+|\.harness-capabilities\.json|AGENTS\.md|CLAUDE\.md/g) || [];
+  return [...new Set(matches.map((item) => item.replace(/[),.;]+$/, "")))];
+}
+
+function summarizeWarnings(warnings) {
+  const countBy = (field) =>
+    warnings.reduce((acc, warning) => {
+      const key = warning[field] || "unknown";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+  return {
+    total: warnings.length,
+    byCategory: countBy("category"),
+    byType: countBy("type"),
+    byPriority: countBy("priority"),
+    byPhase: countBy("phase"),
+    byFixability: countBy("fixability"),
+    activeTaskWarnings: warnings.filter((warning) => warning.scope === "task" && warning.phase === "active-task-contracts").length,
+    strictCutoverWarnings: warnings.filter((warning) => warning.phase === "strict-cutover").length,
+  };
+}
+
 function collectAdoption(status) {
-  const warnings = status.checkState.details.warnings.flatMap((message) => splitWarningMessage(message)).map((message, index) => ({
-    id: `AD-${String(index + 1).padStart(3, "0")}`,
-    category: categorizeWarning(message),
-    severity: status.mode === "legacy-compat" ? "advice" : "warning",
-    title: warningTitle(message),
-    affected: warningAffected(message),
-    requiredAction: warningAction(message),
-    detail: sanitizeText(message),
-  }));
+  const warnings = status.checkState.details.warnings.flatMap((message) => splitWarningMessage(message)).map((message, index) => {
+    const type = warningType(message);
+    const scope = warningScope(message);
+    const affectedPaths = warningAffectedPaths(message);
+    return {
+      id: `AD-${String(index + 1).padStart(3, "0")}`,
+      category: categorizeWarning(message),
+      type,
+      scope,
+      priority: warningPriority(type, scope, message),
+      phase: warningPhase(type, scope),
+      fixability: warningFixability(type, scope),
+      status: "open",
+      confidence: warningConfidence(message),
+      severity: status.mode === "legacy-compat" ? "advice" : "warning",
+      title: warningTitle(message),
+      affected: affectedPaths[0] || warningAffected(message),
+      affectedPaths,
+      requiredAction: warningAction(message),
+      detail: sanitizeText(message),
+    };
+  });
   return {
     mode: status.mode,
     project: status.project,
     summary: {
       blockers: status.checkState.failures,
       advice: warnings.length,
+      ...summarizeWarnings(warnings),
     },
     warnings,
     manualSteps: {
@@ -941,7 +1061,8 @@ export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
   const status = buildStatus(targetInput, { strict: false, strictLegacy: false });
   const registry = readCapabilityRegistry(target);
   const locale = registry.raw ? registry.locale : inferProjectLocale(target, registry.locale);
-  const warnings = status.checkState.details.warnings.flatMap((message) => splitWarningMessage(message)).filter(Boolean);
+  const adoption = collectAdoption(status);
+  const warnings = adoption.warnings.map((warning) => warning.detail).filter(Boolean);
   const taskActionsByTask = new Map();
   const reviewActionsByPath = new Map();
   const legacyActions = [];
@@ -1064,12 +1185,353 @@ export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
     legacyActions: legacyActions.slice(0, limit),
     legacyResiduals: legacyResiduals.slice(0, limit),
     warningGroups: [...warningGroups.values()],
+    warningQueue: adoption.warnings.slice(0, limit),
     nextCommands: [
-      `node scripts/harness.mjs add-capability safe-adoption --locale ${locale} ${target.projectRoot}`,
-      `node scripts/harness.mjs migrate-plan --json ${target.projectRoot}`,
-      `node scripts/harness.mjs check --profile target-project ${target.projectRoot}`,
-      `node scripts/harness.mjs check --profile target-project --strict ${target.projectRoot}`,
+      `harness migrate-run --locale ${locale} --session-dir /tmp/cah-migration-${slug(status.project.name)} --out-dir /tmp/cah-migration-${slug(status.project.name)}/dashboard ${target.projectRoot}`,
+      `harness migrate-verify /tmp/cah-migration-${slug(status.project.name)}/session.json`,
+      `harness check --profile target-project ${target.projectRoot}`,
+      `harness check --profile target-project --strict ${target.projectRoot}`,
     ],
+  };
+}
+
+function migrationSampleFiles(target) {
+  const candidates = [
+    path.join(target.projectRoot, "AGENTS.md"),
+    path.join(target.projectRoot, "CLAUDE.md"),
+    path.join(target.docsRoot, "Harness-Ledger.md"),
+    path.join(target.docsRoot, "09-PLANNING/Feature-SSoT.md"),
+    path.join(target.docsRoot, "05-TEST-QA/Regression-SSoT.md"),
+  ];
+  const taskPlans = listTaskPlanPaths(target).slice(0, 20);
+  return [...candidates, ...taskPlans].filter((file) => fs.existsSync(file));
+}
+
+function probeTargetLocale(target) {
+  const files = migrationSampleFiles(target);
+  let hanChars = 0;
+  let latinWords = 0;
+  const signals = [];
+  for (const file of files) {
+    const content = readFileSafe(file).slice(0, 20000);
+    const han = content.match(/\p{Script=Han}/gu)?.length || 0;
+    const latin = content.match(/\b[A-Za-z][A-Za-z-]{2,}\b/g)?.length || 0;
+    hanChars += han;
+    latinWords += latin;
+    if (han > 0 || latin > 0) {
+      signals.push({
+        path: `TARGET:${toPosix(path.relative(target.projectRoot, file))}`,
+        hanChars: han,
+        latinWords: latin,
+      });
+    }
+  }
+  const suggested = hanChars > 0 && hanChars >= latinWords * 0.4 ? "zh-CN" : "en-US";
+  const mixedLanguageDetected = hanChars >= 10 && latinWords >= 15;
+  const confidence = mixedLanguageDetected ? "requires-human-choice" : hanChars > 0 || latinWords > 0 ? "medium" : "low";
+  return { suggested, confidence, mixedLanguageDetected, signals: signals.slice(0, 12), totals: { hanChars, latinWords } };
+}
+
+function inspectGitStatus(projectRoot) {
+  const probe = spawnSync("git", ["-C", projectRoot, "rev-parse", "--is-inside-work-tree"], { encoding: "utf8" });
+  if (probe.status !== 0) return { inGit: false, branch: "", entries: [], staged: [], dirty: false };
+  const result = spawnSync("git", ["-C", projectRoot, "status", "--short", "--branch"], { encoding: "utf8" });
+  const lines = (result.stdout || "").split(/\r?\n/).filter(Boolean);
+  const entries = lines.filter((line) => !line.startsWith("## "));
+  const staged = entries.filter((line) => line.length >= 2 && line[0] !== " " && line[0] !== "?");
+  return {
+    inGit: true,
+    branch: lines.find((line) => line.startsWith("## ")) || "",
+    entries,
+    staged,
+    dirty: entries.length > 0,
+    error: result.status === 0 ? "" : result.stderr || result.stdout || `git status exited ${result.status}`,
+  };
+}
+
+function ensureSessionDir(projectName, requestedDir = "") {
+  const base = requestedDir
+    ? path.resolve(requestedDir)
+    : path.join(os.tmpdir(), `cah-migration-${slug(projectName)}-${new Date().toISOString().replace(/[:.]/g, "-")}`);
+  fs.mkdirSync(base, { recursive: true });
+  return base;
+}
+
+function statusCheckSummary(status) {
+  return {
+    status: status.checkState.status,
+    failures: status.checkState.failures,
+    warnings: status.checkState.warnings,
+    legacyStatus: status.checkState.legacy?.status || "skipped",
+    failureDetails: status.checkState.details.failures,
+    warningDetails: status.checkState.details.warnings,
+  };
+}
+
+function strictDeferredFromStatus(strictStatus) {
+  const failures = strictStatus.checkState.details.failures;
+  if (strictStatus.checkState.status !== "fail") return null;
+  return {
+    owner: "migration-owner",
+    trigger: "strict-cutover",
+    nextAction: "Classify each strict failure as active migration work or accepted historical residual, then rerun migrate-verify.",
+    reason: "Normal migration can be adopted while strict cutover remains deferred for historical contract gaps.",
+    failureCount: failures.length,
+    failures,
+  };
+}
+
+function writeMigrationReport(session) {
+  const lines = [
+    `# Coding Agent Harness Migration Report`,
+    "",
+    `- Target: ${session.target}`,
+    `- Result: ${session.result}`,
+    `- Locale: ${session.localeDecision.selected}`,
+    `- Locale confidence: ${session.localeDecision.probe.confidence}`,
+    `- Dashboard: ${session.dashboard?.indexPath || "not generated"}`,
+    `- Normal check: ${session.checks.normal.status} (${session.checks.normal.failures} failures, ${session.checks.normal.warnings} warnings)`,
+    `- Strict check: ${session.checks.strict.status} (${session.checks.strict.failures} failures, ${session.checks.strict.warnings} warnings)`,
+    "",
+    "## Capabilities",
+    "",
+    ...session.capabilities.map((capability) => `- ${capability.name}: ${capability.state || "configured"}`),
+    "",
+    "## Warning Summary",
+    "",
+    `- Total: ${session.plan.summary.warnings}`,
+    `- Active task actions: ${session.plan.summary.taskActions}`,
+    `- Review schema gaps: ${session.plan.summary.reviewSchemaGaps}`,
+    `- Legacy residuals: ${session.plan.summary.legacyResiduals}`,
+    "",
+    "## Strict Deferred",
+    "",
+  ];
+  if (session.strictDeferred) {
+    lines.push(`- Owner: ${session.strictDeferred.owner}`);
+    lines.push(`- Trigger: ${session.strictDeferred.trigger}`);
+    lines.push(`- Next action: ${session.strictDeferred.nextAction}`);
+    lines.push(`- Failure count: ${session.strictDeferred.failureCount}`);
+  } else {
+    lines.push("- none");
+  }
+  lines.push("", "## Next Commands", "");
+  for (const command of session.plan.nextCommands) lines.push(`- \`${command}\``);
+  return `${lines.join("\n")}\n`;
+}
+
+export function runMigration(targetInput, options = {}) {
+  const target = normalizeTarget(targetInput);
+  const targetLabel = target.projectRoot;
+  const beforeGit = inspectGitStatus(target.projectRoot);
+  if (beforeGit.error) throw new Error(`Could not inspect git status: ${beforeGit.error.trim()}`);
+  if (beforeGit.dirty && !options.allowDirty) {
+    throw new Error(`Target git worktree is dirty; rerun with --allow-dirty after reviewing changes.\n${beforeGit.entries.join("\n")}`);
+  }
+
+  const localeProbe = probeTargetLocale(target);
+  if (!options.locale && localeProbe.mixedLanguageDetected && !options.assumeLocale) {
+    throw new Error(
+      `Target contains mixed Chinese/English harness text. Choose explicitly with --locale zh-CN or --locale en-US.\nProbe: ${JSON.stringify(localeProbe.totals)}`,
+    );
+  }
+  const selectedLocale = normalizeLocale(options.locale || localeProbe.suggested);
+  const baselineStatus = buildStatus(targetInput, { strict: false, strictLegacy: false });
+  const initialPlan = buildMigrationPlan(targetInput, { limit: options.limit || 50 });
+  const sessionDir = ensureSessionDir(path.basename(target.projectRoot), options.sessionDir || "");
+  const dashboardDir = options.outDir ? path.resolve(options.outDir) : path.join(sessionDir, "dashboard");
+
+  let safeAdoption = null;
+  let dashboardCapability = null;
+  const safeAdoptionDryRun = addCapability(targetInput, "safe-adoption", { dryRun: true, locale: selectedLocale });
+  const dashboardDryRun = addCapability(targetInput, "dashboard", { dryRun: true, locale: selectedLocale });
+  let dashboardIndex = "";
+  if (!options.planOnly) {
+    safeAdoption = addCapability(targetInput, "safe-adoption", { dryRun: false, locale: selectedLocale });
+    dashboardCapability = addCapability(targetInput, "dashboard", { dryRun: false, locale: selectedLocale });
+    const writtenDashboardDir = writeDashboardFolder(dashboardDir, targetInput);
+    dashboardIndex = path.join(writtenDashboardDir, "index.html");
+  }
+
+  const normalStatus = buildStatus(targetInput, { strict: false, strictLegacy: false });
+  const strictStatus = buildStatus(targetInput, { strict: true, strictLegacy: true });
+  const finalPlan = buildMigrationPlan(targetInput, { limit: options.limit || 50 });
+  const afterGit = inspectGitStatus(target.projectRoot);
+  const strictDeferred = strictDeferredFromStatus(strictStatus);
+  const result = options.planOnly
+    ? "plan-only"
+    : normalStatus.checkState.status === "fail"
+      ? "failed"
+      : strictStatus.checkState.status === "fail"
+        ? "adopted-with-strict-deferred"
+        : "complete";
+  const session = {
+    operation: "migrate-run",
+    version: 1,
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    result,
+    target: targetLabel,
+    sessionDir,
+    planOnly: Boolean(options.planOnly),
+    localeDecision: {
+      selected: selectedLocale,
+      source: options.locale ? "explicit" : localeProbe.mixedLanguageDetected ? "assumed-from-probe" : "probe",
+      probe: localeProbe,
+    },
+    capabilities: readCapabilityRegistry(target).capabilities,
+    baseline: {
+      statusPath: path.join(sessionDir, "baseline-status.json"),
+      migratePlanPath: path.join(sessionDir, "migrate-plan.json"),
+      taskCount: baselineStatus.tasks.length,
+      warningCount: baselineStatus.checkState.warnings,
+    },
+    dryRun: {
+      safeAdoption: safeAdoptionDryRun.report,
+      dashboard: dashboardDryRun.report,
+    },
+    capabilityReports: {
+      safeAdoption: safeAdoption?.report || null,
+      dashboard: dashboardCapability?.report || null,
+    },
+    dashboard: dashboardIndex ? { dir: dashboardDir, indexPath: dashboardIndex, kind: "html-folder" } : null,
+    plan: finalPlan,
+    checks: {
+      normal: statusCheckSummary(normalStatus),
+      strict: statusCheckSummary(strictStatus),
+    },
+    strictDeferred,
+    git: {
+      before: beforeGit,
+      after: afterGit,
+    },
+  };
+  const sessionPath = path.join(sessionDir, "session.json");
+  fs.writeFileSync(path.join(sessionDir, "baseline-status.json"), `${JSON.stringify(baselineStatus, null, 2)}\n`);
+  fs.writeFileSync(path.join(sessionDir, "migrate-plan.json"), `${JSON.stringify(initialPlan, null, 2)}\n`);
+  fs.writeFileSync(path.join(sessionDir, "status-normal.json"), `${JSON.stringify(normalStatus, null, 2)}\n`);
+  fs.writeFileSync(path.join(sessionDir, "status-strict.json"), `${JSON.stringify(strictStatus, null, 2)}\n`);
+  fs.writeFileSync(sessionPath, `${JSON.stringify(session, null, 2)}\n`);
+  const reportPath = path.join(sessionDir, "report.md");
+  fs.writeFileSync(reportPath, writeMigrationReport(session));
+  return { ...session, sessionPath, reportPath };
+}
+
+export function verifyMigrationSession(sessionPathInput) {
+  const sessionPath = path.resolve(sessionPathInput || "");
+  if (!sessionPath || !fs.existsSync(sessionPath)) {
+    return { operation: "migrate-verify", status: "fail", failures: [`session file not found: ${sessionPathInput}`], warnings: [] };
+  }
+  const failures = [];
+  const warnings = [];
+  let session;
+  try {
+    session = JSON.parse(fs.readFileSync(sessionPath, "utf8"));
+  } catch (error) {
+    return { operation: "migrate-verify", status: "fail", failures: [`invalid session json: ${error.message}`], warnings };
+  }
+  if (session.operation !== "migrate-run") failures.push("session operation is not migrate-run");
+  if (session.schemaVersion !== 1 && session.version !== 1) failures.push("session missing schema version");
+  if (session.planOnly) failures.push("plan-only session is not completed migration evidence; rerun migrate-run without --plan-only");
+  if (!session.generatedAt) failures.push("session missing generatedAt");
+  if (!session.sessionDir || !fs.existsSync(session.sessionDir)) failures.push(`sessionDir missing: ${session.sessionDir || "(none)"}`);
+  if (!session.plan?.operation) failures.push("session missing migration plan");
+  if (!session.checks?.normal || !session.checks?.strict) failures.push("session missing recorded normal/strict checks");
+  if (!session.git?.before || !session.git?.after) failures.push("session missing git audit metadata");
+  if (session.git?.before && session.git.before.inGit !== true) failures.push("migration target was not recorded as a git worktree");
+  if (session.git?.after && session.git.after.inGit !== true) failures.push("migration target after-state was not recorded as a git worktree");
+  if (!session.target || !fs.existsSync(session.target)) failures.push(`target missing: ${session.target || "(none)"}`);
+  if (!session.localeDecision?.selected) failures.push("session missing locale decision");
+  if (session.git?.after?.staged?.length) failures.push(`migration left staged files: ${session.git.after.staged.join(", ")}`);
+
+  if (session.target && fs.existsSync(session.target)) {
+    const target = normalizeTarget(session.target);
+    const currentGit = inspectGitStatus(target.projectRoot);
+    if (currentGit.error) failures.push(`could not inspect current git status: ${currentGit.error.trim()}`);
+    if (currentGit.inGit !== true) failures.push("target is not currently a git worktree");
+    if (currentGit.staged.length) failures.push(`target currently has staged files: ${currentGit.staged.join(", ")}`);
+    if (!session.planOnly) {
+      const registry = readCapabilityRegistry(target);
+      const capabilities = new Set(registry.capabilities.map((capability) => capability.name));
+      if (!registry.raw) failures.push(".harness-capabilities.json was not created");
+      for (const required of ["safe-adoption", "dashboard"]) {
+        if (!capabilities.has(required)) failures.push(`required capability missing: ${required}`);
+      }
+      if (session.localeDecision?.selected && registry.locale !== session.localeDecision.selected) {
+        failures.push(`registry locale ${registry.locale} does not match session locale ${session.localeDecision.selected}`);
+      }
+    }
+    const normal = buildStatus(target.projectRoot, { strict: false, strictLegacy: false });
+    if (normal.checkState.status === "fail") failures.push(`normal check fails with ${normal.checkState.failures} failures`);
+    const strict = buildStatus(target.projectRoot, { strict: true, strictLegacy: true });
+    if (strict.checkState.status === "fail") {
+      const deferred = session.strictDeferred;
+      if (session.result === "complete") failures.push("session claims complete while current strict check fails");
+      if (!deferred?.owner || !deferred?.trigger || !deferred?.nextAction || !deferred?.failureCount) {
+        failures.push("current strict failures need strictDeferred owner, trigger, nextAction, and failureCount");
+      } else {
+        warnings.push(`current strict cutover deferred: ${strict.checkState.failures} failures`);
+      }
+    }
+  }
+
+  if (!session.planOnly) {
+    const indexPath = session.dashboard?.indexPath || "";
+    const dashboardDir = session.dashboard?.dir || "";
+    if (!indexPath) failures.push("session missing dashboard index path");
+    if (indexPath && !/\.html?$/i.test(indexPath)) failures.push(`dashboard index is not HTML: ${indexPath}`);
+    if (indexPath && path.basename(indexPath) !== "index.html") failures.push(`dashboard index must be index.html: ${indexPath}`);
+    if (indexPath && !fs.existsSync(indexPath)) failures.push(`dashboard index not found: ${indexPath}`);
+    if (/\.md$/i.test(indexPath)) failures.push(`dashboard path points to Markdown: ${indexPath}`);
+    if (indexPath && dashboardDir && path.resolve(indexPath) !== path.join(path.resolve(dashboardDir), "index.html")) {
+      failures.push(`dashboard index is not inside dashboard dir: ${indexPath}`);
+    }
+    for (const required of ["assets/dashboard-data.js", "data/status.json", "data/adoption.json"]) {
+      if (dashboardDir && !fs.existsSync(path.join(dashboardDir, required))) failures.push(`dashboard folder missing ${required}`);
+    }
+    const dashboardHtml = indexPath && fs.existsSync(indexPath) ? readFileSafe(indexPath) : "";
+    if (dashboardHtml && !dashboardHtml.includes("dashboard-data.js")) failures.push("dashboard index does not load dashboard-data.js");
+    const dataScriptPath = dashboardDir ? path.join(dashboardDir, "assets/dashboard-data.js") : "";
+    const dataScript = dataScriptPath && fs.existsSync(dataScriptPath) ? readFileSafe(dataScriptPath) : "";
+    const dataMatch = dataScript.match(/window\.__HARNESS_DASHBOARD__\s*=\s*([\s\S]*);\s*$/);
+    if (!dataMatch) {
+      failures.push("dashboard-data.js does not contain a generated dashboard bundle");
+    } else {
+      try {
+        const dashboardBundle = JSON.parse(dataMatch[1]);
+        const expectedProjectName = session.target ? path.basename(session.target) : "";
+        if (dashboardBundle.status?.schemaVersion !== 2) failures.push("dashboard bundle missing status schemaVersion 2");
+        if (expectedProjectName && dashboardBundle.status?.project?.name !== expectedProjectName) {
+          failures.push(`dashboard bundle project ${dashboardBundle.status?.project?.name || "(none)"} does not match target ${expectedProjectName}`);
+        }
+        if (!dashboardBundle.status?.checkState) failures.push("dashboard bundle missing checkState");
+        if (!Array.isArray(dashboardBundle.adoption?.warnings)) failures.push("dashboard bundle missing adoption warnings array");
+      } catch (error) {
+        failures.push(`dashboard-data.js contains invalid dashboard JSON: ${error.message}`);
+      }
+    }
+  }
+
+  if (session.checks?.normal?.status === "fail") failures.push("recorded normal check failed");
+  if (session.checks?.strict?.status === "fail") {
+    const deferred = session.strictDeferred;
+    if (!deferred?.owner || !deferred?.trigger || !deferred?.nextAction || !deferred?.failureCount) {
+      failures.push("strict failures need strictDeferred owner, trigger, nextAction, and failureCount");
+    } else {
+      warnings.push(`strict cutover deferred: ${deferred.failureCount} failures`);
+    }
+  }
+
+  return {
+    operation: "migrate-verify",
+    status: failures.length ? "fail" : "pass",
+    sessionPath,
+    target: session.target || "",
+    result: session.result || "",
+    dashboard: session.dashboard || null,
+    strictDeferred: session.strictDeferred || null,
+    failures,
+    warnings,
   };
 }
 
@@ -1128,10 +1590,18 @@ function migrationPhases({ locale, recommendedCapabilities }) {
     },
     {
       id: "MP-03",
-      title: "Migrate active task contracts",
-      goal: "Upgrade active or reopened tasks to v1 task files first.",
-      actions: ["Add brief.md, execution_strategy.md, visual_roadmap.md for active tasks", "Keep closed historical tasks as legacy evidence"],
-      exitCriteria: ["Active task status is readable by status/dashboard", "Task evidence is logged through progress.md"],
+      title: "Classify tasks from SSoT before repairing contracts",
+      goal: "Use Harness Ledger, Closeout SSoT, Regression SSoT, task progress, walkthroughs, reviews, and git history to decide which tasks are actually current.",
+      actions: [
+        "Classify taskActions as current-active, closed-with-evidence, closed-with-residual, superseded, or unknown-history",
+        "Add brief.md, execution_strategy.md, visual_roadmap.md only for current-active or reopened tasks",
+        "Route closed historical gaps as residuals instead of adding fake current templates",
+      ],
+      exitCriteria: [
+        "Every repaired task cites SSoT/progress/walkthrough/review/git evidence",
+        "Closed historical tasks remain unchanged and have residual routing",
+        "Active task status is readable by status/dashboard",
+      ],
     },
     {
       id: "MP-04",

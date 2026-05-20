@@ -9,6 +9,9 @@
 研究命令参数、模板目录或 capability 选择；这些决策必须在 Diagnose / Decide 阶段完成，
 并在交付 summary 中说明依据。
 
+本文默认使用已安装的 `harness` 命令。维护者在本源码仓调试时，可以把同一命令替换为
+`node scripts/harness.mjs`。
+
 使用 v1.0 六阶段流程：
 
 1. Diagnose：扫描项目结构、语言、现有文档、CI、协作方式和风险面。
@@ -32,7 +35,7 @@
 目标项目没有旧 harness 时使用这条路径：
 
 ```bash
-node scripts/harness.mjs init \
+harness init \
   --locale zh-CN \
   --capabilities core,dashboard \
   /path/to/project
@@ -90,48 +93,53 @@ harness doctor-user --agent codex
 
 ## 旧 Harness 迁移
 
-目标项目已经有旧版 harness 时使用这条路径。不要把旧文档重建一遍：
+目标项目已经有旧版 harness 时使用这条路径。不要把旧文档重建一遍，也不要从
+`add-capability` 手工拼流程；先用迁移轨道生成可验证 session：
 
 ```bash
-node scripts/harness.mjs add-capability safe-adoption \
+harness migrate-run \
   --locale zh-CN \
+  --session-dir /tmp/cah-migration-project \
+  --out-dir /tmp/cah-migration-project/dashboard \
   /path/to/old-project
 
-node scripts/harness.mjs migrate-plan --json \
-  /path/to/old-project
+harness migrate-verify \
+  /tmp/cah-migration-project/session.json
 ```
 
 规则：
 
 - 不覆盖已有 `AGENTS.md`、`CLAUDE.md`、`docs/Harness-Ledger.md`、SSoT、
   walkthrough、task progress 和历史 task plan。
+- 旧项目中英文混杂时，必须显式传 `--locale zh-CN` 或 `--locale en-US`。
 - 只补齐缺失的 v1.0 模板和 capability registry。
 - 已有项目事实只能 merge、append 或记录 residual；不能用泛化模板替换。
 - 历史合同缺口在普通模式下进入 `adoption-needed` warning。
 - `--strict` 必须仍然能因为旧 checker 失败或历史合同缺口而失败。
-- 详细迁移策略见 `docs-release/guides/migration-playbook.md`。Agent 应先读取
-  `migrate-plan --json`，再逐步迁移活跃任务、当前 review 和真实采用的 capability。
+- `migrate-verify` 必须通过，才能报告迁移输出可用；dashboard 路径必须是 HTML。
+- 详细迁移策略见 `docs-release/guides/migration-playbook.md`。Agent 应读取
+  `session.json` 和 `migrate-plan.json`，再逐步迁移活跃任务、当前 review 和真实采用的 capability。
 
 ## 任务生命周期
 
 初始化或迁移完成后，agent 不应手工复制任务目录。使用生命周期命令创建和推进任务：
 
 ```bash
-node scripts/harness.mjs new-task phase-2-lifecycle \
+harness new-task phase-2-lifecycle \
   --title "阶段二任务生命周期" \
   --locale zh-CN \
   /path/to/project
 
-node scripts/harness.mjs task-start phase-2-lifecycle \
+harness task-start phase-2-lifecycle \
   --message "开始实现生命周期切片" \
   /path/to/project
 
-node scripts/harness.mjs task-log phase-2-lifecycle \
+harness task-log phase-2-lifecycle \
   --message "完成 CLI 与模板更新" \
   --evidence "command:TARGET:npm-test:passed" \
   /path/to/project
 
-node scripts/harness.mjs task-complete phase-2-lifecycle \
+harness task-complete phase-2-lifecycle \
   --message "验证闭环完成" \
   /path/to/project
 ```
@@ -151,19 +159,20 @@ node scripts/harness.mjs task-complete phase-2-lifecycle \
 安装或升级收口前，至少运行：
 
 ```bash
-node scripts/harness.mjs check --profile target-project /path/to/project
-node scripts/harness.mjs status --json /path/to/project
-node scripts/harness.mjs dashboard --out /tmp/harness-dashboard.html /path/to/project
+harness check --profile target-project /path/to/project
+harness status --json /path/to/project
+harness dashboard --out /tmp/harness-dashboard.html /path/to/project
 ```
 
-开发本仓 v1.0 kernel 时，release gate 是：
+维护者开发本仓 v1.0 kernel 时，release gate 是。普通目标项目不需要运行
+`private-harness .harness-private`；那是本仓私有 dogfood harness 的本地门禁：
 
 ```bash
 npm test
 npm run smoke:dashboard
-node scripts/harness.mjs check --profile source-package .
-node scripts/harness.mjs check --profile private-harness .harness-private
-node scripts/harness.mjs check --profile target-project examples/minimal-project
+harness check --profile source-package .
+harness check --profile private-harness .harness-private
+harness check --profile target-project examples/minimal-project
 ```
 
 ## 必跑回归路径
@@ -173,6 +182,6 @@ node scripts/harness.mjs check --profile target-project examples/minimal-project
 | 路径 | 必须证明 |
 | --- | --- |
 | 新项目初始化 | 空项目 `init --locale zh-CN\|en-US --capabilities core,...` 后，模板语言一致、registry 正确、`status --json` 不误报 `safe-adoption`。 |
-| 旧 harness 迁移 | 旧项目 `add-capability safe-adoption --locale ...` 后，旧文件不被覆盖，缺失 v1.0 模板被补齐，普通模式 warning，strict 模式能阻塞历史缺口。 |
+| 旧 harness 迁移 | 旧项目 `migrate-run --locale ...` 后，旧文件不被覆盖，registry 声明 `safe-adoption` 和 `dashboard`，`migrate-verify` 通过，普通模式 warning，strict 模式能阻塞历史缺口并生成 `strictDeferred`。 |
 
 真实项目 dogfood 默认清理测试产物，除非用户明确要求保留并提交。

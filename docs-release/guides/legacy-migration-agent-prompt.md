@@ -15,19 +15,53 @@ Your job is not to rewrite the whole `docs/` tree. Your job is to preserve histo
 3. Treat closed or unknown historical tasks as legacy residuals unless the user says they are active again.
 4. Add `module-parallel` only when the project has real module owners, write scopes, and integration rules. A large task count alone is not a module boundary.
 5. Keep the normal check as a migration signal. Use `--strict` only after active tasks are upgraded.
-6. Every migration action must be explainable from `migrate-plan --json`.
+6. Start with `migrate-run`, then prove the result with `migrate-verify`. Do not hand-roll the first adoption pass.
+7. Every migration action must be explainable from the generated `migrate-plan.json` and `session.json`.
+8. Do not stage, commit, push, or open a PR unless the user explicitly asks.
+9. Dashboard evidence must be an existing HTML dashboard path. A Markdown ledger or docs page is not a dashboard.
 
 ## Step 1: Baseline
+
+This prompt assumes the target agent has the installed `harness` command. If you are debugging from the source checkout, replace `harness` with `node scripts/harness.mjs`.
 
 Run:
 
 ```bash
-git status --short --branch
-node scripts/harness.mjs status --json /path/to/project > /tmp/harness-status.json
-node scripts/harness.mjs migrate-plan --json --limit 50 /path/to/project > /tmp/harness-migrate-plan.json
+git -C /path/to/project status --short --branch
+harness migrate-plan --json --limit 50 /path/to/project > /tmp/harness-migrate-plan.json
 ```
 
 Read the migration plan before editing anything.
+
+Before writing files:
+
+- Explain every dirty or untracked path from `git status`.
+- Preserve `/tmp/harness-migrate-plan.json` as the baseline snapshot for this run.
+- Stop if dirty files are unrelated and the owner is unclear.
+- Decide locale. If the target mixes Chinese and English, choose explicitly:
+  - `--locale zh-CN` for Chinese users, Chinese project operating context, or Chinese-facing docs.
+  - `--locale en-US` for English teams or English-facing docs.
+- Record concrete locale evidence from entry files or product-facing docs, such as `AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/Harness-Ledger.md`, and active task docs. Stop and ask for a locale decision if those signals conflict.
+- Run the migration rail:
+
+```bash
+harness migrate-run \
+  --locale zh-CN \
+  --session-dir /tmp/cah-migration-project \
+  --out-dir /tmp/cah-migration-project/dashboard \
+  /path/to/project
+```
+
+If `migrate-run` reports a dirty target, stop and explain the dirty files. Use `--allow-dirty` only after the user or repo owner accepts those files as part of the migration context.
+
+The command writes:
+
+- `session.json`
+- `report.md`
+- `migrate-plan.json`
+- `status-normal.json`
+- `status-strict.json`
+- `dashboard/index.html`
 
 Classify the output:
 
@@ -39,13 +73,30 @@ Classify the output:
 | `legacyActions` | Missing older reference/governance files | Create only if the capability is intentionally adopted |
 | `recommendedCapabilities` | Candidate capabilities | Evaluate against project facts |
 
+After generating the dashboard in Step 6, inspect `adoption.warnings` from the dashboard bundle. Treat every warning as a queue item with:
+
+- `category`: human-facing bucket.
+- `type`: stable issue type.
+- `scope`: task, module, review, reference, capability, or project.
+- `priority`: P1/P2/P3 cleanup order.
+- `phase`: migration phase where the item should be handled.
+- `fixability`: template, guided, human-evidence, decision, or manual.
+- `status`: open, done, deferred, or accepted-residual.
+- `confidence`: high, medium, or low classification confidence.
+- `affected`: primary affected path.
+- `affectedPaths`: files to inspect or assign.
+- `requiredAction`: next action to execute.
+- `detail`: original warning detail.
+
+For cleanup reporting, every warning batch needs owner/action/status. Do not mark a warning done only because it was seen.
+
 ## Step 2: Install Safe Adoption
 
-Run:
+This is normally done by `migrate-run`. Only use the lower-level commands when debugging the rail:
 
 ```bash
-node scripts/harness.mjs add-capability safe-adoption --locale zh-CN /path/to/project
-node scripts/harness.mjs add-capability dashboard --locale zh-CN /path/to/project
+harness add-capability safe-adoption --locale zh-CN /path/to/project
+harness add-capability dashboard --locale zh-CN /path/to/project
 ```
 
 Expected behavior:
@@ -57,6 +108,22 @@ Expected behavior:
 Stop if existing project docs are overwritten.
 
 ## Step 3: Upgrade Active Work Only
+
+Before editing task files, build the evidence map in this order:
+
+1. Read `docs/Harness-Ledger.md`, `docs/10-WALKTHROUGH/Closeout-SSoT.md`, `docs/05-TEST-QA/Regression-SSoT.md`, and any legacy project-specific regression SSoT.
+2. Cross-check candidate active tasks against their `progress.md`, walkthrough links, regression rows, and recent git commits.
+3. Classify each task as `current-active`, `closed-with-evidence`, `closed-with-residual`, `superseded`, or `unknown-history`.
+4. Repair only `current-active` and `unknown-history that is still referenced by SSoT as current evidence`.
+5. For closed historical tasks, route the residual in the migration report instead of adding fake current files.
+
+If you use subagents, assign them evidence work, not list-making:
+
+- Reviewer A: inspect SSoT and ledger rows for completion status.
+- Reviewer B: inspect task `progress.md` / walkthrough / review evidence.
+- Reviewer C: inspect git history and regression evidence for whether the task was actually completed.
+
+Every repaired task must name the evidence used to decide it is active or reopened.
 
 For every item in `taskActions`, add or adapt:
 
@@ -70,6 +137,7 @@ Do not write generic placeholder briefs. A useful `brief.md` must answer:
 - What is the execution flow?
 - What should a human look at first?
 - What is currently blocked or risky?
+- Which SSoT, ledger, progress, walkthrough, regression row, review, or git evidence says this task is still current.
 
 Use diagrams when they improve understanding:
 
@@ -83,7 +151,7 @@ flowchart LR
 After each upgrade, record evidence:
 
 ```bash
-node scripts/harness.mjs task-log <task-id> \
+harness task-log <task-id> \
   --message "migrated active task to v1 visibility contract" \
   --evidence "file:TARGET:docs/09-PLANNING/TASKS/<task>/brief.md:created" \
   /path/to/project
@@ -97,6 +165,7 @@ If the project has hundreds of old task folders:
 - Keep their old `task_plan.md`, `progress.md`, and review evidence intact.
 - Do not add `brief.md` to every old task.
 - Record the count and category as migration residuals.
+- Use SSoT/ledger evidence to decide completion. Do not infer “unfinished” only because a v1 template file is missing.
 
 A good residual entry says:
 
@@ -116,39 +185,72 @@ Only create `Module-Registry.md` and module plans when all are true:
 
 If these are not true, keep the project as a single-line Harness with `safe-adoption`.
 
+Module classification order:
+
+1. Use explicit modules first: existing `docs/09-PLANNING/MODULES/<module>/` folders or maintained `Module-Registry.md`.
+2. Use dashboard inferred modules only for browsing, filtering, and cleanup routing. Inferred grouping is not a capability declaration.
+3. Keep uncertain history as `legacy-unclassified`.
+
+Before creating module files, produce a classification summary:
+
+- Candidate module name.
+- Product or engineering domain rationale.
+- Owner and non-overlapping write scope.
+- Shared-file coordinator rule.
+- Count of tasks left as `legacy-unclassified`.
+
+Do not create modules from date buckets, file paths alone, or a desire to make the dashboard look tidy.
+
 ## Step 6: Generate Dashboard
 
-Generate both forms:
+This is normally done by `migrate-run --out-dir`. If you need a standalone debug dashboard, generate both forms:
 
 ```bash
-node scripts/harness.mjs dashboard --out /tmp/harness-dashboard.html /path/to/project
-node scripts/harness.mjs dashboard --out-dir /tmp/harness-dashboard /path/to/project
+harness dashboard --out /tmp/harness-dashboard.html /path/to/project
+harness dashboard --out-dir /tmp/harness-dashboard /path/to/project
 ```
 
 The dashboard must show:
 
-- A project flow or a clear fallback.
+- A project flow for small projects, or an aggregate migration runway for large legacy projects.
 - Active task briefs when active tasks exist.
-- Searchable historical tasks.
-- Migration attention, not a fake all-green state.
+- Searchable and paginated historical tasks.
+- Migration attention as a warning workbench, not a fake all-green state.
 - Legacy residuals separated from current blockers.
+
+For projects with hundreds of tasks, use the dashboard like this:
+
+1. Start with the aggregate migration runway, not the raw task graph.
+2. In Task Index, group by migration bucket to separate active/current work from historical records.
+3. Switch to module grouping only after inferred or explicit modules are meaningful.
+4. Use warning filters to fix one warning class at a time.
+5. Regenerate the dashboard after each cleanup batch and compare counts.
 
 ## Step 7: Verify
 
 Run:
 
 ```bash
-node scripts/harness.mjs check --profile target-project /path/to/project
-node scripts/harness.mjs status --json /path/to/project
-node scripts/harness.mjs migrate-plan --json /path/to/project
+harness migrate-verify /tmp/cah-migration-project/session.json
+harness check --profile target-project /path/to/project
+harness check --profile target-project --strict /path/to/project
+harness status --json /path/to/project
+harness migrate-plan --json /path/to/project
+git -C /path/to/project diff --cached --name-only
 ```
+
+`migrate-verify` must pass before you report the migration as usable. It checks the capability registry, selected locale, dashboard HTML evidence, normal check status, staged files, and whether strict failures have an explicit `strictDeferred` owner/trigger/next action.
+
+If you perform additional cleanup after the first session, regenerate the session and dashboard with `migrate-run` or clearly label the first session as baseline and provide fresh final check/dashboard evidence. Do not report a stale baseline dashboard as final evidence.
 
 Do not claim strict migration is complete unless:
 
 - Active tasks have v1 visibility files.
 - Current release-blocking reviews use v1 review schema.
 - Remaining historical gaps have owner/action/status or an accepted residual reason.
-- `--strict` passes, or the user accepts the listed residuals.
+- `--strict` passes.
+
+If the user accepts remaining residuals, report `strict deferred`, not `strict complete`. Include owner, expiry or trigger condition, and next action for every accepted residual.
 
 ## Expected Final Report
 
@@ -159,5 +261,6 @@ Return:
 - Number of active task actions completed.
 - Number of legacy residuals left untouched.
 - Dashboard paths.
+- `session.json` and `report.md` paths.
 - Normal check result.
 - Strict check result or explicit reason it remains deferred.

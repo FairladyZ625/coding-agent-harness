@@ -12,10 +12,12 @@ import {
   installUserSkill,
   listLifecycleTasks,
   normalizeLocale,
+  runMigration,
   validateSourcePackageBoundary,
   updateModuleStep,
   updateTaskPhase,
   updateTaskLifecycle,
+  verifyMigrationSession,
   writeDashboardFolder,
   writeDashboardSingleFile,
   writeInitFiles,
@@ -87,6 +89,8 @@ Usage:
   harness init [--dry-run] [--locale zh-CN|en-US] [--capabilities core,dashboard] [target]
   harness add-capability <name> [--dry-run] [--locale zh-CN|en-US] [target]
   harness migrate-plan [--json] [--limit n] [target]
+  harness migrate-run [--locale zh-CN|en-US] [--assume-locale] [--allow-dirty] [--plan-only] [--out-dir folder] [--session-dir folder] [target]
+  harness migrate-verify [--json] <session.json>
   harness new-task <task-id> [--module key] [--budget standard|complex] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
   harness task-start <task-id> [--message text] [target]
   harness task-phase <task-id> <phase-id> [--state done] [--completion 100] [--evidence present] [target]
@@ -213,6 +217,48 @@ if (command === "help" || command === "--help" || command === "-h") {
     console.error(error.message);
     process.exit(1);
   }
+} else if (command === "migrate-run") {
+  const locale = takeOption("--locale", "");
+  const assumeLocale = takeFlag("--assume-locale");
+  const allowDirty = takeFlag("--allow-dirty");
+  const planOnly = takeFlag("--plan-only");
+  const outDir = takeOption("--out-dir", "");
+  const sessionDir = takeOption("--session-dir", "");
+  try {
+    console.log(
+      JSON.stringify(
+        runMigration(targetArg(), {
+          locale,
+          assumeLocale,
+          allowDirty,
+          planOnly,
+          outDir,
+          sessionDir,
+        }),
+        null,
+        2,
+      ),
+    );
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+} else if (command === "migrate-verify") {
+  const json = takeFlag("--json");
+  const sessionPath = args.shift();
+  if (!sessionPath) {
+    console.error("Missing session.json path");
+    process.exit(2);
+  }
+  const result = verifyMigrationSession(sessionPath);
+  if (json) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    for (const failure of result.failures) console.error(`Failure: ${failure}`);
+    for (const warning of result.warnings) console.log(`Warning: ${warning}`);
+    console.log(`Migration verify ${result.status}: ${result.sessionPath}`);
+  }
+  process.exit(result.status === "pass" ? 0 : 1);
 } else if (command === "new-task") {
   const dryRun = takeFlag("--dry-run");
   const locale = takeOption("--locale", "");
