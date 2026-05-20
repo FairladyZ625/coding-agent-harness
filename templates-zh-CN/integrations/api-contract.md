@@ -9,6 +9,12 @@ Confidence: low
 
 API
 
+## Index Links
+
+| Service Profile | Development Context | Contract Index | Last Verified | Confidence |
+| --- | --- | --- | --- | --- |
+| `docs/03-ARCHITECTURE/services/<service-key>.md` | `docs/04-DEVELOPMENT/external-context/<service-key>.md` | `docs/06-INTEGRATIONS/README.md` | unknown | low |
+
 ## Auth
 
 [认证和授权要求。不要写入真实密钥。]
@@ -30,3 +36,7 @@ API
 
 | Test | Command / Path | Expected Result |
 | --- | --- | --- |
+
+## Placement Rule
+
+本文件只写一个 API 契约。服务职责放 `03-ARCHITECTURE`，本地 mock/stub/debug 放 `04-DEVELOPMENT`。

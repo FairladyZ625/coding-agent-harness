@@ -9,6 +9,12 @@ Confidence: low
 
 Webhook
 
+## Index Links
+
+| Service Profile | Development Context | Contract Index | Last Verified | Confidence |
+| --- | --- | --- | --- | --- |
+| `docs/03-ARCHITECTURE/services/<service-key>.md` | `docs/04-DEVELOPMENT/external-context/<service-key>.md` | `docs/06-INTEGRATIONS/README.md` | unknown | low |
+
 ## Auth
 
 [签名、token、IP allowlist 或其他认证方式。不要写入真实密钥。]
@@ -29,3 +35,7 @@ Webhook
 
 | Test | Command / Path | Expected Result |
 | --- | --- | --- |
+
+## Placement Rule
+
+本文件只写一个 webhook 契约。服务职责放 `03-ARCHITECTURE`，本地 mock/stub/debug 放 `04-DEVELOPMENT`。

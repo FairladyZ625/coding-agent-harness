@@ -9,6 +9,12 @@ Confidence: low
 
 Third-party service
 
+## Index Links
+
+| Service Profile | Development Context | Contract Index | Last Verified | Confidence |
+| --- | --- | --- | --- | --- |
+| `docs/03-ARCHITECTURE/services/<vendor-key>.md` | `docs/04-DEVELOPMENT/external-context/<vendor-key>.md` | `docs/06-INTEGRATIONS/README.md` | unknown | low |
+
 ## Auth
 
 [凭证与权限模型。不要写入真实密钥。]
@@ -30,3 +36,7 @@ Third-party service
 
 | Test | Command / Path | Expected Result |
 | --- | --- | --- |
+
+## Placement Rule
+
+本文件只写一个第三方集成。账号/权限/SDK/限制放这里；业务职责和系统拓扑放 `03-ARCHITECTURE`。

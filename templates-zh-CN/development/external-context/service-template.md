@@ -5,6 +5,12 @@ Owner: project coordinator
 Last Verified: unknown
 Confidence: low
 
+## Index Links
+
+| Service Profile | Integration Contracts | Last Verified | Confidence |
+| --- | --- | --- | --- |
+| `docs/03-ARCHITECTURE/services/<service-key>.md` | `docs/06-INTEGRATIONS/<contract>.md` | unknown | low |
+
 ## Development Use
 
 [说明 Agent 修改本仓时需要知道的外部服务事实。只写可验证事实、mock 方式和调试入口。]
@@ -21,3 +27,7 @@ Confidence: low
 ## Cross-Repo Debug Notes
 
 [当问题涉及这个外部服务时，按什么顺序定位、用哪些命令或日志确认。]
+
+## Placement Rule
+
+本文件只写本仓开发、测试、调试这个外部服务时需要的上下文。服务职责放 `03-ARCHITECTURE`，接口字段和 schema 放 `06-INTEGRATIONS`。

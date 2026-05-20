@@ -5,6 +5,12 @@ Owner: project coordinator
 Last Verified: unknown
 Confidence: low
 
+## Index Links
+
+| Catalog Row | Development Context | Integration Contracts | Last Verified | Confidence |
+| --- | --- | --- | --- | --- |
+| `docs/03-ARCHITECTURE/service-catalog.md` | `docs/04-DEVELOPMENT/external-context/<service-key>.md` | `docs/06-INTEGRATIONS/<contract>.md` | unknown | low |
+
 ## Responsibility
 
 [说明该服务拥有的职责、数据和边界。外部服务只写可验证事实。]
@@ -19,3 +25,7 @@ Confidence: low
 - [架构链接 / architecture link]
 - [开发上下文链接 / development context link]
 - [接口契约链接 / integration contract link]
+
+## Placement Rule
+
+本文件只描述一个服务。不要把多个服务的职责、接口细节、mock 指令或临时调试记录合并到这里。

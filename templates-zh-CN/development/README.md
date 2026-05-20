@@ -16,3 +16,28 @@ Keep the English field names and section headings because CLI checks rely on the
 - 本地启动、代码地图、外部服务开发摘要、mock、stub、跨仓调试放这里。
 - 长期系统结构放 `docs/03-ARCHITECTURE/`。
 - API、event、webhook 等具体契约放 `docs/06-INTEGRATIONS/`。
+
+## Structure Contract
+
+| 文件 / 路径 | 必须维护的事实 | 写入规则 |
+| --- | --- | --- |
+| `local-setup.md` | 本仓启动、依赖、环境变量、常见失败 | 只写开发启动事实，不写生产架构 |
+| `codebase-map.md` | 本仓代码入口、目录职责、阅读顺序 | Agent 改代码前先看这里 |
+| `external-context/<service-key>.md` | 外部服务对本仓开发的影响、mock/stub、调试入口 | 一个外部服务一个文件 |
+| `stubs-and-mocks.md` | 本仓可用 mock/stub 策略 | 写可执行路径或命令 |
+| `cross-repo-debugging.md` | 跨仓问题定位顺序和证据 | 写调试流程，不写服务职责总览 |
+
+## External Service Rule
+
+如果本仓依赖多个微服务，不要把所有外部知识写进一个大文档。只要某个外部服务会影响本仓开发或测试，就创建：
+
+- `docs/03-ARCHITECTURE/services/<service-key>.md`：该服务是什么、负责什么。
+- `docs/04-DEVELOPMENT/external-context/<service-key>.md`：本仓开发时如何 mock、stub、调试它。
+- `docs/06-INTEGRATIONS/<contract>.md`：具体 API/event/webhook 契约。
+
+`04-DEVELOPMENT` 只放“开发时怎么处理这个外部服务”。不要在这里维护完整系统拓扑，也不要把 payload schema 塞进来。
+
+## External Context Index
+
+| Service Key | Why It Matters To This Repo | Local Stub / Mock | Debug Entry | Architecture Link | Contract Link | Last Verified | Confidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
