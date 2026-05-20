@@ -148,7 +148,7 @@ For every item in `taskActions`, add or adapt:
 
 - `brief.md`
 - `execution_strategy.md`
-- `visual_roadmap.md`
+- `visual_map.md`
 
 Do not write generic placeholder briefs. A useful `brief.md` must answer:
 
@@ -197,7 +197,7 @@ For full readable cutover, this baseline rule changes:
 - Every task must have a standalone `brief.md` so the dashboard can be read by a human.
 - Historical task briefs must not claim active execution unless evidence supports it.
 - Write them as readable index cards: task goal, first human read, evidence flow, current status judgment, risks/residuals, evidence sources.
-- Keep `execution_strategy.md` and `visual_roadmap.md` focused on active/current tasks unless strict check requires otherwise.
+- Keep `execution_strategy.md` and `visual_map.md` focused on active/current tasks unless strict check requires otherwise.
 - Split the work across subagents by date range, module, or migration bucket.
 
 ## Step 5: Decide Whether Modules Exist

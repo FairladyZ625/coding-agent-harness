@@ -141,7 +141,7 @@ harness task-complete phase-2-lifecycle \
 
 Rules:
 
-- `new-task` creates `brief.md`, `task_plan.md`, `execution_strategy.md`, `visual_roadmap.md`, `findings.md`, `progress.md`, and `review.md`.
+- `new-task` creates `brief.md`, `task_plan.md`, `execution_strategy.md`, `visual_map.md`, `findings.md`, `progress.md`, and `review.md`.
 - Existing task directories are not overwritten. Renaming or continuing old tasks is a coordinator decision.
 - `task-start`, `task-block`, and `task-complete` only update lifecycle status and logs in `progress.md`.
 - `task-log` only appends execution records. Evidence uses `type:PATH:summary`, for example `command:TARGET:npm-test:passed`.

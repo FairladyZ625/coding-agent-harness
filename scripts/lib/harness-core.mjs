@@ -8,6 +8,8 @@ import { writeDashboardDirectory, writeDashboardFile } from "./dashboard-writer.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../..");
 const legacyChecker = path.join(repoRoot, "scripts/check-harness.mjs");
+const visualMapFile = "visual_map.md";
+const legacyVisualRoadmapFile = "visual_roadmap.md";
 
 export const capabilityDefinitions = {
   core: {
@@ -118,6 +120,14 @@ export function readFileSafe(filePath) {
   } catch {
     return "";
   }
+}
+
+function readBundledTemplate(source) {
+  const sourcePath = path.join(repoRoot, source);
+  if (!fs.existsSync(sourcePath)) throw new Error(`Bundled template missing: ${source}`);
+  const content = fs.readFileSync(sourcePath, "utf8");
+  if (!content.trim()) throw new Error(`Bundled template is empty: ${source}`);
+  return content;
 }
 
 function walkFiles(root) {
@@ -656,6 +666,21 @@ function readTaskContractFile(taskDir, fileName, legacyContent = "") {
   return { path: filePath, content: legacyContent, source: legacyContent.trim() ? "legacy" : "missing" };
 }
 
+function readVisualMapContractFile(taskDir, legacyContent = "") {
+  const canonicalPath = path.join(taskDir, visualMapFile);
+  const canonical = readFileSafe(canonicalPath);
+  if (canonical.trim()) return { path: canonicalPath, content: canonical, source: "canonical", status: "present" };
+  const legacyPath = path.join(taskDir, legacyVisualRoadmapFile);
+  const legacy = readFileSafe(legacyPath);
+  if (legacy.trim()) return { path: legacyPath, content: legacy, source: "legacy", status: "legacy-only" };
+  return {
+    path: canonicalPath,
+    content: legacyContent,
+    source: legacyContent.trim() ? "legacy" : "missing",
+    status: legacyContent.trim() ? "legacy-only" : "missing",
+  };
+}
+
 function isActiveTaskState(state) {
   return ["planned", "not_started", "in_progress", "review", "blocked"].includes(state);
 }
@@ -720,15 +745,60 @@ function inferTaskClassification({ id, title, relative, explicitModule }) {
   };
 }
 
+function assessBriefQuality(content, { source = "missing" } = {}) {
+  const text = String(content || "").trim();
+  const issues = [];
+  if (source !== "standalone") issues.push("missing-standalone-brief");
+  if (text.length < 120) issues.push("too-short");
+  if (!/^##\s+/m.test(text)) issues.push("missing-sections");
+  if (/\[(?:outcome|scope|risk|evidence|next|目标|范围|风险|证据|下一步)[^\]]*\]/i.test(text)) issues.push("unfilled-placeholder");
+  return { status: issues.length ? "fail" : "pass", issues };
+}
+
+function explicitVisualMapStatus(briefContent) {
+  const match = String(briefContent || "").match(/^Visual Map Status:\s*(present|not-needed|missing|legacy-only)\s*$/im);
+  return match ? match[1] : "";
+}
+
+function taskMigrationClassification(state, visualMapStatus) {
+  if (isActiveTaskState(state)) return "active";
+  if (visualMapStatus === "present" || visualMapStatus === "legacy-only") return "historical-with-diagram";
+  if (state === "unknown") return "unknown-needs-human";
+  return "historical-no-map-needed";
+}
+
+function requiresCanonicalVisualMap(task) {
+  return ["active", "reopened", "current-evidence", "historical-with-diagram"].includes(task.migrationClassification);
+}
+
+function taskCutoverCounters(tasks) {
+  const legacyVisualOnlyCount = tasks.filter((task) => task.visualMapStatus === "legacy-only").length;
+  const unknownClassificationCount = tasks.filter((task) => task.migrationClassification === "unknown-needs-human").length;
+  const weakBriefCount = tasks.filter((task) => task.briefQuality?.status !== "pass").length;
+  const visualMapRequiredCount = tasks.filter(requiresCanonicalVisualMap).length;
+  const missingCanonicalVisualMapCount = tasks.filter((task) => requiresCanonicalVisualMap(task) && task.visualMapSource !== "canonical").length;
+  return {
+    legacyVisualOnlyCount,
+    unknownClassificationCount,
+    weakBriefCount,
+    visualMapRequiredCount,
+    missingCanonicalVisualMapCount,
+  };
+}
+
 export function collectTasks(target) {
   return listTaskPlanPaths(target).map((taskPlanPath) => {
     const taskDir = path.dirname(taskPlanPath);
     const taskPlan = readFileSafe(taskPlanPath);
     const brief = readTaskContractFile(taskDir, "brief.md", "");
-    const roadmap = readTaskContractFile(taskDir, "visual_roadmap.md", taskPlan);
-    const progress = readFileSafe(path.join(taskDir, "progress.md"));
-    const review = readFileSafe(path.join(taskDir, "review.md"));
-    const phases = parsePhases(roadmap.content);
+    const executionStrategyPath = path.join(taskDir, "execution_strategy.md");
+    const progressPath = path.join(taskDir, "progress.md");
+    const reviewPath = path.join(taskDir, "review.md");
+    const findingsPath = path.join(taskDir, "findings.md");
+    const visualMap = readVisualMapContractFile(taskDir, taskPlan);
+    const progress = readFileSafe(progressPath);
+    const review = readFileSafe(reviewPath);
+    const phases = parsePhases(visualMap.content);
     const completion =
       phases.length > 0
         ? Math.round(
@@ -742,18 +812,31 @@ export function collectTasks(target) {
     const stateInfo = parseTaskStateInfo(progress);
     const explicitModule = id.startsWith("MODULES/") ? id.split("/")[1] : null;
     const classification = inferTaskClassification({ id, title, relative, explicitModule });
+    const briefVisualStatus = explicitVisualMapStatus(brief.content);
+    const visualMapStatus = briefVisualStatus === "not-needed" && visualMap.status === "missing" ? "not-needed" : visualMap.status;
     return {
       id,
       shortId: path.basename(taskDir),
       title,
       path: `TARGET:${relative}`,
+      taskPlanPath: `TARGET:${toPosix(path.relative(target.projectRoot, taskPlanPath))}`,
+      executionStrategyPath: `TARGET:${toPosix(path.relative(target.projectRoot, executionStrategyPath))}`,
+      progressPath: `TARGET:${toPosix(path.relative(target.projectRoot, progressPath))}`,
+      reviewPath: `TARGET:${toPosix(path.relative(target.projectRoot, reviewPath))}`,
+      findingsPath: `TARGET:${toPosix(path.relative(target.projectRoot, findingsPath))}`,
       module: explicitModule,
       inferredModule: classification.module,
       classificationSource: classification.source,
       classificationBucket: classification.bucket,
       briefSource: brief.source,
       briefPath: `TARGET:${toPosix(path.relative(target.projectRoot, brief.path))}`,
-      roadmapSource: roadmap.source,
+      visualMapSource: visualMap.source,
+      visualMapStatus,
+      visualMapPath: `TARGET:${toPosix(path.relative(target.projectRoot, visualMap.path))}`,
+      legacyVisualRoadmapPresent: fs.existsSync(path.join(taskDir, legacyVisualRoadmapFile)),
+      briefQuality: assessBriefQuality(brief.content, { source: brief.source }),
+      migrationClassification: taskMigrationClassification(stateInfo.state, visualMapStatus),
+      roadmapSource: visualMap.source,
       state: stateInfo.state,
       stateSource: stateInfo.source,
       stateRaw: stateInfo.raw,
@@ -804,8 +887,8 @@ function collectDashboardDocumentPaths(target) {
     const state = parseTaskState(progress);
     const active = isActiveTaskState(state);
     const documentNames = active
-      ? ["brief.md", "task_plan.md", "execution_strategy.md", "visual_roadmap.md", "progress.md", "review.md", "findings.md"]
-      : ["brief.md", "task_plan.md", "execution_strategy.md", "visual_roadmap.md", "progress.md", "review.md", "findings.md"];
+      ? ["brief.md", "task_plan.md", "execution_strategy.md", visualMapFile, legacyVisualRoadmapFile, "progress.md", "review.md", "findings.md"]
+      : ["brief.md", "task_plan.md", "execution_strategy.md", visualMapFile, legacyVisualRoadmapFile, "progress.md", "review.md", "findings.md"];
     for (const fileName of documentNames) {
       const file = path.join(taskDir, fileName);
       if (fs.existsSync(file)) selected.add(file);
@@ -842,7 +925,8 @@ function documentKind(source) {
   if (lower.endsWith("/references/index.md")) return "task-references";
   if (lower.endsWith("/artifacts/index.md")) return "task-artifacts";
   if (lower.endsWith("/execution_strategy.md")) return "execution-strategy";
-  if (lower.endsWith("/visual_roadmap.md")) return "visual-roadmap";
+  if (lower.endsWith("/visual_map.md")) return "visual-map";
+  if (lower.endsWith("/visual_roadmap.md")) return "legacy-visual-roadmap";
   if (lower.endsWith("/module_plan.md")) return "module-plan";
   return "markdown-table";
 }
@@ -928,7 +1012,7 @@ function collectGraph(status, tables = { tables: [] }) {
 }
 
 function categorizeWarning(message) {
-  if (/missing execution_strategy\.md|missing visual_roadmap\.md|Visual Roadmap/i.test(message)) return "Plan Contract Missing";
+  if (/missing execution_strategy\.md|missing visual_(?:map|roadmap)\.md|Visual (?:Map|Roadmap)/i.test(message)) return "Plan Contract Missing";
   if (/legacy-compat|adoption-needed|legacy check/i.test(message)) return "Adoption Advice";
   if (/Evidence|evidence/i.test(message)) return "Missing Evidence";
   if (/schema|missing .*columns|invalid/i.test(message)) return "Schema Drift";
@@ -938,6 +1022,7 @@ function categorizeWarning(message) {
 function warningType(message) {
   if (/missing brief\.md|briefSource|brief/i.test(message) && /missing|缺少/i.test(message)) return "missing-brief";
   if (/missing execution_strategy\.md/i.test(message)) return "missing-execution-strategy";
+  if (/missing visual_map\.md|Visual Map/i.test(message)) return "missing-visual-map";
   if (/missing visual_roadmap\.md|Visual Roadmap/i.test(message)) return "missing-visual-roadmap";
   if (/Reviewer Identity|Confidence Challenge|Final Confidence Basis|Evidence Checked/i.test(message)) return "review-schema-gap";
   if (/Evidence|evidence/i.test(message)) return "missing-evidence";
@@ -958,7 +1043,7 @@ function warningScope(message) {
 
 function warningPhase(type, scope) {
   if (type === "capability-adoption") return "baseline";
-  if (type === "missing-brief" || type === "missing-execution-strategy" || type === "missing-visual-roadmap") return "active-task-contracts";
+  if (type === "missing-brief" || type === "missing-execution-strategy" || type === "missing-visual-map" || type === "missing-visual-roadmap") return "active-task-contracts";
   if (scope === "module") return "module-classification";
   if (type === "review-schema-gap" || type === "missing-evidence") return "review-evidence";
   if (type === "legacy-reference-gap" || type === "schema-drift") return "strict-cutover";
@@ -966,7 +1051,7 @@ function warningPhase(type, scope) {
 }
 
 function warningFixability(type, scope) {
-  if (["missing-brief", "missing-execution-strategy", "missing-visual-roadmap"].includes(type)) return "guided";
+  if (["missing-brief", "missing-execution-strategy", "missing-visual-map", "missing-visual-roadmap"].includes(type)) return "guided";
   if (type === "legacy-reference-gap" || scope === "reference") return "template";
   if (type === "capability-adoption") return "decision";
   if (type === "review-schema-gap" || type === "missing-evidence") return "human-evidence";
@@ -975,7 +1060,7 @@ function warningFixability(type, scope) {
 
 function warningPriority(type, scope, message) {
   if (/fail|invalid|blocked/i.test(message) || type === "schema-drift") return "P1";
-  if (["missing-brief", "missing-execution-strategy", "missing-visual-roadmap"].includes(type) && scope === "task") return "P2";
+  if (["missing-brief", "missing-execution-strategy", "missing-visual-map", "missing-visual-roadmap"].includes(type) && scope === "task") return "P2";
   if (type === "review-schema-gap" || type === "missing-evidence") return "P2";
   if (type === "capability-adoption") return "P3";
   return "P3";
@@ -1045,12 +1130,12 @@ function collectAdoption(status) {
     manualSteps: {
       zh: [
         "先查看升级建议，决定当前项目要采用哪些 v1.0 能力合同。",
-        "为仍在活跃的任务手工补齐 execution_strategy.md 和 visual_roadmap.md。",
+        "为仍在活跃的任务手工补齐 execution_strategy.md 和 visual_map.md。",
         "只有在项目明确声明 v1.0 capability 后，再把 strict check 当成阻塞门禁。",
       ],
       en: [
         "Review adoption advice and decide which v1.0 capability contracts should be adopted.",
-        "Manually add execution_strategy.md and visual_roadmap.md for active tasks.",
+        "Manually add execution_strategy.md and visual_map.md for active tasks.",
         "Treat strict check as blocking only after the project intentionally declares v1.0 capabilities.",
       ],
     },
@@ -1071,6 +1156,20 @@ export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
   const warningGroups = new Map();
   const tasksByShortId = new Map(status.tasks.map((task) => [task.shortId, task]));
 
+  function addTaskAction(taskId, actionPath, fileName, actionText) {
+    const existing = taskActionsByTask.get(taskId) || {
+      taskId,
+      path: actionPath,
+      files: new Set(),
+      action:
+        actionText ||
+        "Rewrite this task into the v1 task contract by adapting the localized task template and preserving evidence links.",
+    };
+    existing.files.add(fileName);
+    taskActionsByTask.set(taskId, existing);
+    return existing;
+  }
+
   for (const warning of warnings) {
     const category = categorizeWarning(warning);
     const group = warningGroups.get(category) || { category, count: 0, examples: [] };
@@ -1078,11 +1177,13 @@ export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
     if (group.examples.length < 3) group.examples.push(sanitizeText(warning));
     warningGroups.set(category, group);
 
-    const taskContract = warning.match(/(?:adoption-needed:\s*)?(docs\/09-PLANNING\/TASKS\/([^/\s]+))\s+missing\s+(execution_strategy\.md|visual_roadmap\.md)/i);
+    const taskContract = warning.match(/(?:adoption-needed:\s*)?(docs\/09-PLANNING\/TASKS\/([^/\s]+))\s+missing\s+(execution_strategy\.md|visual_map\.md|visual_roadmap\.md)/i);
     if (taskContract) {
       const key = taskContract[2];
       const task = tasksByShortId.get(key);
-      if (!task || !isActiveTaskState(task.state)) {
+      const actionFile = taskContract[3] === legacyVisualRoadmapFile ? visualMapFile : taskContract[3];
+      const visualGap = actionFile === visualMapFile;
+      if (!task || (!isActiveTaskState(task.state) && !(visualGap && requiresCanonicalVisualMap(task)))) {
         legacyResiduals.push({
           type: "legacy-task-contract-gap",
           taskId: key,
@@ -1092,14 +1193,12 @@ export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
         });
         continue;
       }
-      const existing = taskActionsByTask.get(key) || {
-        taskId: key,
-        path: `TARGET:${taskContract[1]}`,
-        files: new Set(),
-        action: "For active or reopened tasks, add standalone v1 task contract files by adapting the localized task template. Leave closed historical tasks untouched unless strict gates require migration.",
-      };
-      existing.files.add(taskContract[3]);
-      taskActionsByTask.set(key, existing);
+      addTaskAction(
+        key,
+        `TARGET:${taskContract[1]}`,
+        actionFile,
+        "For active, reopened, or full-cutover tasks, add standalone v1 task contract files by adapting the localized task template and preserving evidence links.",
+      );
       continue;
     }
 
@@ -1126,17 +1225,56 @@ export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
     }
   }
 
+  const legacyVisualOnlyTasks = [];
+  const unknownClassificationTasks = [];
+  const weakBriefTasks = [];
   for (const task of status.tasks) {
-    if (!isActiveTaskState(task.state) || task.briefSource === "standalone") continue;
-    const key = task.shortId;
-    const existing = taskActionsByTask.get(key) || {
-      taskId: key,
-      path: task.path,
-      files: new Set(),
-      action: "For active or reopened tasks, add standalone v1 task contract files by adapting the localized task template. Leave closed historical tasks untouched unless strict gates require migration.",
-    };
-    existing.files.add("brief.md");
-    taskActionsByTask.set(key, existing);
+    if (task.visualMapStatus === "legacy-only") {
+      legacyVisualOnlyTasks.push({
+        taskId: task.shortId,
+        path: task.path,
+        classification: task.migrationClassification,
+        action: "Rewrite legacy visual_roadmap.md into canonical visual_map.md. Do not keep it as the active task map.",
+      });
+    }
+    if (task.migrationClassification === "unknown-needs-human") {
+      unknownClassificationTasks.push({
+        taskId: task.shortId,
+        path: task.path,
+        state: task.state,
+        action: "Classify whether this is active, reopened, current evidence, historical-with-diagram, or historical-no-map-needed before full cutover.",
+      });
+    }
+    if (task.briefQuality?.status !== "pass") {
+      weakBriefTasks.push({
+        taskId: task.shortId,
+        path: task.path,
+        issues: task.briefQuality?.issues || [],
+        action: "Rewrite brief.md so a human can understand the goal, status, evidence, risks, and next action without opening the full task archive.",
+      });
+      addTaskAction(
+        task.shortId,
+        task.path,
+        "brief.md",
+        "Rewrite the human brief and preserve links to source task evidence.",
+      );
+    }
+    if (requiresCanonicalVisualMap(task) && task.visualMapSource !== "canonical") {
+      addTaskAction(
+        task.shortId,
+        task.path,
+        visualMapFile,
+        "Rewrite task diagrams into canonical visual_map.md. Legacy visual_roadmap.md is read-only migration input.",
+      );
+    }
+    if (isActiveTaskState(task.state) && task.briefSource !== "standalone") {
+      addTaskAction(
+        task.shortId,
+        task.path,
+        "brief.md",
+        "For active or reopened tasks, add standalone v1 task contract files by adapting the localized task template and preserving evidence links.",
+      );
+    }
   }
 
   const taskActions = [...taskActionsByTask.values()].map((action) => ({
@@ -1153,7 +1291,20 @@ export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
   }));
   const recommendedCapabilities = recommendedMigrationCapabilities(status, target, registry);
   const missingExecutionStrategy = taskActions.filter((action) => action.files.includes("execution_strategy.md")).length;
-  const missingVisualRoadmap = taskActions.filter((action) => action.files.includes("visual_roadmap.md")).length;
+  const missingVisualMap = taskActions.filter((action) => action.files.includes(visualMapFile)).length;
+  const cutoverCounters = taskCutoverCounters(status.tasks);
+  const visualMapActions = taskActions.filter((action) => action.files.includes(visualMapFile)).length;
+  const fullCutoverEligible =
+    status.checkState.status === "pass" &&
+    taskActions.length === 0 &&
+    reviewActions.length === 0 &&
+    legacyActions.length === 0 &&
+    legacyResiduals.length === 0 &&
+    recommendedCapabilities.length === 0 &&
+    cutoverCounters.legacyVisualOnlyCount === 0 &&
+    cutoverCounters.unknownClassificationCount === 0 &&
+    cutoverCounters.weakBriefCount === 0 &&
+    cutoverCounters.missingCanonicalVisualMapCount === 0;
 
   return {
     operation: "migrate-plan",
@@ -1172,16 +1323,27 @@ export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
       tasks: status.tasks.length,
       warnings: warnings.length,
       missingExecutionStrategy,
-      missingVisualRoadmap,
+      missingVisualMap,
+      missingVisualRoadmap: missingVisualMap,
+      visualMapActions,
+      legacyVisualOnly: legacyVisualOnlyTasks.length,
+      unknownClassification: unknownClassificationTasks.length,
+      weakBrief: weakBriefTasks.length,
+      missingCanonicalVisualMap: cutoverCounters.missingCanonicalVisualMapCount,
       taskActions: taskActions.length,
       reviewSchemaGaps: reviewActions.length,
       legacyReferenceGaps: legacyActions.length,
       legacyResiduals: legacyResiduals.length,
       recommendedCapabilities: recommendedCapabilities.map((capability) => capability.name),
+      fullCutoverEligible,
     },
     recommendedCapabilities,
     phases: migrationPhases({ locale, recommendedCapabilities }),
     taskActions: taskActions.slice(0, limit),
+    visualMapActions: taskActions.filter((action) => action.files.includes(visualMapFile)).slice(0, limit),
+    legacyVisualOnlyTasks: legacyVisualOnlyTasks.slice(0, limit),
+    unknownClassificationTasks: unknownClassificationTasks.slice(0, limit),
+    weakBriefTasks: weakBriefTasks.slice(0, limit),
     reviewActions: reviewActions.slice(0, limit),
     legacyActions: legacyActions.slice(0, limit),
     legacyResiduals: legacyResiduals.slice(0, limit),
@@ -1190,6 +1352,7 @@ export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
     nextCommands: [
       `harness migrate-run --locale ${locale} --session-dir /tmp/cah-migration-${slug(status.project.name)} --out-dir /tmp/cah-migration-${slug(status.project.name)}/dashboard ${target.projectRoot}`,
       `harness migrate-verify /tmp/cah-migration-${slug(status.project.name)}/session.json`,
+      `harness migrate-verify --full-cutover /tmp/cah-migration-${slug(status.project.name)}/session.json`,
       `harness check --profile target-project ${target.projectRoot}`,
       `harness check --profile target-project --strict ${target.projectRoot}`,
     ],
@@ -1302,6 +1465,11 @@ function writeMigrationReport(session) {
     "",
     `- Total: ${session.plan.summary.warnings}`,
     `- Active task actions: ${session.plan.summary.taskActions}`,
+    `- Visual map actions: ${session.plan.summary.visualMapActions || 0}`,
+    `- Legacy visual-only tasks: ${session.plan.summary.legacyVisualOnly || 0}`,
+    `- Weak briefs: ${session.plan.summary.weakBrief || 0}`,
+    `- Unknown classifications: ${session.plan.summary.unknownClassification || 0}`,
+    `- Full cutover eligible: ${session.plan.summary.fullCutoverEligible === true ? "yes" : "no"}`,
     `- Review schema gaps: ${session.plan.summary.reviewSchemaGaps}`,
     `- Legacy residuals: ${session.plan.summary.legacyResiduals}`,
     "",
@@ -1418,7 +1586,44 @@ export function runMigration(targetInput, options = {}) {
   return { ...session, sessionPath, reportPath };
 }
 
-export function verifyMigrationSession(sessionPathInput) {
+function validateFullCutoverSession(session, failures) {
+  if (session.result !== "complete") failures.push(`full cutover requires result complete, got ${session.result || "(none)"}`);
+  if (session.strictDeferred) failures.push("full cutover cannot have strictDeferred");
+  if (session.checks?.strict?.status !== "pass") failures.push("full cutover requires recorded strict check pass");
+  if (session.plan?.mode !== "declared-capability") failures.push(`full cutover requires migrate-plan mode declared-capability, got ${session.plan?.mode || "(none)"}`);
+  const summary = session.plan?.summary || {};
+  for (const [field, value] of [
+    ["warnings", summary.warnings],
+    ["visualMapActions", summary.visualMapActions],
+    ["legacyVisualOnly", summary.legacyVisualOnly],
+    ["unknownClassification", summary.unknownClassification],
+    ["weakBrief", summary.weakBrief],
+    ["missingCanonicalVisualMap", summary.missingCanonicalVisualMap],
+    ["taskActions", summary.taskActions],
+    ["reviewSchemaGaps", summary.reviewSchemaGaps],
+    ["legacyReferenceGaps", summary.legacyReferenceGaps],
+    ["legacyResiduals", summary.legacyResiduals],
+  ]) {
+    if (Number(value || 0) !== 0) failures.push(`full cutover requires ${field}=0, got ${value || 0}`);
+  }
+  if (summary.fullCutoverEligible !== true) failures.push("full cutover requires summary.fullCutoverEligible=true");
+  if ((summary.recommendedCapabilities || []).length) {
+    failures.push(`full cutover has recommended capabilities: ${summary.recommendedCapabilities.join(", ")}`);
+  }
+  if (!session.target || !fs.existsSync(session.target)) return;
+  const status = buildStatus(session.target, { strict: true, strictLegacy: true });
+  if (status.checkState.status !== "pass") failures.push(`full cutover current strict status is ${status.checkState.status}`);
+  for (const task of status.tasks) {
+    if (task.briefQuality?.status !== "pass") failures.push(`${task.path} weak brief: ${(task.briefQuality?.issues || []).join(", ")}`);
+    if (task.migrationClassification === "unknown-needs-human") failures.push(`${task.path} has unknown migration classification`);
+    if (task.visualMapStatus === "legacy-only") failures.push(`${task.path} only has legacy visual_roadmap.md`);
+    if (["active", "reopened", "current-evidence", "historical-with-diagram"].includes(task.migrationClassification) && task.visualMapSource !== "canonical") {
+      failures.push(`${task.path} needs canonical visual_map.md for ${task.migrationClassification}`);
+    }
+  }
+}
+
+export function verifyMigrationSession(sessionPathInput, { fullCutover = false } = {}) {
   const sessionPath = path.resolve(sessionPathInput || "");
   if (!sessionPath || !fs.existsSync(sessionPath)) {
     return { operation: "migrate-verify", status: "fail", failures: [`session file not found: ${sessionPathInput}`], warnings: [] };
@@ -1523,9 +1728,12 @@ export function verifyMigrationSession(sessionPathInput) {
     }
   }
 
+  if (fullCutover) validateFullCutoverSession(session, failures);
+
   return {
     operation: "migrate-verify",
     status: failures.length ? "fail" : "pass",
+    fullCutover: Boolean(fullCutover),
     sessionPath,
     target: session.target || "",
     result: session.result || "",
@@ -1595,7 +1803,7 @@ function migrationPhases({ locale, recommendedCapabilities }) {
       goal: "Use Harness Ledger, Closeout SSoT, Regression SSoT, task progress, walkthroughs, reviews, and git history to decide which tasks are actually current.",
       actions: [
         "Classify taskActions as current-active, closed-with-evidence, closed-with-residual, superseded, or unknown-history",
-        "Add brief.md, execution_strategy.md, visual_roadmap.md only for current-active or reopened tasks",
+        "Add brief.md, execution_strategy.md, visual_map.md only for current-active or reopened tasks",
         "Route closed historical gaps as residuals instead of adding fake current templates",
       ],
       exitCriteria: [
@@ -1640,7 +1848,8 @@ function splitWarningMessage(message) {
 
 function warningTitle(message) {
   if (/missing execution_strategy\.md/i.test(message)) return "Missing execution strategy";
-  if (/missing visual_roadmap\.md|Visual Roadmap/i.test(message)) return "Missing visual roadmap";
+  if (/missing visual_map\.md|Visual Map/i.test(message)) return "Missing visual map";
+  if (/missing visual_roadmap\.md|Visual Roadmap/i.test(message)) return "Missing legacy visual roadmap";
   if (/legacy-compat/i.test(message)) return "Legacy compatibility mode";
   if (/legacy check failed/i.test(message)) return "Legacy checker finding";
   if (/review\.md missing/i.test(message)) return "Review schema gap";
@@ -1655,7 +1864,8 @@ function warningAffected(message) {
 
 function warningAction(message) {
   if (/execution_strategy\.md/i.test(message)) return "Add standalone execution strategy file.";
-  if (/visual_roadmap\.md|Visual Roadmap/i.test(message)) return "Add standalone visual roadmap phase table.";
+  if (/visual_map\.md|Visual Map/i.test(message)) return "Add standalone visual map file.";
+  if (/visual_roadmap\.md|Visual Roadmap/i.test(message)) return "Rewrite legacy visual_roadmap.md into canonical visual_map.md.";
   if (/review\.md missing/i.test(message)) return "Update review.md to v1 review schema.";
   if (/legacy/i.test(message)) return "Review manually; do not auto-migrate.";
   return "Inspect source document and decide whether to adopt v1 contract.";
@@ -1812,22 +2022,23 @@ export function validateReviewSchema(target, { strict = true } = {}) {
   return { failures, warnings };
 }
 
-export function validateVisualRoadmaps(target) {
+export function validateVisualMaps(target) {
   const failures = [];
   const warnings = [];
   for (const taskPlanPath of listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
-    const roadmapPath = path.join(taskDir, "visual_roadmap.md");
-    const relative = toPosix(path.relative(target.projectRoot, roadmapPath));
+    const visualMapPath = path.join(taskDir, visualMapFile);
+    const legacyPath = path.join(taskDir, legacyVisualRoadmapFile);
+    const relative = toPosix(path.relative(target.projectRoot, visualMapPath));
     const taskPlan = readFileSafe(taskPlanPath);
-    const roadmap = readTaskContractFile(taskDir, "visual_roadmap.md", taskPlan);
-    const { header, rows } = tableAfterHeading(roadmap.content, /^Phase ID$/i);
+    const visualMap = readVisualMapContractFile(taskDir, taskPlan);
+    const { header, rows } = tableAfterHeading(visualMap.content, /^Phase ID$/i);
     if (rows.length > 0) {
       for (const column of ["Phase ID", "Depends On", "State", "Completion", "Output", "Required Evidence", "Evidence Status", "Blocking Risk", "Owner / Handoff"]) {
-        if (getColumn(header, column) < 0) failures.push(`${relative} Visual Roadmap missing column: ${column}`);
+        if (getColumn(header, column) < 0) failures.push(`${relative} Visual Map missing column: ${column}`);
       }
     }
-    const phases = parsePhases(roadmap.content);
+    const phases = parsePhases(visualMap.content);
     for (const phase of phases) {
       if (!allowedPhaseStates.has(phase.state)) failures.push(`${relative} phase ${phase.id} invalid state: ${phase.state}`);
       if (!allowedEvidenceStatus.has(phase.evidenceStatus)) {
@@ -1839,8 +2050,15 @@ export function validateVisualRoadmaps(target) {
       if (phase.state === "done" && phase.completion !== 100) failures.push(`${relative} phase ${phase.id} done must be 100`);
       if (phase.state === "planned" && phase.completion !== 0) failures.push(`${relative} phase ${phase.id} planned must be 0`);
     }
-    if (roadmap.source === "standalone" && phases.length === 0) warnings.push(`${relative} has no Visual Roadmap phase table`);
-    if (roadmap.source === "legacy" && phases.length > 0) warnings.push(`${relative} missing; using legacy task_plan.md Visual Roadmap fallback`);
+    if (visualMap.source === "canonical" && !/Visual Map Contract:\s*v1\.0/i.test(visualMap.content)) {
+      failures.push(`${relative} missing Visual Map Contract: v1.0`);
+    }
+    if (visualMap.source === "canonical" && phases.length === 0) warnings.push(`${relative} has no Visual Map phase table`);
+    if (visualMap.source === "legacy" && fs.existsSync(legacyPath)) {
+      warnings.push(`${relative} missing; legacy visual_roadmap.md is rewrite input only`);
+    } else if (visualMap.source === "legacy" && phases.length > 0) {
+      warnings.push(`${relative} missing; using legacy task_plan.md visual map fallback`);
+    }
   }
   return { failures, warnings };
 }
@@ -1855,9 +2073,46 @@ export function validatePlanContracts(target, { strict = true } = {}) {
   for (const taskPlanPath of listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
     const relativeDir = toPosix(path.relative(target.projectRoot, taskDir));
-    for (const fileName of ["execution_strategy.md", "visual_roadmap.md"]) {
+    for (const fileName of ["execution_strategy.md", visualMapFile]) {
       if (!fs.existsSync(path.join(taskDir, fileName))) {
         report(`${relativeDir} missing ${fileName}`);
+      }
+    }
+  }
+  return { failures, warnings };
+}
+
+export function validateContextDocs(target, { strict = true } = {}) {
+  const failures = [];
+  const warnings = [];
+  const report = (message) => {
+    if (strict) failures.push(message);
+    else warnings.push(`adoption-needed: ${message}`);
+  };
+  const contextRoots = ["03-ARCHITECTURE", "04-DEVELOPMENT", "06-INTEGRATIONS"];
+  const files = contextRoots.flatMap((root) => walkFiles(path.join(target.docsRoot, root))).filter((file) => file.endsWith(".md"));
+  for (const file of files) {
+    if (file.includes(`${path.sep}_archive${path.sep}`)) continue;
+    const relative = toPosix(path.relative(target.projectRoot, file));
+    const content = readFileSafe(file);
+    if (!/Context Doc Type:\s*\S+/i.test(content)) report(`${relative} missing Context Doc Type`);
+    if (path.basename(file) === "README.md") continue;
+    if (!/Source Evidence/i.test(content)) report(`${relative} missing Source Evidence field`);
+    if (!/Last Verified:\s*\S+|Last Verified\s*\|/i.test(content)) report(`${relative} missing Last Verified field`);
+    if (!/Confidence:\s*(high|medium|low|unknown)|Confidence\s*\|/i.test(content)) report(`${relative} missing Confidence field`);
+    if (/03-ARCHITECTURE\/service-catalog\.md$/.test(relative)) {
+      for (const column of ["Service / Component", "Interfaces", "Source Evidence", "Last Verified", "Confidence"]) {
+        if (!content.includes(column)) report(`${relative} service catalog missing column: ${column}`);
+      }
+    }
+    if (/04-DEVELOPMENT\/external-context\/[^/]+\.md$/.test(relative)) {
+      for (const heading of ["Development Use", "Do Not Assume", "Mocks / Stubs"]) {
+        if (!content.includes(heading)) report(`${relative} external context missing section: ${heading}`);
+      }
+    }
+    if (/06-INTEGRATIONS\/(?:[^/_][^/]*|third-party\/[^/_][^/]*)\.md$/.test(relative)) {
+      for (const heading of ["Contract Type", "Auth", "Payload", "Errors", "Contract Tests"]) {
+        if (!content.includes(heading)) report(`${relative} integration contract missing section: ${heading}`);
       }
     }
   }
@@ -1873,10 +2128,11 @@ export function buildStatus(targetInput, options = {}) {
   const legacy = shouldRunLegacy ? runLegacyCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
   const contractStrict = Boolean(options.strict) || (capabilityState.registry.mode !== "legacy-compat" && !safeAdoptionMode);
   const reviews = validateReviewSchema(target, { strict: contractStrict });
-  const roadmaps = validateVisualRoadmaps(target);
+  const visualMaps = validateVisualMaps(target);
   const planContracts = validatePlanContracts(target, { strict: contractStrict });
-  const failures = [...capabilityState.failures, ...reviews.failures, ...roadmaps.failures, ...planContracts.failures];
-  const warnings = [...capabilityState.warnings, ...reviews.warnings, ...roadmaps.warnings, ...planContracts.warnings];
+  const contextDocs = validateContextDocs(target, { strict: contractStrict });
+  const failures = [...capabilityState.failures, ...reviews.failures, ...visualMaps.failures, ...planContracts.failures, ...contextDocs.failures];
+  const warnings = [...capabilityState.warnings, ...reviews.warnings, ...visualMaps.warnings, ...planContracts.warnings, ...contextDocs.warnings];
   if (legacy.status === "fail") {
     if (options.strictLegacy) failures.push("legacy check failed");
     else warnings.push(`adoption-needed: legacy check failed: ${(legacy.stderr || legacy.stdout).trim()}`);
@@ -1896,6 +2152,14 @@ export function buildStatus(targetInput, options = {}) {
   for (const detected of capabilityState.detected) {
     if (!capabilityNames.has(detected)) capabilityNames.set(detected, { name: detected, state: "configured" });
   }
+  const cutoverCounters = taskCutoverCounters(tasks);
+  const fullCutoverEligible =
+    failures.length === 0 &&
+    warnings.length === 0 &&
+    cutoverCounters.legacyVisualOnlyCount === 0 &&
+    cutoverCounters.unknownClassificationCount === 0 &&
+    cutoverCounters.weakBriefCount === 0 &&
+    cutoverCounters.missingCanonicalVisualMapCount === 0;
 
   return {
     project: {
@@ -1920,6 +2184,18 @@ export function buildStatus(targetInput, options = {}) {
         missing: briefMissing,
         total: tasks.length,
       },
+      visualMapCoverage: {
+        canonical: tasks.filter((task) => task.visualMapSource === "canonical").length,
+        legacyOnly: cutoverCounters.legacyVisualOnlyCount,
+        missing: tasks.filter((task) => task.visualMapStatus === "missing").length,
+        total: tasks.length,
+      },
+      fullCutoverEligible,
+      legacyVisualOnlyCount: cutoverCounters.legacyVisualOnlyCount,
+      unknownClassificationCount: cutoverCounters.unknownClassificationCount,
+      weakBriefCount: cutoverCounters.weakBriefCount,
+      visualMapRequiredCount: cutoverCounters.visualMapRequiredCount,
+      missingCanonicalVisualMapCount: cutoverCounters.missingCanonicalVisualMapCount,
     },
     capabilities: [...capabilityNames.values()].map((capability) => ({
       name: capability.name,
@@ -2071,7 +2347,7 @@ function taskTemplateFiles({ locale = "en-US" } = {}) {
     ["brief.md", "templates/planning/brief.md"],
     ["task_plan.md", "templates/planning/task_plan.md"],
     ["execution_strategy.md", "templates/planning/execution_strategy.md"],
-    ["visual_roadmap.md", "templates/planning/visual_roadmap.md"],
+    [visualMapFile, "templates/planning/visual_map.md"],
     ["findings.md", "templates/planning/findings.md"],
     ["progress.md", "templates/planning/progress.md"],
     ["review.md", "templates/planning/review.md"],
@@ -2185,7 +2461,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
       });
       if (dryRun) continue;
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
-      fs.writeFileSync(destinationPath, renderTaskTemplate(readFileSafe(sourcePath), { taskId: normalizedModuleKey, title: normalizedModuleKey, locale: normalizedLocale }));
+      fs.writeFileSync(destinationPath, renderTaskTemplate(readBundledTemplate(source), { taskId: normalizedModuleKey, title: normalizedModuleKey, locale: normalizedLocale }));
     }
   }
   const files = budget === "complex" ? [...taskTemplateFiles({ locale: normalizedLocale }), ...optionalTaskTemplateFiles({ locale: normalizedLocale })] : taskTemplateFiles({ locale: normalizedLocale });
@@ -2199,7 +2475,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
     });
     if (dryRun) continue;
     fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
-    fs.writeFileSync(destinationPath, renderTaskTemplate(readFileSafe(sourcePath), { taskId: normalizedTaskId, title: taskTitle, locale: normalizedLocale }));
+    fs.writeFileSync(destinationPath, renderTaskTemplate(readBundledTemplate(source), { taskId: normalizedTaskId, title: taskTitle, locale: normalizedLocale }));
   }
   return {
     dryRun,
@@ -2236,9 +2512,13 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
 export function updateTaskPhase(targetInput, taskId, phaseId, { state = "", completion = "", evidenceStatus = "" } = {}) {
   const target = normalizeTarget(targetInput);
   const taskDir = resolveTaskDirectory(target, taskId);
-  const roadmapPath = path.join(taskDir, "visual_roadmap.md");
-  if (!fs.existsSync(roadmapPath)) throw new Error(`Task visual roadmap not found: ${taskId}`);
-  let content = readFileSafe(roadmapPath);
+  const visualMapPath = path.join(taskDir, visualMapFile);
+  const legacyPath = path.join(taskDir, legacyVisualRoadmapFile);
+  if (!fs.existsSync(visualMapPath)) {
+    if (fs.existsSync(legacyPath)) throw new Error(`Task has legacy visual_roadmap.md only; rewrite it to visual_map.md before task-phase: ${taskId}`);
+    throw new Error(`Task visual map not found: ${taskId}`);
+  }
+  let content = readFileSafe(visualMapPath);
   const normalizedState = state ? String(state).toLowerCase().replaceAll("-", "_") : "";
   if (normalizedState && !allowedPhaseStates.has(normalizedState)) throw new Error(`Invalid phase state: ${state}`);
   const normalizedEvidence = evidenceStatus ? String(evidenceStatus).toLowerCase() : "";
@@ -2261,7 +2541,7 @@ export function updateTaskPhase(targetInput, taskId, phaseId, { state = "", comp
   });
   if (!phaseUpdate.matched) throw new Error(`Phase not found: ${phaseId}`);
   content = phaseUpdate.content;
-  fs.writeFileSync(roadmapPath, content);
+  fs.writeFileSync(visualMapPath, content);
   return { event: "task-phase", task: findTaskByDirectory(target, taskDir), phaseId };
 }
 
@@ -2362,10 +2642,28 @@ export function plannedInitFiles(capabilities = ["core"], { locale = "en-US" } =
     ["AGENTS.md", "templates/AGENTS.md.template"],
     ["CLAUDE.md", "templates/CLAUDE.md.template"],
     ["docs/Harness-Ledger.md", "templates/ledger/Harness-Ledger.md"],
+    ["docs/03-ARCHITECTURE/README.md", "templates/architecture/README.md"],
+    ["docs/03-ARCHITECTURE/Architecture-SSoT.md", "templates/architecture/Architecture-SSoT.md"],
+    ["docs/03-ARCHITECTURE/local-repo-context.md", "templates/architecture/local-repo-context.md"],
+    ["docs/03-ARCHITECTURE/system-map.md", "templates/architecture/system-map.md"],
+    ["docs/03-ARCHITECTURE/service-catalog.md", "templates/architecture/service-catalog.md"],
+    ["docs/03-ARCHITECTURE/critical-flows.md", "templates/architecture/critical-flows.md"],
+    ["docs/03-ARCHITECTURE/services/_service-template.md", "templates/architecture/services/service-template.md"],
+    ["docs/04-DEVELOPMENT/README.md", "templates/development/README.md"],
+    ["docs/04-DEVELOPMENT/local-setup.md", "templates/development/local-setup.md"],
+    ["docs/04-DEVELOPMENT/codebase-map.md", "templates/development/codebase-map.md"],
+    ["docs/04-DEVELOPMENT/external-context/_service-template.md", "templates/development/external-context/service-template.md"],
+    ["docs/04-DEVELOPMENT/stubs-and-mocks.md", "templates/development/stubs-and-mocks.md"],
+    ["docs/04-DEVELOPMENT/cross-repo-debugging.md", "templates/development/cross-repo-debugging.md"],
+    ["docs/06-INTEGRATIONS/README.md", "templates/integrations/README.md"],
+    ["docs/06-INTEGRATIONS/_api-contract-template.md", "templates/integrations/api-contract.md"],
+    ["docs/06-INTEGRATIONS/_event-contract-template.md", "templates/integrations/event-contract.md"],
+    ["docs/06-INTEGRATIONS/_webhook-contract-template.md", "templates/integrations/webhook-contract.md"],
+    ["docs/06-INTEGRATIONS/third-party/_vendor-template.md", "templates/integrations/third-party/vendor-template.md"],
     ["docs/09-PLANNING/TASKS/_task-template/brief.md", "templates/planning/brief.md"],
     ["docs/09-PLANNING/TASKS/_task-template/task_plan.md", "templates/planning/task_plan.md"],
     ["docs/09-PLANNING/TASKS/_task-template/execution_strategy.md", "templates/planning/execution_strategy.md"],
-    ["docs/09-PLANNING/TASKS/_task-template/visual_roadmap.md", "templates/planning/visual_roadmap.md"],
+    [`docs/09-PLANNING/TASKS/_task-template/${visualMapFile}`, "templates/planning/visual_map.md"],
     ["docs/09-PLANNING/TASKS/_task-template/findings.md", "templates/planning/findings.md"],
     ["docs/09-PLANNING/TASKS/_task-template/progress.md", "templates/planning/progress.md"],
     ["docs/09-PLANNING/TASKS/_task-template/review.md", "templates/planning/review.md"],
@@ -2379,7 +2677,7 @@ export function plannedInitFiles(capabilities = ["core"], { locale = "en-US" } =
     files.push(["docs/09-PLANNING/Module-Registry.md", "templates/ssot/Module-Registry.md"]);
     files.push(["docs/09-PLANNING/MODULES/_task-template/task_plan.md", "templates/planning/task_plan.md"]);
     files.push(["docs/09-PLANNING/MODULES/_task-template/execution_strategy.md", "templates/planning/execution_strategy.md"]);
-    files.push(["docs/09-PLANNING/MODULES/_task-template/visual_roadmap.md", "templates/planning/visual_roadmap.md"]);
+    files.push([`docs/09-PLANNING/MODULES/_task-template/${visualMapFile}`, "templates/planning/visual_map.md"]);
   }
   if (capabilities.includes("long-running-task")) {
     files.push(["docs/09-PLANNING/TASKS/_task-template/long-running-task-contract.md", "templates/planning/long-running-task-contract.md"]);

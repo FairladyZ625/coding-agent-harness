@@ -22,7 +22,8 @@ const taskDocTabs = [
   ["brief", "brief.md"],
   ["taskPlan", "task_plan.md"],
   ["strategy", "execution_strategy.md"],
-  ["roadmap", "visual_roadmap.md"],
+  ["visualMap", "visual_map.md"],
+  ["legacyRoadmap", "visual_roadmap.md"],
   ["progress", "progress.md"],
   ["review", "review.md"],
   ["findings", "findings.md"],
@@ -106,6 +107,8 @@ function statusStrip() {
   const failures = bundle.status?.checkState?.failures || 0;
   const warnings = bundle.status?.checkState?.warnings || 0;
   const tasks = bundle.status?.tasks || [];
+  const summary = bundle.status?.summary || {};
+  const visual = summary.visualMapCoverage || {};
   const withBrief = tasks.filter((task) => task.briefSource === "standalone").length;
   return `<section class="status-card-group">
     <div class="status-primary ${status}">
@@ -116,6 +119,10 @@ function statusStrip() {
     <div class="metrics-grid">
       ${metric(t("tasks"), tasks.length)}
       ${metric(t("briefCoverage"), `${withBrief}/${tasks.length}`)}
+      ${metric(t("visualMapCoverage"), `${visual.canonical || 0}/${summary.visualMapRequiredCount || tasks.length}`)}
+      ${metric(t("fullCutover"), summary.fullCutoverEligible ? t("ready") : t("notReady"))}
+      ${metric(t("legacyVisualOnly"), summary.legacyVisualOnlyCount || 0)}
+      ${metric(t("weakBrief"), summary.weakBriefCount || 0)}
       ${metric(t("blockers"), failures)}
       ${metric(t("advice"), warnings)}
     </div>
@@ -294,6 +301,33 @@ function generatedBrief(task) {
   </div>`;
 }
 
+function clampCompletion(value) {
+  const number = Number(value) || 0;
+  return Math.max(0, Math.min(100, Math.round(number)));
+}
+
+function stateToColorVar(state) {
+  const map = { in_progress: "--accent", review: "--accent-2", blocked: "--danger", done: "--ok", planned: "--muted", not_started: "--muted" };
+  return map[state] || "--muted";
+}
+
+function taskStatsBar() {
+  const allTasks = bundle.status?.tasks || [];
+  const count = (stateName) => allTasks.filter((task) => task.state === stateName).length;
+  const avgCompletion = allTasks.length ? clampCompletion(allTasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / allTasks.length) : 0;
+  return `<section class="task-stats-bar">
+    <div class="stat-chip"><span class="stat-value">${allTasks.length}</span><span class="stat-label">${t("statTotal")}</span></div>
+    <div class="stat-chip progress"><span class="stat-value">${count("in_progress")}</span><span class="stat-label">${t("statInProgress")}</span></div>
+    <div class="stat-chip review"><span class="stat-value">${count("review")}</span><span class="stat-label">${t("statReview")}</span></div>
+    <div class="stat-chip blocked"><span class="stat-value">${count("blocked")}</span><span class="stat-label">${t("statBlocked")}</span></div>
+    <div class="stat-chip done"><span class="stat-value">${count("done")}</span><span class="stat-label">${t("statDone")}</span></div>
+    <div class="stat-chip completion">
+      <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${avgCompletion}%"></div></div>
+      <span class="stat-label">${avgCompletion}% ${t("statOverall")}</span>
+    </div>
+  </section>`;
+}
+
 function taskIndex() {
   const tasks = filteredTasks();
   const groups = taskGroups(tasks);
@@ -302,6 +336,7 @@ function taskIndex() {
   const groupPage = Math.min(Math.max(1, Number(state.taskGroupPage) || 1), groupPageCount);
   const visibleGroups = orderedGroups.slice((groupPage - 1) * taskGroupsPerPage, groupPage * taskGroupsPerPage);
   return `<main class="stack">
+    ${taskStatsBar()}
     <section class="index-toolbar">
       <input data-search value="${escapeAttr(state.query)}" placeholder="${t("searchPlaceholder")}" aria-label="${t("searchTasks")}">
       <select data-state-filter aria-label="${t("stateFilter")}">
@@ -360,16 +395,22 @@ function taskGroup(group, tasks) {
   const page = Math.min(Math.max(1, Number(state.taskPageByGroup[group]) || 1), pageCount);
   const start = (page - 1) * taskPageSize;
   const visibleTasks = tasks.slice(start, start + taskPageSize);
+  const avgCompletion = tasks.length ? clampCompletion(tasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / tasks.length) : 0;
   return `<section class="task-group">
       <div class="section-head">
         <div>
           <h2>${taskGroupLabel(group)}</h2>
           <p class="subtle">${t("showing")} ${Math.min(start + 1, tasks.length)}-${Math.min(start + visibleTasks.length, tasks.length)} / ${tasks.length}</p>
         </div>
-        ${pager("task", page, pageCount, group)}
+        <div class="group-actions">
+          <div class="group-progress" aria-label="${escapeAttr(t("groupCompletion"))}">
+            <div class="group-progress-track"><div class="group-progress-fill" style="width:${avgCompletion}%"></div></div>
+            <span>${avgCompletion}%</span>
+          </div>
+          ${pager("task", page, pageCount, group)}
+        </div>
       </div>
       <div class="task-list">
-        <div class="task-row task-row-head"><span>${t("columnTask")}</span><span>${t("columnState")}</span><span>${t("columnCompletion")}</span><span>${t("columnBrief")}</span></div>
         ${visibleTasks.map(taskRow).join("")}
       </div>
     </section>`;
@@ -400,11 +441,23 @@ function taskModuleKey(task) {
 }
 
 function taskRow(task) {
-  return `<a class="task-row" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}">
-    <span data-label="${escapeAttr(t("columnTask"))}"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.id)} · ${escapeHtml(taskModuleKey(task))}</small></span>
-    <span data-label="${escapeAttr(t("columnState"))}">${tag(task.state)}</span>
-    <span data-label="${escapeAttr(t("columnCompletion"))}">${task.completion}%</span>
-    <span data-label="${escapeAttr(t("columnBrief"))}">${escapeHtml(task.briefSource === "standalone" ? t("briefReady") : t("briefMissing"))}</span>
+  const completion = clampCompletion(task.completion);
+  const briefReady = task.briefSource === "standalone";
+  const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
+  return `<a class="task-row-card" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(task.state)})">
+    <div class="row-accent-bar"></div>
+    <div class="row-main">
+      <strong>${escapeHtml(task.title)}</strong>
+      <span class="row-meta">${escapeHtml(task.id)} · ${escapeHtml(taskModuleKey(task))}</span>
+    </div>
+    <div class="row-status">${tag(task.state)}</div>
+    <div class="row-progress">
+      <div class="mini-progress-track"><div class="mini-progress-fill" style="width:${completion}%"></div></div>
+      <span class="row-pct">${completion}%</span>
+    </div>
+    <div class="row-brief ${briefReady ? "ready" : "missing"}" title="${escapeAttr(briefLabel)}" aria-label="${escapeAttr(briefLabel)}">
+      ${briefReady ? "\u2713" : "\u25CB"}
+    </div>
   </a>`;
 }
 
@@ -428,7 +481,8 @@ function taskDetail(route) {
         ${taskDocSection(task, "brief.md", t("brief"), true)}
         ${!taskDocument(task, "brief.md") ? taskDocSection(task, "task_plan.md", t("taskPlan"), false) : ""}
         ${taskDocSection(task, "execution_strategy.md", t("strategy"), false)}
-        ${taskDocSection(task, "visual_roadmap.md", t("roadmap"), false)}
+        ${taskDocSection(task, "visual_map.md", t("visualMap"), false)}
+        ${taskDocSection(task, "visual_roadmap.md", t("legacyRoadmap"), false)}
         ${selectedSourceDocument(task, route.doc)}
       </article>
       <aside class="detail-side">
@@ -835,7 +889,8 @@ function renderDrawerContent(taskId) {
   const brief = taskDocSection(task, "brief.md", t("brief"), true);
   const plan = taskDocument(task, "brief.md") ? "" : taskDocSection(task, "task_plan.md", t("taskPlan"), false);
   const strategy = taskDocSection(task, "execution_strategy.md", t("strategy"), false);
-  const roadmap = taskDocSection(task, "visual_roadmap.md", t("roadmap"), false);
+  const visualMap = taskDocSection(task, "visual_map.md", t("visualMap"), false);
+  const legacyRoadmap = taskDocSection(task, "visual_roadmap.md", t("legacyRoadmap"), false);
   const findings = openFindings(task);
   const evidence = evidenceList(task);
 
@@ -849,7 +904,8 @@ function renderDrawerContent(taskId) {
       ${brief}
       ${plan}
       ${strategy}
-      ${roadmap}
+      ${visualMap}
+      ${legacyRoadmap}
       ${findings}
       ${evidence}
     </div>

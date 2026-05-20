@@ -40,12 +40,12 @@
 
 ## 执行与可视化文件
 
-`execution_strategy.md` 和 `visual_roadmap.md` 是本任务的同级合同文件，不嵌入 `task_plan.md`。这样 dashboard 和 checker 可以稳定读取。
+`execution_strategy.md` 和 `visual_map.md` 是本任务的同级合同文件，不嵌入 `task_plan.md`。这样 dashboard 和 checker 可以稳定读取。
 
 | 合同文件 | 是否必需 | 用途 |
 | --- | --- | --- |
 | `execution_strategy.md` | yes | 执行模式、subagent 使用、冲突控制、证据深度、交接规则 |
-| `visual_roadmap.md` | yes | Mermaid 路线图、阶段表、完成度、证据状态、阻塞风险 |
+| `visual_map.md` | yes | 图表集合：阶段图、可选架构/时序/数据流/状态图、完成度、证据状态、阻塞风险 |
 | `review.md` | 按需 | 对抗性审查、release review、外部 reviewer 结论 |
 
 旧任务可以保留历史嵌入式段落作为 fallback；新任务必须使用独立文件。

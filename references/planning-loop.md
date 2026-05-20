@@ -10,7 +10,7 @@
 docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/
 ├── task_plan.md    ← 计划：目标、范围、步骤、验收标准
 ├── execution_strategy.md ← 执行策略：模式、subagent、冲突控制、验证深度、handoff
-├── visual_roadmap.md ← 可视化路线：Mermaid、phase table、完成度、证据状态
+├── visual_map.md ← 图表集合：阶段图、架构图、时序图、数据流、状态机、完成度、证据状态
 ├── findings.md     ← 发现：执行过程中的研究发现和技术决策
 ├── progress.md     ← 进度：每个阶段的状态更新和验证结果
 ├── review.md       ← 对抗性审查报告（需要 reviewer / subagent / release review 时必填）
@@ -43,7 +43,7 @@ slices/<slice-id>/review.md
 6. **长程任务必须补合同** — 如果任务需要连续执行、多轮审查或子代理 review，先补 `long-running-task-contract.md`
 7. **任务收口必须回写 Harness Ledger** — 只在任务完成或上下文回写状态变化时记录，不记录每次 `progress.md` 更新
 8. **复杂任务必须记录 `execution_strategy.md`** — 是否使用 subagent、reviewer、worktree、handoff 都写入独立文件。
-9. **非平凡任务必须记录 `visual_roadmap.md`** — HTML dashboard 从独立文件的 Mermaid 和 phase table 计算完成度、阻塞和证据状态。
+9. **非平凡任务必须记录 `visual_map.md`** — 这是任务图表集合，不只是 roadmap；HTML dashboard 从独立文件的 phase table 计算完成度、阻塞和证据状态。
 10. **路径必须带来源前缀** — 使用 `PUBLIC:`, `PRIVATE:`, `TARGET:`, `EXTERNAL:`, `URL:`，避免脆弱相对路径。
 
 ## task_plan.md 模板
@@ -68,7 +68,7 @@ slices/<slice-id>/review.md
 | Contract File | Required | Purpose |
 | --- | --- | --- |
 | `execution_strategy.md` | yes | Execution mode, subagent use, conflict control, evidence depth, handoff rules |
-| `visual_roadmap.md` | yes | Mermaid route, phase table, completion, evidence status, blocking risk |
+| `visual_map.md` | yes | Mermaid maps, phase table, architecture/sequence/data-flow/state diagrams when useful, completion, evidence status, blocking risk |
 
 ## 步骤
 1. [步骤1]

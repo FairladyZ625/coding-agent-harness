@@ -90,7 +90,7 @@ Usage:
   harness add-capability <name> [--dry-run] [--locale zh-CN|en-US] [target]
   harness migrate-plan [--json] [--limit n] [target]
   harness migrate-run [--locale zh-CN|en-US] [--assume-locale] [--allow-dirty] [--plan-only] [--out-dir folder] [--session-dir folder] [target]
-  harness migrate-verify [--json] <session.json>
+  harness migrate-verify [--json] [--full-cutover] <session.json>
   harness new-task <task-id> [--module key] [--budget standard|complex] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
   harness task-start <task-id> [--message text] [target]
   harness task-phase <task-id> <phase-id> [--state done] [--completion 100] [--evidence present] [target]
@@ -198,6 +198,11 @@ if (command === "help" || command === "--help" || command === "-h") {
       console.log(`mode: ${plan.mode}`);
       console.log(`warnings: ${plan.summary.warnings}`);
       console.log(`task actions: ${plan.summary.taskActions}`);
+      console.log(`visual map actions: ${plan.summary.visualMapActions}`);
+      console.log(`legacy visual-only tasks: ${plan.summary.legacyVisualOnly}`);
+      console.log(`weak briefs: ${plan.summary.weakBrief}`);
+      console.log(`unknown classifications: ${plan.summary.unknownClassification}`);
+      console.log(`full cutover eligible: ${plan.summary.fullCutoverEligible ? "yes" : "no"}`);
       console.log(`review actions: ${plan.summary.reviewSchemaGaps}`);
       console.log(`legacy actions: ${plan.summary.legacyReferenceGaps}`);
       console.log(`legacy residuals: ${plan.summary.legacyResiduals}`);
@@ -245,12 +250,13 @@ if (command === "help" || command === "--help" || command === "-h") {
   }
 } else if (command === "migrate-verify") {
   const json = takeFlag("--json");
+  const fullCutover = takeFlag("--full-cutover");
   const sessionPath = args.shift();
   if (!sessionPath) {
     console.error("Missing session.json path");
     process.exit(2);
   }
-  const result = verifyMigrationSession(sessionPath);
+  const result = verifyMigrationSession(sessionPath, { fullCutover });
   if (json) {
     console.log(JSON.stringify(result, null, 2));
   } else {

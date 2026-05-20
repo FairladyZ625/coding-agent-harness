@@ -28,8 +28,8 @@
 - 编辑前检查 dirty state，不要 revert 无关改动。
 - 如果另一个活跃会话拥有该模块或必需共享文件，停止并记录冲突。
 - 代码编辑前，基于项目 planning 模板创建或更新 docs/09-PLANNING/MODULES/<module-key>/TASKS/<current-step>-<short-name>/task_plan.md，写清范围、验收、验证、分支/worktree 和共享协调。
-- 代码编辑前，确认模块任务目录含有 `execution_strategy.md` 与 `visual_roadmap.md`。如缺失，先补齐再实现。
-- 如果 docs/09-PLANNING/MODULES/<module-key>/ 缺少模块级 `execution_strategy.md` 或 `visual_roadmap.md`，在派发 worker 前补齐或更新。
+- 代码编辑前，确认模块任务目录含有 `execution_strategy.md` 与 `visual_map.md`。如缺失，先补齐再实现。
+- 如果 docs/09-PLANNING/MODULES/<module-key>/ 缺少模块级 `execution_strategy.md` 或 `visual_map.md`，在派发 worker 前补齐或更新。
 
 分支与工作树：
 - Worktree path: <worktree-path>.

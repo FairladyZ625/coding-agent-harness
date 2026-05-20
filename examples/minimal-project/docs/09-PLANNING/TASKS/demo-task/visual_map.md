@@ -1,4 +1,12 @@
-# Visual Roadmap
+# Visual Map
+
+Visual Map Contract: v1.0
+
+## Map Index
+
+| ID | Type | Purpose | Required For Understanding | Source Evidence | Promotion Candidate |
+| --- | --- | --- | --- | --- | --- |
+| MAP-01 | phase | Show the demo task phase relationship | yes | `task_plan.md` | no |
 
 ```mermaid
 flowchart LR

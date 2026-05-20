@@ -1,4 +1,15 @@
-# [Task Name] - Visual Roadmap
+# [Task Name] - Visual Map
+
+Visual Map Contract: v1.0
+
+This file is the task's diagram collection. It is not only a phase roadmap.
+Include only diagrams that materially help a human or agent understand the task.
+
+## Map Index
+
+| ID | Type | Purpose | Required For Understanding | Source Evidence | Promotion Candidate |
+| --- | --- | --- | --- | --- | --- |
+| MAP-01 | phase | Show the execution phases and dependencies | yes | `task_plan.md` | no |
 
 ## Phase Graph
 
@@ -20,7 +31,18 @@ flowchart LR
 
 Allowed Evidence Status: missing, partial, present, waived.
 
-## Roadmap Notes
+## Supporting Maps
+
+Add optional diagrams only when useful:
+
+- architecture: module, component, or service structure.
+- sequence: frontend/backend/service/database/agent interaction.
+- data-flow: data movement and ownership.
+- state: state machine or lifecycle.
+- topology: repo, service, worker, or worktree layout.
+- decision: branch and tradeoff tree.
+
+## Map Notes
 
 - Use `missing` when no evidence has been checked.
 - Use `partial` when some evidence exists but required checks remain.

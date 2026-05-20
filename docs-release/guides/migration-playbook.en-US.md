@@ -75,6 +75,7 @@ If later cleanup repairs warnings or active task contracts, the first session is
 - `warnings=0`, `taskActions=0`, `reviewSchemaGaps=0`, `legacyReferenceGaps=0`, `legacyResiduals=0`, and `recommendedCapabilities=[]`.
 - Normal and strict checks pass.
 - Dashboard status has `summary.briefCoverage.ready == total` and `missing == 0`.
+- Canonical task diagrams use `visual_map.md`. Legacy `visual_roadmap.md` is rewrite input only and does not count as full cutover coverage.
 - The task index opens and shows all tasks.
 - At least one adversarial subagent review round passes.
 
@@ -82,7 +83,7 @@ If later cleanup repairs warnings or active task contracts, the first session is
 
 - `MP-01`: confirm compatibility layer and locale; verify historical docs were not overwritten.
 - `MP-02`: choose capabilities; only declare capabilities that project facts support.
-- `MP-03`: add `brief.md`, `execution_strategy.md`, and `visual_roadmap.md` to active tasks.
+- `MP-03`: add `brief.md`, `execution_strategy.md`, and `visual_map.md` to active tasks.
 - `MP-04`: adopt `module-parallel` only if the project already has multiple independent domains.
 - `MP-05`: upgrade current release/architecture/security/data reviews; do not rewrite every historical review.
 - `MP-06`: only use strict as a gate after normal warnings have owner/action/status.
@@ -129,14 +130,14 @@ Subagents should review this evidence chain, not merely list files:
 | Evidence reviewer | Read task progress / review / walkthrough | Find completion evidence, blockers, or residual evidence. |
 | History reviewer | Read git log / diff / PR clues | Decide whether the task is proven by commits or superseded by later work. |
 
-In baseline mode, only `current-active` tasks or tasks still referenced by SSoT as current evidence receive `brief.md`, `execution_strategy.md`, and `visual_roadmap.md`. Other historical tasks should be routed as residuals instead of receiving fake completion templates.
+In baseline mode, only `current-active` tasks or tasks still referenced by SSoT as current evidence receive `brief.md`, `execution_strategy.md`, and `visual_map.md`. Other historical tasks should be routed as residuals instead of receiving fake completion templates.
 
-In full readable cutover mode, every task needs a standalone `brief.md`, but the brief must not be an empty template. A historical task brief is a readable index card: task goal, first human read, evidence sources, status judgment, and residuals. Only active or reopened tasks need stronger execution strategy and visual roadmap.
+In full readable cutover mode, every task needs a standalone `brief.md`, but the brief must not be an empty template. A historical task brief is a readable index card: task goal, first human read, evidence sources, status judgment, and residuals. Only active or reopened tasks need stronger execution strategy and visual map.
 
 | Legacy state | Handling |
 | --- | --- |
 | Closed, historical evidence only | Baseline may keep legacy. Full cutover still adds readable `brief.md`, without faking current execution. |
-| Active task with only `task_plan.md` | Add `brief.md`, `execution_strategy.md`, `visual_roadmap.md`, and log migration evidence with `task-log`. |
+| Active task with only `task_plan.md` | Add `brief.md`, `execution_strategy.md`, `visual_map.md`, and log migration evidence with `task-log`. |
 | Reopened legacy task | Migrate as active. Preserve old content and add v1 files for current facts. |
 | Review exists but is not a current gate | Preserve it and record historical review gap in the migration plan. |
 | Current release-blocking review | Upgrade to v1 `review.md` schema with Evidence Checked and Final Confidence Basis. |
@@ -230,7 +231,7 @@ Full migration should not let one agent edit everything from start to finish. Us
 
 | Worker | Write scope | Goal |
 | --- | --- | --- |
-| Task Contract Worker | `docs/09-PLANNING/TASKS/**/brief.md`, `execution_strategy.md`, `visual_roadmap.md`, same-task `progress.md` append | Clear task contract gaps. |
+| Task Contract Worker | `docs/09-PLANNING/TASKS/**/brief.md`, `execution_strategy.md`, `visual_map.md`, same-task `progress.md` append | Clear task contract gaps. |
 | Review/Capability Worker | `.harness-capabilities.json`, current strict review files | Declare real capabilities and repair release-blocking review schema. |
 | Legacy Governance Worker | `AGENTS.md`, PR template, `docs/11-REFERENCE/**`, Ledger, Closeout SSoT, Lessons SSoT, walkthrough template | Clear legacy checker aggregate failures. |
 | Brief Coverage Workers | date or module slices, missing `brief.md` only | Bring dashboard brief coverage to 100 percent. |

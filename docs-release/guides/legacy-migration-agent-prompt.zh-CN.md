@@ -149,7 +149,7 @@ baseline triage 使用 subagent 时，分派证据工作，而不是分派列表
 
 - `brief.md`
 - `execution_strategy.md`
-- `visual_roadmap.md`
+- `visual_map.md`
 
 不要写通用 placeholder brief。有用的 `brief.md` 必须回答：
 
@@ -174,7 +174,7 @@ Full readable cutover 下，这条 baseline 规则会改变：
 - 每个任务都必须有 standalone `brief.md`，让 dashboard 能被人读懂。
 - 历史任务 brief 不能在无证据时声称正在执行。
 - 把它们写成可读索引卡：任务目标、第一眼读什么、证据流、当前状态判断、风险/残余、证据来源。
-- `execution_strategy.md` 和 `visual_roadmap.md` 主要用于 active/current tasks，除非 strict check 明确要求。
+- `execution_strategy.md` 和 `visual_map.md` 主要用于 active/current tasks，除非 strict check 明确要求。
 - 按日期范围、模块或迁移 bucket 拆给 subagent。
 
 ## Step 5: 判断是否真的有模块

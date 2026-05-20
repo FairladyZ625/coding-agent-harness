@@ -11,12 +11,33 @@
 | `docs/Harness-Ledger.md` | 全局上下文维护总账，记录非平凡任务是否完成计划、审查、回归、Lessons 和收口回写。 |
 | `docs/01-GOVERNANCE/` | Lessons SSoT、经验详情、治理记录、归档。 |
 | `docs/03-ARCHITECTURE/` | ADR、架构设计、接口决策、关键技术方案。 |
+| `docs/04-DEVELOPMENT/` | 本地开发、代码地图、外部服务开发上下文、mock/stub、跨仓调试。 |
 | `docs/05-TEST-QA/` | Regression SSoT、Cadence Ledger、测试策略和回归证据索引。 |
 | `docs/09-PLANNING/` | Delivery SSoT、Module Registry、任务目录、模块计划。 |
 | `docs/09-PLANNING/TASKS/` | 每个任务一个目录，包含 task plan、progress、findings、review。 |
 | `docs/10-WALKTHROUGH/` | 收口记录和 Closeout SSoT。 |
 | `docs/11-REFERENCE/` | agent 按需加载的标准文件，控制行为而不是记录流水账。 |
 | `docs/99-TMP/` | 临时材料，定期清理，不作为长期事实来源。 |
+
+## 03 / 04 / 06 路由规则
+
+```text
+03 = 它在系统里是什么
+04 = 我开发当前仓时怎么面对它
+06 = 我和它具体怎么对接
+```
+
+| 目录 | 负责 | 不负责 | 必需 schema 信号 |
+| --- | --- | --- | --- |
+| `docs/03-ARCHITECTURE/` | 系统结构、服务职责、owner、service catalog、critical flows、ADR | endpoint payload、mock 指南、任务日志 | `Context Doc Type`, `Source Evidence`, `Last Verified`, `Confidence` |
+| `docs/04-DEVELOPMENT/` | local setup、codebase map、external development context、mock/stub、cross-repo debugging | 长期架构事实、API payload 合同 | `Context Doc Type`, `Development Use`, `Do Not Assume`, `Mocks / Stubs`, `Source Evidence`, `Last Verified`, `Confidence` |
+| `docs/06-INTEGRATIONS/` | API/event/webhook/SDK/third-party contract、auth、payload、errors、contract tests | 全局拓扑、service ownership catalog、调试笔记 | `Context Doc Type`, `Contract Type`, `Auth`, `Payload`, `Errors`, `Contract Tests`, `Source Evidence`, `Last Verified`, `Confidence` |
+
+具体分工：
+
+- `03-ARCHITECTURE/service-catalog.md` 只写服务摘要和链接。
+- `06-INTEGRATIONS/<service>-api-contract.md` 才写 payload、auth、errors、contract tests。
+- `04-DEVELOPMENT/external-context/<service>.md` 写 mock/stub、不安全假设和调试说明。
 
 ## 命名规则
 
@@ -57,3 +78,4 @@
 3. 证据用路径、命令、日志、截图、PR、CI run 引用，不依赖聊天记录。
 4. 表格用于状态和路由；段落用于解释判断和边界。
 5. 更新 reference 或 template 时，必须在 Harness Ledger 记录本次上下文维护。
+6. `03/04/06` 文档必须使用 schema 信号，发现内容错位时迁移到正确目录。

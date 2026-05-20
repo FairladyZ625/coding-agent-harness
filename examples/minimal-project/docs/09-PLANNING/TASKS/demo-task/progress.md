@@ -8,4 +8,4 @@ in-progress
 
 | Date | Update | Evidence |
 | --- | --- | --- |
-| 2026-05-18 | Created example roadmap | report:TARGET:docs/09-PLANNING/TASKS/demo-task/visual_roadmap.md:example phase table |
+| 2026-05-18 | Created example visual map | report:TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md:example phase table |

@@ -99,7 +99,7 @@ Read:
 Build the queue in this order:
 
 1. Capability registry and locale.
-2. Task contracts: `brief.md`, `execution_strategy.md`, `visual_roadmap.md`.
+2. Task contracts: `brief.md`, `execution_strategy.md`, `visual_map.md`.
 3. Review schema.
 4. Legacy governance and reference checker failures.
 5. Dashboard readability briefs for every task.
@@ -113,7 +113,7 @@ Use small, bounded worker roles. These roles can run sequentially or in parallel
 
 | Worker | Write scope | Goal |
 | --- | --- | --- |
-| Task Contract Worker | `docs/09-PLANNING/TASKS/**/brief.md`, `execution_strategy.md`, `visual_roadmap.md`, optional same-task `progress.md` log | Remove task contract failures. |
+| Task Contract Worker | `docs/09-PLANNING/TASKS/**/brief.md`, `execution_strategy.md`, `visual_map.md`, optional same-task `progress.md` log | Remove task contract failures. |
 | Review/Capability Worker | `.harness-capabilities.json`, current strict review files | Declare real capabilities and normalize release-blocking review schema. |
 | Legacy Governance Worker | `AGENTS.md`, PR template or residual, `docs/11-REFERENCE/**`, Ledger, Closeout SSoT, Lessons SSoT, walkthrough template | Clear legacy checker failures. |
 | Brief Coverage Workers | disjoint task-date or module ranges, only missing `brief.md` | Reach dashboard brief coverage 100 percent. |
@@ -133,7 +133,7 @@ Example brief worker prompt:
 
 ```text
 Your write scope is only docs/09-PLANNING/TASKS/2026-03-11* through 2026-03-31*/brief.md.
-Only create missing brief.md. Do not edit progress.md, task_plan.md, review.md, execution_strategy.md, or visual_roadmap.md.
+Only create missing brief.md. Do not edit progress.md, task_plan.md, review.md, execution_strategy.md, or visual_map.md.
 Every brief must be Chinese-first if locale is zh-CN and must cite this task's task_plan.md/progress.md/findings.md/review evidence.
 Do not leave parser-failure phrases such as "unknown", "could not parse", "若干", "未能解析", "未提供 Current Focus", or "无明确 Roadmap Binding".
 ```
@@ -170,7 +170,7 @@ For every task that must be readable in the dashboard:
 
 - `brief.md` answers what the task is, why it matters, what a human should inspect first, current state, risks, residuals, and evidence sources.
 - `execution_strategy.md` explains how an agent should resume or verify the task.
-- `visual_roadmap.md` gives a phase table or readable roadmap.
+- `visual_map.md` gives a phase table or readable roadmap.
 
 Full readable cutover requires every task to have a standalone `brief.md`. This is stricter than baseline safe-adoption.
 

@@ -99,7 +99,7 @@ harness migrate-verify /tmp/cah-migration-baseline/session.json
 按这个顺序建立队列：
 
 1. Capability registry 和 locale。
-2. Task contracts：`brief.md`、`execution_strategy.md`、`visual_roadmap.md`。
+2. Task contracts：`brief.md`、`execution_strategy.md`、`visual_map.md`。
 3. Review schema。
 4. Legacy governance 和 reference checker failures。
 5. 每个 task 的 dashboard readability briefs。
@@ -113,7 +113,7 @@ harness migrate-verify /tmp/cah-migration-baseline/session.json
 
 | Worker | 写入范围 | 目标 |
 | --- | --- | --- |
-| Task Contract Worker | `docs/09-PLANNING/TASKS/**/brief.md`、`execution_strategy.md`、`visual_roadmap.md`、同任务 `progress.md` 可选追加 | 清掉 task contract failures。 |
+| Task Contract Worker | `docs/09-PLANNING/TASKS/**/brief.md`、`execution_strategy.md`、`visual_map.md`、同任务 `progress.md` 可选追加 | 清掉 task contract failures。 |
 | Review/Capability Worker | `.harness-capabilities.json`、当前 strict review 文件 | 声明真实能力并规范 release-blocking review schema。 |
 | Legacy Governance Worker | `AGENTS.md`、PR template 或 residual、`docs/11-REFERENCE/**`、Ledger、Closeout SSoT、Lessons SSoT、walkthrough template | 清掉 legacy checker failures。 |
 | Brief Coverage Workers | 按 task 日期段或模块拆分，只写缺失 `brief.md` | 达到 dashboard brief coverage 100%。 |
@@ -133,7 +133,7 @@ Brief worker prompt 示例：
 
 ```text
 Your write scope is only docs/09-PLANNING/TASKS/2026-03-11* through 2026-03-31*/brief.md.
-Only create missing brief.md. Do not edit progress.md, task_plan.md, review.md, execution_strategy.md, or visual_roadmap.md.
+Only create missing brief.md. Do not edit progress.md, task_plan.md, review.md, execution_strategy.md, or visual_map.md.
 Every brief must be Chinese-first if locale is zh-CN and must cite this task's task_plan.md/progress.md/findings.md/review evidence.
 Do not leave parser-failure phrases such as "unknown", "could not parse", "若干", "未能解析", "未提供 Current Focus", or "无明确 Roadmap Binding".
 ```
@@ -170,7 +170,7 @@ harness migrate-plan --json --limit 1000 /path/to/project
 
 - `brief.md` 回答任务是什么、为什么重要、人第一眼看什么、当前状态、风险、残余和证据来源。
 - `execution_strategy.md` 说明 agent 如何恢复或验证任务。
-- `visual_roadmap.md` 提供 phase table 或可读 roadmap。
+- `visual_map.md` 提供 phase table 或可读 roadmap。
 
 Full readable cutover 要求每个 task 都有 standalone `brief.md`。这比 baseline safe-adoption 严格。
 

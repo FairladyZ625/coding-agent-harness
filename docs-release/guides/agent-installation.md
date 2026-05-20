@@ -153,7 +153,7 @@ harness task-complete phase-2-lifecycle \
 规则：
 
 - `new-task` 创建 `brief.md`、`task_plan.md`、`execution_strategy.md`、
-  `visual_roadmap.md`、`findings.md`、`progress.md` 和 `review.md`。
+  `visual_map.md`、`findings.md`、`progress.md` 和 `review.md`。
 - 已存在的任务目录不会被覆盖；需要改名或继续旧任务时，由 coordinator 决定。
 - `task-start`、`task-block`、`task-complete` 只更新 `progress.md` 的生命周期状态和日志。
 - `task-log` 只追加执行记录；证据使用 `type:PATH:summary`，例如

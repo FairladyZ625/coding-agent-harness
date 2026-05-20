@@ -188,13 +188,19 @@ const folderIndex = fs.readFileSync(path.join(dashboardDir, "index.html"), "utf8
 assert(folderIndex.includes("dashboard-data.js"), "dashboard folder index missing embedded data script");
 assert(folderIndex.includes("rel=\"icon\""), "dashboard index should suppress favicon request");
 const folderStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8"));
-assert(folderStatus.tasks[0].roadmapSource === "standalone", "folder status should use standalone visual_roadmap.md");
+assert(folderStatus.tasks[0].visualMapSource === "canonical", "folder status should use canonical visual_map.md");
+assert(folderStatus.tasks[0].roadmapSource === "canonical", "folder status should preserve roadmapSource compatibility as canonical");
 assert(folderStatus.schemaVersion === 2, "dashboard folder status should expose schemaVersion 2");
+assert(folderStatus.summary.fullCutoverEligible === true, "minimal project should expose fullCutoverEligible=true");
+assert(folderStatus.summary.legacyVisualOnlyCount === 0, "minimal project should expose zero legacy visual-only tasks");
+assert(folderStatus.summary.weakBriefCount === 0, "minimal project should expose zero weak briefs");
+assert(folderStatus.summary.unknownClassificationCount === 0, "minimal project should expose zero unknown migration classifications");
+assert(folderStatus.summary.missingCanonicalVisualMapCount === 0, "minimal project should expose zero missing canonical visual maps");
 const documents = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/documents.json"), "utf8"));
 assert(documents.documents.some((doc) => doc.path.endsWith("/brief.md")), "documents should include task briefs");
 assert(documents.documents.some((doc) => doc.path.endsWith("/task_plan.md")), "documents should include task plan fallback");
 assert(documents.documents.some((doc) => doc.path.endsWith("execution_strategy.md")), "documents missing execution strategy");
-assert(documents.documents.some((doc) => doc.path.endsWith("visual_roadmap.md")), "documents missing visual roadmap");
+assert(documents.documents.some((doc) => doc.path.endsWith("visual_map.md")), "documents missing visual map");
 const tables = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/tables.json"), "utf8"));
 assert(tables.tables.some((table) => table.kind === "harness-ledger"), "documents missing harness ledger table");
 assert(JSON.stringify(tables).includes("alpha|beta"), "markdown table parser should preserve escaped pipes");
@@ -209,9 +215,15 @@ assert(dashboardApp.includes("taskDetail("), "dashboard should implement task de
 assert(dashboardApp.includes("data-render-toggle"), "dashboard missing render/source toggle");
 assert(dashboardApp.includes("data-search"), "dashboard missing task search control");
 assert(dashboardApp.includes("taskGroupsPerPage"), "dashboard missing global task group paging");
+assert(dashboardApp.includes("taskStatsBar"), "dashboard missing task stats bar");
+assert(dashboardApp.includes("task-row-card"), "dashboard missing upgraded task row card");
+assert(dashboardApp.includes("fullCutoverEligible"), "dashboard missing full cutover summary field");
+assert(dashboardApp.includes("legacyVisualOnlyCount"), "dashboard missing legacy visual-only summary field");
+assert(dashboardApp.includes("weakBriefCount"), "dashboard missing weak brief summary field");
 assert(dashboardApp.includes("warningQueue()"), "dashboard missing warning queue workbench");
 assert(dashboardApp.includes("migrationRunwayBreakdown"), "dashboard missing aggregate migration runway drilldown");
 assert(dashboardApp.includes("[\"brief\", \"brief.md\"]"), "dashboard should make brief.md the first task detail tab");
+assert(dashboardApp.includes("[\"visualMap\", \"visual_map.md\"]"), "dashboard should expose canonical visual_map.md tab");
 assert(dashboardApp.includes("projectMermaid"), "dashboard should render project flow from graph data");
 assert(dashboardApp.includes("escapeHtml(projectName())"), "dashboard project title must be escaped");
 assert(dashboardMarkdown.includes("rendered-table"), "dashboard missing rendered markdown table support");
@@ -332,7 +344,7 @@ assert(!fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/phase-2
 const lifecycleCreate = expectJson(["new-task", "phase-2-lifecycle", "--title", "阶段二任务生命周期", "--locale", "zh-CN", lifecycleTarget]);
 assert(lifecycleCreate.task?.shortId === "phase-2-lifecycle", "new-task should report normalized short task id");
 assert(lifecycleCreate.task?.id === "TASKS/phase-2-lifecycle", "new-task should report relative task id");
-for (const required of ["brief.md", "task_plan.md", "execution_strategy.md", "visual_roadmap.md", "findings.md", "progress.md", "review.md"]) {
+for (const required of ["brief.md", "task_plan.md", "execution_strategy.md", "visual_map.md", "findings.md", "progress.md", "review.md"]) {
   assert(
     fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/phase-2-lifecycle", required)),
     `new-task should create ${required}`,
@@ -349,7 +361,11 @@ expectJson(["task-log", "phase-2-lifecycle", "--message", "补齐 CLI 与模板"
 const lifecycleBlocked = expectJson(["task-block", "phase-2-lifecycle", "--message", "等待旧项目迁移验证", lifecycleTarget]);
 assert(lifecycleBlocked.task?.state === "blocked", "task-block should report blocked state");
 const lifecyclePhase = expectJson(["task-phase", "phase-2-lifecycle", "PH-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
-assert(lifecyclePhase.task?.phases?.some((phase) => phase.id === "PH-01" && phase.state === "done" && phase.completion === 100), "task-phase should update visual roadmap row");
+assert(lifecyclePhase.task?.phases?.some((phase) => phase.id === "PH-01" && phase.state === "done" && phase.completion === 100), "task-phase should update visual map row");
+assert(
+  fs.readFileSync(path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/phase-2-lifecycle/visual_map.md"), "utf8").includes("Visual Map Contract: v1.0"),
+  "new-task should render canonical visual map contract",
+);
 expectJson(["task-phase", "phase-2-lifecycle", "PH-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
 const missingPhase = run(["task-phase", "phase-2-lifecycle", "NO_SUCH_PHASE", "--state", "done", lifecycleTarget]);
 assert(missingPhase.status !== 0, "task-phase should fail for unknown phase id");
@@ -599,13 +615,25 @@ assert(migrationPlan.operation === "migrate-plan", "migrate-plan should report i
 assert(migrationPlan.compatibility?.preserves?.some((item) => item.includes("AGENTS.md")), "migrate-plan should state preservation rules");
 assert(migrationPlan.phases?.some((phase) => phase.id === "MP-03"), "migrate-plan should include active task migration phase");
 assert(migrationPlan.summary?.missingExecutionStrategy >= 1, "migrate-plan should count missing execution strategies");
+assert(migrationPlan.summary?.missingVisualMap >= 1, "migrate-plan should count missing canonical visual maps");
+assert(migrationPlan.summary?.visualMapActions >= 1, "migrate-plan should expose visual map action count");
+assert(migrationPlan.summary?.legacyVisualOnly >= 1, "migrate-plan should expose legacy visual-only count");
+assert(migrationPlan.summary?.weakBrief >= 1, "migrate-plan should expose weak brief count");
+assert(migrationPlan.summary?.missingCanonicalVisualMap >= 1, "migrate-plan should expose missing canonical visual map count");
+assert(migrationPlan.summary?.fullCutoverEligible === false, "legacy migrate-plan should not be full-cutover eligible");
 assert(migrationPlan.taskActions?.some((action) => action.taskId === "old" && action.files.includes("execution_strategy.md")), "migrate-plan should include task-level file actions");
+assert(migrationPlan.taskActions?.some((action) => action.taskId === "old" && action.files.includes("visual_map.md")), "migrate-plan should include canonical visual map action");
 assert(migrationPlan.taskActions?.some((action) => action.taskId === "old" && action.files.includes("brief.md")), "migrate-plan should include active brief migration action");
+assert(migrationPlan.visualMapActions?.some((action) => action.taskId === "old"), "migrate-plan should expose visual map actions separately");
+assert(migrationPlan.legacyVisualOnlyTasks?.some((action) => action.taskId === "old"), "migrate-plan should expose legacy visual-only tasks separately");
+assert(migrationPlan.weakBriefTasks?.some((action) => action.taskId === "old"), "migrate-plan should expose weak brief tasks separately");
 assert(migrationPlan.taskActions?.some((action) => action.commands.some((command) => command.includes("_task-template/brief.md"))), "migrate-plan should emit a command per active task file");
 assert(migrationPlan.nextCommands?.some((command) => command.includes("migrate-run")), "migrate-plan should include migrate-run command");
+assert(migrationPlan.nextCommands?.some((command) => command.includes("migrate-verify --full-cutover")), "migrate-plan should include full-cutover verify command");
 const migrationPlanText = expectPass(["migrate-plan", "--limit", "3", legacyAdoptionTarget]).stdout;
 assert(migrationPlanText.includes("Migration Plan"), "migrate-plan text output should have a readable heading");
 assert(migrationPlanText.includes("legacy residuals:"), "migrate-plan text output should show residual counts");
+assert(migrationPlanText.includes("full cutover eligible:"), "migrate-plan text output should show full cutover eligibility");
 const adoptedStrict = run(["status", "--json", "--strict", legacyAdoptionTarget]);
 assert(adoptedStrict.status !== 0, "safe-adoption strict status should still fail on historical contract gaps");
 
@@ -652,6 +680,8 @@ assert(
 const migrationVerify = expectJson(["migrate-verify", "--json", migrationRun.sessionPath]);
 assert(migrationVerify.status === "pass", "migrate-verify should pass for migrate-run output");
 assert(migrationVerify.dashboard?.indexPath?.endsWith("index.html"), "migrate-verify should preserve HTML dashboard evidence");
+const migrationFullCutover = run(["migrate-verify", "--json", "--full-cutover", migrationRun.sessionPath]);
+assert(migrationFullCutover.status !== 0, "full cutover verify should reject baseline legacy-only migration output");
 
 const falseSessionPath = path.join(tmpRoot, "false-session.json");
 fs.writeFileSync(

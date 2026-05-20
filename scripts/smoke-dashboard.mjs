@@ -58,6 +58,12 @@ function smokeTarget(target, name) {
   }
   const docs = JSON.parse(fs.readFileSync(path.join(outDir, "data/documents.json"), "utf8"));
   const tables = JSON.parse(fs.readFileSync(path.join(outDir, "data/tables.json"), "utf8"));
+  const status = JSON.parse(fs.readFileSync(path.join(outDir, "data/status.json"), "utf8"));
+  assert(typeof status.summary?.fullCutoverEligible === "boolean", `${name} missing fullCutoverEligible`);
+  assert(Number.isFinite(Number(status.summary?.legacyVisualOnlyCount)), `${name} missing legacyVisualOnlyCount`);
+  assert(Number.isFinite(Number(status.summary?.unknownClassificationCount)), `${name} missing unknownClassificationCount`);
+  assert(Number.isFinite(Number(status.summary?.weakBriefCount)), `${name} missing weakBriefCount`);
+  assert(Number.isFinite(Number(status.summary?.missingCanonicalVisualMapCount)), `${name} missing missingCanonicalVisualMapCount`);
   assert(!JSON.stringify(docs.documents.map((doc) => doc.path)).includes("_task-template"), `${name} documents included task template paths`);
   assert(!JSON.stringify(tables.tables.map((table) => table.source)).includes("_task-template"), `${name} tables included task template sources`);
   return outDir;

@@ -17,13 +17,13 @@ docs/
 │   └── _archive/              ← 已处理条目归档
 ├── 02-PRODUCT/                ← 产品设计、用户流程、功能规格
 │   └── _archive/              ← 本层历史文档归档（如该层会增长）
-├── 03-ARCHITECTURE/           ← 架构设计、技术方案、ADR
+├── 03-ARCHITECTURE/           ← 系统结构事实源：本仓架构、外部系统结构、服务地图、关键跨服务流、ADR
 │   └── _archive/              ← 本层历史文档归档（如该层会增长）
-├── 04-DEVELOPMENT/            ← 开发指南、环境配置、本地开发说明
+├── 04-DEVELOPMENT/            ← 开发上下文输入包：本地开发、外部服务摘要、mock/stub、跨仓调试
 │   └── _archive/              ← 本层历史文档归档（如该层会增长）
 ├── 05-TEST-QA/                ← 测试策略、Regression SSoT、Cadence Ledger
 │   └── _archive/              ← 废弃 regression gate / 旧 evidence pack 归档
-├── 06-INTEGRATIONS/           ← 第三方集成文档、API 对接说明
+├── 06-INTEGRATIONS/           ← 接口合同层：API、event、webhook、SDK、第三方接入细节
 │   └── _archive/              ← 本层历史文档归档（如该层会增长）
 ├── 07-OPERATIONS/             ← 部署、运维、监控、告警
 │   └── _archive/              ← 本层历史文档归档（如该层会增长）
@@ -71,6 +71,36 @@ docs/
 
 `docs/10-WALKTHROUGH/Closeout-SSoT.md` 是 closed task 的收口索引和硬门槛；
 每个 closed Harness Ledger row 必须在这里登记 walkthrough 或受控 skip reason。
+
+## 03 / 04 / 06 边界规则
+
+这三个目录共同承载项目和外部系统知识，但职责不能重叠：
+
+```text
+03 = 它在系统里是什么
+04 = 我开发当前仓时怎么面对它
+06 = 我和它具体怎么对接
+```
+
+| 目录 | 放什么 | 不放什么 | 必需机器字段 |
+| --- | --- | --- | --- |
+| `03-ARCHITECTURE/` | system map、service catalog、service responsibility、ownership、critical flows、ADR | endpoint payload、错误码、mock/stub、任务日志 | `Context Doc Type`, `Source Evidence`, `Last Verified`, `Confidence` |
+| `04-DEVELOPMENT/` | local setup、codebase map、external service development summary、mocks/stubs、cross-repo debugging | 长期系统事实源、payload 合同、ADR | `Context Doc Type`, `Development Use`, `Do Not Assume`, `Mocks / Stubs`, `Source Evidence`, `Last Verified`, `Confidence` |
+| `06-INTEGRATIONS/` | endpoint、payload、错误码、auth、event schema、webhook、SDK、contract tests | 全局拓扑、service ownership catalog、开发调试笔记 | `Context Doc Type`, `Contract Type`, `Auth`, `Payload`, `Errors`, `Contract Tests`, `Source Evidence`, `Last Verified`, `Confidence` |
+
+示例：
+
+- `03-ARCHITECTURE/service-catalog.md` 可以写“Billing API: owner=payments, interface=/v1/invoices, link=06-INTEGRATIONS/billing-api-contract.md”。
+- `06-INTEGRATIONS/billing-api-contract.md` 才写 `/v1/invoices` 的 payload、错误码、鉴权和 contract test。
+- `04-DEVELOPMENT/external-context/billing.md` 写本仓开发时如何 mock Billing、如何排查 Billing 失败、哪些 Billing 假设不安全。
+
+Checker 规则：
+
+- 新增 `03/04/06` 文档必须声明 `Context Doc Type`。
+- 结构事实必须有 `Source Evidence`、`Last Verified` 和 `Confidence`。
+- `04-DEVELOPMENT/external-context/*.md` 必须包含 `Development Use`、`Do Not Assume`、`Mocks / Stubs`。
+- `06-INTEGRATIONS/*.md` 必须包含 `Contract Type`、`Auth`、`Payload`、`Errors`、`Contract Tests`。
+- 旧项目 safe-adoption 可先收到 warning；declared canonical 项目应修到 clean。
 
 ## 通用归档规则
 

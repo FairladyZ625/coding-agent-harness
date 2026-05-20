@@ -28,8 +28,8 @@ This document preserves the legacy bootstrap sequence used before the v1.0 capab
 | Legacy Area | v1.0 Destination |
 | --- | --- |
 | AGENTS.md / CLAUDE.md | Preserve existing files; merge only missing routing and residuals. |
-| Task directory with only `task_plan.md` | Add `brief.md`, `execution_strategy.md`, `visual_roadmap.md`, `progress.md`, `findings.md`, and `review.md` only for active tasks. |
-| Embedded roadmap in `task_plan.md` | Move active roadmap rows into standalone `visual_roadmap.md`; leave historical tasks untouched unless they are reopened. |
+| Task directory with only `task_plan.md` | Add `brief.md`, `execution_strategy.md`, `visual_map.md`, `progress.md`, `findings.md`, and `review.md` only for active tasks. |
+| Embedded roadmap in `task_plan.md` | Move active roadmap rows into standalone `visual_map.md`; leave historical tasks untouched unless they are reopened. |
 | Single-line progress status | Normalize active tasks through `harness task-start`, `task-block`, `task-log`, and `task-complete`. |
 | Broad reference bundle | Declare only capabilities that are actually adopted in `.harness-capabilities.json`. |
 | Long-running task artifacts | Add or declare `long-running-task` only when active work needs continuous autonomous execution. |

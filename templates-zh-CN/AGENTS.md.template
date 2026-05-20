@@ -43,7 +43,7 @@
 ## 标准执行流程
 
 1. 判断任务是否非平凡；非平凡任务先在 `docs/09-PLANNING/TASKS/` 建任务目录。
-2. 填写 `task_plan.md`，并补齐同级 `execution_strategy.md` 与 `visual_roadmap.md`。
+2. 填写 `task_plan.md`，并补齐同级 `execution_strategy.md` 与 `visual_map.md`。
 3. 确认本任务的 delivery operating model；涉及多人、多仓或共享交付时更新 Delivery SSoT。
 4. 如果任务可能长时间连续执行，先填写 `long-running-task-contract.md`。
 5. 如需 reviewer、subagent、release review，在任务目录维护 `review.md`。

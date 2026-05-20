@@ -76,6 +76,7 @@ harness migrate-verify /tmp/cah-migration-project/session.json
 - `warnings=0`、`taskActions=0`、`reviewSchemaGaps=0`、`legacyReferenceGaps=0`、`legacyResiduals=0`、`recommendedCapabilities=[]`。
 - normal 和 strict check 都通过。
 - dashboard status 里 `summary.briefCoverage.ready == total` 且 `missing == 0`。
+- 任务图表 canonical 文件是 `visual_map.md`。旧 `visual_roadmap.md` 只能作为重写输入，不算 full cutover 覆盖。
 - 任务索引页面能打开并显示全量任务。
 - 至少一轮 subagent 对抗审查 PASS。
 
@@ -83,7 +84,7 @@ harness migrate-verify /tmp/cah-migration-project/session.json
 
 - `MP-01`：确认兼容层和 locale，保证历史文档没有被覆盖。
 - `MP-02`：选择 capability，只声明项目事实已经支持的能力。
-- `MP-03`：给活跃任务补 `brief.md`、`execution_strategy.md`、`visual_roadmap.md`。
+- `MP-03`：给活跃任务补 `brief.md`、`execution_strategy.md`、`visual_map.md`。
 - `MP-04`：如果项目已经有多个独立功能域，再引入 `module-parallel`。
 - `MP-05`：升级当前 release/architecture/security/data review，不重写所有历史 review。
 - `MP-06`：普通检查 warning 都有 owner/action/status 后，再使用 strict 作为门禁。
@@ -130,14 +131,14 @@ Subagent 应该围绕这个证据链互审：
 | Evidence reviewer | 读 task progress / review / walkthrough | 找到完成证据、阻塞证据或 residual 证据 |
 | History reviewer | 读 git log / diff / PR 线索 | 判断任务是否已被提交历史或后续任务覆盖 |
 
-Baseline 模式下，只有 `current-active` 或 “仍被 SSoT 引用为当前证据”的任务，才补 `brief.md`、`execution_strategy.md`、`visual_roadmap.md`。其他历史任务要写 residual 路由，不要批量补模板制造假完成。
+Baseline 模式下，只有 `current-active` 或 “仍被 SSoT 引用为当前证据”的任务，才补 `brief.md`、`execution_strategy.md`、`visual_map.md`。其他历史任务要写 residual 路由，不要批量补模板制造假完成。
 
-Full readable cutover 模式下，所有任务都需要 standalone `brief.md`，但不能写空模板。历史任务的 brief 应该是“可读索引卡”：说明任务目标、第一眼应该看什么、证据来自哪里、状态判断和 residual。只有当前或重新打开的任务才需要更强的执行策略和 visual roadmap。
+Full readable cutover 模式下，所有任务都需要 standalone `brief.md`，但不能写空模板。历史任务的 brief 应该是“可读索引卡”：说明任务目标、第一眼应该看什么、证据来自哪里、状态判断和 residual。只有当前或重新打开的任务才需要更强的执行策略和 visual map。
 
 | 旧状态 | 处理方式 |
 | --- | --- |
 | 已关闭、只作历史证据 | Baseline 可保持 legacy；full cutover 仍需补可读 `brief.md`，但不伪造当前执行状态。 |
-| 活跃任务但只有 `task_plan.md` | 添加 `brief.md`、`execution_strategy.md`、`visual_roadmap.md`，用 `task-log` 记录迁移证据。 |
+| 活跃任务但只有 `task_plan.md` | 添加 `brief.md`、`execution_strategy.md`、`visual_map.md`，用 `task-log` 记录迁移证据。 |
 | 重新打开的旧任务 | 当作活跃任务迁移，不重写旧内容，新增 v1 文件承接当前事实。 |
 | 有 review 但不是当前门禁 | 保留原样，迁移计划中记录为历史 review gap。 |
 | 当前 release-blocking review | 升级到 v1 `review.md` schema，补 Evidence Checked 和 Final Confidence Basis。 |
@@ -231,7 +232,7 @@ Full cutover 的 dashboard smoke 必须验证：
 
 | Worker | 写入范围 | 目标 |
 | --- | --- | --- |
-| Task Contract Worker | `docs/09-PLANNING/TASKS/**/brief.md`、`execution_strategy.md`、`visual_roadmap.md`、同任务 `progress.md` 追加 | 清掉 task contract 缺口。 |
+| Task Contract Worker | `docs/09-PLANNING/TASKS/**/brief.md`、`execution_strategy.md`、`visual_map.md`、同任务 `progress.md` 追加 | 清掉 task contract 缺口。 |
 | Review/Capability Worker | `.harness-capabilities.json`、当前 strict review 文件 | 声明真实 capability，修 release-blocking review schema。 |
 | Legacy Governance Worker | `AGENTS.md`、PR template、`docs/11-REFERENCE/**`、Ledger、Closeout SSoT、Lessons SSoT、walkthrough template | 清掉 legacy checker 聚合错误。 |
 | Brief Coverage Workers | 按日期段或模块划分，只写缺失 `brief.md` | 把 dashboard brief coverage 变成 100%。 |

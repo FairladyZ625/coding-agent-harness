@@ -1,6 +1,14 @@
-# 可视化路线图
+# Visual Map / 可视化图谱
 
-本文件供 HTML dashboard 和人工审查同时使用。Mermaid 图展示阶段关系；阶段表提供可解析的状态、完成度和证据状态。
+Visual Map Contract: v1.0
+
+本文件是任务图表集合，不只是阶段路线图。只有对人或 agent 理解任务有实际帮助的图才放进来。
+
+## 图表索引（Map Index）
+
+| ID | Type | Purpose | Required For Understanding | Source Evidence | Promotion Candidate |
+| --- | --- | --- | --- | --- | --- |
+| MAP-01 | phase | 展示执行阶段和依赖关系 | yes | `task_plan.md` | no |
 
 ## 阶段关系图（Phase Graph）
 
@@ -22,3 +30,14 @@ flowchart LR
 允许的 `Evidence Status`：`missing`, `partial`, `present`, `waived`。
 
 `Completion` 使用 `0..100` 的整数；`done` 应为 `100`，`planned` 应为 `0`，`skipped` 不计入 dashboard 总完成度。dashboard 以阶段表计算进度，不从正文推断。
+
+## 支持性图表（Supporting Maps）
+
+按需添加，不要求每类都存在：
+
+- architecture：模块、组件、服务结构。
+- sequence：前端、后端、服务、数据库、agent 时序。
+- data-flow：数据流转和所有权。
+- state：状态机或生命周期。
+- topology：repo、服务、worker、worktree 拓扑。
+- decision：方案分叉和决策树。
