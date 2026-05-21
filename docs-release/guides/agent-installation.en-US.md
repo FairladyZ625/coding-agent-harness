@@ -56,7 +56,7 @@ Choose capabilities conservatively:
 | Capability | Default | When to choose |
 | --- | --- | --- |
 | `core` | Yes | Always install. This is the document kernel. |
-| `dashboard` | No | A user or agent needs a local read-only status page. |
+| `dashboard` | No | A user or agent needs a local status page, static evidence snapshot, or localhost dynamic workbench. |
 | `safe-adoption` | No | A legacy Harness project adopts v1.0 while preserving history. |
 | `adversarial-review` | No | Release, architecture, security, data, or policy risk needs independent review artifacts. |
 | `long-running-task` | No | An agent needs to execute across many turns without asking the user at every step. |
@@ -68,10 +68,13 @@ The JSON output from `init` includes a `report`. The delivery summary must inclu
 - locale
 - selected capabilities and the reason for every optional capability
 - created / skipped files
+- the recommended daily entry from `nextCommands`, such as `harness dev` or `npx --yes coding-agent-harness dev .`
 - project-specific edits made during Configure
 - verification commands and results
 - residual owner / action / status
 - whether anything was committed, and whether dogfood artifacts were cleaned
+
+`init` does not modify `package.json` by default. Use `--add-npm-scripts` only when the user explicitly wants npm scripts in the target project. That option requires an existing `package.json` and does not overwrite existing `harness:dev` or `harness:dashboard` scripts.
 
 ## External Source Intake
 
@@ -164,6 +167,11 @@ harness task-log phase-2-lifecycle \
   --evidence "command:TARGET:npm-test:passed" \
   /path/to/project
 
+harness review-confirm TASKS/phase-2-lifecycle \
+  --reviewer "Human Reviewer" \
+  --confirm phase-2-lifecycle \
+  /path/to/project
+
 harness task-complete phase-2-lifecycle \
   --message "Verification loop completed" \
   /path/to/project
@@ -175,6 +183,10 @@ Rules:
 - Existing task directories are not overwritten. Renaming or continuing old tasks is a coordinator decision.
 - `task-start`, `task-block`, and `task-complete` only update lifecycle status and logs in `progress.md`.
 - `task-log` only appends execution records. Evidence uses `type:PATH:summary`, for example `command:TARGET:npm-test:passed`.
+- `review-confirm` appends a human review confirmation to `review.md` and a log entry to `progress.md`. It must reject open P0/P1/P2 findings marked `Open: yes` or `Blocks Release: yes`.
+- `status --json` keeps old `task.state` for compatibility and adds `lifecycleState`, `reviewStatus`, `closeoutStatus`, and `stateConflicts`. `done` means implementation finished; it does not mean `closed`.
+- For human operation, start the local HTML workbench with `harness dev /path/to/project`. It binds to `127.0.0.1`, chooses a port automatically, opens the browser, and refreshes when docs change. In headless or CI contexts, use `harness dev --no-open /path/to/project`.
+- The lower-level compatible entry point remains `harness dashboard --workbench --out-dir /tmp/harness-workbench /path/to/project`. Static dashboard files remain read-only and must not host human confirmation actions.
 - `task-list --json` and `status --json` are the read entry points for dashboards, reviewers, and later agents.
 
 ## Verification Commands
@@ -184,6 +196,7 @@ Before closing installation or upgrade, run at least:
 ```bash
 harness check --profile target-project /path/to/project
 harness status --json /path/to/project
+harness dev --no-open --out-dir /tmp/harness-workbench /path/to/project
 harness dashboard --out /tmp/harness-dashboard.html /path/to/project
 ```
 

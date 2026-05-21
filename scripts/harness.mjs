@@ -1,18 +1,21 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
   addCapability,
   buildMigrationPlan,
   buildStatus,
+  confirmTaskReview,
   createTask,
   doctorUserSkill,
   installUserSkill,
   listLifecycleTasks,
   normalizeLocale,
   runMigration,
+  serveDashboardWorkbench,
   validateSourcePackageBoundary,
   updateModuleStep,
   updateTaskPhase,
@@ -85,8 +88,9 @@ function printHelp() {
 Usage:
   harness check [--profile source-package|private-harness|target-project] [target]
   harness status [--json] [--strict] [target]
-  harness dashboard [--out file.html] [--out-dir folder] [target]
-  harness init [--dry-run] [--locale zh-CN|en-US] [--capabilities core,dashboard] [target]
+  harness dev [--no-open] [--out-dir folder] [--host 127.0.0.1] [--port n] [target]
+  harness dashboard [--out file.html] [--out-dir folder] [--workbench] [--host 127.0.0.1] [--port n] [target]
+  harness init [--dry-run] [--locale zh-CN|en-US] [--capabilities core,dashboard] [--add-npm-scripts] [target]
   harness add-capability <name> [--dry-run] [--locale zh-CN|en-US] [target]
   harness migrate-plan [--json] [--limit n] [target]
   harness migrate-run [--locale zh-CN|en-US] [--assume-locale] [--allow-dirty] [--plan-only] [--out-dir folder] [--session-dir folder] [target]
@@ -96,6 +100,7 @@ Usage:
   harness task-phase <task-id> <phase-id> [--state done] [--completion 100] [--evidence present] [target]
   harness task-log <task-id> --message text [--evidence type:PATH:summary] [target]
   harness task-block <task-id> [--message text] [target]
+  harness review-confirm <task-id> --confirm task-id [--reviewer name] [--message text] [target]
   harness task-complete <task-id> [--message text] [target]
   harness task-list [--json] [--state state] [--module key] [target]
   harness module-step <module-key> <step-id> [--state done|in-progress|blocked] [target]
@@ -150,12 +155,74 @@ if (command === "help" || command === "--help" || command === "-h") {
     console.log(`capabilities: ${status.capabilities.map((capability) => `${capability.name}:${capability.state}`).join(", ")}`);
     console.log(`tasks: ${status.tasks.length}`);
   }
-  process.exit(status.checkState.status === "fail" ? 1 : 0);
+  process.exitCode = status.checkState.status === "fail" ? 1 : 0;
+} else if (command === "dev") {
+  const open = !takeFlag("--no-open");
+  const outDir = takeOption("--out-dir", "");
+  const host = takeOption("--host", "127.0.0.1");
+  const port = takeOption("--port", "0");
+  const localeOverride = takeOption("--locale", "");
+  const target = targetArg();
+  const dashboardOutDir = outDir || defaultDevOutDir(target);
+  const opts = localeOverride ? { localeOverride } : {};
+  try {
+    await serveDashboardWorkbench(dashboardOutDir, target, { ...opts, host, port, autoRefresh: true, open, label: "harness dev" });
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
 } else if (command === "dashboard") {
+  const watch = takeFlag("--watch");
+  const workbench = takeFlag("--workbench");
   const out = takeOption("--out", "harness-dashboard.html");
   const outDir = takeOption("--out-dir", "");
+  const host = takeOption("--host", "127.0.0.1");
+  const port = takeOption("--port", "0");
   const localeOverride = takeOption("--locale", "");
   const opts = localeOverride ? { localeOverride } : {};
+  if (workbench) {
+    if (!outDir) {
+      console.error("dashboard --workbench requires --out-dir so regenerated data has a stable folder");
+      process.exit(2);
+    }
+    try {
+      await serveDashboardWorkbench(outDir, targetArg(), { ...opts, host, port });
+    } catch (error) {
+      console.error(error.message);
+      process.exit(1);
+    }
+  }
+  if (watch) {
+    if (!outDir) {
+      console.error("dashboard --watch requires --out-dir so updates are written to a stable folder");
+      process.exit(2);
+    }
+    const target = targetArg();
+    const docsRoot = path.basename(path.resolve(target)) === "docs" ? path.resolve(target) : path.join(path.resolve(target), "docs");
+    const regenerate = () => {
+      try {
+        console.log(writeDashboardFolder(outDir, target, opts));
+        console.log(`dashboard regenerated: ${new Date().toISOString()}`);
+      } catch (error) {
+        console.error(`dashboard regeneration failed: ${error.message}`);
+      }
+    };
+    regenerate();
+    let timer = null;
+    const watcher = fs.watch(docsRoot, { recursive: true }, () => {
+      clearTimeout(timer);
+      timer = setTimeout(regenerate, 300);
+    });
+    const close = () => {
+      watcher.close();
+      clearTimeout(timer);
+      process.exit(0);
+    };
+    process.on("SIGINT", close);
+    process.on("SIGTERM", close);
+    console.log(`watching ${docsRoot}`);
+    await new Promise(() => {});
+  }
   if (outDir) {
     console.log(writeDashboardFolder(outDir, targetArg(), opts));
   } else {
@@ -164,11 +231,12 @@ if (command === "help" || command === "--help" || command === "-h") {
   process.exit(0);
 } else if (command === "init") {
   const dryRun = takeFlag("--dry-run");
+  const addNpmScripts = takeFlag("--add-npm-scripts");
   const locale = await resolveInitLocale(takeOption("--locale", ""));
   const capabilities = takeOption("--capabilities", "core").split(",").map((item) => item.trim()).filter(Boolean);
   try {
-    const result = writeInitFiles(targetArg(), capabilities, { dryRun, locale });
-    console.log(JSON.stringify({ dryRun, locale: result.locale, capabilities: result.capabilities, changes: result.changes, report: result.report }, null, 2));
+    const result = writeInitFiles(targetArg(), capabilities, { dryRun, locale, addNpmScripts });
+    console.log(JSON.stringify({ dryRun, locale: result.locale, capabilities: result.capabilities, changes: result.changes, nextCommands: result.nextCommands, report: result.report }, null, 2));
   } catch (error) {
     console.error(error.message);
     process.exit(1);
@@ -320,6 +388,22 @@ if (command === "help" || command === "--help" || command === "-h") {
     console.error(error.message);
     process.exit(1);
   }
+} else if (command === "review-confirm") {
+  const reviewer = takeOption("--reviewer", "Human Reviewer");
+  const message = takeOption("--message", "");
+  const evidence = takeOption("--evidence", "");
+  const confirmText = takeOption("--confirm", "");
+  const taskId = args.shift();
+  if (!taskId) {
+    console.error("Missing task id");
+    process.exit(2);
+  }
+  try {
+    console.log(JSON.stringify(confirmTaskReview(targetArg(), taskId, { reviewer, message, evidence, confirmText }), null, 2));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
 } else if (command === "task-list") {
   const json = takeFlag("--json");
   const state = takeOption("--state", "");
@@ -377,4 +461,11 @@ if (command === "help" || command === "--help" || command === "-h") {
 } else {
   printHelp();
   process.exit(2);
+}
+
+function defaultDevOutDir(targetInput) {
+  const target = path.resolve(targetInput || ".");
+  const name = path.basename(target) || "project";
+  const hash = Buffer.from(target).toString("hex").slice(0, 16);
+  return path.join(os.tmpdir(), "coding-agent-harness-dev", `${name}-${hash}`);
 }

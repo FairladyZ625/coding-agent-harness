@@ -69,7 +69,7 @@ Capability 要保守选择：
 | Capability | 默认 | 何时选择 |
 | --- | --- | --- |
 | `core` | 是 | 永远安装。这是 document kernel。 |
-| `dashboard` | 否 | 用户或 agent 需要本地只读状态页。 |
+| `dashboard` | 否 | 用户或 agent 需要本地状态页、静态证据快照，或本机动态 workbench。 |
 | `safe-adoption` | 否 | 旧 harness 项目接入 v1.0，需要保留历史文档。 |
 | `adversarial-review` | 否 | 发布、架构、安全、数据或策略风险需要独立 review artifact。 |
 | `long-running-task` | 否 | Agent 需要连续多轮执行，不能每步都询问用户。 |
@@ -81,10 +81,15 @@ Capability 要保守选择：
 - locale
 - selected capabilities，以及每个可选 capability 的选择理由
 - created / skipped files
+- nextCommands 中推荐的 `harness dev` 或 `npx --yes coding-agent-harness dev .` 日常入口
 - Configure 阶段做了哪些项目化改动
 - verification commands 和结果
 - residual owner / action / status
 - 是否提交；如果只是 dogfood 测试，是否已清理测试产物
+
+`init` 默认不会修改 `package.json`。只有用户明确希望目标项目保留 npm script 时，才使用
+`--add-npm-scripts`；该选项要求目标项目已经存在 `package.json`，并且不会覆盖已有
+`harness:dev` 或 `harness:dashboard` script。
 
 ## 外部资料摄取
 
@@ -183,6 +188,11 @@ harness task-log phase-2-lifecycle \
   --evidence "command:TARGET:npm-test:passed" \
   /path/to/project
 
+harness review-confirm TASKS/phase-2-lifecycle \
+  --reviewer "Human Reviewer" \
+  --confirm phase-2-lifecycle \
+  /path/to/project
+
 harness task-complete phase-2-lifecycle \
   --message "验证闭环完成" \
   /path/to/project
@@ -196,6 +206,10 @@ harness task-complete phase-2-lifecycle \
 - `task-start`、`task-block`、`task-complete` 只更新 `progress.md` 的生命周期状态和日志。
 - `task-log` 只追加执行记录；证据使用 `type:PATH:summary`，例如
   `command:TARGET:npm-test:passed`。
+- `review-confirm` 会向 `review.md` 追加人工审查确认，并向 `progress.md` 追加日志；如果存在 `Open: yes` 或 `Blocks Release: yes` 的开放 P0/P1/P2 finding，必须拒绝确认。
+- `status --json` 保留旧 `task.state` 用于兼容，并新增 `lifecycleState`、`reviewStatus`、`closeoutStatus` 和 `stateConflicts`。`done` 只表示实现完成，不等于 `closed`。
+- 人工操作入口使用本地 HTML workbench：`harness dev /path/to/project`。它会启动只绑定 `127.0.0.1` 的动态页面、自动选择端口、打开浏览器并随 docs 变更刷新。无 GUI 或 CI 场景使用 `harness dev --no-open /path/to/project`。
+- 底层兼容入口仍是 `harness dashboard --workbench --out-dir /tmp/harness-workbench /path/to/project`。静态 dashboard 文件仍然只读，不能承载人工确认动作。
 - `task-list --json` 和 `status --json` 是 dashboard、reviewer 和后续 agent 的读取入口。
 
 ## 验证命令
@@ -205,6 +219,7 @@ harness task-complete phase-2-lifecycle \
 ```bash
 harness check --profile target-project /path/to/project
 harness status --json /path/to/project
+harness dev --no-open --out-dir /tmp/harness-workbench /path/to/project
 harness dashboard --out /tmp/harness-dashboard.html /path/to/project
 ```
 

@@ -216,6 +216,14 @@ Agent 应该把这些行动分配 owner/action/status，而不是一次性改完
 
 ## Dashboard 迁移工作台
 
+需要人工确认、审查完成标记或其他网页操作时，使用动态本地入口：
+
+```bash
+harness dev /path/to/project
+```
+
+静态 dashboard 仍用于 CI、迁移交付和离线证据快照；它不能承载 review confirm 之类的写入动作。
+
 大项目不要用任务级 Mermaid 链路作为第一眼视图。任务数量很大或拓扑边不足时，dashboard 会切到聚合迁移跑道：
 
 1. Baseline snapshot：确认当前历史任务、能力声明和检查状态。

@@ -19,6 +19,8 @@ export function writeDashboardDirectory(outDir, bundle, options = {}) {
   assertSafeDashboardTarget(target, options);
   if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true });
   copyDashboardAssets(target, options);
+  fs.writeFileSync(path.join(target, "assets/app.js"), readDashboardApp(dashboardTemplateRootForLocale(options.locale)));
+  fs.writeFileSync(path.join(target, "index.html"), renderDashboardIndex(options.locale, options));
   fs.writeFileSync(path.join(target, dashboardMarker), "generated dashboard directory\n");
   writeJsonFile(path.join(target, "data/status.json"), bundle.status);
   writeJsonFile(path.join(target, "data/tables.json"), bundle.tables);
@@ -56,9 +58,10 @@ export function renderDashboardFile(bundle, options = {}) {
   const i18n = readAsset("assets/i18n.js");
   const markdown = readAsset("assets/markdown-reader.js");
   const mermaid = readAsset("assets/mermaid-renderer.js");
-  const app = readAsset("assets/app.js");
+  const app = readDashboardApp(templateRoot);
   const title = options.locale === "zh-CN" ? "Harness 控制台" : "Harness Dashboard";
   const payload = JSON.stringify(bundle).replace(/</g, "\\u003c");
+  const runtimeLocale = options.locale === "zh-CN" ? "zh" : "en";
   return `<!doctype html>
 <html lang="${options.locale === "zh-CN" ? "zh-CN" : "en"}">
 <head>
@@ -71,6 +74,7 @@ export function renderDashboardFile(bundle, options = {}) {
 <body>
   <div id="app" class="app-shell" aria-live="polite"></div>
   <script>window.__HARNESS_DASHBOARD__ = ${payload};</script>
+  <script>window.__HARNESS_LOCALE__ = ${JSON.stringify(runtimeLocale)};</script>
   <script>${i18n}</script>
   <script>${markdown}</script>
   <script>${mermaid}</script>
@@ -79,8 +83,59 @@ export function renderDashboardFile(bundle, options = {}) {
 </html>`;
 }
 
+function renderDashboardIndex(locale = "en-US", options = {}) {
+  const normalizedLocale = locale === "zh-CN" ? "zh-CN" : "en";
+  const runtimeLocale = locale === "zh-CN" ? "zh" : "en";
+  const title = locale === "zh-CN" ? "Harness 控制台" : "Harness Dashboard";
+  const assetVersion = Date.now();
+  return `<!doctype html>
+<html lang="${normalizedLocale}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title}</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./assets/app.css?v=${assetVersion}">
+</head>
+<body>
+  <div id="app" class="app-shell" aria-live="polite"></div>
+  <script src="./assets/dashboard-data.js?v=${assetVersion}"></script>
+  <script>window.__HARNESS_LOCALE__ = ${JSON.stringify(runtimeLocale)};</script>
+  <script>window.__HARNESS_WORKBENCH__ = ${options.workbenchRuntime === true ? "true" : "false"};</script>
+  <script src="./assets/i18n.js?v=${assetVersion}"></script>
+  <script src="./assets/markdown-reader.js?v=${assetVersion}"></script>
+  <script src="./assets/mermaid-renderer.js?v=${assetVersion}"></script>
+  <script src="./assets/app.js?v=${assetVersion}"></script>
+</body>
+</html>`;
+}
+
+function readDashboardApp(templateRoot) {
+  const manifestPath = path.join(templateRoot, "assets/app.manifest.json");
+  if (!fs.existsSync(manifestPath)) return fs.readFileSync(path.join(templateRoot, "assets/app.js"), "utf8");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  if (!Array.isArray(manifest) || manifest.length === 0) throw new Error(`Invalid dashboard app manifest: ${manifestPath}`);
+  return `${manifest.map((relativePath) => {
+    const source = path.join(templateRoot, "assets", relativePath);
+    if (!fs.existsSync(source)) throw new Error(`Dashboard app source missing: ${relativePath}`);
+    return fs.readFileSync(source, "utf8").trimEnd();
+  }).join("\n\n")}\n`;
+}
+
 function assertSafeDashboardTarget(target, options) {
   const localizedDashboardTemplateRoot = dashboardTemplateRootForLocale(options.locale);
+  const sourceRepoRoot = options.repoRoot ? path.resolve(options.repoRoot) : "";
+  const projectRoot = options.projectRoot ? path.resolve(options.projectRoot) : "";
+  if (
+    sourceRepoRoot &&
+    projectRoot &&
+    isPathInside(projectRoot, sourceRepoRoot) &&
+    path.basename(projectRoot) === ".harness-private" &&
+    isPathInside(target, sourceRepoRoot) &&
+    !isPathInside(target, projectRoot)
+  ) {
+    throw new Error(`Refusing private dashboard output inside publishable source package: ${target}`);
+  }
   const protectedRoots = [
     path.parse(target).root,
     process.env.HOME,
@@ -108,8 +163,7 @@ function assertSafeDashboardTarget(target, options) {
 }
 
 function dashboardTemplateRootForLocale(locale = "en-US") {
-  const localized = locale === "zh-CN" ? path.join(repoRoot, "templates-zh-CN/dashboard") : dashboardTemplateRoot;
-  return fs.existsSync(localized) ? localized : dashboardTemplateRoot;
+  return dashboardTemplateRoot;
 }
 
 function isPathInside(candidate, parent) {

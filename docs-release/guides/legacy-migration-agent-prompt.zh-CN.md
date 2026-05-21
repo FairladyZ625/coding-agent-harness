@@ -32,6 +32,9 @@ English source: `docs-release/guides/legacy-migration-agent-prompt.md`
 9. Dashboard evidence 必须是实际存在的 HTML dashboard 路径。Markdown ledger 或 docs 页面不是 dashboard。
 10. Full readable cutover 比 baseline 严格：需要 0 warning/action/residual、strict 通过、dashboard brief coverage 达到 `total/total`。
 11. 写文件前必须完成“扫描 → 建议迁移模式 → 用户确认”三步；不能由 agent 静默选择只补齐或全量重写。
+12. 状态轴必须分开。保留旧的 `task.state`，从 `status --json` 读取派生的 `lifecycleState`、`reviewStatus`、`closeoutStatus` 和 `stateConflicts`，不要在迁移脚本里重新发明含义。
+13. 不要把 `done`、`completed`、`merged` 或 `shipped` 当成 `closed`。只有 Closeout SSoT 记录了收口证据，或明确记录 skipped-with-reason 收口路径，任务才算关闭。
+14. 人工审查确认是 dashboard workbench 动作。日常本地 HTML 入口使用 `harness dev /path/to/project`。静态 dashboard 快照只读；CLI 可以支持自动化，但需要人工确认的迁移必须在本地 HTML workbench 中暴露操作入口。
 
 ## Step 0: 扫描后询问用户
 
@@ -155,6 +158,8 @@ Full readable cutover 必须继续使用 subagent。不要让单个 agent 默默
 - `detail`: 原始 warning 细节。
 
 每批 warning 都需要 owner/action/status。不要只因为“看过了”就标 done。
+
+当 `status --json` 显示 `reviewStatus: blocked-open-findings`，先关闭或路由所有开放 P0/P1/P2 finding，再让人确认审查完成。当显示 `lifecycleState: closing`，不要宣布任务 closed，除非 Closeout SSoT、walkthrough 或 skipped-with-reason 证据已经存在。
 
 ## Step 2: 安装 Safe Adoption
 

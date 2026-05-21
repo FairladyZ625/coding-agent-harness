@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const packageVersion = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")).version;
@@ -17,6 +17,7 @@ const sampleOpenFindingPattern = /^\|\s*(?:F|R|SR|V|RR|HL)-\d+\s*\|.*\|\s*(?:ope
 const englishFirstZhHeadingPattern = /^#{1,6}\s+(?:Reviewer Identity|Confidence Challenge|Material Findings|Non-Material Notes|Evidence Checked|Final Confidence Basis|Follow-Up Routing|Phase Graph|Phase Table|Context Packet|Artifact Index|Stop Condition|Pause Conditions|Deliverables|Module Session Prompt|Subagent\s*\/\s*Worker|Coordinator|Worktree|Slice ID|Parent Phase|Inputs|Verifier\b|Harness\b|Closeout\b|Lessons\b)/m;
 const zhMechanicalEnglishWorkflowPattern = /^\s*\d+\.\s*(?:implement|run locally|self-review|rerun evidence)\b/im;
 const zhMechanicalEvidencePhrasePattern = /\b(?:local smoke|browser or UI inspection|live environment smoke|reviewer findings|PR checks\s*\/\s*workflow run)\b/i;
+const { taskMigrationClassification, requiresCanonicalVisualMap } = await import("./lib/harness-core.mjs");
 
 function run(args, options = {}) {
   const result = spawnSync(node, [cli, ...args], {
@@ -40,6 +41,44 @@ function expectPass(args) {
 function expectJson(args) {
   const result = expectPass(args);
   return JSON.parse(result.stdout);
+}
+
+function waitForWorkbench(child) {
+  return new Promise((resolve, reject) => {
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error(`workbench did not start\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`));
+    }, 8000);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+      const match = stdout.match(/(?:dashboard workbench|harness dev):\s+(http:\/\/127\.0\.0\.1:\d+\/)\s+csrf=([a-f0-9]+)/i);
+      if (!match) return;
+      clearTimeout(timer);
+      resolve({ url: match[1], csrf: match[2], stdout, stderr });
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("exit", (code) => {
+      if (code !== null && code !== 0) {
+        clearTimeout(timer);
+        reject(new Error(`workbench exited with ${code}\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`));
+      }
+    });
+  });
+}
+
+async function waitForCondition(fn, message, { timeout = 8000, interval = 200 } = {}) {
+  const started = Date.now();
+  let lastValue;
+  while (Date.now() - started < timeout) {
+    lastValue = await fn();
+    if (lastValue) return lastValue;
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+  throw new Error(`${message}: ${JSON.stringify(lastValue)}`);
 }
 
 function commandExists(command) {
@@ -99,6 +138,8 @@ assert(
 expectPass(["check", "--profile", "source-package", "."]);
 if (fs.existsSync(path.join(repoRoot, ".harness-private"))) {
   expectPass(["check", "--profile", "private-harness", ".harness-private"]);
+  const privateStatus = expectJson(["status", "--json", ".harness-private"]);
+  assert(privateStatus.tasks.length >= 1, "private-harness status JSON should be complete and parseable");
 }
 
 const sourceBoundaryTarget = path.join(tmpRoot, "source-boundary-target");
@@ -123,13 +164,16 @@ assert(sourceBoundaryCheck.stderr.includes("private local-only file staged: .har
 
 const englishTemplateFiles = relativeFiles(path.join(repoRoot, "templates"));
 const chineseTemplateFiles = relativeFiles(path.join(repoRoot, "templates-zh-CN"));
+const englishNonDashboardTemplateFiles = englishTemplateFiles.filter((file) => !file.startsWith("dashboard/"));
+const chineseNonDashboardTemplateFiles = chineseTemplateFiles.filter((file) => !file.startsWith("dashboard/"));
 assert(englishTemplateFiles.length > 0, "templates/ should contain English templates");
 assert(chineseTemplateFiles.length > 0, "templates-zh-CN/ should contain Chinese templates");
 assert(
-  JSON.stringify(englishTemplateFiles) === JSON.stringify(chineseTemplateFiles),
-  "templates/ and templates-zh-CN/ should expose the same template file set",
+  JSON.stringify(englishNonDashboardTemplateFiles) === JSON.stringify(chineseNonDashboardTemplateFiles),
+  "templates/ and templates-zh-CN/ should expose the same non-dashboard template file set",
 );
-for (const relativeFile of englishTemplateFiles) {
+assert(!chineseTemplateFiles.some((file) => file.startsWith("dashboard/")), "templates-zh-CN/dashboard should be removed; dashboard uses runtime i18n");
+for (const relativeFile of englishNonDashboardTemplateFiles) {
   const content = fs.readFileSync(path.join(repoRoot, "templates", relativeFile), "utf8");
   assert(!chineseCharacterPattern.test(content), `English template contains Chinese text: ${relativeFile}`);
   assert(!brokenMechanicalTemplatePattern.test(content), `English template contains mechanical placeholder text: ${relativeFile}`);
@@ -140,15 +184,24 @@ assert(
   fs.readFileSync(path.join(repoRoot, "templates-zh-CN", "AGENTS.md.template"), "utf8").includes("项目概况"),
   "templates-zh-CN should provide Chinese AGENTS.md content",
 );
-for (const relativeFile of chineseTemplateFiles) {
+for (const relativeFile of chineseNonDashboardTemplateFiles) {
   const content = fs.readFileSync(path.join(repoRoot, "templates-zh-CN", relativeFile), "utf8");
   assert(!brokenMechanicalTemplatePattern.test(content), `Chinese template contains mechanical placeholder text: ${relativeFile}`);
   assert(!staleDispositionPattern.test(content), `Chinese template contains stale disposition vocabulary: ${relativeFile}`);
   assert(!sampleOpenFindingPattern.test(content), `Chinese template contains a real open sample finding row: ${relativeFile}`);
   assert(!englishFirstZhHeadingPattern.test(content), `Chinese template contains English-first review heading: ${relativeFile}`);
   assert(!zhMechanicalEnglishWorkflowPattern.test(content), `Chinese template contains unlocalized workflow phrase: ${relativeFile}`);
-  assert(!zhMechanicalEvidencePhrasePattern.test(content), `Chinese template contains unlocalized evidence phrase: ${relativeFile}`);
+assert(!zhMechanicalEvidencePhrasePattern.test(content), `Chinese template contains unlocalized evidence phrase: ${relativeFile}`);
 }
+
+assert(taskMigrationClassification("unknown", "legacy-only") === "unknown-needs-human", "unknown legacy-only task should require human classification");
+assert(taskMigrationClassification("done", "not-needed") === "historical-no-map-needed", "done task with not-needed visual map should not require migration action");
+assert(taskMigrationClassification("active", "present") === "active", "active task with canonical visual map should remain active");
+assert(taskMigrationClassification("reopened", "missing") === "active", "reopened task should be treated as active migration work");
+assert(
+  requiresCanonicalVisualMap({ migrationClassification: "historical-no-map-needed" }) === false,
+  "historical-no-map-needed should not generate a canonical visual map action",
+);
 
 const exampleStatus = expectJson(["status", "--json", "examples/minimal-project"]);
 assert(exampleStatus.project.name === "minimal-project", "example status project name mismatch");
@@ -165,6 +218,8 @@ assert(dashboardHtml.includes("Harness Dashboard"), "dashboard HTML missing titl
 assert(dashboardHtml.includes("window.__HARNESS_DASHBOARD__"), "dashboard HTML missing inline data bundle");
 assert(dashboardHtml.includes("Human Visibility Dashboard"), "dashboard HTML missing v2 visibility copy");
 assert(dashboardHtml.includes("#/tasks"), "dashboard HTML missing task index route");
+assert(dashboardHtml.includes("#/review"), "dashboard HTML missing review queue route");
+assert(dashboardHtml.includes("function reviewQueue()"), "dashboard HTML missing review queue page implementation");
 
 const dashboardDir = path.join(tmpRoot, "dashboard-folder");
 expectPass(["dashboard", "--out-dir", dashboardDir, "examples/minimal-project"]);
@@ -242,6 +297,14 @@ const unsafeDocsOut = run(["dashboard", "--out-dir", "examples/minimal-project/d
 assert(unsafeDocsOut.status !== 0, "dashboard --out-dir target docs should be refused");
 const unsafeDocsChildOut = run(["dashboard", "--out-dir", "examples/minimal-project/docs/generated-dashboard", "examples/minimal-project"]);
 assert(unsafeDocsChildOut.status !== 0, "dashboard --out-dir inside target docs should be refused");
+const staticWorkbenchFlagDir = path.join(tmpRoot, "static-workbench-flag");
+expectPass(["dashboard", "--out-dir", staticWorkbenchFlagDir, "examples/minimal-project"]);
+assert(
+  fs.readFileSync(path.join(staticWorkbenchFlagDir, "index.html"), "utf8").includes("__HARNESS_WORKBENCH__ = false"),
+  "static dashboard folder should not enable workbench runtime",
+);
+const helpOutput = expectPass(["help"]).stdout;
+assert(helpOutput.includes("harness dev"), "help should advertise harness dev as the daily dynamic workbench entry");
 
 const redactionTarget = path.join(tmpRoot, "redaction-target");
 fs.mkdirSync(path.join(redactionTarget, "docs/09-PLANNING/TASKS/path-check"), { recursive: true });
@@ -262,6 +325,7 @@ fs.mkdirSync(dryRunTarget);
 const dryRun = expectJson(["init", "--dry-run", "--locale", "zh-CN", "--capabilities", "core,dashboard", dryRunTarget]);
 assert(dryRun.dryRun === true, "init dry-run did not report dryRun true");
 assert(dryRun.locale === "zh-CN", "init dry-run did not preserve zh-CN locale");
+assert(dryRun.nextCommands?.some((command) => command.includes("coding-agent-harness dev")), "init output should recommend harness dev as the next human dashboard command");
 assert(
   dryRun.changes.filter((change) => change.destination.startsWith("docs/11-REFERENCE/")).every((change) => change.destination === "docs/11-REFERENCE/external-source-intake-standard.md"),
   "init scaffold should only copy the external source intake standard as a core reference",
@@ -302,6 +366,7 @@ assert(zhInit.report?.locale === "zh-CN", "init output should include install re
 assert(zhInit.report?.capabilities?.some((capability) => capability.name === "core" && capability.default === true), "install report should explain core as default");
 assert(zhInit.report?.capabilities?.some((capability) => capability.name === "dashboard" && capability.selected === true), "install report should mark selected capabilities");
 assert(zhInit.report?.agentInstructions?.some((item) => item.includes("--locale")), "install report should remind agents to pass --locale explicitly");
+assert(zhInit.nextCommands?.some((command) => command.includes("coding-agent-harness dev")), "init should print a dev workbench next command");
 const zhRegistry = JSON.parse(fs.readFileSync(path.join(zhInitTarget, ".harness-capabilities.json"), "utf8"));
 assert(zhRegistry.locale === "zh-CN", "init should persist zh-CN locale");
 assert(fs.readFileSync(path.join(zhInitTarget, "AGENTS.md"), "utf8").includes("项目概况"), "zh-CN init should write Chinese AGENTS.md");
@@ -323,6 +388,22 @@ const zhDashboardI18n = fs.readFileSync(path.join(zhDashboardDir, "assets/i18n.j
 assert(zhDashboardIndex.includes("Harness 控制台"), "zh-CN dashboard should use localized index template");
 assert(zhDashboardApp.includes("projectCockpit"), "zh-CN dashboard should render through localized labels");
 assert(zhDashboardI18n.includes("控制台"), "zh-CN dashboard should include localized app labels");
+assert(zhDashboardApp.includes("data-language-toggle"), "dashboard should expose runtime language toggle");
+assert(zhDashboardIndex.includes("__HARNESS_LOCALE__"), "dashboard should bootstrap locale explicitly");
+
+const packageScriptTarget = path.join(tmpRoot, "package-script-target");
+fs.mkdirSync(packageScriptTarget);
+fs.writeFileSync(path.join(packageScriptTarget, "package.json"), JSON.stringify({ scripts: { test: "node --version" } }, null, 2));
+const packageScriptInit = expectJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard", "--add-npm-scripts", packageScriptTarget]);
+assert(packageScriptInit.changes.some((change) => change.destination === "package.json" && change.action === "update-scripts"), "init --add-npm-scripts should report package.json script update");
+const packageScripts = JSON.parse(fs.readFileSync(path.join(packageScriptTarget, "package.json"), "utf8")).scripts;
+assert(packageScripts.test === "node --version", "init --add-npm-scripts should preserve existing scripts");
+assert(packageScripts["harness:dev"] === "coding-agent-harness dev .", "init --add-npm-scripts should add harness:dev");
+assert(packageScripts["harness:dashboard"] === "coding-agent-harness dashboard --out-dir tmp/harness-dashboard .", "init --add-npm-scripts should add static dashboard script");
+const noPackageScriptTarget = path.join(tmpRoot, "no-package-script-target");
+fs.mkdirSync(noPackageScriptTarget);
+const noPackageScripts = run(["init", "--dry-run", "--locale", "en-US", "--capabilities", "core", "--add-npm-scripts", noPackageScriptTarget]);
+assert(noPackageScripts.status !== 0, "init --add-npm-scripts should require an existing package.json");
 
 const enRunTarget = path.join(tmpRoot, "en-run-target");
 fs.mkdirSync(enRunTarget);
@@ -400,7 +481,34 @@ assert(lifecycleTask?.briefPath?.endsWith("/brief.md"), "status should expose th
 assert(lifecycleTask?.classificationBucket === "current", "new v1 tasks should not be classified as legacy");
 assert(lifecycleStatus.summary?.briefCoverage?.missing === 0, "status should expose explicit brief coverage summary");
 assert(lifecycleTask?.state === "done", "status should read lifecycle task state from progress.md");
+assert(lifecycleTask?.lifecycleState === "closing", "done task without closeout should remain in closing lifecycle state");
 assert(lifecycleTask?.evidence?.some((item) => item.summary.includes("passed")), "status should collect task-log evidence");
+const lifecycleReviewPath = path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/phase-2-lifecycle/review.md");
+fs.writeFileSync(
+  lifecycleReviewPath,
+  fs.readFileSync(lifecycleReviewPath, "utf8").replace(
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| RR-001 | P1 | Human review is still pending | TARGET:docs/09-PLANNING/TASKS/phase-2-lifecycle/progress.md | confirm in dashboard | yes | open | yes | dashboard |",
+  ),
+);
+const blockedReviewStatus = expectJson(["status", "--json", lifecycleTarget]);
+const blockedReviewTask = blockedReviewStatus.tasks.find((task) => task.id === "TASKS/phase-2-lifecycle");
+assert(blockedReviewTask?.reviewStatus === "blocked-open-findings", "open P0-P2 review findings should block review confirmation");
+const blockedConfirm = run(["review-confirm", "TASKS/phase-2-lifecycle", "--reviewer", "Human Reviewer", "--confirm", "phase-2-lifecycle", lifecycleTarget]);
+assert(blockedConfirm.status !== 0, "review-confirm should reject tasks with open blocking review findings");
+assert(blockedConfirm.stderr.includes("Open blocking review findings"), "review-confirm blocked failure should explain open findings");
+fs.writeFileSync(
+  lifecycleReviewPath,
+  fs.readFileSync(lifecycleReviewPath, "utf8").replace("| RR-001 | P1 | Human review is still pending | TARGET:docs/09-PLANNING/TASKS/phase-2-lifecycle/progress.md | confirm in dashboard | yes | open | yes | dashboard |", "| RR-001 | P1 | Human review is closed | TARGET:docs/09-PLANNING/TASKS/phase-2-lifecycle/progress.md | confirmed in dashboard | no | closed | no | none |"),
+);
+const lifecycleConfirm = expectJson(["review-confirm", "TASKS/phase-2-lifecycle", "--reviewer", "Human Reviewer", "--message", "dashboard review completed", "--confirm", "phase-2-lifecycle", lifecycleTarget]);
+assert(lifecycleConfirm.task?.reviewStatus === "confirmed", "review-confirm should mark reviewStatus confirmed");
+const confirmedStatus = expectJson(["status", "--json", lifecycleTarget]);
+const confirmedTask = confirmedStatus.tasks.find((task) => task.id === "TASKS/phase-2-lifecycle");
+assert(confirmedTask?.reviewStatus === "confirmed", "status should expose confirmed review status");
+assert(confirmedTask?.closeoutStatus === "missing", "status should keep closeout separate from review confirmation");
+assert(fs.readFileSync(lifecycleReviewPath, "utf8").includes("Human Review Confirmation"), "review-confirm should write a human review confirmation block");
+assert(fs.readFileSync(path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/phase-2-lifecycle/progress.md"), "utf8").includes("review-confirm"), "review-confirm should append a progress log entry");
 const moduleLifecycle = expectJson(["new-task", "module-lifecycle", "--module", "auth", "--budget", "complex", "--title", "模块生命周期", "--locale", "zh-CN", lifecycleTarget]);
 assert(moduleLifecycle.task?.id === "MODULES/auth/module-lifecycle", "new-task --module should create a module task id");
 assert(fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/module-lifecycle/references/INDEX.md")), "complex module task should create references index");
@@ -426,6 +534,102 @@ expectJson(["module-step", "auth", "AUTH-01", "--state", "done", lifecycleTarget
 const missingModuleStep = run(["module-step", "auth", "NO_SUCH_STEP", "--state", "done", lifecycleTarget]);
 assert(missingModuleStep.status !== 0, "module-step should fail for unknown step id");
 assert(missingModuleStep.stderr.includes("Module step not found"), "module-step unknown step should explain missing step");
+const moduleConfirm = expectJson(["review-confirm", "MODULES/auth/module-lifecycle", "--reviewer", "Human Reviewer", "--confirm", "module-lifecycle", lifecycleTarget]);
+assert(moduleConfirm.task?.id === "MODULES/auth/module-lifecycle", "review-confirm should accept full module task ids");
+const workbenchReviewTask = expectJson(["new-task", "workbench-review", "--title", "Workbench review gate", "--locale", "zh-CN", lifecycleTarget]);
+assert(workbenchReviewTask.task?.id === "TASKS/workbench-review", "new-task should create workbench review gate fixture");
+const workbenchReviewProgress = path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/workbench-review/progress.md");
+const workbenchClosedReviewTask = expectJson(["new-task", "workbench-closed-review", "--title", "Closed review debt", "--locale", "zh-CN", lifecycleTarget]);
+assert(workbenchClosedReviewTask.task?.id === "TASKS/workbench-closed-review", "new-task should create closed review debt fixture");
+const workbenchClosedReviewProgress = path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/workbench-closed-review/progress.md");
+fs.writeFileSync(
+  workbenchClosedReviewProgress,
+  fs.readFileSync(workbenchClosedReviewProgress, "utf8").replace(/^## 状态：.*$/m, "## 状态：done"),
+);
+fs.appendFileSync(
+  path.join(lifecycleTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
+  "\n| CL-WORKBENCH-CLOSED | 2026-05-21 | Closed review debt | `docs/09-PLANNING/TASKS/workbench-closed-review/task_plan.md` | `docs/09-PLANNING/TASKS/workbench-closed-review/review.md` | 本行 | test evidence | none | checked-none | closed |\n",
+);
+const workbenchDir = path.join(tmpRoot, "review-workbench");
+const workbench = spawn(node, [cli, "dashboard", "--workbench", "--out-dir", workbenchDir, "--host", "127.0.0.1", "--port", "0", lifecycleTarget], {
+  cwd: repoRoot,
+  stdio: ["ignore", "pipe", "pipe"],
+});
+const runtime = await waitForWorkbench(workbench);
+try {
+  const runtimeResponse = await fetch(new URL("api/runtime", runtime.url));
+  assert(runtimeResponse.status === 200, "workbench should expose runtime metadata");
+  const runtimePayload = await runtimeResponse.json();
+  assert(runtimePayload.mode === "workbench" && runtimePayload.csrfToken === runtime.csrf, "workbench runtime should expose mode and csrf token");
+  const badOrigin = await fetch(new URL("api/tasks/review-complete", runtime.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: "http://127.0.0.1:9" },
+    body: JSON.stringify({ taskId: "MODULES/auth/module-lifecycle", confirmText: "module-lifecycle", reviewer: "Human Reviewer" }),
+  });
+  assert(badOrigin.status === 403, "workbench should reject mismatched origins");
+  const badTask = await fetch(new URL("api/tasks/review-complete", runtime.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
+    body: JSON.stringify({ taskId: "../bad", confirmText: "bad", reviewer: "Human Reviewer" }),
+  });
+  assert(badTask.status === 404, "workbench should reject unknown task ids");
+  const plannedReview = await fetch(new URL("api/tasks/review-complete", runtime.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
+    body: JSON.stringify({ taskId: "TASKS/workbench-review", confirmText: "workbench-review", reviewer: "Human Reviewer" }),
+  });
+  assert(plannedReview.status === 409, "workbench review completion should reject tasks that are not in review state");
+  fs.writeFileSync(
+    workbenchReviewProgress,
+    fs.readFileSync(workbenchReviewProgress, "utf8").replace(/^## 状态：.*$/m, "## 状态：review"),
+  );
+  const okResponse = await fetch(new URL("api/tasks/review-complete", runtime.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
+    body: JSON.stringify({ taskId: "TASKS/workbench-review", confirmText: "workbench-review", reviewer: "Human Reviewer", message: "confirmed from workbench" }),
+  });
+  const okText = await okResponse.text();
+  assert(okResponse.status === 200, `workbench review completion should pass, got ${okResponse.status}: ${okText}`);
+  const okPayload = JSON.parse(okText);
+  assert(okPayload.task?.reviewStatus === "confirmed", "workbench review completion should return confirmed task status");
+  const closedReviewResponse = await fetch(new URL("api/tasks/review-complete", runtime.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
+    body: JSON.stringify({ taskId: "TASKS/workbench-closed-review", confirmText: "workbench-closed-review", reviewer: "Human Reviewer", message: "closed debt confirmed from workbench" }),
+  });
+  const closedReviewText = await closedReviewResponse.text();
+  assert(closedReviewResponse.status === 200, `workbench review completion should accept closed review debt, got ${closedReviewResponse.status}: ${closedReviewText}`);
+  const closedReviewPayload = JSON.parse(closedReviewText);
+  assert(closedReviewPayload.task?.lifecycleState === "closed", "closed review debt fixture should remain in closed lifecycle state");
+  assert(closedReviewPayload.task?.reviewStatus === "confirmed", "closed review debt should be confirmable from the workbench");
+} finally {
+  workbench.kill("SIGTERM");
+}
+const devDir = path.join(tmpRoot, "dev-workbench");
+const dev = spawn(node, [cli, "dev", "--no-open", "--out-dir", devDir, "--host", "127.0.0.1", "--port", "0", lifecycleTarget], {
+  cwd: repoRoot,
+  stdio: ["ignore", "pipe", "pipe"],
+});
+const devRuntime = await waitForWorkbench(dev);
+try {
+  assert(devRuntime.stdout.includes("outDir="), "harness dev should print the generated outDir");
+  const initialRuntime = await (await fetch(new URL("api/runtime", devRuntime.url))).json();
+  assert(initialRuntime.mode === "workbench" && initialRuntime.autoRefresh === true, "harness dev should start auto-refreshing workbench runtime");
+  assert(fs.readFileSync(path.join(devDir, "index.html"), "utf8").includes("__HARNESS_WORKBENCH__ = true"), "harness dev should enable workbench runtime in generated index");
+  const marker = `dev-refresh-${Date.now()}`;
+  fs.appendFileSync(
+    path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/phase-2-lifecycle/progress.md"),
+    `\n\n## Dev Refresh Marker\n\n${marker}\n`,
+  );
+  await waitForCondition(async () => {
+    const runtimePayload = await (await fetch(new URL("api/runtime", devRuntime.url))).json();
+    if (runtimePayload.snapshotVersion === initialRuntime.snapshotVersion) return false;
+    const dashboardData = fs.readFileSync(path.join(devDir, "assets/dashboard-data.js"), "utf8");
+    return dashboardData.includes(marker) ? runtimePayload : false;
+  }, "harness dev should regenerate dashboard data after docs changes");
+} finally {
+  dev.kill("SIGTERM");
+}
 
 const zhRegistryTarget = path.join(tmpRoot, "zh-module-registry-target");
 fs.mkdirSync(zhRegistryTarget);

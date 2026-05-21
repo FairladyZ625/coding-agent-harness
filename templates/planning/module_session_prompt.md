@@ -30,6 +30,12 @@ Do not edit shared SSoT files, coordinator-owned integration files, or unrelated
 - Residual risks
 - Coordinator updates needed
 
+## Review And State Rule
+
+- Keep `task.state`, `lifecycleState`, `reviewStatus`, and `closeoutStatus` separate when reporting progress.
+- `done` means the implementation step finished. It is not `closed` until closeout evidence is recorded.
+- If review is required, update `review.md`. Human review completion must be confirmed through the local dashboard workbench or by the coordinator with `harness review-confirm`; do not mark it complete while open P0/P1/P2 findings remain.
+
 ## Shared Sync Rule
 
 Do not update Module Registry, Harness Ledger, Closeout SSoT, Regression SSoT, or Cadence Ledger from a worker session unless the coordinator assigned the shared lock.

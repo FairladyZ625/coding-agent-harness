@@ -212,6 +212,14 @@ If the session points the dashboard to Markdown, lacks `strictDeferred`, has loc
 
 ## Dashboard Migration Workbench
 
+When human confirmation, review completion, or other web actions are needed, use the dynamic local entry point:
+
+```bash
+harness dev /path/to/project
+```
+
+Static dashboards remain useful for CI, migration delivery, and offline evidence snapshots. They must not host write actions such as review confirmation.
+
 Large projects should not use a task-level Mermaid chain as the first view. When task count is high or topology edges are sparse, the dashboard should switch to an aggregate migration runway:
 
 1. Baseline snapshot: current historical tasks, capability declarations, and check status.

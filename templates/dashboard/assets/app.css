@@ -472,6 +472,8 @@ button, input, select {
 
 .mermaid-rendered {
   margin: 0;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .mermaid-rendered figcaption,
@@ -483,7 +485,8 @@ button, input, select {
 }
 
 .mermaid-rendered svg {
-  min-width: 100%;
+  min-width: min(100%, 720px);
+  max-width: none;
   height: auto;
 }
 
@@ -1523,6 +1526,58 @@ button, input, select {
   border: 1px solid var(--line);
 }
 
+.review-queue-page {
+  max-width: 1420px;
+  margin: 0 auto;
+}
+
+.review-queue-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(96px, 1fr));
+  gap: 10px;
+  min-width: min(520px, 100%);
+}
+
+.review-queue-stats .metric {
+  min-height: 82px;
+  padding: 14px;
+}
+
+.review-queue-card {
+  gap: 14px;
+}
+
+.review-queue-card .side-panel {
+  box-shadow: none;
+  background: var(--bg);
+  padding: 14px;
+}
+
+.review-queue-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.review-queue-actions a,
+.review-queue-actions button {
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.review-queue-actions a:hover,
+.review-queue-actions button:hover {
+  border-color: var(--accent);
+}
+
 /* Beautiful Group Header styling */
 .task-group {
   background: var(--paper);
@@ -2346,4 +2401,80 @@ details summary {
   background: var(--accent);
   border-radius: 3px;
   opacity: 0.5;
+}
+
+.task-state-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+.task-state-summary > div {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+}
+.task-state-summary span:first-child {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.review-actions {
+  display: grid;
+  gap: 10px;
+}
+.review-actions p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.review-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.review-actions input[type="text"],
+.review-actions input:not([type]) {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--text);
+  padding: 9px 10px;
+  font: inherit;
+}
+.review-actions button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 10px 12px;
+}
+.review-actions button:disabled,
+.review-actions input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.review-result {
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .task-state-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

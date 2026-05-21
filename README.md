@@ -22,7 +22,7 @@ Coding Agent Harness 的目标，是把这些事实变成项目的一部分。
 
 ### 开源、简单、开箱即用
 
-Harness 以普通项目文件运行：Markdown、模板、检查脚本和静态 Dashboard。核心包没有第三方运行时依赖，也不需要额外后台服务或数据库。
+Harness 以普通项目文件运行：Markdown、模板、检查脚本、静态 Dashboard 快照和可选的本地动态 Workbench。核心包没有第三方运行时依赖，也不需要额外后台服务或数据库；需要网页操作时，用 `harness dev` 启动只绑定本机的临时操作台。
 
 你把安装提示发给 Agent，它就可以在目标项目里完成初始化、扫描、迁移和验证。
 
@@ -89,6 +89,7 @@ CLI 不会自动写进目标项目依赖。需要运行 Harness 命令时，用 
 
 ```bash
 npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
+npx --yes coding-agent-harness dev .
 npx --yes coding-agent-harness check --profile target-project .
 ```
 
@@ -133,6 +134,12 @@ npx --yes coding-agent-harness <command>
 执行初始化时使用：
 npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
 
+初始化完成后，日常查看和人工确认使用动态网页：
+npx --yes coding-agent-harness dev .
+
+如果只需要离线证据快照，再生成静态 dashboard：
+npx --yes coding-agent-harness dashboard --out-dir tmp/harness-dashboard .
+
 不要覆盖已有业务文档、历史任务、回归记录或用户改动。
 完成后请给出创建文件、检查结果和下一步建议。
 ```
@@ -173,7 +180,7 @@ npx --yes coding-agent-harness <command>
 npx --yes coding-agent-harness status --json .
 npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 
-最终迁移完成时，必须给出 dashboard HTML、session.json、normal/strict check、migrate-plan summary，以及 full-cutover 验证是否通过。
+最终迁移完成时，必须给出动态 workbench 入口或静态 dashboard HTML、session.json、normal/strict check、migrate-plan summary，以及 full-cutover 验证是否通过。需要人工确认审查时，必须通过本地网页 workbench 暴露确认操作；静态 dashboard 只作为只读证据快照。
 ```
 
 ## 了解更多

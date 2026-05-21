@@ -1,6 +1,8 @@
 const bundle = window.__HARNESS_DASHBOARD__ || {};
-const locale = Object.keys(window.HarnessI18n || { en: {} })[0] || "en";
-const labels = window.HarnessI18n?.[locale] || {};
+const defaultLocale = window.__HARNESS_LOCALE__ || ((navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en");
+let locale = localStorage.getItem("harness.locale") || defaultLocale;
+if (!window.HarnessI18n?.[locale]) locale = "en";
+let labels = window.HarnessI18n?.[locale] || {};
 
 const state = {
   query: "",
@@ -13,6 +15,9 @@ const state = {
   renderMode: "rendered",
   theme: localStorage.getItem("harness.theme") || "system",
   taskLayout: localStorage.getItem("harness.taskLayout") || "list",
+  runtime: { mode: "static", csrfToken: "", writableActions: [] },
+  runtimeLoaded: false,
+  runtimePoller: null,
 };
 
 const taskPageSize = 25;
@@ -36,6 +41,12 @@ function t(key) {
   return labels[key] || key;
 }
 
+function setLocale(nextLocale) {
+  locale = window.HarnessI18n?.[nextLocale] ? nextLocale : "en";
+  labels = window.HarnessI18n?.[locale] || {};
+  localStorage.setItem("harness.locale", locale);
+}
+
 function app() {
   const systemTheme = window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   document.documentElement.dataset.theme = state.theme === "system" ? systemTheme : state.theme;
@@ -55,7 +66,9 @@ function shell() {
       <div class="hero-actions">
         ${routeLink("#/", t("overview"), "overview")}
         ${routeLink("#/tasks", t("taskIndex"), "tasks")}
+        ${routeLink("#/review", t("reviewQueue"), "review")}
         ${routeLink("#/modules", t("moduleView"), "modules")}
+        <button data-language-toggle>${locale === "zh" ? "EN" : "中文"}</button>
         <button data-theme-toggle>${themeLabel()}</button>
       </div>
     </header>
@@ -68,6 +81,7 @@ function shell() {
 function renderRoute() {
   const route = currentRoute();
   if (route.name === "task") return taskDetail(route);
+  if (route.name === "review") return reviewQueue();
   if (route.name === "modules") return modulesView(route.id);
   if (route.name === "tasks") return taskIndex();
   return overview();
@@ -77,6 +91,7 @@ function currentRoute() {
   const hash = window.location.hash || "#/";
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
   if (parts[0] === "tasks" && parts[1]) return { name: "task", id: parts[1], doc: parts[2] === "docs" ? parts[3] || "" : "" };
+  if (parts[0] === "review") return { name: "review" };
   if (parts[0] === "modules") return { name: "modules", id: parts[1] || "" };
   if (parts[0] === "tasks") return { name: "tasks" };
   return { name: "overview" };
@@ -91,8 +106,8 @@ function overview() {
   return `<div class="dashboard-grid">
     <main class="dashboard-main stack">
       ${flowPanel()}
-      ${migrationPanel()}
       ${activeTaskBriefs()}
+      ${migrationSummaryPanel()}
     </main>
     <aside class="dashboard-sidebar stack">
       ${statusStrip()}
@@ -148,9 +163,9 @@ function flowPanel() {
   const tasks = bundle.status?.tasks || [];
   const total = tasks.length;
   if (total === 0) return "";
-  const done = tasks.filter((t) => t.state === "done" || t.completion === 100).length;
-  const active = tasks.filter((t) => ["in_progress", "review", "blocked"].includes(t.state) && t.completion < 100).length;
-  const planned = total - done - active;
+  const active = tasks.filter((task) => isActiveTaskState(task.state)).length;
+  const done = tasks.filter((task) => !isActiveTaskState(task.state) && (task.state === "done" || task.completion === 100)).length;
+  const planned = Math.max(0, total - done - active);
   const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
   return `<section class="flow-panel">
     <div class="section-head">
@@ -269,9 +284,13 @@ function activeTaskBriefs() {
 
 function activeTasks() {
   const tasks = bundle.status?.tasks || [];
-  const active = tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state));
+  const active = tasks.filter((task) => isActiveTaskState(task.state) || ["planned", "not_started"].includes(task.state));
   if (active.length > 0) return active;
   return tasks.filter((task) => task.briefSource === "standalone").slice(0, 6);
+}
+
+function isActiveTaskState(state) {
+  return ["active", "in_progress", "review", "blocked", "reopened", "current-evidence"].includes(state);
 }
 
 function taskBriefCard(task, { compact = true } = {}) {
@@ -663,6 +682,7 @@ function taskDetail(route) {
       </div>
       <div class="detail-score">${task.completion}%</div>
     </section>
+    ${taskStateSummary(task)}
     ${phaseTimeline(task)}
     <section class="detail-grid">
       <article class="detail-main">
@@ -674,12 +694,34 @@ function taskDetail(route) {
         ${selectedSourceDocument(task, route.doc)}
       </article>
       <aside class="detail-side">
+        ${reviewActionPanel(task)}
         ${openFindings(task)}
         ${evidenceList(task)}
         ${documentTabs(task)}
       </aside>
     </section>
   </main>`;
+}
+
+function taskStateSummary(task) {
+  return `<section class="task-state-summary">
+    <div>
+      <span>${t("legacyState")}</span>
+      ${tag(task.state)}
+    </div>
+    <div>
+      <span>${t("lifecycleState")}</span>
+      ${tag(task.lifecycleState || "unknown")}
+    </div>
+    <div>
+      <span>${t("reviewStatus")}</span>
+      ${tag(task.reviewStatus || "missing")}
+    </div>
+    <div>
+      <span>${t("closeoutStatus")}</span>
+      ${tag(task.closeoutStatus || "missing")}
+    </div>
+  </section>`;
 }
 
 function phaseTimeline(task) {
@@ -731,6 +773,37 @@ function openFindings(task) {
     <h3>${t("openFindings")}</h3>
     ${risks.map((risk) => `<div class="finding ${risk.open || risk.blocksRelease ? "open" : ""}"><strong>${escapeHtml(risk.severity)}</strong><span>${escapeHtml(risk.summary)}</span></div>`).join("") || `<p>${t("noOpenFindings")}</p>`}
   </section>`;
+}
+
+function reviewActionPanel(task) {
+  if (!canUseWorkbenchAction("review-complete")) return "";
+  if (!isTaskInReviewStage(task)) return "";
+  const blocking = task.reviewStatus === "blocked-open-findings" || (task.risks || []).some((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease));
+  const confirmed = task.reviewStatus === "confirmed";
+  if (confirmed) {
+    return `<section class="side-panel review-actions">
+      <h3>${t("reviewActions")}</h3>
+      <p>${escapeHtml(t("reviewAlreadyConfirmed"))}</p>
+    </section>`;
+  }
+  return `<section class="side-panel review-actions">
+    <h3>${t("reviewActions")}</h3>
+    <p>${escapeHtml(blocking ? t("reviewBlocked") : t("reviewWorkbenchReady"))}</p>
+    <label class="review-check">
+      <input type="checkbox" data-review-confirm-check="${escapeAttr(task.id)}" ${blocking ? "disabled" : ""}>
+      <span>${t("reviewConfirmChecklist")}</span>
+    </label>
+    <input data-review-confirm-text="${escapeAttr(task.id)}" value="" placeholder="${escapeAttr(task.shortId || task.id)}" ${blocking ? "disabled" : ""}>
+    <button data-review-complete="${escapeAttr(task.id)}" ${blocking ? "disabled" : ""}>${t("confirmReviewComplete")}</button>
+    <div class="review-result" data-review-result="${escapeAttr(task.id)}"></div>
+  </section>`;
+}
+
+function isTaskInReviewStage(task) {
+  const state = task?.state || "";
+  const lifecycle = task?.lifecycleState || "";
+  if (["not_started", "planned", "in_progress"].includes(state)) return false;
+  return state === "review" || state === "done" || ["in_review", "review-blocked", "closing", "closed"].includes(lifecycle);
 }
 
 function evidenceList(task) {
@@ -800,16 +873,78 @@ function moduleCard(module) {
   </article>`;
 }
 
+function reviewQueue() {
+  const tasks = reviewQueueTasks();
+  const ready = tasks.filter((task) => task.reviewStatus !== "blocked-open-findings" && task.reviewStatus !== "confirmed").length;
+  const blocked = tasks.filter((task) => task.reviewStatus === "blocked-open-findings").length;
+  const confirmed = tasks.filter((task) => task.reviewStatus === "confirmed").length;
+  return `<main class="review-queue-page">
+    <section class="flow-panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">${t("review")}</p>
+          <h2>${t("reviewQueue")}</h2>
+          <p class="subtle">${t("reviewQueueSubtitle")}</p>
+        </div>
+        <div class="review-queue-stats">
+          ${metric(t("reviewReady"), ready)}
+          ${metric(t("reviewBlockedQueue"), blocked)}
+          ${metric(t("reviewConfirmedQueue"), confirmed)}
+        </div>
+      </div>
+      <div class="task-card-grid review-queue-grid">
+        ${tasks.map(reviewQueueCard).join("") || emptyState(t("noReviewTasks"))}
+      </div>
+    </section>
+  </main>`;
+}
+
+function reviewQueueTasks() {
+  return (bundle.status?.tasks || [])
+    .filter(isTaskInReviewStage)
+    .sort((left, right) => reviewSortKey(left).localeCompare(reviewSortKey(right)));
+}
+
+function reviewSortKey(task) {
+  const rank = task.reviewStatus === "blocked-open-findings" ? "0" : task.reviewStatus === "confirmed" ? "2" : "1";
+  return `${rank}:${task.id}`;
+}
+
+function reviewQueueCard(task) {
+  const openMaterial = (task.risks || []).filter((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease)).length;
+  return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(task.state)})">
+    <div class="card-header">
+      <span class="card-id">${escapeHtml(task.id)}</span>
+      ${tag(task.reviewStatus || "missing")}
+    </div>
+    <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
+    <div class="card-meta">
+      <span>${tag(task.lifecycleState || "unknown")}</span>
+      <span>${tag(task.closeoutStatus || "missing")}</span>
+      <span>${openMaterial} ${t("openFindings")}</span>
+    </div>
+    <p class="subtle">${escapeHtml(firstUsefulLine(task.summary || task.briefText || ""))}</p>
+    <div class="review-queue-actions">
+      <a href="#/tasks/${encodeURIComponent(task.id)}">${t("fullView")}</a>
+      <button data-open-drawer="${escapeAttr(task.id)}">${t("viewDetails")}</button>
+    </div>
+    ${reviewActionPanel(task)}
+  </article>`;
+}
+
+function firstUsefulLine(text) {
+  return String(text || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)[0] || "";
+}
+
 function migrationPanel() {
   const advice = warningQueue();
   const missingBriefs = advice.filter((warning) => warning.type === "missing-brief").length;
   if (advice.length === 0 && missingBriefs === 0) return "";
   const groups = groupBy(advice, (item) => item.category || "Advice");
-  const filters = ["all", ...Object.keys(groups).sort(), ...new Set(advice.map((item) => item.type).filter(Boolean)), "active-task-contracts", "strict-cutover"];
-  const filtered = state.warningFilter === "all" ? advice : advice.filter((item) => (item.category || "Advice") === state.warningFilter || item.phase === state.warningFilter || item.type === state.warningFilter);
-  const pageCount = Math.max(1, Math.ceil(filtered.length / warningPageSize));
-  const page = Math.min(Math.max(1, Number(state.warningPage) || 1), pageCount);
-  const visible = filtered.slice((page - 1) * warningPageSize, page * warningPageSize);
+  const categories = Object.entries(groups).slice(0, 6);
   return `<section class="migration-panel">
     <div class="section-head">
       <div>
@@ -819,10 +954,21 @@ function migrationPanel() {
       <span>${advice.length} ${t("advice")} · ${missingBriefs} ${t("briefMissing")}</span>
     </div>
     <div class="migration-grid">
-      ${Object.entries(groups).slice(0, 6).map(([category, items]) => `<button data-warning-filter="${escapeAttr(category)}" class="${state.warningFilter === category ? "active" : ""}"><strong>${escapeHtml(category)}</strong><p>${items.length} ${t("items")}</p></button>`).join("")}
+      ${categories.map(([category, items]) => `<button data-warning-filter="${escapeAttr(category)}" class="${state.warningFilter === category ? "active" : ""}"><strong>${escapeHtml(category)}</strong><p>${items.length} ${t("items")}</p></button>`).join("")}
       ${missingBriefs > 0 ? `<div><strong>${t("visibilityLayer")}</strong><p>${missingBriefs} ${t("missingBriefs")}</p></div>` : ""}
     </div>
-    <div class="warning-workbench">
+    ${migrationWarningWorkbench(advice)}
+  </section>`;
+}
+
+function migrationWarningWorkbench(advice) {
+  const groups = groupBy(advice, (item) => item.category || "Advice");
+  const filters = ["all", ...Object.keys(groups).sort(), ...new Set(advice.map((item) => item.type).filter(Boolean)), "active-task-contracts", "strict-cutover"];
+  const filtered = state.warningFilter === "all" ? advice : advice.filter((item) => (item.category || "Advice") === state.warningFilter || item.phase === state.warningFilter || item.type === state.warningFilter);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / warningPageSize));
+  const page = Math.min(Math.max(1, Number(state.warningPage) || 1), pageCount);
+  const visible = filtered.slice((page - 1) * warningPageSize, page * warningPageSize);
+  return `<div class="warning-workbench">
       <div class="warning-toolbar">
         <select data-warning-filter-select aria-label="${t("warningFilter")}">
           ${filters.map((filter) => `<option value="${escapeAttr(filter)}" ${state.warningFilter === filter ? "selected" : ""}>${filter === "all" ? t("allWarnings") : escapeHtml(filter)}</option>`).join("")}
@@ -833,7 +979,42 @@ function migrationPanel() {
       <div class="warning-list">
         ${visible.map(warningRow).join("") || emptyState(t("noWarnings"))}
       </div>
+    </div>`;
+}
+
+function migrationSummaryPanel() {
+  const advice = warningQueue();
+  const summary = bundle.status?.summary || {};
+  if (advice.length === 0 && summary.fullCutoverEligible) {
+    return `<section class="migration-panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">${t("migration")}</p>
+          <h2>${t("fullCutover")}</h2>
+        </div>
+        <span>${t("ready")}</span>
+      </div>
+      ${emptyState(t("noWarnings"))}
+    </section>`;
+  }
+  const cards = [
+    [t("advice"), advice.length],
+    [t("legacyVisualOnly"), summary.legacyVisualOnlyCount || 0],
+    [t("weakBrief"), summary.weakBriefCount || 0],
+    [t("blockers"), bundle.status?.checkState?.failures || 0],
+  ];
+  return `<section class="migration-panel">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">${t("migration")}</p>
+        <h2>${t("migrationSummary")}</h2>
+      </div>
+      <a href="#/tasks">${t("openTaskIndex")}</a>
     </div>
+    <div class="migration-grid">
+      ${cards.map(([title, count]) => `<a href="#/tasks"><strong>${escapeHtml(title)}</strong><p>${count} ${t("items")}</p></a>`).join("")}
+    </div>
+    ${migrationWarningWorkbench(advice)}
   </section>`;
 }
 
@@ -863,7 +1044,7 @@ function warningQueue() {
       category: "Visibility Layer",
       type: "missing-brief",
       scope: "task",
-      priority: ["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state) ? "P2" : "P3",
+      priority: (typeof isActiveTaskState === "function" && isActiveTaskState(task.state)) || ["planned", "not_started"].includes(task.state) ? "P2" : "P3",
       phase: "active-task-contracts",
       fixability: "guided",
       status: "open",
@@ -985,6 +1166,10 @@ function groupBy(items, fn) {
   }, {});
 }
 
+function canUseWorkbenchAction(action) {
+  return state.runtime?.mode === "workbench" && (state.runtime?.writableActions || []).includes(action);
+}
+
 window.setModulePage = function(moduleKey, page) {
   state.modulePages = state.modulePages || {};
   state.modulePages[moduleKey] = page;
@@ -1049,6 +1234,10 @@ function bind() {
     localStorage.setItem("harness.theme", state.theme);
     app();
   }));
+  document.querySelectorAll("[data-language-toggle]").forEach((button) => button.addEventListener("click", () => {
+    setLocale(locale === "zh" ? "en" : "zh");
+    app();
+  }));
   document.querySelectorAll("[data-open-drawer]").forEach((el) => el.addEventListener("click", (e) => {
     e.preventDefault();
     const taskId = el.dataset.openDrawer;
@@ -1059,8 +1248,79 @@ function bind() {
     const lessonId = el.dataset.openLessonDrawer;
     openLessonDrawer(lessonId);
   }));
+  document.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
   const overlay = document.getElementById("drawer-overlay");
   if (overlay) overlay.addEventListener("click", closeDrawer);
+}
+
+async function loadRuntime() {
+  if (state.runtimeLoaded || window.__HARNESS_WORKBENCH__ !== true || !/^https?:$/.test(window.location.protocol)) return;
+  state.runtimeLoaded = true;
+  try {
+    const response = await fetch("/api/runtime", { cache: "no-store" });
+    if (!response.ok) return;
+    state.runtime = await response.json();
+    startRuntimePolling();
+    app();
+  } catch {
+    state.runtime = { mode: "static", csrfToken: "", writableActions: [] };
+  }
+}
+
+function startRuntimePolling() {
+  if (!state.runtime?.autoRefresh || state.runtimePoller) return;
+  state.runtimePoller = setInterval(async () => {
+    try {
+      const response = await fetch("/api/runtime", { cache: "no-store" });
+      if (!response.ok) return;
+      const nextRuntime = await response.json();
+      if (state.runtime?.snapshotVersion && nextRuntime.snapshotVersion !== state.runtime.snapshotVersion) {
+        window.location.reload();
+        return;
+      }
+      state.runtime = nextRuntime;
+    } catch {
+      clearInterval(state.runtimePoller);
+      state.runtimePoller = null;
+    }
+  }, 1500);
+}
+
+async function completeReviewFromDashboard(taskId) {
+  const result = document.querySelector(`[data-review-result="${CSS.escape(taskId)}"]`);
+  const checkbox = document.querySelector(`[data-review-confirm-check="${CSS.escape(taskId)}"]`);
+  const confirmInput = document.querySelector(`[data-review-confirm-text="${CSS.escape(taskId)}"]`);
+  const task = (bundle.status?.tasks || []).find((item) => item.id === taskId);
+  if (!checkbox?.checked) {
+    if (result) result.textContent = t("reviewChecklistRequired");
+    return;
+  }
+  if (!confirmInput?.value || ![task?.shortId, task?.id].includes(confirmInput.value.trim())) {
+    if (result) result.textContent = t("reviewConfirmTextMismatch");
+    return;
+  }
+  if (result) result.textContent = t("reviewSubmitting");
+  try {
+    const response = await fetch("/api/tasks/review-complete", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-harness-csrf": state.runtime?.csrfToken || "",
+      },
+      body: JSON.stringify({
+        taskId,
+        confirmText: confirmInput.value.trim(),
+        reviewer: "Human Reviewer",
+        message: "confirmed from dashboard workbench",
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || t("reviewCompleteFailed"));
+    if (result) result.textContent = t("reviewCompleteSuccess");
+    setTimeout(() => window.location.reload(), 500);
+  } catch (error) {
+    if (result) result.textContent = `${t("reviewCompleteFailed")}: ${error.message}`;
+  }
 }
 
 function renderDrawerContent(taskId) {
@@ -1092,6 +1352,8 @@ function renderDrawerContent(taskId) {
         <div style="font-size: 24px; font-weight: 800; color: var(--accent);">${task.completion}%</div>
         <a href="#/tasks/${encodeURIComponent(task.id)}" class="btn-drawer-trigger" style="text-decoration: none;">${t("fullView")}</a>
       </div>
+      ${taskStateSummary(task)}
+      ${reviewActionPanel(task)}
       ${timeline}
       ${brief}
       ${plan}
@@ -1119,6 +1381,7 @@ function openDrawer(taskId) {
     state.renderMode = state.renderMode === "rendered" ? "source" : "rendered";
     openDrawer(taskId);
   }));
+  drawer.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
 }
 
 function renderLessonDrawerContent(lessonId) {
@@ -1296,3 +1559,4 @@ function escapeAttr(value) {
 
 window.addEventListener("hashchange", app);
 app();
+loadRuntime();

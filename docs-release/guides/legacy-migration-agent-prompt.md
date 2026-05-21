@@ -32,6 +32,9 @@ This prompt alone is enough for baseline safe-adoption. Full readable cutover ha
 9. Dashboard evidence must be an existing HTML dashboard path. A Markdown ledger or docs page is not a dashboard.
 10. Full readable cutover is stricter than baseline: it requires zero warnings/actions/residuals, strict pass, and dashboard brief coverage `total/total`.
 11. Before writing files, complete the scan, recommend a rewrite mode, and get user confirmation. Do not silently choose either fill-gaps-only or full rewrite.
+12. Keep state axes separate. Preserve legacy `task.state`, and read derived `lifecycleState`, `reviewStatus`, `closeoutStatus`, and `stateConflicts` from `status --json` instead of inventing local meanings.
+13. Do not treat `done`, `completed`, `merged`, or `shipped` as `closed`. A task is closed only when closeout evidence is recorded in the closeout SSoT or an explicit skipped-with-reason closeout path.
+14. Human review confirmation is a dashboard workbench action. Use `harness dev /path/to/project` as the normal local HTML entry. Static dashboard snapshots are read-only; CLI commands may support automation, but a migration that requires human confirmation must expose the action in the local HTML workbench.
 
 ## Step 0: Scan, Then Ask the User
 
@@ -154,6 +157,8 @@ After generating the dashboard in Step 6, inspect `adoption.warnings` from the d
 - `detail`: original warning detail.
 
 For cleanup reporting, every warning batch needs owner/action/status. Do not mark a warning done only because it was seen.
+
+When `status --json` shows `reviewStatus: blocked-open-findings`, close or route all open P0/P1/P2 findings before asking a human to confirm review completion. When it shows `lifecycleState: closing`, do not call the task closed until closeout SSoT, walkthrough or skipped-with-reason evidence is present.
 
 ## Step 2: Install Safe Adoption
 

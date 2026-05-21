@@ -22,7 +22,7 @@ Coding Agent Harness turns those facts into part of the project.
 
 ### Open Source, Simple, Ready To Use
 
-Harness runs as ordinary project files: Markdown, templates, check scripts, and a static dashboard. The core package has no third-party runtime dependencies and does not require a background service or database.
+Harness runs as ordinary project files: Markdown, templates, check scripts, static dashboard snapshots, and an optional local dynamic Workbench. The core package has no third-party runtime dependencies and does not require a background service or database. When a human needs web actions, `harness dev` starts a temporary localhost-only workbench.
 
 Give the installation prompt to your agent, and it can initialize, scan, migrate, and verify the target project.
 
@@ -89,6 +89,7 @@ The CLI is not automatically added to the target project's dependencies. Use `np
 
 ```bash
 npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
+npx --yes coding-agent-harness dev .
 npx --yes coding-agent-harness check --profile target-project .
 ```
 
@@ -133,6 +134,12 @@ After confirmation, execute Diagnose → Decide → Scaffold → Configure → V
 When initializing, run:
 npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
 
+After initialization, use the dynamic web UI for daily viewing and human confirmations:
+npx --yes coding-agent-harness dev .
+
+If you only need an offline evidence snapshot, generate a static dashboard:
+npx --yes coding-agent-harness dashboard --out-dir tmp/harness-dashboard .
+
 Do not overwrite existing business docs, historical tasks, regression records, or user changes.
 When finished, report created files, check results, and recommended next steps.
 ```
@@ -173,7 +180,7 @@ During the scan phase, run at least:
 npx --yes coding-agent-harness status --json .
 npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 
-When the migration is complete, report the dashboard HTML, session.json, normal/strict checks, migrate-plan summary, and whether full-cutover verification passes.
+When the migration is complete, report the dynamic workbench URL or static dashboard HTML, session.json, normal/strict checks, migrate-plan summary, and whether full-cutover verification passes. If human review confirmation is required, expose that action in the local web workbench; static dashboards are read-only evidence snapshots.
 ```
 
 ## Learn More

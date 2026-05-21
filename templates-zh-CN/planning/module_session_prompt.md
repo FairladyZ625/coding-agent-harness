@@ -55,8 +55,9 @@
 - 除非 coordinator 明确分配共享锁，worker session 不得更新 docs/09-PLANNING/Module-Registry.md、docs/Harness-Ledger.md、Closeout SSoT、Regression SSoT 或 Cadence Ledger。
 - 如果需要全局表更新，在 task_plan.md 或 progress.md 写 Coordinator 交接，并标记 `Global sync status: pending-coordinator-pass`。
 - 只有 coordinator pass 或明确的 shared-lock owner 可以更新 docs/09-PLANNING/Module-Registry.md。
+- 汇报状态时区分 `task.state`、`lifecycleState`、`reviewStatus` 和 `closeoutStatus`；`done` 只表示实现步骤完成，不等于 `closed`。
 - 更新 docs/09-PLANNING/MODULES/<module-key>/module_plan.md。
-- 写 review.md，或记录 review skipped-with-reason。
+- 写 review.md，或记录 review skipped-with-reason。需要人工确认审查完成时，必须通过本地 dashboard workbench，或由 coordinator 执行 `harness review-confirm`；存在开放 P0/P1/P2 finding 时不得确认。
 - 步骤完成时写 walkthrough，并包含 Lessons 反思。
 - Coordinator pass 在任务关闭时更新 Closeout SSoT 和 Lessons 检查。
 - Coordinator pass 在行为、测试、架构或流程改变时更新 Regression SSoT 和 Harness Ledger。
