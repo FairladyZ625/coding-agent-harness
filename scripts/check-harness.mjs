@@ -63,6 +63,8 @@ const allowedWalkthroughSkip =
   /walkthrough skipped-with-reason:\s*(docs-only|no-runtime|superseded|historical-backfill|owner-deferred)/i;
 const lessonsCreatedPattern = /checked-created:\s*(L-\d{4}-\d{2}-\d{2}-\d{3}|L-\d+)/i;
 const lessonsNonePattern = /checked-none:\s*\S+/i;
+const lessonsCandidatePattern = /checked-candidate:\s*(LC-[A-Za-z0-9-]+)/i;
+const lessonsQueuedPromotionPattern = /queued-promotion:\s*(LC-[A-Za-z0-9-]+)/i;
 
 const failures = [];
 const warnings = [];
@@ -561,6 +563,7 @@ function checkCloseoutSsot() {
   if (!exists("docs/Harness-Ledger.md")) return;
   const ledgerContent = read("docs/Harness-Ledger.md");
   const lessonIds = collectLessonIds();
+  const lessonCandidateIds = collectLessonCandidateIds();
   const ledgerTable = markdownTable(ledgerContent);
   const ledgerHeaderIndex = findHeaderIndex(ledgerTable, /^ID$/i);
   const ledgerHeader = ledgerHeaderIndex >= 0 ? ledgerTable[ledgerHeaderIndex] : [];
@@ -595,20 +598,26 @@ function checkCloseoutSsot() {
     if (lessonsColumn >= 0) {
       const lessonsCheck = closeout[lessonsColumn] || "";
       const createdMatch = lessonsCheck.match(lessonsCreatedPattern);
-      if (!createdMatch && !lessonsNonePattern.test(lessonsCheck)) {
-        fail(`${closeoutPath} row ${id} needs Lessons Check value: checked-created:<lesson-id> or checked-none:<reason>`);
+      const candidateMatch = lessonsCheck.match(lessonsCandidatePattern) || lessonsCheck.match(lessonsQueuedPromotionPattern);
+      if (!createdMatch && !candidateMatch && !lessonsNonePattern.test(lessonsCheck)) {
+        fail(`${closeoutPath} row ${id} needs Lessons Check value: checked-created:<lesson-id>, checked-candidate:<candidate-id>, queued-promotion:<candidate-id>, or checked-none:<reason>`);
       } else if (createdMatch && !lessonIds.has(createdMatch[1])) {
         fail(`${closeoutPath} row ${id} references missing Lessons SSoT id: ${createdMatch[1]}`);
+      } else if (candidateMatch && !lessonCandidateIds.has(candidateMatch[1])) {
+        fail(`${closeoutPath} row ${id} references missing lesson candidate id: ${candidateMatch[1]}`);
       }
     }
 
     if (ledgerLessonsColumn >= 0) {
       const ledgerLessonsCheck = cells[ledgerLessonsColumn] || "";
       const ledgerCreatedMatch = ledgerLessonsCheck.match(lessonsCreatedPattern);
-      if (!ledgerCreatedMatch && !lessonsNonePattern.test(ledgerLessonsCheck)) {
-        fail(`docs/Harness-Ledger.md row ${id} needs Lessons Check value: checked-created:<lesson-id> or checked-none:<reason>`);
+      const ledgerCandidateMatch = ledgerLessonsCheck.match(lessonsCandidatePattern) || ledgerLessonsCheck.match(lessonsQueuedPromotionPattern);
+      if (!ledgerCreatedMatch && !ledgerCandidateMatch && !lessonsNonePattern.test(ledgerLessonsCheck)) {
+        fail(`docs/Harness-Ledger.md row ${id} needs Lessons Check value: checked-created:<lesson-id>, checked-candidate:<candidate-id>, queued-promotion:<candidate-id>, or checked-none:<reason>`);
       } else if (ledgerCreatedMatch && !lessonIds.has(ledgerCreatedMatch[1])) {
         fail(`docs/Harness-Ledger.md row ${id} references missing Lessons SSoT id: ${ledgerCreatedMatch[1]}`);
+      } else if (ledgerCandidateMatch && !lessonCandidateIds.has(ledgerCandidateMatch[1])) {
+        fail(`docs/Harness-Ledger.md row ${id} references missing lesson candidate id: ${ledgerCandidateMatch[1]}`);
       }
     }
   }
@@ -627,6 +636,30 @@ function collectLessonIds() {
       .map((cells) => cells[idColumn] || "")
       .filter((id) => /^L-\d{4}(-\d{2}-\d{2})?-\d+/i.test(id)),
   );
+}
+
+function collectLessonCandidateIds() {
+  const root = filePath("docs/09-PLANNING");
+  const ids = new Set();
+  if (!fs.existsSync(root)) return ids;
+  function visit(dir) {
+    for (const entry of fs.readdirSync(dir)) {
+      const full = path.join(dir, entry);
+      const stat = fs.statSync(full);
+      if (stat.isDirectory()) {
+        if (entry === "_archive") continue;
+        visit(full);
+        continue;
+      }
+      if (entry !== "lesson_candidates.md") continue;
+      const content = fs.readFileSync(full, "utf8");
+      for (const match of content.matchAll(/\|\s*(LC-[A-Za-z0-9-]+)\s*\|/g)) {
+        ids.add(match[1]);
+      }
+    }
+  }
+  visit(root);
+  return ids;
 }
 
 function checkLessonsSsot() {

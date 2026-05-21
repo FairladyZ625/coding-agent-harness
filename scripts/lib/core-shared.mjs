@@ -7,6 +7,7 @@ export const repoRoot = path.resolve(__dirname, "../..");
 export const legacyChecker = path.join(repoRoot, "scripts/check-harness.mjs");
 export const visualMapFile = "visual_map.md";
 export const legacyVisualRoadmapFile = "visual_roadmap.md";
+export const lessonCandidatesFile = "lesson_candidates.md";
 
 
 export const supportedLocales = new Set(["zh-CN", "en-US"]);
@@ -20,6 +21,7 @@ export const allowedReviewDispositions = new Set([
   "out-of-scope",
 ]);
 export const allowedTaskStates = new Set(["not_started", "planned", "in_progress", "review", "blocked", "done"]);
+export const allowedTaskBudgets = new Set(["simple", "standard", "complex"]);
 export const allowedPhaseStates = new Set(["planned", "in_progress", "review", "blocked", "done", "skipped"]);
 export const allowedEvidenceStatus = new Set(["missing", "partial", "present", "waived"]);
 
@@ -156,13 +158,17 @@ export function normalizeTaskId(value) {
   return slug(value || "task");
 }
 
-export function renderTaskTemplate(content, { taskId, title, locale }) {
+export function renderTaskTemplate(content, { taskId, title, locale, budget = "standard" }) {
   const date = todayDate();
   return String(content)
     .replaceAll("{{TASK_ID}}", taskId)
     .replaceAll("{{TASK_TITLE}}", title)
     .replaceAll("{{DATE}}", date)
     .replaceAll("{{LOCALE}}", normalizeLocale(locale))
+    .replaceAll("{{TASK_BUDGET}}", budget)
+    .replaceAll("[simple / standard / complex]", budget)
+    .replaceAll("[simple / standard / long-running / module-parallel]", budget)
+    .replaceAll("[simple / complex]", budget)
     .replaceAll("[Task Name]", title)
     .replaceAll("[任务名称]", title);
 }

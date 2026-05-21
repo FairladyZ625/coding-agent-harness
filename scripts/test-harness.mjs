@@ -453,6 +453,33 @@ assert(
 );
 const duplicateLifecycle = run(["new-task", "phase-2-lifecycle", "--title", "duplicate", lifecycleTarget]);
 assert(duplicateLifecycle.status !== 0, "new-task should refuse to overwrite an existing task directory");
+const simpleLifecycle = expectJson(["new-task", "simple-lifecycle", "--budget", "simple", "--title", "简单任务", "--locale", "zh-CN", lifecycleTarget]);
+assert(simpleLifecycle.task?.budget === "simple", "new-task --budget simple should report simple budget");
+for (const required of ["brief.md", "task_plan.md", "visual_map.md", "progress.md"]) {
+  assert(
+    fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/simple-lifecycle", required)),
+    `simple task should create ${required}`,
+  );
+}
+for (const omitted of ["execution_strategy.md", "findings.md", "review.md"]) {
+  assert(
+    !fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/simple-lifecycle", omitted)),
+    `simple task should not create ${omitted}`,
+  );
+}
+const simpleTaskPlan = fs.readFileSync(path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/simple-lifecycle/task_plan.md"), "utf8");
+assert(/Selected budget\s*:\s*simple/i.test(simpleTaskPlan) || /选择预算\s*[:：]\s*simple/i.test(simpleTaskPlan), "simple task should persist selected budget");
+expectPass(["check", "--profile", "target-project", lifecycleTarget]);
+expectJson(["task-start", "simple-lifecycle", "--message", "开始简单任务", lifecycleTarget]);
+const simpleComplete = expectJson(["task-complete", "simple-lifecycle", "--message", "简单任务完成", lifecycleTarget]);
+assert(simpleComplete.task?.state === "done", "simple task should be able to complete without review");
+const earlyReview = run(["task-review", "review-too-early", lifecycleTarget]);
+assert(earlyReview.status !== 0, "task-review should reject unknown tasks");
+const tooEarlyTask = expectJson(["new-task", "review-too-early", "--title", "Too early review", "--locale", "zh-CN", lifecycleTarget]);
+assert(tooEarlyTask.task?.id === "TASKS/review-too-early", "new-task should create review-too-early fixture");
+const tooEarlyReview = run(["task-review", "review-too-early", "--message", "too early", lifecycleTarget]);
+assert(tooEarlyReview.status !== 0, "task-review should reject tasks that are not in_progress");
+assert(tooEarlyReview.stderr.includes("in_progress"), "task-review invalid transition should explain required state");
 expectJson(["task-start", "phase-2-lifecycle", "--message", "开始实现生命周期切片", lifecycleTarget]);
 expectJson(["task-log", "phase-2-lifecycle", "--message", "补齐 CLI 与模板", "--evidence", "command:TARGET:npm-test:passed", lifecycleTarget]);
 const lifecycleBlocked = expectJson(["task-block", "phase-2-lifecycle", "--message", "等待旧项目迁移验证", lifecycleTarget]);
@@ -467,10 +494,55 @@ expectJson(["task-phase", "phase-2-lifecycle", "PH-01", "--state", "done", "--co
 const missingPhase = run(["task-phase", "phase-2-lifecycle", "NO_SUCH_PHASE", "--state", "done", lifecycleTarget]);
 assert(missingPhase.status !== 0, "task-phase should fail for unknown phase id");
 assert(missingPhase.stderr.includes("Phase not found"), "task-phase unknown phase should explain missing phase");
+const directComplete = run(["task-complete", "phase-2-lifecycle", "--message", "跳过审查完成", lifecycleTarget]);
+assert(directComplete.status !== 0, "standard task-complete should require review state");
+assert(directComplete.stderr.includes("task-review"), "standard task-complete failure should tell the user to run task-review first");
+expectJson(["task-start", "phase-2-lifecycle", "--message", "恢复执行生命周期切片", lifecycleTarget]);
+const lifecycleReview = expectJson(["task-review", "phase-2-lifecycle", "--message", "进入执行审查", lifecycleTarget]);
+assert(lifecycleReview.task?.state === "review", "task-review should report review state");
+const lifecycleReviewPath = path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/phase-2-lifecycle/review.md");
+fs.writeFileSync(
+  lifecycleReviewPath,
+  fs.readFileSync(lifecycleReviewPath, "utf8").replace(
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| RR-001 | P1 | Human review is still pending | TARGET:docs/09-PLANNING/TASKS/phase-2-lifecycle/progress.md | confirm in dashboard | yes | open | yes | dashboard |",
+  ),
+);
+const blockedComplete = run(["task-complete", "phase-2-lifecycle", "--message", "带阻塞审查项完成", lifecycleTarget]);
+assert(blockedComplete.status !== 0, "task-complete should reject open blocking review findings");
+assert(blockedComplete.stderr.includes("Open blocking review findings"), "task-complete blocked review failure should explain open findings");
+const blockedConfirm = run(["review-confirm", "TASKS/phase-2-lifecycle", "--reviewer", "Human Reviewer", "--confirm", "phase-2-lifecycle", lifecycleTarget]);
+assert(blockedConfirm.status !== 0, "review-confirm should reject tasks with open blocking review findings");
+assert(blockedConfirm.stderr.includes("Open blocking review findings"), "review-confirm blocked failure should explain open findings");
+fs.writeFileSync(
+  lifecycleReviewPath,
+  fs.readFileSync(lifecycleReviewPath, "utf8").replace("| RR-001 | P1 | Human review is still pending | TARGET:docs/09-PLANNING/TASKS/phase-2-lifecycle/progress.md | confirm in dashboard | yes | open | yes | dashboard |", "| RR-001 | P1 | Human review is closed | TARGET:docs/09-PLANNING/TASKS/phase-2-lifecycle/progress.md | confirmed in dashboard | no | closed | no | none |"),
+);
+const unconfirmedComplete = run(["task-complete", "phase-2-lifecycle", "--message", "未确认审查完成", lifecycleTarget]);
+assert(unconfirmedComplete.status !== 0, "task-complete should require human review confirmation");
+assert(unconfirmedComplete.stderr.includes("review-confirm"), "unconfirmed review failure should tell the user to run review-confirm");
+const missingWalkthroughConfirm = run(["review-confirm", "TASKS/phase-2-lifecycle", "--reviewer", "Human Reviewer", "--message", "walkthrough reviewed", "--confirm", "phase-2-lifecycle", lifecycleTarget]);
+assert(missingWalkthroughConfirm.status !== 0, "review-confirm should require a walkthrough before human confirmation");
+assert(missingWalkthroughConfirm.stderr.includes("walkthrough"), "missing walkthrough confirmation failure should explain the walkthrough requirement");
+const lifecycleWalkthrough = path.join(lifecycleTarget, "docs/10-WALKTHROUGH/phase-2-lifecycle-walkthrough.md");
+fs.writeFileSync(
+  lifecycleWalkthrough,
+  "# Walkthrough: Phase 2 lifecycle\n\n## Summary\n\nHuman-readable walkthrough for review before completion.\n",
+);
+fs.appendFileSync(
+  path.join(lifecycleTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
+  "\n| CL-PHASE-2-LIFECYCLE | 2026-05-21 | Phase 2 lifecycle | `docs/09-PLANNING/TASKS/phase-2-lifecycle/task_plan.md` | `docs/09-PLANNING/TASKS/phase-2-lifecycle/review.md` | `docs/10-WALKTHROUGH/phase-2-lifecycle-walkthrough.md` | pending human review | none | checked-none | pending |\n",
+);
+const preCompleteStatus = expectJson(["status", "--json", lifecycleTarget]);
+const preCompleteTask = preCompleteStatus.tasks.find((task) => task.id === "TASKS/phase-2-lifecycle");
+assert(preCompleteTask?.walkthroughPath?.endsWith("docs/10-WALKTHROUGH/phase-2-lifecycle-walkthrough.md"), "status should expose walkthrough before human review confirmation");
+const preCompleteConfirm = expectJson(["review-confirm", "TASKS/phase-2-lifecycle", "--reviewer", "Human Reviewer", "--message", "walkthrough reviewed", "--confirm", "phase-2-lifecycle", lifecycleTarget]);
+assert(preCompleteConfirm.task?.reviewStatus === "confirmed", "review-confirm should confirm review before task-complete");
 const lifecycleComplete = expectJson(["task-complete", "phase-2-lifecycle", "--message", "生命周期闭环完成", lifecycleTarget]);
 assert(lifecycleComplete.task?.state === "done", "task-complete should report done state");
 const lifecycleTasks = expectJson(["task-list", "--json", lifecycleTarget]);
 assert(lifecycleTasks.tasks.some((task) => task.id === "TASKS/phase-2-lifecycle" && task.state === "done"), "task-list should include completed task");
+assert(lifecycleTasks.tasks.some((task) => task.id === "TASKS/simple-lifecycle" && task.budget === "simple"), "task-list should expose parsed task budget");
 const doneLifecycleTasks = expectJson(["task-list", "--json", "--state", "done", lifecycleTarget]);
 assert(doneLifecycleTasks.tasks.every((task) => task.state === "done"), "task-list --state should filter states");
 const lifecycleStatus = expectJson(["status", "--json", lifecycleTarget]);
@@ -481,32 +553,12 @@ assert(lifecycleTask?.briefPath?.endsWith("/brief.md"), "status should expose th
 assert(lifecycleTask?.classificationBucket === "current", "new v1 tasks should not be classified as legacy");
 assert(lifecycleStatus.summary?.briefCoverage?.missing === 0, "status should expose explicit brief coverage summary");
 assert(lifecycleTask?.state === "done", "status should read lifecycle task state from progress.md");
-assert(lifecycleTask?.lifecycleState === "closing", "done task without closeout should remain in closing lifecycle state");
+assert(lifecycleTask?.lifecycleState === "closing", "done task with pending closeout should remain in closing lifecycle state");
 assert(lifecycleTask?.evidence?.some((item) => item.summary.includes("passed")), "status should collect task-log evidence");
-const lifecycleReviewPath = path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/phase-2-lifecycle/review.md");
-fs.writeFileSync(
-  lifecycleReviewPath,
-  fs.readFileSync(lifecycleReviewPath, "utf8").replace(
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| RR-001 | P1 | Human review is still pending | TARGET:docs/09-PLANNING/TASKS/phase-2-lifecycle/progress.md | confirm in dashboard | yes | open | yes | dashboard |",
-  ),
-);
-const blockedReviewStatus = expectJson(["status", "--json", lifecycleTarget]);
-const blockedReviewTask = blockedReviewStatus.tasks.find((task) => task.id === "TASKS/phase-2-lifecycle");
-assert(blockedReviewTask?.reviewStatus === "blocked-open-findings", "open P0-P2 review findings should block review confirmation");
-const blockedConfirm = run(["review-confirm", "TASKS/phase-2-lifecycle", "--reviewer", "Human Reviewer", "--confirm", "phase-2-lifecycle", lifecycleTarget]);
-assert(blockedConfirm.status !== 0, "review-confirm should reject tasks with open blocking review findings");
-assert(blockedConfirm.stderr.includes("Open blocking review findings"), "review-confirm blocked failure should explain open findings");
-fs.writeFileSync(
-  lifecycleReviewPath,
-  fs.readFileSync(lifecycleReviewPath, "utf8").replace("| RR-001 | P1 | Human review is still pending | TARGET:docs/09-PLANNING/TASKS/phase-2-lifecycle/progress.md | confirm in dashboard | yes | open | yes | dashboard |", "| RR-001 | P1 | Human review is closed | TARGET:docs/09-PLANNING/TASKS/phase-2-lifecycle/progress.md | confirmed in dashboard | no | closed | no | none |"),
-);
-const lifecycleConfirm = expectJson(["review-confirm", "TASKS/phase-2-lifecycle", "--reviewer", "Human Reviewer", "--message", "dashboard review completed", "--confirm", "phase-2-lifecycle", lifecycleTarget]);
-assert(lifecycleConfirm.task?.reviewStatus === "confirmed", "review-confirm should mark reviewStatus confirmed");
 const confirmedStatus = expectJson(["status", "--json", lifecycleTarget]);
 const confirmedTask = confirmedStatus.tasks.find((task) => task.id === "TASKS/phase-2-lifecycle");
 assert(confirmedTask?.reviewStatus === "confirmed", "status should expose confirmed review status");
-assert(confirmedTask?.closeoutStatus === "missing", "status should keep closeout separate from review confirmation");
+assert(confirmedTask?.closeoutStatus === "pending", "status should keep pending closeout separate from review confirmation");
 assert(fs.readFileSync(lifecycleReviewPath, "utf8").includes("Human Review Confirmation"), "review-confirm should write a human review confirmation block");
 assert(fs.readFileSync(path.join(lifecycleTarget, "docs/09-PLANNING/TASKS/phase-2-lifecycle/progress.md"), "utf8").includes("review-confirm"), "review-confirm should append a progress log entry");
 const moduleLifecycle = expectJson(["new-task", "module-lifecycle", "--module", "auth", "--budget", "complex", "--title", "模块生命周期", "--locale", "zh-CN", lifecycleTarget]);
@@ -534,6 +586,17 @@ expectJson(["module-step", "auth", "AUTH-01", "--state", "done", lifecycleTarget
 const missingModuleStep = run(["module-step", "auth", "NO_SUCH_STEP", "--state", "done", lifecycleTarget]);
 assert(missingModuleStep.status !== 0, "module-step should fail for unknown step id");
 assert(missingModuleStep.stderr.includes("Module step not found"), "module-step unknown step should explain missing step");
+expectJson(["task-start", "MODULES/auth/module-lifecycle", "--message", "开始模块任务审查夹具", lifecycleTarget]);
+expectJson(["task-review", "MODULES/auth/module-lifecycle", "--message", "模块任务进入审查", lifecycleTarget]);
+const moduleWalkthrough = path.join(lifecycleTarget, "docs/10-WALKTHROUGH/module-lifecycle-walkthrough.md");
+fs.writeFileSync(
+  moduleWalkthrough,
+  "# Walkthrough: Module lifecycle\n\n## Summary\n\nHuman-readable module walkthrough for review confirmation.\n",
+);
+fs.appendFileSync(
+  path.join(lifecycleTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
+  "\n| CL-MODULE-LIFECYCLE | 2026-05-21 | Module lifecycle | `docs/09-PLANNING/MODULES/auth/module-lifecycle/task_plan.md` | `docs/09-PLANNING/MODULES/auth/module-lifecycle/review.md` | `docs/10-WALKTHROUGH/module-lifecycle-walkthrough.md` | pending human review | none | checked-none | pending |\n",
+);
 const moduleConfirm = expectJson(["review-confirm", "MODULES/auth/module-lifecycle", "--reviewer", "Human Reviewer", "--confirm", "module-lifecycle", lifecycleTarget]);
 assert(moduleConfirm.task?.id === "MODULES/auth/module-lifecycle", "review-confirm should accept full module task ids");
 const workbenchReviewTask = expectJson(["new-task", "workbench-review", "--title", "Workbench review gate", "--locale", "zh-CN", lifecycleTarget]);
@@ -546,10 +609,18 @@ fs.writeFileSync(
   workbenchClosedReviewProgress,
   fs.readFileSync(workbenchClosedReviewProgress, "utf8").replace(/^## 状态：.*$/m, "## 状态：done"),
 );
+const closedReviewWalkthrough = path.join(lifecycleTarget, "docs/10-WALKTHROUGH/workbench-closed-walkthrough.md");
+fs.writeFileSync(
+  closedReviewWalkthrough,
+  "# Walkthrough: Closed review debt\n\n## Summary\n\nHuman-readable closeout walkthrough for dashboard review.\n",
+);
 fs.appendFileSync(
   path.join(lifecycleTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
-  "\n| CL-WORKBENCH-CLOSED | 2026-05-21 | Closed review debt | `docs/09-PLANNING/TASKS/workbench-closed-review/task_plan.md` | `docs/09-PLANNING/TASKS/workbench-closed-review/review.md` | 本行 | test evidence | none | checked-none | closed |\n",
+  "\n| CL-WORKBENCH-CLOSED | 2026-05-21 | Closed review debt | `docs/09-PLANNING/TASKS/workbench-closed-review/task_plan.md` | `docs/09-PLANNING/TASKS/workbench-closed-review/review.md` | `docs/10-WALKTHROUGH/workbench-closed-walkthrough.md` | test evidence | none | checked-none | closed |\n",
 );
+const closedReviewStatus = expectJson(["status", "--json", lifecycleTarget]);
+const closedReviewTask = closedReviewStatus.tasks.find((task) => task.id === "TASKS/workbench-closed-review");
+assert(closedReviewTask?.walkthroughPath?.endsWith("docs/10-WALKTHROUGH/workbench-closed-walkthrough.md"), "status should expose task walkthrough path from Closeout SSoT");
 const workbenchDir = path.join(tmpRoot, "review-workbench");
 const workbench = spawn(node, [cli, "dashboard", "--workbench", "--out-dir", workbenchDir, "--host", "127.0.0.1", "--port", "0", lifecycleTarget], {
   cwd: repoRoot,
@@ -561,6 +632,8 @@ try {
   assert(runtimeResponse.status === 200, "workbench should expose runtime metadata");
   const runtimePayload = await runtimeResponse.json();
   assert(runtimePayload.mode === "workbench" && runtimePayload.csrfToken === runtime.csrf, "workbench runtime should expose mode and csrf token");
+  const dashboardData = fs.readFileSync(path.join(workbenchDir, "assets/dashboard-data.js"), "utf8");
+  assert(dashboardData.includes("Walkthrough: Closed review debt"), "dashboard data should include closeout walkthrough documents");
   const badOrigin = await fetch(new URL("api/tasks/review-complete", runtime.url), {
     method: "POST",
     headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: "http://127.0.0.1:9" },
@@ -583,6 +656,23 @@ try {
     workbenchReviewProgress,
     fs.readFileSync(workbenchReviewProgress, "utf8").replace(/^## 状态：.*$/m, "## 状态：review"),
   );
+  const missingWalkthroughResponse = await fetch(new URL("api/tasks/review-complete", runtime.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
+    body: JSON.stringify({ taskId: "TASKS/workbench-review", confirmText: "workbench-review", reviewer: "Human Reviewer", message: "confirmed without walkthrough" }),
+  });
+  const missingWalkthroughText = await missingWalkthroughResponse.text();
+  assert(missingWalkthroughResponse.status === 400, `workbench review completion should require walkthrough, got ${missingWalkthroughResponse.status}: ${missingWalkthroughText}`);
+  assert(missingWalkthroughText.includes("walkthrough"), "workbench missing walkthrough rejection should explain walkthrough requirement");
+  const workbenchReviewWalkthrough = path.join(lifecycleTarget, "docs/10-WALKTHROUGH/workbench-review-walkthrough.md");
+  fs.writeFileSync(
+    workbenchReviewWalkthrough,
+    "# Walkthrough: Workbench review gate\n\n## Summary\n\nHuman-readable walkthrough for dashboard review confirmation.\n",
+  );
+  fs.appendFileSync(
+    path.join(lifecycleTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
+    "\n| CL-WORKBENCH-REVIEW | 2026-05-21 | Workbench review gate | `docs/09-PLANNING/TASKS/workbench-review/task_plan.md` | `docs/09-PLANNING/TASKS/workbench-review/review.md` | `docs/10-WALKTHROUGH/workbench-review-walkthrough.md` | pending human review | none | checked-none | pending |\n",
+  );
   const okResponse = await fetch(new URL("api/tasks/review-complete", runtime.url), {
     method: "POST",
     headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
@@ -598,10 +688,8 @@ try {
     body: JSON.stringify({ taskId: "TASKS/workbench-closed-review", confirmText: "workbench-closed-review", reviewer: "Human Reviewer", message: "closed debt confirmed from workbench" }),
   });
   const closedReviewText = await closedReviewResponse.text();
-  assert(closedReviewResponse.status === 200, `workbench review completion should accept closed review debt, got ${closedReviewResponse.status}: ${closedReviewText}`);
-  const closedReviewPayload = JSON.parse(closedReviewText);
-  assert(closedReviewPayload.task?.lifecycleState === "closed", "closed review debt fixture should remain in closed lifecycle state");
-  assert(closedReviewPayload.task?.reviewStatus === "confirmed", "closed review debt should be confirmable from the workbench");
+  assert(closedReviewResponse.status === 409, `workbench review completion should reject closed closeout tasks, got ${closedReviewResponse.status}: ${closedReviewText}`);
+  assert(closedReviewText.includes("review"), "workbench closed closeout rejection should explain review stage boundary");
 } finally {
   workbench.kill("SIGTERM");
 }

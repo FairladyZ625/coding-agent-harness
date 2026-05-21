@@ -5,6 +5,7 @@ import {
   visualMapFile,
   legacyVisualRoadmapFile,
   allowedTaskStates,
+  allowedTaskBudgets,
   allowedPhaseStates,
   allowedEvidenceStatus,
   normalizeTarget,
@@ -24,6 +25,8 @@ import {
   collectReviewRisks,
   isBlockingReviewRisk,
   listTaskPlanPaths,
+  parseTaskBudget,
+  parseReviewConfirmation,
   taskIdForDirectory,
 } from "./task-scanner.mjs";
 import {
@@ -39,8 +42,18 @@ function taskTemplateFiles({ locale = "en-US" } = {}) {
     ["execution_strategy.md", "templates/planning/execution_strategy.md"],
     [visualMapFile, "templates/planning/visual_map.md"],
     ["findings.md", "templates/planning/findings.md"],
+    ["lesson_candidates.md", "templates/planning/lesson_candidates.md"],
     ["progress.md", "templates/planning/progress.md"],
     ["review.md", "templates/planning/review.md"],
+  ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
+}
+
+function simpleTaskTemplateFiles({ locale = "en-US" } = {}) {
+  return [
+    ["brief.md", "templates/planning/brief.md"],
+    ["task_plan.md", "templates/planning/task_plan.md"],
+    [visualMapFile, "templates/planning/visual_map.md"],
+    ["progress.md", "templates/planning/progress.md"],
   ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
 }
 
@@ -101,10 +114,54 @@ function stateLabel(state, locale) {
       not_started: "未开始",
       planned: "未开始",
       in_progress: "进行中",
+      review: "审查中",
       blocked: "已阻塞",
       done: "已完成",
     }[state] || state
   );
+}
+
+function normalizeTaskBudgetInput(budget) {
+  const normalized = String(budget || "standard").trim().toLowerCase().replaceAll("_", "-");
+  if (allowedTaskBudgets.has(normalized)) return normalized;
+  throw new Error(`Invalid task budget: ${budget}. Expected one of: simple, standard, complex`);
+}
+
+function taskFilesForBudget({ budget, locale }) {
+  if (budget === "simple") return simpleTaskTemplateFiles({ locale });
+  if (budget === "complex") return [...taskTemplateFiles({ locale }), ...optionalTaskTemplateFiles({ locale })];
+  return taskTemplateFiles({ locale });
+}
+
+function validateLifecycleTransition({ event, currentState, budget, reviewContent = "" }) {
+  if (event === "task-review" && currentState !== "in_progress") {
+    throw new Error(`task-review requires current state in_progress; current state is ${currentState || "unknown"}`);
+  }
+  if (event === "task-complete" && budget !== "simple" && currentState !== "review") {
+    throw new Error(`task-complete for ${budget} tasks requires current state review. Run task-review first.`);
+  }
+  if (event === "task-complete" && budget !== "simple") {
+    const blockingRisks = collectReviewRisks(reviewContent).filter(isBlockingReviewRisk);
+    if (blockingRisks.length > 0) {
+      const ids = blockingRisks.map((risk) => risk.id || risk.severity).join(", ");
+      throw new Error(`Open blocking review findings must be closed before task-complete: ${ids}`);
+    }
+    if (!parseReviewConfirmation(reviewContent)?.confirmed) {
+      throw new Error("Human review must be confirmed before task-complete. Run review-confirm first.");
+    }
+  }
+}
+
+function validateHumanReviewConfirmation({ task, budget }) {
+  if (budget === "simple") return;
+  const state = task?.state || "unknown";
+  const lifecycle = task?.lifecycleState || "";
+  if (state !== "review" && !["in_review", "review-blocked"].includes(lifecycle)) {
+    throw new Error(`Human review confirmation requires current state review; current state is ${state}. Run task-review first.`);
+  }
+  if (!task?.walkthroughPath) {
+    throw new Error("Human review confirmation requires a walkthrough linked from Closeout SSoT before review-confirm.");
+  }
 }
 
 function updateProgressState(content, state, locale) {
@@ -140,6 +197,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
   if (!normalizedTaskId) throw new Error("Missing task id");
   const normalizedModuleKey = moduleKey ? normalizeTaskId(moduleKey) : "";
   const normalizedLocale = normalizeLocale(locale || readCapabilityRegistry(target).locale);
+  const normalizedBudget = normalizeTaskBudgetInput(budget);
   const taskTitle = title || normalizedTaskId;
   const directory = taskRoot(target, normalizedTaskId, { moduleKey: normalizedModuleKey });
   if (fs.existsSync(directory)) throw new Error(`Task already exists: ${normalizedTaskId}`);
@@ -157,10 +215,18 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
       });
       if (dryRun) continue;
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
-      fs.writeFileSync(destinationPath, renderTaskTemplate(readBundledTemplate(source), { taskId: normalizedModuleKey, title: normalizedModuleKey, locale: normalizedLocale }));
+      fs.writeFileSync(
+        destinationPath,
+        renderTaskTemplate(readBundledTemplate(source), {
+          taskId: normalizedModuleKey,
+          title: normalizedModuleKey,
+          locale: normalizedLocale,
+          budget: normalizedBudget,
+        }),
+      );
     }
   }
-  const files = budget === "complex" ? [...taskTemplateFiles({ locale: normalizedLocale }), ...optionalTaskTemplateFiles({ locale: normalizedLocale })] : taskTemplateFiles({ locale: normalizedLocale });
+  const files = taskFilesForBudget({ budget: normalizedBudget, locale: normalizedLocale });
   for (const [destination, source] of files) {
     const destinationPath = path.join(directory, destination);
     const sourcePath = path.join(repoRoot, source);
@@ -171,7 +237,15 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
     });
     if (dryRun) continue;
     fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
-    fs.writeFileSync(destinationPath, renderTaskTemplate(readBundledTemplate(source), { taskId: normalizedTaskId, title: taskTitle, locale: normalizedLocale }));
+    fs.writeFileSync(
+      destinationPath,
+      renderTaskTemplate(readBundledTemplate(source), {
+        taskId: normalizedTaskId,
+        title: taskTitle,
+        locale: normalizedLocale,
+        budget: normalizedBudget,
+      }),
+    );
   }
   return {
     dryRun,
@@ -182,7 +256,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
       module: normalizedModuleKey || null,
       path: `TARGET:${toPosix(path.relative(target.projectRoot, directory))}`,
       locale: normalizedLocale,
-      budget,
+      budget: normalizedBudget,
     },
     changes,
   };
@@ -195,6 +269,14 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
   const registry = readCapabilityRegistry(target);
   const normalizedState = state ? String(state).toLowerCase().replaceAll("-", "_") : "";
   if (normalizedState && !allowedTaskStates.has(normalizedState)) throw new Error(`Invalid task state: ${state}`);
+  const currentTask = findTaskByDirectory(target, taskDir);
+  const budget = parseTaskBudget(readFileSafe(path.join(taskDir, "task_plan.md")));
+  validateLifecycleTransition({
+    event,
+    currentState: currentTask?.state || "unknown",
+    budget,
+    reviewContent: readFileSafe(path.join(taskDir, "review.md")),
+  });
   let content = readFileSafe(progressPath);
   if (normalizedState) content = updateProgressState(content, normalizedState, registry.locale);
   content = appendProgressLog(content, { event, message, evidence });
@@ -224,6 +306,10 @@ export function confirmTaskReview(targetInput, taskId, { reviewer = "Human Revie
     const ids = blockingRisks.map((risk) => risk.id || risk.severity).join(", ");
     throw new Error(`Open blocking review findings must be closed before confirmation: ${ids}`);
   }
+  validateHumanReviewConfirmation({
+    task: findTaskByDirectory(target, taskDir),
+    budget: parseTaskBudget(readFileSafe(path.join(taskDir, "task_plan.md"))),
+  });
 
   const timestamp = nowTimestamp();
   const safeReviewer = markdownCell(reviewer || "Human Reviewer");

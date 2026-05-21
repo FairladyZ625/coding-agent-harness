@@ -148,13 +148,18 @@ node scripts/harness.mjs new-task <task-id> --title "<title>" --locale zh-CN|en-
 node scripts/harness.mjs task-start <task-id> --message "<what started>" /path/to/project
 node scripts/harness.mjs task-log <task-id> --message "<what changed>" --evidence "command:TARGET:path:summary" /path/to/project
 node scripts/harness.mjs task-block <task-id> --message "<blocker>" /path/to/project
+node scripts/harness.mjs task-review <task-id> --message "<ready for review>" /path/to/project
 node scripts/harness.mjs task-complete <task-id> --message "<closeout>" /path/to/project
 node scripts/harness.mjs task-list --json /path/to/project
 ```
 
-- `new-task` 创建完整任务目录，包括 `brief.md`、计划、策略、路线图、进度、发现和审查文件。
+- `new-task --budget simple` 创建轻量任务目录：`brief.md`、`task_plan.md`、`visual_map.md`、`progress.md`。
+- `new-task` 默认 `standard`，创建完整任务目录，包括 `brief.md`、计划、策略、路线图、进度、发现和审查文件。
+- `new-task --budget complex` 在完整任务文件之外创建 optional references/artifacts 索引。
 - 已存在任务不会被覆盖；旧项目迁移时先 `task-list --json`，再决定复用旧任务还是开新任务。
 - 状态推进只写 `progress.md`，不得重写历史 `task_plan.md`。
+- `simple` 任务可以直接 `in_progress -> done`；`standard` / `complex` 必须 `in_progress -> review -> done`，不能跳过 `task-review`。
+- `review-confirm` 只确认人工 review evidence / findings，不代表 closeout；closeout 仍走 walkthrough / Closeout SSoT。
 - 证据必须进入 `task-log` 或 `progress.md`，并继续遵守 `type:PATH:summary` 格式。
 
 ### Phase 5: Verify / 验证

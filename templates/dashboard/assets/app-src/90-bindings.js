@@ -166,11 +166,7 @@ function renderDrawerContent(taskId) {
   `;
 
   const timeline = phaseTimeline(task);
-  const brief = taskDocSection(task, "brief.md", t("brief"), true);
-  const plan = taskDocument(task, "brief.md") ? "" : taskDocSection(task, "task_plan.md", t("taskPlan"), false);
-  const strategy = taskDocSection(task, "execution_strategy.md", t("strategy"), false);
-  const visualMap = taskDocSection(task, "visual_map.md", t("visualMap"), false);
-  const legacyRoadmap = taskDocSection(task, "visual_roadmap.md", t("legacyRoadmap"), false);
+  const documents = taskDocumentLibrary(task, "");
   const findings = openFindings(task);
   const evidence = evidenceList(task);
 
@@ -183,11 +179,7 @@ function renderDrawerContent(taskId) {
       ${taskStateSummary(task)}
       ${reviewActionPanel(task)}
       ${timeline}
-      ${brief}
-      ${plan}
-      ${strategy}
-      ${visualMap}
-      ${legacyRoadmap}
+      ${documents}
       ${findings}
       ${evidence}
     </div>

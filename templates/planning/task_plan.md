@@ -13,12 +13,11 @@
 
 | Budget | Use When | Required Structure |
 | --- | --- | --- |
-| simple | One owner, no subagent, L0/L1 evidence | Standard task files only |
+| simple | One owner, no subagent, L0/L1 evidence, no formal review gate | `brief.md`, `task_plan.md`, `visual_map.md`, `progress.md` |
 | standard | Normal feature, fix, or documentation change | Plan, strategy, roadmap, progress, findings, and review as needed |
-| long-running | Multi-hour autonomous loop | Add `long-running-task-contract.md` and a review loop |
-| module-parallel | Independent module slices | Add `module_plan.md`, module registry updates, and worker handoff |
+| complex | Multi-hour work, L2/L3 evidence, subagent/reviewer, or optional artifact/reference indexes | Standard files plus optional structures as needed |
 
-Selected budget: [simple / standard / long-running / module-parallel]
+Selected budget: {{TASK_BUDGET}}
 
 ## Context Packet
 

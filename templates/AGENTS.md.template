@@ -94,14 +94,14 @@ If the user does not approve or does not respond, run the same command with `npx
 
 | Scenario | Command |
 | --- | --- |
-| Create task | `harness new-task <task-id> --title "<title>" --locale en-US .` |
+| Create task | `harness new-task <task-id> --budget simple|standard|complex --title "<title>" --locale en-US .` |
 | Create module task | `harness new-task <task-id> --module <module-key> --title "<title>" --locale en-US .` |
 | Initialize new Harness | `harness init --locale en-US --capabilities core,dashboard .` |
 | Add capability | `harness add-capability <capability> --locale en-US .` |
 | Migration plan | `harness migrate-plan --json --limit 1000 .` |
 | Migration run / verify | `harness migrate-run --locale en-US --session-dir /tmp/cah-migration --out-dir /tmp/cah-migration/dashboard .` / `harness migrate-verify /tmp/cah-migration/session.json` |
 | User-level Skill install / diagnose | `harness install-user --agent codex --global` / `harness doctor-user --agent codex` |
-| Record start / log / block / completion | `harness task-start` / `task-log` / `task-block` / `task-complete` |
+| Record start / log / block / review / completion | `harness task-start` / `task-log` / `task-block` / `task-review` / `task-complete` |
 | Update phase state | `harness task-phase <task-id> <phase-id> --state done --completion 100 --evidence present .` |
 | Update module step | `harness module-step <module-key> <step-id> --state done .` |
 | Read task index | `harness task-list --json .` |

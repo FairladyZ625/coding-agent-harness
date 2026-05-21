@@ -95,11 +95,12 @@ Usage:
   harness migrate-plan [--json] [--limit n] [target]
   harness migrate-run [--locale zh-CN|en-US] [--assume-locale] [--allow-dirty] [--plan-only] [--out-dir folder] [--session-dir folder] [target]
   harness migrate-verify [--json] [--full-cutover] <session.json>
-  harness new-task <task-id> [--module key] [--budget standard|complex] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
+  harness new-task <task-id> [--module key] [--budget simple|standard|complex] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
   harness task-start <task-id> [--message text] [target]
   harness task-phase <task-id> <phase-id> [--state done] [--completion 100] [--evidence present] [target]
   harness task-log <task-id> --message text [--evidence type:PATH:summary] [target]
   harness task-block <task-id> [--message text] [target]
+  harness task-review <task-id> [--message text] [target]
   harness review-confirm <task-id> --confirm task-id [--reviewer name] [--message text] [target]
   harness task-complete <task-id> [--message text] [target]
   harness task-list [--json] [--state state] [--module key] [target]
@@ -368,7 +369,7 @@ if (command === "help" || command === "--help" || command === "-h") {
     console.error(error.message);
     process.exit(1);
   }
-} else if (["task-start", "task-log", "task-block", "task-complete"].includes(command)) {
+} else if (["task-start", "task-log", "task-block", "task-review", "task-complete"].includes(command)) {
   const message = takeOption("--message", "");
   const evidence = takeOption("--evidence", "");
   const taskId = args.shift();
@@ -380,6 +381,7 @@ if (command === "help" || command === "--help" || command === "-h") {
     "task-start": { event: "task-start", state: "in_progress" },
     "task-log": { event: "task-log", state: "" },
     "task-block": { event: "task-block", state: "blocked" },
+    "task-review": { event: "task-review", state: "review" },
     "task-complete": { event: "task-complete", state: "done" },
   }[command];
   try {

@@ -59,6 +59,12 @@ function collectDashboardDocumentPaths(target) {
   ]) {
     addDocsPath(relativePath);
   }
+  for (const file of walkFiles(path.join(target.docsRoot, "10-WALKTHROUGH"))) {
+    if (!file.endsWith(".md")) continue;
+    if (file.includes(`${path.sep}_archive${path.sep}`)) continue;
+    if (path.basename(file).startsWith("_")) continue;
+    selected.add(file);
+  }
   for (const taskPlanPath of listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
     const progress = readFileSafe(path.join(taskDir, "progress.md"));

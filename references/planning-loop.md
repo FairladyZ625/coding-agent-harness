@@ -6,6 +6,16 @@
 
 ## 任务目录结构
 
+任务信息架构预算决定默认脚手架：
+
+| Budget | 适用场景 | 默认文件 |
+| --- | --- | --- |
+| `simple` | 单 owner、无 subagent、L0/L1 证据、可跳过正式 review gate | `brief.md`, `task_plan.md`, `visual_map.md`, `progress.md` |
+| `standard` | 常规功能、修复、文档任务，需要完整可追溯记录 | 完整任务文件 |
+| `complex` | L2/L3 证据、subagent/reviewer、外部参考、生成产物或 optional indexes | 完整任务文件 + 按需 optional structure |
+
+`trivial` 不进入 CLI：小到不值得建立任务目录的修改，可以直接执行并在 commit 或交付说明中写清楚原因。
+
 ```
 docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/
 ├── task_plan.md    ← 计划：目标、范围、步骤、验收标准
@@ -181,12 +191,36 @@ Evidence values use `type:path:summary`.
 ## 状态流转
 
 ```
+simple:
 未开始 → 进行中 → 已完成
               ↓
           已阻塞 → 进行中
+
+standard / complex:
+未开始 → 进行中 → 审查中 → 已完成
+              ↓
+          已阻塞 → 进行中
 ```
+
+`task-review` 是 standard / complex 任务进入执行审查的唯一 CLI 路径。`task-complete`
+对 standard / complex 是硬门禁：当前状态不是 `review` 时必须拒绝。`simple`
+可以直接从 `in_progress` 完成。
 
 每次状态变更时，必须同时更新 progress.md 和 Feature SSoT。
 
 任务完成时，必须在 `docs/Harness-Ledger.md` 中记录本轮 task plan、SSoT、
 walkthrough、Lessons 检查等上下文回写结果。
+
+## Commit Convention
+
+任务相关 commit 应在 message footer 中引用任务 ID：
+
+```text
+feat: implement task review gate
+
+Harness: TASKS/2026-05-21-task-review-gate
+```
+
+格式：`Harness: <task-id>`，其中 task-id 是 `task-list --json` 输出的 `id` 字段。
+不建目录的小修改可以使用 `Harness: trivial` 或省略 footer。1.0 只定义约定，不强制
+扫描 git 历史；后续可通过 reconcile 命令补工具化检查。

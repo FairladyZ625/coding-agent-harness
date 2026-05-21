@@ -346,12 +346,7 @@ function taskDetail(route) {
     ${phaseTimeline(task)}
     <section class="detail-grid">
       <article class="detail-main">
-        ${taskDocSection(task, "brief.md", t("brief"), true)}
-        ${!taskDocument(task, "brief.md") ? taskDocSection(task, "task_plan.md", t("taskPlan"), false) : ""}
-        ${taskDocSection(task, "execution_strategy.md", t("strategy"), false)}
-        ${taskDocSection(task, "visual_map.md", t("visualMap"), false)}
-        ${taskDocSection(task, "visual_roadmap.md", t("legacyRoadmap"), false)}
-        ${selectedSourceDocument(task, route.doc)}
+        ${taskDocumentLibrary(task, route.doc)}
       </article>
       <aside class="detail-side">
         ${reviewActionPanel(task)}
@@ -405,13 +400,73 @@ function taskDocSection(task, fileName, title, required) {
   </section>`;
 }
 
-function documentTabs(task) {
+function taskDocumentLibrary(task, selectedTab) {
+  const docs = orderedTaskDocuments(task);
+  if (!docs.length) return taskDocSection(task, "brief.md", t("brief"), true);
+  const selectedKey = docs.some((doc) => doc.key === selectedTab) ? selectedTab : defaultTaskDocumentKey(task, docs);
+  return `<section class="doc-library">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">${t("taskDocuments")}</p>
+        <h2>${escapeHtml(t("sourceDocuments"))}</h2>
+      </div>
+      <button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button>
+    </div>
+    <div class="doc-accordion-list">
+      ${docs.map((item) => documentAccordion(item, item.key === selectedKey)).join("")}
+    </div>
+  </section>`;
+}
+
+function orderedTaskDocuments(task) {
   const docs = taskDocTabs
-    .map(([tab, file]) => [tab, taskDocument(task, file)])
-    .filter(([, doc]) => doc);
+    .map(([key, file]) => {
+      const doc = taskDocument(task, file);
+      if (doc) return { key, file, title: t(key), path: doc.path, content: doc.content };
+      if (key === "brief") return { key, file, title: t(key), path: `${task.path}/brief.md`, content: generatedBrief(task), generated: true };
+      return null;
+    })
+    .filter(Boolean);
+  const priority = taskDocumentPriority(task);
+  const rank = new Map(priority.map((key, index) => [key, index]));
+  return docs.sort((a, b) => (rank.get(a.key) ?? 99) - (rank.get(b.key) ?? 99));
+}
+
+function taskDocumentPriority(task) {
+  const stateName = task?.state || "";
+  const lifecycle = task?.lifecycleState || "";
+  if (stateName === "review" || ["in_review", "review-blocked"].includes(lifecycle)) {
+    return ["walkthrough", "review", "findings", "visualMap", "progress", "brief", "taskPlan", "strategy", "legacyRoadmap", "references", "artifacts"];
+  }
+  if (stateName === "in_progress" || lifecycle === "active" || stateName === "blocked") {
+    return ["progress", "visualMap", "brief", "taskPlan", "strategy", "findings", "review", "walkthrough", "references", "artifacts", "legacyRoadmap"];
+  }
+  if (stateName === "done" || ["closing", "closed"].includes(lifecycle)) {
+    return ["walkthrough", "progress", "review", "findings", "visualMap", "brief", "taskPlan", "strategy", "references", "artifacts", "legacyRoadmap"];
+  }
+  return ["brief", "taskPlan", "visualMap", "strategy", "progress", "findings", "review", "walkthrough", "references", "artifacts", "legacyRoadmap"];
+}
+
+function defaultTaskDocumentKey(task, docs) {
+  const priority = taskDocumentPriority(task);
+  return priority.find((key) => docs.some((doc) => doc.key === key)) || docs[0]?.key || "brief";
+}
+
+function documentAccordion(item, open) {
+  return `<details class="doc-accordion" ${open ? "open" : ""}>
+    <summary>
+      <span>${escapeHtml(item.title)}</span>
+      <small>${escapeHtml(item.generated ? t("generatedFallback") : item.path)}</small>
+    </summary>
+    <div class="markdown">${window.HarnessMarkdown.render(item.content, state.renderMode)}</div>
+  </details>`;
+}
+
+function documentTabs(task) {
+  const docs = orderedTaskDocuments(task);
   return `<section class="side-panel">
     <h3>${t("sourceDocuments")}</h3>
-    ${docs.map(([tab, doc]) => `<a href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(tab)}" title="${escapeAttr(doc.path)}">${escapeHtml(t(tab))}</a>`).join("") || `<p>${t("noDocuments")}</p>`}
+    ${docs.map((doc) => `<a href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(doc.key)}" title="${escapeAttr(doc.path)}">${escapeHtml(doc.title)}</a>`).join("") || `<p>${t("noDocuments")}</p>`}
   </section>`;
 }
 
@@ -446,15 +501,18 @@ function reviewActionPanel(task) {
       <p>${escapeHtml(t("reviewAlreadyConfirmed"))}</p>
     </section>`;
   }
+  const missingWalkthrough = task.budget !== "simple" && !task.walkthroughPath;
+  const disabled = blocking || missingWalkthrough;
+  const message = missingWalkthrough ? t("reviewWalkthroughRequired") : blocking ? t("reviewBlocked") : t("reviewWorkbenchReady");
   return `<section class="side-panel review-actions">
     <h3>${t("reviewActions")}</h3>
-    <p>${escapeHtml(blocking ? t("reviewBlocked") : t("reviewWorkbenchReady"))}</p>
+    <p>${escapeHtml(message)}</p>
     <label class="review-check">
-      <input type="checkbox" data-review-confirm-check="${escapeAttr(task.id)}" ${blocking ? "disabled" : ""}>
+      <input type="checkbox" data-review-confirm-check="${escapeAttr(task.id)}" ${disabled ? "disabled" : ""}>
       <span>${t("reviewConfirmChecklist")}</span>
     </label>
-    <input data-review-confirm-text="${escapeAttr(task.id)}" value="" placeholder="${escapeAttr(task.shortId || task.id)}" ${blocking ? "disabled" : ""}>
-    <button data-review-complete="${escapeAttr(task.id)}" ${blocking ? "disabled" : ""}>${t("confirmReviewComplete")}</button>
+    <input data-review-confirm-text="${escapeAttr(task.id)}" value="" placeholder="${escapeAttr(task.shortId || task.id)}" ${disabled ? "disabled" : ""}>
+    <button data-review-complete="${escapeAttr(task.id)}" ${disabled ? "disabled" : ""}>${t("confirmReviewComplete")}</button>
     <div class="review-result" data-review-result="${escapeAttr(task.id)}"></div>
   </section>`;
 }
@@ -463,7 +521,7 @@ function isTaskInReviewStage(task) {
   const state = task?.state || "";
   const lifecycle = task?.lifecycleState || "";
   if (["not_started", "planned", "in_progress"].includes(state)) return false;
-  return state === "review" || state === "done" || ["in_review", "review-blocked", "closing", "closed"].includes(lifecycle);
+  return state === "review" || ["in_review", "review-blocked"].includes(lifecycle);
 }
 
 function evidenceList(task) {

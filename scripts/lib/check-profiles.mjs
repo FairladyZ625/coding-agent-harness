@@ -29,6 +29,7 @@ import {
 import {
   collectTasks,
   listTaskPlanPaths,
+  parseTaskBudget,
   readVisualMapContractFile,
   parsePhases,
   taskCutoverCounters,
@@ -184,7 +185,9 @@ export function validatePlanContracts(target, { strict = true } = {}) {
   for (const taskPlanPath of listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
     const relativeDir = toPosix(path.relative(target.projectRoot, taskDir));
-    for (const fileName of ["execution_strategy.md", visualMapFile]) {
+    const budget = parseTaskBudget(readFileSafe(taskPlanPath));
+    const requiredFiles = budget === "simple" ? [visualMapFile] : ["execution_strategy.md", visualMapFile];
+    for (const fileName of requiredFiles) {
       if (!fs.existsSync(path.join(taskDir, fileName))) {
         report(`${relativeDir} missing ${fileName}`);
       }

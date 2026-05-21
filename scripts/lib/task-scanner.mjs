@@ -2,8 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   allowedTaskStates,
+  allowedTaskBudgets,
   visualMapFile,
   legacyVisualRoadmapFile,
+  lessonCandidatesFile,
   toPosix,
   readFileSafe,
   walkFiles,
@@ -17,8 +19,36 @@ import {
   getColumn,
 } from "./markdown-utils.mjs";
 
+export const allowedLessonCandidateTaskStatuses = new Set([
+  "missing",
+  "pending-review",
+  "no-candidate-accepted",
+  "needs-promotion",
+  "promoted",
+  "rejected",
+]);
+
+export const allowedLessonCandidateRowStatuses = new Set([
+  "ready-for-review",
+  "needs-promotion",
+  "promoted",
+  "rejected",
+]);
+
 export function parseTaskState(progressContent) {
   return parseTaskStateInfo(progressContent).state;
+}
+
+export function parseTaskBudget(taskPlanContent) {
+  const match =
+    String(taskPlanContent || "").match(/^Selected budget\s*[:：]\s*([^\n]+)/im) ||
+    String(taskPlanContent || "").match(/^选择预算\s*[:：]\s*([^\n]+)/im);
+  if (!match) return "standard";
+  const raw = match[1].replace(/`/g, "").trim().toLowerCase();
+  const normalized = raw.replaceAll("_", "-").replace(/\s+/g, "-");
+  if (allowedTaskBudgets.has(normalized)) return normalized;
+  if (["long-running", "longrunning", "module-parallel"].includes(normalized)) return "complex";
+  return "standard";
 }
 
 export function parseTaskStateInfo(progressContent) {
@@ -211,9 +241,11 @@ export function collectTasks(target) {
     const progressPath = path.join(taskDir, "progress.md");
     const reviewPath = path.join(taskDir, "review.md");
     const findingsPath = path.join(taskDir, "findings.md");
+    const lessonCandidatesPath = path.join(taskDir, lessonCandidatesFile);
     const visualMap = readVisualMapContractFile(taskDir, taskPlan);
     const progress = readFileSafe(progressPath);
     const review = readFileSafe(reviewPath);
+    const lessonCandidates = parseLessonCandidateStatus(readFileSafe(lessonCandidatesPath));
     const phases = parsePhases(visualMap.content);
     const completion =
       phases.length > 0
@@ -226,6 +258,7 @@ export function collectTasks(target) {
     const id = taskIdForDirectory(target, taskDir);
     const title = titleFromMarkdown(brief.content || taskPlan, path.basename(taskDir));
     const stateInfo = parseTaskStateInfo(progress);
+    const budget = parseTaskBudget(taskPlan);
     const explicitModule = id.startsWith("MODULES/") ? id.split("/")[1] : null;
     const legacyCandidate = brief.source !== "standalone" || visualMap.status === "legacy-only" || !fs.existsSync(executionStrategyPath);
     const classification = inferTaskClassification({ id, title, relative, explicitModule, legacyCandidate });
@@ -234,9 +267,9 @@ export function collectTasks(target) {
     const risks = collectReviewRisks(review);
     const reviewConfirmation = parseReviewConfirmation(review);
     const reviewStatus = taskReviewStatus({ reviewContent: review, risks, confirmation: reviewConfirmation });
-    const closeoutStatus = taskCloseoutStatus(target, taskPlanPath);
-    const lifecycleState = deriveLifecycleState({ state: stateInfo.state, reviewStatus, closeoutStatus });
-    const stateConflicts = collectStateConflicts({ state: stateInfo.state, reviewStatus, closeoutStatus, lifecycleState });
+    const closeoutInfo = taskCloseoutInfo(target, taskPlanPath);
+    const lifecycleState = deriveLifecycleState({ state: stateInfo.state, reviewStatus, closeoutStatus: closeoutInfo.status });
+    const stateConflicts = collectStateConflicts({ state: stateInfo.state, reviewStatus, closeoutStatus: closeoutInfo.status, lifecycleState });
     return {
       id,
       shortId: path.basename(taskDir),
@@ -261,12 +294,24 @@ export function collectTasks(target) {
       migrationClassification: taskMigrationClassification(stateInfo.state, visualMapStatus),
       roadmapSource: visualMap.source,
       state: stateInfo.state,
+      budget,
       stateSource: stateInfo.source,
       stateRaw: stateInfo.raw,
       lifecycleState,
       reviewStatus,
       reviewConfirmation,
-      closeoutStatus,
+      closeoutStatus: closeoutInfo.status,
+      walkthroughPath: closeoutInfo.walkthroughPath ? `TARGET:${closeoutInfo.walkthroughPath}` : "",
+      lessonCandidatePath: fs.existsSync(lessonCandidatesPath)
+        ? `TARGET:${toPosix(path.relative(target.projectRoot, lessonCandidatesPath))}`
+        : "",
+      lessonCandidateStatus: lessonCandidates.status,
+      lessonCandidateReviewDecision: lessonCandidates.reviewDecision,
+      lessonCandidatePromotionState: lessonCandidates.promotionState,
+      lessonCandidateCloseoutToken: lessonCandidates.closeoutToken,
+      lessonCandidateRowCount: lessonCandidates.rows.length,
+      lessonCandidateOpenCount: lessonCandidates.openCount,
+      lessonCandidateIssues: lessonCandidates.issues,
       stateConflicts,
       completion,
       phases,
@@ -278,18 +323,145 @@ export function collectTasks(target) {
   });
 }
 
+export function parseLessonCandidateStatus(content) {
+  const text = String(content || "");
+  if (!text.trim()) {
+    return emptyLessonCandidateStatus("missing", ["missing-candidate-file"]);
+  }
 
-function taskCloseoutStatus(target, taskPlanPath) {
+  const fields = lessonCandidateFields(text);
+  const declaredStatus = normalizeLessonCandidateStatus(fields.get("task-level status") || "pending-review");
+  const reviewDecision = normalizeCandidateField(fields.get("review decision") || "pending-human-review");
+  const promotionState = normalizeCandidateField(fields.get("promotion state") || "not-promoted");
+  const closeoutToken = String(fields.get("closeout token") || "pending").trim();
+  const rows = lessonCandidateRows(text);
+  const issues = [];
+
+  if (!allowedLessonCandidateTaskStatuses.has(declaredStatus)) {
+    issues.push(`invalid-task-status:${declaredStatus}`);
+  }
+  for (const row of rows) {
+    if (!allowedLessonCandidateRowStatuses.has(row.status)) issues.push(`invalid-row-status:${row.id || "missing-id"}:${row.status}`);
+  }
+
+  const aggregateStatus = aggregateLessonCandidateStatus(rows, declaredStatus);
+  if (declaredStatus !== aggregateStatus && declaredStatus !== "missing") {
+    issues.push(`status-aggregate-mismatch:${declaredStatus}->${aggregateStatus}`);
+  }
+  if (aggregateStatus === "no-candidate-accepted" && !noCandidateReason(text)) {
+    issues.push("missing-no-candidate-reason");
+  }
+
+  return {
+    status: aggregateStatus,
+    declaredStatus,
+    schemaVersion: fields.get("schema version") || "",
+    reviewDecision,
+    promotionState,
+    closeoutToken,
+    rows,
+    openCount: rows.filter((row) => ["ready-for-review", "needs-promotion"].includes(row.status)).length,
+    issues,
+  };
+}
+
+function emptyLessonCandidateStatus(status, issues = []) {
+  return {
+    status,
+    declaredStatus: status,
+    schemaVersion: "",
+    reviewDecision: "",
+    promotionState: "",
+    closeoutToken: "",
+    rows: [],
+    openCount: 0,
+    issues,
+  };
+}
+
+function lessonCandidateFields(content) {
+  const { header, rows } = tableAfterHeading(content, /^Field$/i);
+  const fieldIndex = firstColumn(header, ["Field", "字段"]);
+  const valueIndex = firstColumn(header, ["Value", "值"]);
+  const fields = new Map();
+  if (fieldIndex < 0 || valueIndex < 0) return fields;
+  for (const row of rows) {
+    const key = String(row[fieldIndex] || "").trim().toLowerCase();
+    if (key) fields.set(key, String(row[valueIndex] || "").trim());
+  }
+  return fields;
+}
+
+function lessonCandidateRows(content) {
+  const { header, rows } = tableAfterHeading(content, /^ID$/i);
+  const idIndex = firstColumn(header, ["ID", "候选 ID"]);
+  const statusIndex = firstColumn(header, ["Row Status", "行状态", "Status", "状态"]);
+  const titleIndex = firstColumn(header, ["Title", "标题"]);
+  const decisionIndex = firstColumn(header, ["Review Decision", "审查决定"]);
+  const targetIndex = firstColumn(header, ["Promotion Target", "沉淀目标"]);
+  if (idIndex < 0 || statusIndex < 0) return [];
+  return rows
+    .filter((row) => /^LC-[A-Za-z0-9-]+$/i.test(row[idIndex] || ""))
+    .map((row) => ({
+      id: row[idIndex] || "",
+      status: normalizeLessonCandidateStatus(row[statusIndex] || ""),
+      title: row[titleIndex] || "",
+      reviewDecision: row[decisionIndex] || "",
+      promotionTarget: row[targetIndex] || "",
+    }));
+}
+
+function normalizeLessonCandidateStatus(value) {
+  return String(value || "")
+    .replace(/`/g, "")
+    .trim()
+    .toLowerCase()
+    .replaceAll("_", "-")
+    .replace(/\s+/g, "-");
+}
+
+function normalizeCandidateField(value) {
+  return String(value || "").replace(/`/g, "").trim().toLowerCase().replaceAll("_", "-").replace(/\s+/g, "-");
+}
+
+function aggregateLessonCandidateStatus(rows, declaredStatus) {
+  if (rows.length === 0) return declaredStatus === "no-candidate-accepted" ? "no-candidate-accepted" : declaredStatus;
+  const statuses = rows.map((row) => row.status);
+  if (statuses.includes("ready-for-review")) return "pending-review";
+  if (statuses.includes("needs-promotion")) return "needs-promotion";
+  if (statuses.every((status) => status === "promoted")) return "promoted";
+  if (statuses.every((status) => status === "rejected")) return "rejected";
+  return declaredStatus;
+}
+
+function noCandidateReason(content) {
+  const match = String(content || "").match(/^##\s*No-Candidate Reason\s*$([\s\S]*?)(?=^##\s+|\s*$)/im);
+  if (!match) return "";
+  return match[1].replace(/`/g, "").trim();
+}
+
+
+function taskCloseoutInfo(target, taskPlanPath) {
   const closeout = readFileSafe(path.join(target.docsRoot, "10-WALKTHROUGH/Closeout-SSoT.md"));
-  if (!closeout.trim()) return "missing";
+  if (!closeout.trim()) return { status: "missing", walkthroughPath: "" };
   const docsRelative = `docs/${toPosix(path.relative(target.docsRoot, taskPlanPath))}`;
   const projectRelative = toPosix(path.relative(target.projectRoot, taskPlanPath));
   const line = closeout
     .split(/\r?\n/)
     .find((entry) => entry.includes(docsRelative) || entry.includes(projectRelative));
-  if (!line) return "missing";
-  if (/\b(closed|complete|completed|done|skipped-with-reason|skipped|已关闭|已完成|跳过)\b/i.test(line)) return "closed";
-  return "pending";
+  if (!line) return { status: "missing", walkthroughPath: "" };
+  const walkthroughPath = extractWalkthroughPath(target, line);
+  const status = /\b(closed|complete|completed|done|skipped-with-reason|skipped|已关闭|已完成|跳过)\b/i.test(line) ? "closed" : "pending";
+  return { status, walkthroughPath };
+}
+
+function extractWalkthroughPath(target, closeoutLine) {
+  const matches = [...String(closeoutLine || "").matchAll(/`?((?:docs\/)?10-WALKTHROUGH\/[^`|\s]+\.md)`?/g)];
+  const match = matches.find((entry) => !entry[1].endsWith("Closeout-SSoT.md") && !entry[1].includes("/_"));
+  if (!match) return "";
+  const projectRelative = match[1].startsWith("docs/") ? match[1] : `docs/${match[1]}`;
+  if (!fs.existsSync(path.join(target.projectRoot, projectRelative))) return "";
+  return projectRelative;
 }
 
 export function parseReviewConfirmation(reviewContent) {

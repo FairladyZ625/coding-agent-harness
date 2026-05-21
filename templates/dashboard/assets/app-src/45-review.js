@@ -3,25 +3,37 @@ function reviewQueue() {
   const ready = tasks.filter((task) => task.reviewStatus !== "blocked-open-findings" && task.reviewStatus !== "confirmed").length;
   const blocked = tasks.filter((task) => task.reviewStatus === "blocked-open-findings").length;
   const confirmed = tasks.filter((task) => task.reviewStatus === "confirmed").length;
-  return `<main class="review-queue-page">
-    <section class="flow-panel">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">${t("review")}</p>
-          <h2>${t("reviewQueue")}</h2>
-          <p class="subtle">${t("reviewQueueSubtitle")}</p>
+  return `<div class="dashboard-grid review-queue-page">
+    <main class="dashboard-main stack">
+      <section class="flow-panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">${t("review")}</p>
+            <h2>${t("reviewQueue")}</h2>
+            <p class="subtle">${t("reviewQueueSubtitle")}</p>
+          </div>
+          <span class="subtle">${ready}/${tasks.length} ${t("reviewReady")}</span>
         </div>
+        <div class="task-card-grid review-queue-grid">
+          ${tasks.map(reviewQueueCard).join("") || emptyState(t("noReviewTasks"))}
+        </div>
+      </section>
+    </main>
+    <aside class="dashboard-sidebar stack">
+      <section class="side-panel review-queue-summary">
+        <h3>${t("reviewQueue")}</h3>
         <div class="review-queue-stats">
           ${metric(t("reviewReady"), ready)}
           ${metric(t("reviewBlockedQueue"), blocked)}
           ${metric(t("reviewConfirmedQueue"), confirmed)}
         </div>
-      </div>
-      <div class="task-card-grid review-queue-grid">
-        ${tasks.map(reviewQueueCard).join("") || emptyState(t("noReviewTasks"))}
-      </div>
-    </section>
-  </main>`;
+      </section>
+      <section class="side-panel">
+        <h3>${t("review")}</h3>
+        <p>${escapeHtml(t("reviewQueueSubtitle"))}</p>
+      </section>
+    </aside>
+  </div>`;
 }
 
 function reviewQueueTasks() {

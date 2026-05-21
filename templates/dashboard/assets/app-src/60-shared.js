@@ -1,4 +1,5 @@
 function taskDocument(task, fileName) {
+  if (fileName === "__walkthrough__" && task.walkthroughPath) return findDocument(task.walkthroughPath);
   return findDocument(`${task.path}/${fileName}`);
 }
 

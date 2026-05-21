@@ -107,7 +107,7 @@ function isTaskInReviewStage(task) {
   const state = task?.state || "";
   const lifecycle = task?.lifecycleState || "";
   if (["not_started", "planned", "in_progress"].includes(state)) return false;
-  return state === "review" || state === "done" || ["in_review", "review-blocked", "closing", "closed"].includes(lifecycle);
+  return state === "review" || ["in_review", "review-blocked"].includes(lifecycle);
 }
 
 function startPollingWatch(root, regenerate) {

@@ -33,6 +33,7 @@ const taskDocTabs = [
   ["progress", "progress.md"],
   ["review", "review.md"],
   ["findings", "findings.md"],
+  ["walkthrough", "__walkthrough__"],
   ["references", "references/INDEX.md"],
   ["artifacts", "artifacts/INDEX.md"],
 ];
@@ -686,12 +687,7 @@ function taskDetail(route) {
     ${phaseTimeline(task)}
     <section class="detail-grid">
       <article class="detail-main">
-        ${taskDocSection(task, "brief.md", t("brief"), true)}
-        ${!taskDocument(task, "brief.md") ? taskDocSection(task, "task_plan.md", t("taskPlan"), false) : ""}
-        ${taskDocSection(task, "execution_strategy.md", t("strategy"), false)}
-        ${taskDocSection(task, "visual_map.md", t("visualMap"), false)}
-        ${taskDocSection(task, "visual_roadmap.md", t("legacyRoadmap"), false)}
-        ${selectedSourceDocument(task, route.doc)}
+        ${taskDocumentLibrary(task, route.doc)}
       </article>
       <aside class="detail-side">
         ${reviewActionPanel(task)}
@@ -745,13 +741,73 @@ function taskDocSection(task, fileName, title, required) {
   </section>`;
 }
 
-function documentTabs(task) {
+function taskDocumentLibrary(task, selectedTab) {
+  const docs = orderedTaskDocuments(task);
+  if (!docs.length) return taskDocSection(task, "brief.md", t("brief"), true);
+  const selectedKey = docs.some((doc) => doc.key === selectedTab) ? selectedTab : defaultTaskDocumentKey(task, docs);
+  return `<section class="doc-library">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">${t("taskDocuments")}</p>
+        <h2>${escapeHtml(t("sourceDocuments"))}</h2>
+      </div>
+      <button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button>
+    </div>
+    <div class="doc-accordion-list">
+      ${docs.map((item) => documentAccordion(item, item.key === selectedKey)).join("")}
+    </div>
+  </section>`;
+}
+
+function orderedTaskDocuments(task) {
   const docs = taskDocTabs
-    .map(([tab, file]) => [tab, taskDocument(task, file)])
-    .filter(([, doc]) => doc);
+    .map(([key, file]) => {
+      const doc = taskDocument(task, file);
+      if (doc) return { key, file, title: t(key), path: doc.path, content: doc.content };
+      if (key === "brief") return { key, file, title: t(key), path: `${task.path}/brief.md`, content: generatedBrief(task), generated: true };
+      return null;
+    })
+    .filter(Boolean);
+  const priority = taskDocumentPriority(task);
+  const rank = new Map(priority.map((key, index) => [key, index]));
+  return docs.sort((a, b) => (rank.get(a.key) ?? 99) - (rank.get(b.key) ?? 99));
+}
+
+function taskDocumentPriority(task) {
+  const stateName = task?.state || "";
+  const lifecycle = task?.lifecycleState || "";
+  if (stateName === "review" || ["in_review", "review-blocked"].includes(lifecycle)) {
+    return ["walkthrough", "review", "findings", "visualMap", "progress", "brief", "taskPlan", "strategy", "legacyRoadmap", "references", "artifacts"];
+  }
+  if (stateName === "in_progress" || lifecycle === "active" || stateName === "blocked") {
+    return ["progress", "visualMap", "brief", "taskPlan", "strategy", "findings", "review", "walkthrough", "references", "artifacts", "legacyRoadmap"];
+  }
+  if (stateName === "done" || ["closing", "closed"].includes(lifecycle)) {
+    return ["walkthrough", "progress", "review", "findings", "visualMap", "brief", "taskPlan", "strategy", "references", "artifacts", "legacyRoadmap"];
+  }
+  return ["brief", "taskPlan", "visualMap", "strategy", "progress", "findings", "review", "walkthrough", "references", "artifacts", "legacyRoadmap"];
+}
+
+function defaultTaskDocumentKey(task, docs) {
+  const priority = taskDocumentPriority(task);
+  return priority.find((key) => docs.some((doc) => doc.key === key)) || docs[0]?.key || "brief";
+}
+
+function documentAccordion(item, open) {
+  return `<details class="doc-accordion" ${open ? "open" : ""}>
+    <summary>
+      <span>${escapeHtml(item.title)}</span>
+      <small>${escapeHtml(item.generated ? t("generatedFallback") : item.path)}</small>
+    </summary>
+    <div class="markdown">${window.HarnessMarkdown.render(item.content, state.renderMode)}</div>
+  </details>`;
+}
+
+function documentTabs(task) {
+  const docs = orderedTaskDocuments(task);
   return `<section class="side-panel">
     <h3>${t("sourceDocuments")}</h3>
-    ${docs.map(([tab, doc]) => `<a href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(tab)}" title="${escapeAttr(doc.path)}">${escapeHtml(t(tab))}</a>`).join("") || `<p>${t("noDocuments")}</p>`}
+    ${docs.map((doc) => `<a href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(doc.key)}" title="${escapeAttr(doc.path)}">${escapeHtml(doc.title)}</a>`).join("") || `<p>${t("noDocuments")}</p>`}
   </section>`;
 }
 
@@ -786,15 +842,18 @@ function reviewActionPanel(task) {
       <p>${escapeHtml(t("reviewAlreadyConfirmed"))}</p>
     </section>`;
   }
+  const missingWalkthrough = task.budget !== "simple" && !task.walkthroughPath;
+  const disabled = blocking || missingWalkthrough;
+  const message = missingWalkthrough ? t("reviewWalkthroughRequired") : blocking ? t("reviewBlocked") : t("reviewWorkbenchReady");
   return `<section class="side-panel review-actions">
     <h3>${t("reviewActions")}</h3>
-    <p>${escapeHtml(blocking ? t("reviewBlocked") : t("reviewWorkbenchReady"))}</p>
+    <p>${escapeHtml(message)}</p>
     <label class="review-check">
-      <input type="checkbox" data-review-confirm-check="${escapeAttr(task.id)}" ${blocking ? "disabled" : ""}>
+      <input type="checkbox" data-review-confirm-check="${escapeAttr(task.id)}" ${disabled ? "disabled" : ""}>
       <span>${t("reviewConfirmChecklist")}</span>
     </label>
-    <input data-review-confirm-text="${escapeAttr(task.id)}" value="" placeholder="${escapeAttr(task.shortId || task.id)}" ${blocking ? "disabled" : ""}>
-    <button data-review-complete="${escapeAttr(task.id)}" ${blocking ? "disabled" : ""}>${t("confirmReviewComplete")}</button>
+    <input data-review-confirm-text="${escapeAttr(task.id)}" value="" placeholder="${escapeAttr(task.shortId || task.id)}" ${disabled ? "disabled" : ""}>
+    <button data-review-complete="${escapeAttr(task.id)}" ${disabled ? "disabled" : ""}>${t("confirmReviewComplete")}</button>
     <div class="review-result" data-review-result="${escapeAttr(task.id)}"></div>
   </section>`;
 }
@@ -803,7 +862,7 @@ function isTaskInReviewStage(task) {
   const state = task?.state || "";
   const lifecycle = task?.lifecycleState || "";
   if (["not_started", "planned", "in_progress"].includes(state)) return false;
-  return state === "review" || state === "done" || ["in_review", "review-blocked", "closing", "closed"].includes(lifecycle);
+  return state === "review" || ["in_review", "review-blocked"].includes(lifecycle);
 }
 
 function evidenceList(task) {
@@ -878,25 +937,37 @@ function reviewQueue() {
   const ready = tasks.filter((task) => task.reviewStatus !== "blocked-open-findings" && task.reviewStatus !== "confirmed").length;
   const blocked = tasks.filter((task) => task.reviewStatus === "blocked-open-findings").length;
   const confirmed = tasks.filter((task) => task.reviewStatus === "confirmed").length;
-  return `<main class="review-queue-page">
-    <section class="flow-panel">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">${t("review")}</p>
-          <h2>${t("reviewQueue")}</h2>
-          <p class="subtle">${t("reviewQueueSubtitle")}</p>
+  return `<div class="dashboard-grid review-queue-page">
+    <main class="dashboard-main stack">
+      <section class="flow-panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">${t("review")}</p>
+            <h2>${t("reviewQueue")}</h2>
+            <p class="subtle">${t("reviewQueueSubtitle")}</p>
+          </div>
+          <span class="subtle">${ready}/${tasks.length} ${t("reviewReady")}</span>
         </div>
+        <div class="task-card-grid review-queue-grid">
+          ${tasks.map(reviewQueueCard).join("") || emptyState(t("noReviewTasks"))}
+        </div>
+      </section>
+    </main>
+    <aside class="dashboard-sidebar stack">
+      <section class="side-panel review-queue-summary">
+        <h3>${t("reviewQueue")}</h3>
         <div class="review-queue-stats">
           ${metric(t("reviewReady"), ready)}
           ${metric(t("reviewBlockedQueue"), blocked)}
           ${metric(t("reviewConfirmedQueue"), confirmed)}
         </div>
-      </div>
-      <div class="task-card-grid review-queue-grid">
-        ${tasks.map(reviewQueueCard).join("") || emptyState(t("noReviewTasks"))}
-      </div>
-    </section>
-  </main>`;
+      </section>
+      <section class="side-panel">
+        <h3>${t("review")}</h3>
+        <p>${escapeHtml(t("reviewQueueSubtitle"))}</p>
+      </section>
+    </aside>
+  </div>`;
 }
 
 function reviewQueueTasks() {
@@ -1110,6 +1181,7 @@ function healthPanel() {
 }
 
 function taskDocument(task, fileName) {
+  if (fileName === "__walkthrough__" && task.walkthroughPath) return findDocument(task.walkthroughPath);
   return findDocument(`${task.path}/${fileName}`);
 }
 
@@ -1338,11 +1410,7 @@ function renderDrawerContent(taskId) {
   `;
 
   const timeline = phaseTimeline(task);
-  const brief = taskDocSection(task, "brief.md", t("brief"), true);
-  const plan = taskDocument(task, "brief.md") ? "" : taskDocSection(task, "task_plan.md", t("taskPlan"), false);
-  const strategy = taskDocSection(task, "execution_strategy.md", t("strategy"), false);
-  const visualMap = taskDocSection(task, "visual_map.md", t("visualMap"), false);
-  const legacyRoadmap = taskDocSection(task, "visual_roadmap.md", t("legacyRoadmap"), false);
+  const documents = taskDocumentLibrary(task, "");
   const findings = openFindings(task);
   const evidence = evidenceList(task);
 
@@ -1355,11 +1423,7 @@ function renderDrawerContent(taskId) {
       ${taskStateSummary(task)}
       ${reviewActionPanel(task)}
       ${timeline}
-      ${brief}
-      ${plan}
-      ${strategy}
-      ${visualMap}
-      ${legacyRoadmap}
+      ${documents}
       ${findings}
       ${evidence}
     </div>

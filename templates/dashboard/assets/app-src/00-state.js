@@ -33,6 +33,7 @@ const taskDocTabs = [
   ["progress", "progress.md"],
   ["review", "review.md"],
   ["findings", "findings.md"],
+  ["walkthrough", "__walkthrough__"],
   ["references", "references/INDEX.md"],
   ["artifacts", "artifacts/INDEX.md"],
 ];
