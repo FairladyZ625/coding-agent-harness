@@ -1,169 +1,91 @@
 # [项目名称]
 
-> Agent 进入本仓库时先读这个文件。它负责说明项目边界、工作顺序和文档入口，不承载所有细节。
+这个文件是 Agent 进入本仓库时的工作入口。它只负责说明硬规则和阅读路由；
+详细规范放在 `docs/11-REFERENCE/`，不要把操作手册全部塞进这里。
 
 ## 项目概况
 
 - **项目名**：[项目名称]
 - **技术栈**：[语言 / 框架 / 运行时]
 - **仓库形态**：[单仓 / monorepo / 多仓协作]
-- **主要模块**：[列出主要子项目、包或服务]
-- **默认分支**：[例如 `main`]
+- **主要模块**：[模块列表]
+- **默认分支**：[main / master / 其他]
 
 ## 不可违反的规则
 
-1. [架构约束，例如：外部依赖必须通过 adapter 层隔离]
-2. [安全约束，例如：不得提交密钥、令牌、用户隐私数据]
-3. [流程约束，例如：非平凡任务必须先建立任务目录和计划文件]
-4. [发布约束，例如：未通过指定回归门禁不得合并或发布]
-5. 已验证的、有意义的工作切片要主动提交；除非用户明确说不要提交，不要等用户提醒才提交。
+1. 遵守 `docs/11-REFERENCE/engineering-standard.md` 中的架构边界。
+2. 不提交密钥、令牌、私有接口、用户隐私数据或生产凭据。
+3. 非平凡任务先在 `docs/09-PLANNING/TASKS/` 下建立任务目录。
+4. 声称完成前必须记录证据。
+5. 保护无关工作区改动，不回滚任务范围外文件。
+6. 已验证的、有意义的工作切片要主动提交，除非用户明确说不要提交。
 
 ## 任务阅读矩阵
 
-按任务类型读取最少但足够的上下文。不要一次性加载整套文档。
+按任务类型读取最少但足够的上下文，不要一次性加载整套文档。
 
 | 任务类型 | 先读文件 |
 | --- | --- |
 | 架构、核心模块、跨模块改动 | `docs/11-REFERENCE/engineering-standard.md` |
-| 系统结构、服务职责、外部系统关系 | `docs/03-ARCHITECTURE/service-catalog.md`、`docs/03-ARCHITECTURE/system-map.md`、相关 `services/<service-key>.md` |
-| API、event、webhook、SDK、第三方契约 | `docs/06-INTEGRATIONS/README.md`，再读相关契约文件 |
-| 本地开发、mock、stub、跨仓调试 | `docs/04-DEVELOPMENT/README.md`、`docs/04-DEVELOPMENT/codebase-map.md`、相关 `external-context/<service-key>.md` |
-| 测试、冒烟、回归 | `docs/11-REFERENCE/testing-standard.md` |
-| 开发执行、提交、PR | `docs/11-REFERENCE/execution-workflow-standard.md` |
-| 创建或推进任务 | 使用 Harness CLI；读 `docs/09-PLANNING/TASKS/_task-template/` 仅作结构参考 |
-| Brief、Execution Strategy、Visual Map | 当前任务目录下的 `brief.md`、`execution_strategy.md`、`visual_map.md`；`visual_map.md` 是图表集合，只在图能提高理解时绘制 |
-| 安装、升级、Capability 接入 | `docs/11-REFERENCE/docs-library-standard.md`、`.harness-capabilities.json`，再使用 `harness init` 或 `harness add-capability` |
-| 旧 Harness 迁移 | 先运行 `harness migrate-plan --json`，给出迁移模式建议并等用户确认，再运行 `migrate-run` / `migrate-verify` |
-| 用户级 Skill 注册 | 使用 `harness install-user` / `harness doctor-user`，不要把用户级 skill 文件复制进项目仓库 |
-| 多人协作、多仓交付、前后端分工 | `docs/11-REFERENCE/delivery-operating-model-standard.md`，再读 `docs/09-PLANNING/Delivery-SSoT.md` |
-| 模块并行、模块任务、worker 派发 | `docs/09-PLANNING/Module-Registry.md`，再读 `docs/09-PLANNING/MODULES/<module-key>/module_plan.md`、`brief.md`、`session_prompt.md` |
-| 仓库治理、PR 规则、分支保护 | `docs/11-REFERENCE/repo-governance-standard.md` |
-| CI/CD、必跑检查、发布门禁 | `docs/11-REFERENCE/ci-cd-standard.md` |
-| Dashboard、项目状态、任务索引 | `harness status --json`、`harness task-list --json`、`harness dashboard` |
-| Harness 源码仓维护（仅当本仓就是 Harness source package） | 运行 `harness check --profile source-package .`；私有 dogfood 再运行 `harness check --profile private-harness .harness-private` |
-| 长程任务、连续执行、子代理审查 | `docs/11-REFERENCE/long-running-task-standard.md` |
-| 对抗性审查、reviewer 报告 | `docs/11-REFERENCE/adversarial-review-standard.md` |
-| reviewer、subagent、外部审查路由 | `docs/11-REFERENCE/review-routing-standard.md` |
-| 文档治理、planning、任务目录 | `docs/11-REFERENCE/docs-library-standard.md` |
-| 微服务、多仓、外部团队资料摄取 | `docs/11-REFERENCE/external-source-intake-standard.md`，再读 `docs/04-DEVELOPMENT/external-source-packs/README.md` |
-| Harness Ledger 回写 | `docs/11-REFERENCE/harness-ledger-standard.md` |
+| 系统地图、服务职责、外部系统关系 | `docs/03-ARCHITECTURE/README.md`、`docs/03-ARCHITECTURE/service-catalog.md` |
+| 本地开发、mock、stub、跨仓调试 | `docs/04-DEVELOPMENT/README.md`、`docs/04-DEVELOPMENT/codebase-map.md` |
+| API、event、webhook、SDK、第三方契约 | `docs/06-INTEGRATIONS/README.md` 和相关契约文件 |
+| 测试、冒烟、回归 | `docs/11-REFERENCE/testing-standard.md`、`docs/05-TEST-QA/Regression-SSoT.md` |
+| 开发执行、提交、PR、发布 | `docs/11-REFERENCE/execution-workflow-standard.md`、`docs/11-REFERENCE/repo-governance-standard.md`、`docs/11-REFERENCE/ci-cd-standard.md` |
+| 创建或推进任务 | `docs/09-PLANNING/TASKS/` 下的当前任务目录；如果本项目已配置 Harness CLI，优先用 CLI |
+| Brief、Execution Strategy、Visual Map | 当前任务的 `brief.md`、`execution_strategy.md`、`visual_map.md` |
+| 长程任务 | `docs/11-REFERENCE/long-running-task-standard.md` |
+| reviewer、subagent、对抗性审查 | `docs/11-REFERENCE/review-routing-standard.md`、`docs/11-REFERENCE/adversarial-review-standard.md` |
+| 多人协作、多仓交付、阶段性交付 | `docs/11-REFERENCE/delivery-operating-model-standard.md`、`docs/09-PLANNING/Delivery-SSoT.md` |
+| 模块并行 | `docs/09-PLANNING/Module-Registry.md` 和相关 module plan |
+| 文档治理或 Harness 更新 | `docs/11-REFERENCE/docs-library-standard.md`、`.harness-capabilities.json` |
+| 外部资料摄取 | `docs/11-REFERENCE/external-source-intake-standard.md` |
 | Regression SSoT 维护 | `docs/11-REFERENCE/regression-ssot-governance.md` |
-| 收口记录、Closeout、Lessons | `docs/11-REFERENCE/walkthrough-standard.md`，再读 `docs/01-GOVERNANCE/Lessons-SSoT.md` 与 `docs/10-WALKTHROUGH/Closeout-SSoT.md` |
-| Worktree、并行开发、worker 隔离 | `docs/11-REFERENCE/worktree-standard.md` |
-| [前端任务] | `docs/11-REFERENCE/frontend-standard.md` |
-| [API 任务] | `docs/11-REFERENCE/api-standard.md` |
+| 收口、walkthrough、Lessons | `docs/11-REFERENCE/walkthrough-standard.md`、`docs/10-WALKTHROUGH/Closeout-SSoT.md`、`docs/01-GOVERNANCE/Lessons-SSoT.md` |
+| Worktree、并行开发隔离 | `docs/11-REFERENCE/worktree-standard.md` |
 
 ## 标准执行流程
 
-1. 如果请求是安装、升级或迁移 Harness，先走下方“安装与迁移入口”，不要套普通 feature 流程。
-2. 判断任务是否非平凡；非平凡任务使用 `harness new-task` 创建，不要手工复制任务模板。
-3. 如果任务涉及微服务、多仓、外部系统或用户提供的外部资料，先读 `external-source-intake-standard.md`，必要时建立 source pack，再把稳定事实投影到 `03/04/06`。
-4. 填写 `task_plan.md`，并补齐同级 `execution_strategy.md` 与 `visual_map.md`。
-5. 确认本任务的 delivery operating model；涉及多人、多仓或共享交付时更新 Delivery SSoT。
-6. 如果启用了模块并行，先读 `Module-Registry.md`。模块真实存在时，必须维护 `MODULES/<module-key>/brief.md`、`module_plan.md`、`execution_strategy.md`、`visual_map.md` 和 `session_prompt.md`；否则 dashboard 只能显示按任务路径推断的分组，不代表真实模块规划。
-7. 如果任务可能长时间连续执行，先填写 `long-running-task-contract.md`。
-8. 如需 reviewer、subagent、release review，在任务目录维护 `review.md`。
-9. 涉及合并、PR、CI 或发布时，先读仓库治理和 CI/CD 标准。
-10. 根据任务类型回写功能 SSoT、Delivery SSoT 或 Regression SSoT。
-11. 按 worktree 标准创建独立 worktree、feature branch、contract branch 或 release branch。
-12. 实现后运行约定检查和回归门禁，并把证据写入 `progress.md` 或 artifacts index。
-13. 每完成一个已验证的、有意义的切片，就只 stage 范围内文件并主动提交；无关 dirty 文件保留原样并在交接中说明。
-14. 收口前按 `review-routing-standard.md` 触发所需审查，处理所有阻塞发现。
-15. 写 walkthrough，并引用任务计划、证据、审查结论和残余风险。
-16. 执行 Lessons 检查：非 simple 任务保持 `lesson_candidates.md` 可审；人工判定后记录 `checked-candidate`、`queued-promotion`、`checked-created`，或旧任务兼容的 `checked-none`。
-17. 更新 `docs/10-WALKTHROUGH/Closeout-SSoT.md` 与 `docs/Harness-Ledger.md`。
-18. 清理已完成并合并的 worktree。
+1. 先确认请求、范围和受影响文件。
+2. 非平凡任务先创建或更新任务计划，再改代码。
+3. 只读取任务阅读矩阵要求的 reference 文档。
+4. 保留已有项目事实；新增上下文使用 merge / append，不覆盖历史。
+5. 需要隔离或并行时，使用独立 worktree 或分支。
+6. 只在确认范围内实现。
+7. 运行相关检查，并把证据写入任务记录。
+8. 按需触发 review，关闭阻塞发现。
+9. 写入或更新 walkthrough 与 closeout 记录。
+10. 只更新本任务实际触达的 SSoT / ledger。
 
-## 安装与迁移入口
+## 协作规则
 
-- 新项目：先诊断，再决定 locale、delivery model 和 capabilities；确认后运行 `harness init --locale zh-CN --capabilities core,... .`。
-- 更新已有 v1 Harness：先扫描 `.harness-capabilities.json` 和现有 docs，再用 `harness add-capability` 补缺失能力；不要用模板覆盖项目事实。
-- 旧 Harness 迁移：先运行 `harness status --json .` 和 `harness migrate-plan --json --limit 1000 .`，给出 baseline-preserve / status-aware-rewrite / full-semantic-rewrite 建议，等用户确认后再写文件。
-- 用户级 Skill：只用 `harness install-user` / `harness doctor-user` 管理用户 agent skill，不把用户级 skill 产物提交到项目仓库。
-- Harness 源码仓维护：只有当本仓就是 `coding-agent-harness` source package 时，才使用 `source-package` 和 `private-harness` profile；普通目标项目只运行 `target-project`。
+- reviewer 默认只读，除非明确分配写入范围。
+- worker 只能编辑分配给自己的分支、worktree 和文件范围。
+- 共享 ledger、registry 和 SSoT 默认由 coordinator 维护，除非明确登记锁。
+- worker 交接必须包含分支或 worktree、改动文件、检查、证据和残余风险。
 
-## 命令入口
+## 单一事实源
 
-开始前先检查 `command -v harness`。如果当前环境没有 `harness` 命令，不要静默全局安装。
+- Feature SSoT：`docs/09-PLANNING/Feature-SSoT.md`
+- Delivery SSoT：`docs/09-PLANNING/Delivery-SSoT.md`
+- Module Registry：`docs/09-PLANNING/Module-Registry.md`
+- Regression SSoT：`docs/05-TEST-QA/Regression-SSoT.md`
+- Cadence Ledger：`docs/05-TEST-QA/Cadence-Ledger.md`
+- Lessons SSoT：`docs/01-GOVERNANCE/Lessons-SSoT.md`
+- Closeout SSoT：`docs/10-WALKTHROUGH/Closeout-SSoT.md`
+- Harness Ledger：`docs/Harness-Ledger.md`
 
-先询问用户是否允许运行：
+## 本地命令
 
-```bash
-npm install -g coding-agent-harness
-```
-
-说明这会修改全局 npm 环境，之后可以直接使用 `harness`。只有用户明确同意后才执行全局安装。
-
-如果用户不同意或未回复，用 `npx --yes coding-agent-harness <command>` 运行同一条命令。`npx` 第一次运行会下载 npm 包到本机缓存，但不会写入目标项目依赖。
-
-| 场景 | 命令 |
+| 用途 | 命令 |
 | --- | --- |
-| 创建任务 | `harness new-task <task-id> --title "<title>" --locale zh-CN .` |
-| 创建模块任务 | `harness new-task <task-id> --module <module-key> --title "<title>" --locale zh-CN .` |
-| 安装新项目 Harness | `harness init --locale zh-CN --capabilities core,dashboard .` |
-| 增量接入 capability | `harness add-capability <capability> --locale zh-CN .` |
-| 迁移计划 | `harness migrate-plan --json --limit 1000 .` |
-| 迁移执行 / 验证 | `harness migrate-run --locale zh-CN --session-dir /tmp/cah-migration --out-dir /tmp/cah-migration/dashboard .` / `harness migrate-verify /tmp/cah-migration/session.json` |
-| 用户级 Skill 安装 / 诊断 | `harness install-user --agent codex --global` / `harness doctor-user --agent codex` |
-| 记录开始 / 日志 / 阻塞 / 完成 | `harness task-start` / `task-log` / `task-block` / `task-complete` |
-| 更新阶段状态 | `harness task-phase <task-id> <phase-id> --state done --completion 100 --evidence present .` |
-| 更新模块步骤 | `harness module-step <module-key> <step-id> --state done .` |
-| 读取任务索引 | `harness task-list --json .` |
-| 读取项目状态 | `harness status --json .` |
-| 生成 Dashboard | `harness dashboard --out-dir /tmp/harness-dashboard .` |
-| 检查 Harness | `harness check --profile target-project .` |
-| 维护 Harness 源码包 | `harness check --profile source-package .` |
+| 安装 | `[install command]` |
+| 测试 | `[test command]` |
+| Lint | `[lint command]` |
+| 构建 | `[build command]` |
+| 冒烟 | `[smoke command]` |
 
-CLI 是任务和 dashboard 数据的主要入口。只有在 CLI 不支持的项目化内容上，才直接编辑对应 Markdown。
+## 完成标准
 
-## 模块并行规则
-
-- 只有 `Module-Registry.md` 和 `MODULES/<module-key>/module_plan.md` 存在并持续维护时，模块才是真实规划对象。
-- 只有从任务路径或 `inferredModule` 推断出来的分组，不等于模块规划；dashboard 可以展示它，但不能把它当 owner / write scope / dependency 的依据。
-- 模块 worker 开始前必须读 registry、module plan、module brief 和 session prompt。
-- Worker 更新模块任务和 `module_plan.md`；coordinator 或共享锁 owner 才能更新 `Module-Registry.md`、Delivery SSoT、Harness Ledger、Closeout SSoT、Regression SSoT 和 Cadence Ledger。
-- 需要跨模块或共享文件时，先登记 shared scope / owner / merge order，再派 worker。
-
-## 子代理 / Worker 规则
-
-主 agent 作为 coordinator 调用 subagent、外部 agent 或 reviewer 时，必须先判断对方角色。
-
-- `reviewer`：默认只读，只能写审查报告、findings 或 `review.md`，不得直接改业务代码。
-- `worker`：凡是会改代码、测试、产品文档或 harness 文档的 subagent，都必须在独立 worktree 和分支内工作。
-
-Worker 的最低交付合同：
-
-1. coordinator 先分配 worktree 路径、分支名、任务目录和允许写入范围。
-2. worker 只在自己的 worktree 内编辑，不写 coordinator 当前 checkout。
-3. worker 完成后运行约定检查，并提交自己的改动。
-4. worker handoff 必须包含 worktree path、branch、commit SHA、checks、residual risks。
-5. coordinator 只集成 worker 的 commit，不把多个 worker 的未提交改动混在同一个 checkout。
-6. coordinator 合并后运行最终回归，并更新 walkthrough、Harness Ledger 和 Lessons。
-
-Coordinator 自己执行时也要主动提交已验证切片。未提交交接是例外，必须写清原因、剩余 dirty 文件和下一步。
-
-如果环境或用户明确要求不使用独立 worktree，必须在 `progress.md`、walkthrough 或 Harness Ledger 记录偏离原因、风险和补偿验证。
-
-## SSoT 与总账
-
-- **功能 SSoT**：`docs/09-PLANNING/[功能-SSoT].md`
-- **Capability Registry**：`.harness-capabilities.json`
-- **Delivery SSoT**：`docs/09-PLANNING/Delivery-SSoT.md`
-- **Module Registry**：`docs/09-PLANNING/Module-Registry.md`
-- **Module Plans**：`docs/09-PLANNING/MODULES/<module-key>/module_plan.md`
-- **Module Session Prompt**：`docs/09-PLANNING/MODULES/Session-Prompt-Pack.md` 或 `docs/09-PLANNING/MODULES/<module-key>/session_prompt.md`
-- **架构服务目录**：`docs/03-ARCHITECTURE/service-catalog.md`
-- **开发外部上下文**：`docs/04-DEVELOPMENT/external-context/<service-key>.md`
-- **外部资料包**：`docs/04-DEVELOPMENT/external-source-packs/`
-- **接口契约索引**：`docs/06-INTEGRATIONS/README.md`
-- **Regression SSoT**：`docs/05-TEST-QA/Regression-SSoT.md`
-- **Lessons SSoT**：`docs/01-GOVERNANCE/Lessons-SSoT.md`
-- **Cadence Ledger**：`docs/05-TEST-QA/Cadence-Ledger.md`
-- **Harness Ledger**：`docs/Harness-Ledger.md`
-- **Closeout SSoT**：`docs/10-WALKTHROUGH/Closeout-SSoT.md`
-- **仓库治理标准**：`docs/11-REFERENCE/repo-governance-standard.md`
-- **CI/CD 标准**：`docs/11-REFERENCE/ci-cd-standard.md`
-
-## 协作补充
-
-[按项目实际填写：模块 owner、共享文件锁、merge 顺序、发布审批人、环境限制等。]
+只有当请求的改动已经实现、证据已经记录、必要审查已经处理、相关 SSoT 或
+ledger 已经更新时，任务才算完成。

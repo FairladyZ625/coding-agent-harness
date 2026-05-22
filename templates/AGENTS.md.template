@@ -1,6 +1,8 @@
 # [Project Name]
 
-This file is the operating contract for agents working in this repository. Keep it concise: it should route agents to the right source of truth, not replace the project documentation.
+This file is the operating entry point for agents working in this repository.
+Keep it as a charter and routing index. Detailed rules belong in
+`docs/11-REFERENCE/`, not in this file.
 
 ## Project Profile
 
@@ -8,140 +10,66 @@ This file is the operating contract for agents working in this repository. Keep 
 - Stack: [language, framework, runtime]
 - Repository shape: [single repo / monorepo / multi-repo]
 - Primary modules: [module list]
-- Primary users or operators: [audience]
+- Default branch: [main / master / other]
 
 ## Non-Negotiable Rules
 
 1. Preserve architecture boundaries documented in `docs/11-REFERENCE/engineering-standard.md`.
-2. Do not hard-code secrets, credentials, production tokens, or private endpoints.
+2. Do not commit secrets, credentials, private endpoints, or user data.
 3. Start non-trivial work with a task directory under `docs/09-PLANNING/TASKS/`.
 4. Record evidence before claiming completion.
-5. Protect unrelated working-tree changes. Never revert files outside the assigned scope.
-6. Keep shared ledgers and SSoT files coordinator-owned unless a lock is explicitly assigned.
-7. Proactively commit verified, meaningful work slices. Do not wait for the user to ask for a commit unless they explicitly told you not to commit.
+5. Protect unrelated working-tree changes; never revert files outside the assigned scope.
+6. Commit verified, meaningful work slices unless the user explicitly says not to commit.
 
 ## Reading Matrix
+
+Read the smallest context that can answer the task.
 
 | Work Type | Read First |
 | --- | --- |
 | Architecture or core module change | `docs/11-REFERENCE/engineering-standard.md` |
-| System structure, service responsibility, or external system relationship | `docs/03-ARCHITECTURE/service-catalog.md`, `docs/03-ARCHITECTURE/system-map.md`, and related `services/<service-key>.md` |
-| API, event, webhook, SDK, or third-party contract | `docs/06-INTEGRATIONS/README.md`, then the related contract file |
-| Local development, mocks, stubs, or cross-repo debugging | `docs/04-DEVELOPMENT/README.md`, `docs/04-DEVELOPMENT/codebase-map.md`, and related `external-context/<service-key>.md` |
-| Tests, smoke, or regression | `docs/11-REFERENCE/testing-standard.md` |
-| Execution, commit, or PR | `docs/11-REFERENCE/execution-workflow-standard.md` |
-| Creating or advancing a task | Use the Harness CLI; read `docs/09-PLANNING/TASKS/_task-template/` only as structure reference |
-| Brief, Execution Strategy, or Visual Map | The current task directory's `brief.md`, `execution_strategy.md`, and `visual_map.md`; `visual_map.md` is a diagram collection and should include diagrams only when they improve understanding |
-| Harness install, upgrade, or capability adoption | `docs/11-REFERENCE/docs-library-standard.md`, `.harness-capabilities.json`, then `harness init` or `harness add-capability` |
-| Legacy Harness migration | Run `harness migrate-plan --json` first, recommend a migration mode, wait for user confirmation, then run `migrate-run` / `migrate-verify` |
-| User-level Skill registration | Use `harness install-user` / `harness doctor-user`; do not copy user-level skill files into the project repository |
-| Team, multi-repo, or staged delivery | `docs/11-REFERENCE/delivery-operating-model-standard.md` and `docs/09-PLANNING/Delivery-SSoT.md` |
-| Module-parallel work, module tasks, or worker dispatch | `docs/09-PLANNING/Module-Registry.md`, then `docs/09-PLANNING/MODULES/<module-key>/module_plan.md`, `brief.md`, and `session_prompt.md` |
-| Repository, PR, branch, or CI work | `docs/11-REFERENCE/repo-governance-standard.md` and `docs/11-REFERENCE/ci-cd-standard.md` |
-| Dashboard, project status, or task index | `harness status --json`, `harness task-list --json`, and `harness dashboard` |
-| Harness source package maintenance, only when this repo is the Harness source package | Run `harness check --profile source-package .`; private dogfood also runs `harness check --profile private-harness .harness-private` |
+| System map, service responsibility, or external system relationship | `docs/03-ARCHITECTURE/README.md`, `docs/03-ARCHITECTURE/service-catalog.md` |
+| Local development, mocks, stubs, or cross-repo debugging | `docs/04-DEVELOPMENT/README.md`, `docs/04-DEVELOPMENT/codebase-map.md` |
+| API, event, webhook, SDK, or third-party contract | `docs/06-INTEGRATIONS/README.md` and the related contract file |
+| Tests, smoke, or regression | `docs/11-REFERENCE/testing-standard.md`, `docs/05-TEST-QA/Regression-SSoT.md` |
+| Execution, commit, PR, or release work | `docs/11-REFERENCE/execution-workflow-standard.md`, `docs/11-REFERENCE/repo-governance-standard.md`, `docs/11-REFERENCE/ci-cd-standard.md` |
+| Creating or advancing a task | Current task directory under `docs/09-PLANNING/TASKS/`; use the Harness CLI if this project has it configured |
+| Brief, Execution Strategy, or Visual Map | Current task `brief.md`, `execution_strategy.md`, and `visual_map.md` |
 | Long-running task | `docs/11-REFERENCE/long-running-task-standard.md` |
-| Adversarial review | `docs/11-REFERENCE/adversarial-review-standard.md` |
-| Reviewer or subagent routing | `docs/11-REFERENCE/review-routing-standard.md` |
-| Documentation governance | `docs/11-REFERENCE/docs-library-standard.md` |
-| Microservice, multi-repo, or external-team source intake | `docs/11-REFERENCE/external-source-intake-standard.md`, then `docs/04-DEVELOPMENT/external-source-packs/README.md` |
-| Harness Ledger update | `docs/11-REFERENCE/harness-ledger-standard.md` |
+| Reviewer, subagent, or adversarial review | `docs/11-REFERENCE/review-routing-standard.md`, `docs/11-REFERENCE/adversarial-review-standard.md` |
+| Team, multi-repo, or staged delivery | `docs/11-REFERENCE/delivery-operating-model-standard.md`, `docs/09-PLANNING/Delivery-SSoT.md` |
+| Module-parallel work | `docs/09-PLANNING/Module-Registry.md` and the related module plan |
+| Documentation governance or Harness update | `docs/11-REFERENCE/docs-library-standard.md`, `.harness-capabilities.json` |
+| External source material intake | `docs/11-REFERENCE/external-source-intake-standard.md` |
 | Regression SSoT maintenance | `docs/11-REFERENCE/regression-ssot-governance.md` |
-| Walkthrough, closeout, or lessons | `docs/11-REFERENCE/walkthrough-standard.md` |
+| Walkthrough, closeout, or lessons | `docs/11-REFERENCE/walkthrough-standard.md`, `docs/10-WALKTHROUGH/Closeout-SSoT.md`, `docs/01-GOVERNANCE/Lessons-SSoT.md` |
 | Worktree operations | `docs/11-REFERENCE/worktree-standard.md` |
 
 ## Standard Execution Flow
 
-1. If the request is Harness installation, upgrade, or migration, use the Harness operations section below instead of the normal feature flow.
-2. Confirm the request, scope, and affected files. For non-trivial work, create the task with `harness new-task`; do not copy task templates manually.
-3. If the task involves microservices, multi-repo context, external systems, or user-provided external material, read `external-source-intake-standard.md`; create a source pack when needed and project stable facts into `03/04/06`.
-4. Create or update `task_plan.md`, `execution_strategy.md`, and `visual_map.md`.
-5. Choose the delivery operating model; update Delivery SSoT for team, multi-repo, or shared delivery.
-6. If module-parallel is enabled, read `Module-Registry.md`. When a real module exists, maintain `MODULES/<module-key>/brief.md`, `module_plan.md`, `execution_strategy.md`, `visual_map.md`, and `session_prompt.md`; otherwise the dashboard module page is only an inferred task grouping, not a real module plan.
-7. If the task may run for a long time, fill `long-running-task-contract.md`.
-8. If reviewer, subagent, or release review is required, maintain `review.md`.
-9. For merge, PR, CI, or release work, read repo governance and CI/CD standards first.
-10. Update Feature SSoT, Delivery SSoT, or Regression SSoT as required by the task.
-11. Create the required worktree or record why one is unnecessary.
-12. Implement only within the approved scope.
-13. Run required checks and capture evidence in `progress.md` or the artifacts index.
-14. Commit each verified, meaningful slice with only in-scope files staged; leave unrelated dirty files untouched and mention them in the handoff.
-15. Before closeout, route required reviews through `review-routing-standard.md` and close blocking findings.
-16. Write the walkthrough with task plan, evidence, review result, and residual risk.
-17. Run Lessons reflection: keep `lesson_candidates.md` reviewable for non-simple tasks; record `checked-candidate`, `queued-promotion`, `checked-created`, or legacy `checked-none` at closeout.
-18. Update Closeout SSoT and Harness Ledger.
-19. Clean up worktrees after integration.
+1. Confirm the request, scope, and affected files.
+2. For non-trivial work, create or update the task plan before editing code.
+3. Load only the reference documents required by the Reading Matrix.
+4. Preserve existing project facts; merge new context instead of overwriting history.
+5. Use a worktree or branch when the task requires isolation or parallel work.
+6. Implement only within the approved scope.
+7. Run the relevant checks and capture evidence in the task records.
+8. Route required review and close blocking findings.
+9. Write or update the walkthrough and closeout records.
+10. Update SSoT / ledger files that the task actually touched.
 
-## Harness Operations
-
-- New project: diagnose first, choose locale, delivery model, and capabilities; after confirmation run `harness init --locale en-US --capabilities core,... .`.
-- Existing v1 Harness update: scan `.harness-capabilities.json` and existing docs first, then use `harness add-capability`; do not overwrite project facts with templates.
-- Legacy Harness migration: run `harness status --json .` and `harness migrate-plan --json --limit 1000 .`, recommend baseline-preserve / status-aware-rewrite / full-semantic-rewrite, wait for user confirmation, then write files.
-- User-level Skill: use `harness install-user` / `harness doctor-user` only for user agent skill directories; do not commit user-level skill artifacts into the project repo.
-- Harness source package maintenance: use `source-package` and `private-harness` profiles only when this repository is the `coding-agent-harness` source package. Normal target projects use `target-project`.
-
-## Harness CLI Entry Points
-
-Before running commands, check `command -v harness`. If the environment does not have `harness`, do not silently install globally.
-
-Ask the user whether this global install is allowed:
-
-```bash
-npm install -g coding-agent-harness
-```
-
-Explain that it changes the global npm environment and then enables the `harness` command. Run the global install only after explicit user approval.
-
-If the user does not approve or does not respond, run the same command with `npx --yes coding-agent-harness <command>`. The first `npx` run downloads the npm package into local npm cache, but does not write to target project dependencies.
-
-| Scenario | Command |
-| --- | --- |
-| Create task | `harness new-task <task-id> --budget simple|standard|complex --title "<title>" --locale en-US .` |
-| Create module task | `harness new-task <task-id> --module <module-key> --title "<title>" --locale en-US .` |
-| Initialize new Harness | `harness init --locale en-US --capabilities core,dashboard .` |
-| Add capability | `harness add-capability <capability> --locale en-US .` |
-| Migration plan | `harness migrate-plan --json --limit 1000 .` |
-| Migration run / verify | `harness migrate-run --locale en-US --session-dir /tmp/cah-migration --out-dir /tmp/cah-migration/dashboard .` / `harness migrate-verify /tmp/cah-migration/session.json` |
-| User-level Skill install / diagnose | `harness install-user --agent codex --global` / `harness doctor-user --agent codex` |
-| Record start / log / block / review / completion | `harness task-start` / `task-log` / `task-block` / `task-review` / `task-complete` |
-| Update phase state | `harness task-phase <task-id> <phase-id> --state done --completion 100 --evidence present .` |
-| Update module step | `harness module-step <module-key> <step-id> --state done .` |
-| Read task index | `harness task-list --json .` |
-| Read project status | `harness status --json .` |
-| Generate dashboard | `harness dashboard --out-dir /tmp/harness-dashboard .` |
-| Check Harness | `harness check --profile target-project .` |
-| Maintain Harness source package | `harness check --profile source-package .` |
-
-The CLI is the main entry for task and dashboard data. Edit Markdown directly only for project-specific content the CLI does not own.
-
-## Module Parallel Work
-
-- A module is a real planning object only when `Module-Registry.md` and `MODULES/<module-key>/module_plan.md` exist and are maintained.
-- A grouping inferred from task paths or `inferredModule` is not a module plan. The dashboard may show it, but it is not evidence for owner, write scope, or dependency.
-- Module workers must read the registry, module plan, module brief, and session prompt before editing.
-- Workers update module tasks and `module_plan.md`; only the coordinator or explicit shared-lock owner updates `Module-Registry.md`, Delivery SSoT, Harness Ledger, Closeout SSoT, Regression SSoT, and Cadence Ledger.
-- Cross-module or shared-file work must define shared scope, owner, and merge order before workers start.
-
-## Subagent Contract
+## Coordination Rules
 
 - Reviewers are read-only unless explicitly assigned a write scope.
-- Workers may edit only their assigned worktree, branch, and file scope.
-- Worker handoff must include worktree path, branch, commit SHA, checks, changed files, and residual risks.
-- Coordinator sessions also commit verified slices proactively; uncommitted handoff is an exception that needs an explicit reason.
-- The coordinator owns shared ledgers, final integration, and release claims unless delegated in writing.
+- Workers may edit only their assigned branch, worktree, and file scope.
+- Shared ledgers, registries, and SSoT files are coordinator-owned unless a lock is explicitly assigned.
+- Worker handoff must include branch or worktree, changed files, checks, evidence, and residual risks.
 
-## Single Sources of Truth
+## Single Sources Of Truth
 
 - Feature SSoT: `docs/09-PLANNING/Feature-SSoT.md`
-- Capability Registry: `.harness-capabilities.json`
 - Delivery SSoT: `docs/09-PLANNING/Delivery-SSoT.md`
 - Module Registry: `docs/09-PLANNING/Module-Registry.md`
-- Module Plans: `docs/09-PLANNING/MODULES/<module-key>/module_plan.md`
-- Module Session Prompt: `docs/09-PLANNING/MODULES/Session-Prompt-Pack.md` or `docs/09-PLANNING/MODULES/<module-key>/session_prompt.md`
-- Architecture Service Catalog: `docs/03-ARCHITECTURE/service-catalog.md`
-- Development External Context: `docs/04-DEVELOPMENT/external-context/<service-key>.md`
-- External Source Packs: `docs/04-DEVELOPMENT/external-source-packs/`
-- Integration Contract Index: `docs/06-INTEGRATIONS/README.md`
 - Regression SSoT: `docs/05-TEST-QA/Regression-SSoT.md`
 - Cadence Ledger: `docs/05-TEST-QA/Cadence-Ledger.md`
 - Lessons SSoT: `docs/01-GOVERNANCE/Lessons-SSoT.md`
@@ -160,4 +88,6 @@ The CLI is the main entry for task and dashboard data. Edit Markdown directly on
 
 ## Completion Standard
 
-A task is complete only when the requested change is implemented, evidence is recorded, required review findings are closed or explicitly accepted, and the relevant SSoT or ledger updates are complete.
+A task is complete only when the requested change is implemented, evidence is
+recorded, required reviews are resolved, and affected SSoT or ledger files are
+updated.

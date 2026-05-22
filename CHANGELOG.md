@@ -6,6 +6,8 @@
   lesson candidate governance, and refreshed public installation guidance.
 - Added bilingual README coverage and restored Star History in the public
   project README.
+- Slimmed the generated `AGENTS.md` templates back to charter and routing
+  content instead of install instructions.
 
 ## 1.0.0
 
