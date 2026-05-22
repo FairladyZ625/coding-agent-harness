@@ -28,8 +28,6 @@ The harness is just files plus a local dashboard.
 | Review | Open the dashboard and check the task state. | `npx --yes coding-agent-harness dev .` |
 | Verify | Run checks before handoff. | `npx --yes coding-agent-harness check --profile target-project .` |
 
-![Coding Agent Harness review workspace](docs-release/assets/dashboard-review-en.png)
-
 ## Try It In A Project
 
 Use `npx` first. It does not add the CLI to your project dependencies.
