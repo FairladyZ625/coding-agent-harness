@@ -8,6 +8,8 @@
   project README.
 - Slimmed the generated `AGENTS.md` templates back to charter and routing
   content instead of install instructions.
+- Removed source-checkout and private maintainer instructions from
+  target-facing reports and public install guidance.
 
 ## 1.0.0
 
