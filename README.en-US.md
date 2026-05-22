@@ -153,6 +153,9 @@ Install and read Coding Agent Harness first:
 
 npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
 
+Note: this step writes .agents/skills/coding-agent-harness/ and skills-lock.json into the target repository.
+If this run must be a zero-write scan, skip this step first and scan with npx --yes coding-agent-harness ...; install the Skill after write access is approved.
+
 First check whether this environment has the harness command.
 
 If it does not, do not silently install globally. Ask me first:
@@ -165,6 +168,7 @@ npm install -g coding-agent-harness
 
 If I do not approve or do not respond, run CLI commands with:
 npx --yes coding-agent-harness <command>
+This is the global npm installation confirmation. It is separate from the initialization plan confirmation below.
 
 Set up Coding Agent Harness in the current project.
 Use Chinese templates by default. If the project is clearly an English team or English documentation project, ask me before switching to English.
@@ -173,6 +177,7 @@ First diagnose the project structure, then give me an initialization plan.
 If this is a microservice, multi-repo, split frontend/backend, or externally integrated project, proactively ask me whether I have external architecture docs, API docs, diagrams, meeting notes, links, source paths, or exported packets.
 If the external material is large, create an external-source-packs index and digests first, then project stable conclusions into 03-ARCHITECTURE / 04-DEVELOPMENT / 06-INTEGRATIONS.
 After confirmation, execute Diagnose → Decide → Scaffold → Configure → Verify → Deliver.
+This confirmation is the initialization plan confirmation. If I have already explicitly asked you in this message to set it up directly, treat it as confirmed.
 When initializing, run:
 npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
 
@@ -193,6 +198,9 @@ Install and read Coding Agent Harness first:
 
 npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
 
+Note: this step writes .agents/skills/coding-agent-harness/ and skills-lock.json into the target repository.
+If this run must be a zero-write scan, skip this step first and scan with npx --yes coding-agent-harness ...; install the Skill after write access is approved.
+
 First check whether this environment has the harness command.
 
 If it does not, do not silently install globally. Ask me first:
@@ -205,8 +213,9 @@ npm install -g coding-agent-harness
 
 If I do not approve or do not respond, run CLI commands with:
 npx --yes coding-agent-harness <command>
+This is the global npm installation confirmation. It is separate from the migration plan confirmation below.
 
-This project already has an older Harness. Do not edit files yet.
+This project already has an older Harness. Apart from the .agents/skills/coding-agent-harness/ and skills-lock.json files that the Skill install may write, do not edit business files or Harness files yet.
 
 First run a detailed scan and give me a migration plan:
 1. Check git status, Harness status, task count, brief coverage, visual_map coverage, warnings/actions/residuals, strict status, and dashboard usability.
@@ -217,6 +226,7 @@ First run a detailed scan and give me a migration plan:
    - full-semantic-rewrite: rewrite task briefs / execution_strategy / visual_map so the old project becomes v1.0-readable.
 4. Report the recommended mode, rationale, expected write scope, estimated token/time cost, risks, and whether subagents are needed.
 5. Ask me the confirmation questions you need, then wait for my confirmation before writing files.
+This confirmation is the migration plan confirmation, not the global npm installation confirmation.
 
 During the scan phase, run at least:
 npx --yes coding-agent-harness status --json .

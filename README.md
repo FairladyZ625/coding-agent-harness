@@ -153,6 +153,9 @@ npx --yes coding-agent-harness check --profile target-project .
 
 npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
 
+注意：这一步会在目标仓写入 .agents/skills/coding-agent-harness/ 和 skills-lock.json。
+如果本轮只允许零写入扫描，请先跳过本步，直接使用 npx --yes coding-agent-harness ... 扫描；获准写入后再安装 Skill。
+
 先检查当前环境是否有 harness 命令。
 
 如果没有，不要静默全局安装。请先问我：
@@ -165,6 +168,7 @@ npm install -g coding-agent-harness
 
 如果我不同意或没有回复，后续 CLI 都用：
 npx --yes coding-agent-harness <command>
+这是“全局 npm 安装确认”，和后面的“初始化计划确认”是两个不同确认点。
 
 在当前项目上搭建 Coding Agent Harness。
 默认使用中文模板；如果项目明确是英文团队或英文文档，请先询问我是否改用英文。
@@ -173,6 +177,7 @@ npx --yes coding-agent-harness <command>
 如果项目是微服务、多仓、前后端分仓，或依赖外部系统，请主动询问我是否有外部架构文档、接口文档、流程图、会议纪要、链接或导出包。
 外部资料很多时，请先建立 external-source-packs 索引和摘要，再把稳定结论投影到 03-ARCHITECTURE / 04-DEVELOPMENT / 06-INTEGRATIONS。
 确认后，按照 Diagnose → Decide → Scaffold → Configure → Verify → Deliver 六阶段执行。
+这里的确认是“初始化计划确认”；如果我已经在本消息里明确要求直接搭建，可视为已确认。
 执行初始化时使用：
 npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
 
@@ -193,6 +198,9 @@ npx --yes coding-agent-harness dashboard --out-dir tmp/harness-dashboard .
 
 npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
 
+注意：这一步会在目标仓写入 .agents/skills/coding-agent-harness/ 和 skills-lock.json。
+如果本轮只允许零写入扫描，请先跳过本步，直接使用 npx --yes coding-agent-harness ... 扫描；获准写入后再安装 Skill。
+
 先检查当前环境是否有 harness 命令。
 
 如果没有，不要静默全局安装。请先问我：
@@ -205,8 +213,9 @@ npm install -g coding-agent-harness
 
 如果我不同意或没有回复，后续 CLI 都用：
 npx --yes coding-agent-harness <command>
+这是“全局 npm 安装确认”，和后面的“迁移计划确认”是两个不同确认点。
 
-这个项目已有旧版 Harness。先不要改文件。
+这个项目已有旧版 Harness。除上面 Skill 安装可能产生的 .agents/skills/coding-agent-harness/ 和 skills-lock.json 外，先不要改业务文件或 Harness 文件。
 
 请先执行详尽扫描，并给我一个迁移计划：
 1. 检查当前 git 状态、Harness 状态、任务数量、brief 覆盖、visual_map 覆盖、warning/action/residual、strict 状态和 dashboard 可用性。
@@ -217,6 +226,7 @@ npx --yes coding-agent-harness <command>
    - full-semantic-rewrite：全量重写任务的 brief / execution_strategy / visual_map，让旧项目整体变成 v1.0 可读项目。
 4. 给出推荐模式、原因、预计改动范围、预计 token/时间成本、风险和是否需要 subagent。
 5. 向我提出需要确认的问题，等我确认后再开始写文件。
+这里的确认是“迁移计划确认”，不是全局 npm 安装确认。
 
 扫描阶段至少运行：
 npx --yes coding-agent-harness status --json .

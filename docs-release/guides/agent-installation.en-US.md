@@ -12,6 +12,13 @@ Commands in this guide are written with an installed `harness` command. The agen
 
 `harness init` does not add this npm package to the target project's dependencies. It only writes Harness docs, templates, and the registry. Delivery summaries must not imply that the target project now has an npm dependency installed. The first `npx` run downloads the package into npm cache; it is not a project dependency or a global command install. When CLI access is needed, keep using `npx --yes coding-agent-harness ...`, a user-approved global `harness`, or `node scripts/harness.mjs` from the source checkout.
 
+`npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness`
+is not a zero-write operation. It copies the Skill into `.agents/skills/coding-agent-harness/`
+inside the target project and writes `skills-lock.json`. If the user asks for a strict
+read-only scan, skip Skill installation first and use `npx --yes coding-agent-harness status`
+/ `migrate-plan` for the scan; install the Skill or run write commands only after the user
+confirms write access.
+
 Use the v1.0 six-phase flow:
 
 1. Diagnose: scan project structure, language, existing docs, CI, collaboration model, external dependencies, and risk surfaces.

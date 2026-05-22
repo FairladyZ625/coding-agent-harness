@@ -23,6 +23,12 @@ English mirror: `docs-release/guides/agent-installation.en-US.md`
 `npx --yes coding-agent-harness ...`、用户批准后的全局 `harness`，或源码仓的
 `node scripts/harness.mjs`。
 
+`npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness`
+不是零写入操作。它会把 Skill 拷贝到目标项目的 `.agents/skills/coding-agent-harness/`
+并写入 `skills-lock.json`。如果用户要求严格只读扫描，先跳过 Skill 安装，用
+`npx --yes coding-agent-harness status` / `migrate-plan` 完成扫描；等用户确认允许写入后
+再安装 Skill 或运行初始化/迁移写入命令。
+
 使用 v1.0 六阶段流程：
 
 1. Diagnose：扫描项目结构、语言、现有文档、CI、协作方式、外部依赖和风险面。
