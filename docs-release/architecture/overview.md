@@ -1,5 +1,7 @@
 # Architecture Overview
 
+English | [简体中文](overview.zh-CN.md)
+
 Coding Agent Harness is a repository-native operating layer for long-running
 coding agent work. It gives agents a stable project memory, a task lifecycle,
 review gates, migration rails, and a dashboard that humans can inspect.

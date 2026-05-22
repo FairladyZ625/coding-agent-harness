@@ -14,7 +14,7 @@ ignored by the open-source repository and versioned separately.
 
 ## Current Public Docs
 
-- `architecture/overview.md` — public architecture overview.
+- `architecture/overview.md` / `architecture/overview.zh-CN.md` — public architecture overview.
 - `guides/agent-installation.md` / `guides/agent-installation.en-US.md` — operational installation guide for target-project agents.
 - `guides/migration-playbook.md` / `guides/migration-playbook.en-US.md` — smooth migration guide for existing legacy harness projects.
 - `guides/legacy-migration-agent-prompt.md` / `guides/legacy-migration-agent-prompt.zh-CN.md` — prompt contract for agents running baseline or full legacy migration.
