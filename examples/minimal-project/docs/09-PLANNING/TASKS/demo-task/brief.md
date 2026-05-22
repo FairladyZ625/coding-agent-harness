@@ -11,4 +11,3 @@ Minimal example task used by the dashboard smoke tests.
 ## Outcome
 
 Show a readable task summary in the static dashboard without requiring an editor.
-

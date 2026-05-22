@@ -23,4 +23,3 @@ State what this module owns and why it exists.
 ## Current Work
 
 List the active module tasks or point to `module_plan.md`.
-

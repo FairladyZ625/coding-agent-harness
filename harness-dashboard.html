@@ -9,33 +9,33 @@
 
 :root {
   color-scheme: light;
-  
+
   /* Backgrounds & Surfaces */
   --bg: #f3f4f6;        /* Slate 100: Elegant silver-gray background base */
   --paper: #ffffff;     /* Pure White: Card surface */
   --paper-2: #e5e7eb;   /* Slate 200: Soft tab & hover tint */
-  
+
   /* Typography */
   --ink: #111827;       /* Slate 900: Deep obsidian text */
   --muted: #4b5563;     /* Slate 600: Secondary text */
-  
+
   /* Borders & Dividers */
   --line: #d1d5db;      /* Slate 300: High-contrast thin border line */
-  
+
   /* Branding Accents */
   --accent: #d97706;    /* Amber 600: Rich golden amber for primary actions */
   --accent-2: #ca8a04;  /* Yellow 600: Deep warm gold for gradients */
-  
+
   /* Semantic Statuses */
   --danger: #e11d48;    /* Rose 600: Blockers, failures, and errors */
   --warn: #ea580c;      /* Orange 600: Warnings and advice */
   --ok: #16a34a;        /* Green 600: Complete and verified */
-  
+
   /* Dimensions, Shadows, & Glows */
   --shadow: 0 10px 15px -3px rgba(17, 24, 39, 0.03), 0 4px 6px -4px rgba(17, 24, 39, 0.03), 0 1px 3px rgba(0, 0, 0, 0.01);
   --shadow-hover: 0 20px 25px -5px rgba(17, 24, 39, 0.06), 0 10px 10px -5px rgba(17, 24, 39, 0.03);
   --glow: 0 0 20px rgba(217, 119, 6, 0.08);
-  
+
   /* Typography Scale */
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -43,28 +43,28 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  
+
   /* Backgrounds & Surfaces */
   --bg: #121214;        /* Dark Charcoal: Obsidian dark grey */
   --paper: #1a1a1c;     /* Elevated dark gray zinc surface */
   --paper-2: #27272a;   /* Zinc 800: Hover tint and active tab */
-  
+
   /* Typography */
   --ink: #f4f4f5;       /* Zinc 100: Soft white contrast text */
   --muted: #9ca3af;     /* Slate 400: Mid-tone tech gray */
-  
+
   /* Borders & Dividers */
   --line: #2b2b2e;      /* Subdued dark border line */
-  
+
   /* Branding Accents */
   --accent: #fbbf24;    /* Amber 400: Radiant warm amber */
   --accent-2: #f59e0b;  /* Amber 500: Deep glowing amber */
-  
+
   /* Semantic Statuses */
   --danger: #fb7185;    /* Rose 400: High-visibility error rose */
   --warn: #fbbf24;      /* Amber 400: Warm warning amber */
   --ok: #34d399;        /* Green 400: Success mint green */
-  
+
   /* Shadows & Glows */
   --shadow: 0 20px 30px rgba(0, 0, 0, 0.3);
   --shadow-hover: 0 25px 40px rgba(0, 0, 0, 0.45);
@@ -1956,28 +1956,28 @@ details summary {
     flex-direction: column;
     align-items: flex-start;
   }
-  
+
   .metrics-grid,
   .detail-grid,
   .health-panel {
     grid-template-columns: 1fr;
   }
-  
+
   .hero-actions {
     justify-content: flex-start;
     width: 100%;
   }
-  
+
   .task-row {
     grid-template-columns: 1fr;
     padding: 16px;
     gap: 8px;
   }
-  
+
   .task-row-head {
     display: none;
   }
-  
+
   .task-row > span:not(:first-child)::before {
     content: attr(data-label) ": ";
     display: inline-block;
@@ -1987,7 +1987,7 @@ details summary {
     margin-right: 8px;
     min-width: 90px;
   }
-  
+
   .index-toolbar {
     grid-template-columns: 1fr;
   }
@@ -2017,13 +2017,13 @@ details summary {
   .stat-chip.completion {
     min-width: 140px;
   }
-  
+
   .warning-row {
     grid-template-columns: 1fr;
     gap: 8px;
     padding: 16px;
   }
-  
+
   .detail-side {
     position: static;
   }
