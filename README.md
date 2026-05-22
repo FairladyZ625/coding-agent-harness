@@ -191,6 +191,10 @@ npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 - 完整旧项目迁移策略：[`docs-release/guides/full-legacy-migration-subagent-strategy.zh-CN.md`](docs-release/guides/full-legacy-migration-subagent-strategy.zh-CN.md)
 - 架构说明：[`docs-release/architecture/overview.md`](docs-release/architecture/overview.md)
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=FairladyZ625/coding-agent-harness&type=Date)](https://star-history.com/#FairladyZ625/coding-agent-harness&Date)
+
 ## License
 
 MIT

@@ -1,6 +1,6 @@
 {
   "name": "coding-agent-harness",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Document governance kernel for long-running coding agents.",
   "type": "module",
   "keywords": [

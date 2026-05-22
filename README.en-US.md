@@ -191,6 +191,10 @@ When the migration is complete, report the dynamic workbench URL or static dashb
 - Full legacy migration strategy: [`docs-release/guides/full-legacy-migration-subagent-strategy.md`](docs-release/guides/full-legacy-migration-subagent-strategy.md)
 - Architecture overview: [`docs-release/architecture/overview.md`](docs-release/architecture/overview.md)
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=FairladyZ625/coding-agent-harness&type=Date)](https://star-history.com/#FairladyZ625/coding-agent-harness&Date)
+
 ## License
 
 MIT
