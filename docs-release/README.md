@@ -5,6 +5,22 @@ It is separate from this source repository's private self-hosted harness.
 
 简体中文说明：这个目录只放可公开发布的方法论、架构和使用指南。它不记录本仓库自己的私有任务计划、审查草稿、ledger 或本地运行状态。
 
+## Language Entry / 语言入口
+
+English is the canonical public language for GitHub and npm discovery. Simplified Chinese is fully supported for README, guides, prompts, and executable templates. Other languages currently provide short introductions and route users to the English docs.
+
+英文是 GitHub 和 npm 公开传播的主语言。简体中文保留完整支持，包括 README、指南、prompt 和可执行模板。其他语言目前提供简介入口，并引导用户阅读英文文档。
+
+| Language | Entry | Support |
+| --- | --- | --- |
+| English | [`../README.md`](../README.md), [`intl/en-US.md`](intl/en-US.md) | Full docs and templates |
+| 简体中文 | [`../README.zh-CN.md`](../README.zh-CN.md), [`intl/zh-CN.md`](intl/zh-CN.md) | Full docs and templates |
+| 日本語 | [`intl/ja-JP.md`](intl/ja-JP.md) | Intro only |
+| 한국어 | [`intl/ko-KR.md`](intl/ko-KR.md) | Intro only |
+| Français | [`intl/fr-FR.md`](intl/fr-FR.md) | Intro only |
+| Español | [`intl/es-ES.md`](intl/es-ES.md) | Intro only |
+| Deutsch | [`intl/de-DE.md`](intl/de-DE.md) | Intro only |
+
 ## Boundary
 
 Public docs in this directory explain the product architecture, concepts, and release
@@ -29,6 +45,11 @@ Not every document is written for the same reader.
 | Maintainers deciding what to publish 维护者 | `guides/document-audience-and-surfaces.md` / `guides/document-audience-and-surfaces.en-US.md` | Separate human docs, agent docs, and private operating state. 区分人读文档、Agent 执行文档和私有运行状态。 |
 
 ## Public Docs / 公开文档
+
+### International Intros / 多语言简介
+
+- `intl/README.md` — language support matrix and intro page index. 语言支持矩阵和简介页索引。
+- `intl/en-US.md`, `intl/zh-CN.md`, `intl/ja-JP.md`, `intl/ko-KR.md`, `intl/fr-FR.md`, `intl/es-ES.md`, `intl/de-DE.md` — short public introductions for global discovery. 面向国际传播的短简介入口。
 
 ### Architecture / 架构
 

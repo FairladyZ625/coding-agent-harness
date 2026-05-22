@@ -2,95 +2,119 @@
 
 [![skills.sh](https://skills.sh/b/FairladyZ625/coding-agent-harness)](https://skills.sh/FairladyZ625/coding-agent-harness)
 
-简体中文 | [English](README.en-US.md)
+English | [简体中文](README.zh-CN.md) | [日本語](docs-release/intl/ja-JP.md) | [한국어](docs-release/intl/ko-KR.md) | [Français](docs-release/intl/fr-FR.md) | [Español](docs-release/intl/es-ES.md) | [Deutsch](docs-release/intl/de-DE.md)
 
-![Coding Agent Harness 架构图](docs-release/assets/harness-architecture.svg)
+> A repo-native operating layer for coding agents. It gives Codex, Claude Code, Gemini CLI, Cursor-style agents, and similar tools a durable way to plan, execute, review, and hand off long-running software work.
 
-> 开源、文档驱动、开箱即用的 Agent Harness。让 Codex、Claude Code、Gemini CLI 等 Coding Agent 在长程开发中保持上下文清晰、过程透明、结果可审查。
+![Coding Agent Harness dashboard overview](docs-release/assets/dashboard-overview.png)
 
-## 一眼看懂
+## What You Get
 
-Coding Agent Harness 不是另一个聊天提示词集合。它把 Agent 长程开发需要依赖的事实沉淀到仓库：入口协议、任务计划、执行证据、回归结果、Dashboard 和收口记录。
+Coding Agent Harness turns agent work into visible repository facts:
 
-最小闭环是：
+- `AGENTS.md` and reference docs tell agents how to operate in the project.
+- Task plans, execution strategies, progress logs, reviews, and closeout records keep long work inspectable.
+- Regression and migration checks show what changed and what still needs attention.
+- A local Dashboard lets humans review status, warnings, task state, and evidence without reading every Markdown file.
 
-- 人提出目标，Agent 先读仓库里的 Harness 协议。
-- Agent 按 Diagnose → Decide → Scaffold → Configure → Verify → Deliver 执行。
-- CLI 和 Dashboard 把状态、风险、迁移计划和审查证据暴露出来。
-- 下一个 Agent 不靠上一轮聊天记忆，而是从仓库事实继续。
+The point is simple: the next agent should resume from the repository, not from chat memory.
 
-![Harness 执行流程](docs-release/assets/harness-workflow.svg)
+## How It Works
 
-## 这是什么
+| Step | Human Experience | Agent / CLI Surface |
+| --- | --- | --- |
+| 1. Install | Give your agent the Harness entrypoint. | `npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness` |
+| 2. Initialize or migrate | The agent diagnoses the repo, proposes a plan, then writes the harness files you approve. | `npx --yes coding-agent-harness init ...` or `migrate-plan` |
+| 3. Review the workbench | Open a local Dashboard to inspect tasks, warnings, reviews, and evidence. | `npx --yes coding-agent-harness dev .` |
+| 4. Verify | Run project checks before handoff or release. | `npx --yes coding-agent-harness check --profile target-project .` |
 
-Coding Agent Harness 是一套给 AI Coding Agent 使用的项目工程框架。
+![Coding Agent Harness review workspace](docs-release/assets/dashboard-review.png)
 
-它把清晰的工作协议、文档结构、任务生命周期、回归证据和审查流程放进你的仓库，让 Agent 可以直接读取、执行、更新和验证。
+## Try It In A Project
 
-## 为什么需要
+Use `npx` first. It does not add the CLI to your project dependencies.
 
-用 AI 写几千行代码并不难。真正难的是：任务跑了几天以后，Agent 还知道自己在做什么；多个 Agent 并行时不互相覆盖；新 Agent 接手项目时，不靠聊天记忆，而靠仓库里的事实继续工作。
+```bash
+npx --yes coding-agent-harness init --locale en-US --capabilities core,dashboard .
+npx --yes coding-agent-harness dev .
+npx --yes coding-agent-harness check --profile target-project .
+```
 
-Coding Agent Harness 的目标，是把这些事实变成项目的一部分。
+For Chinese templates:
 
-## 核心特点
+```bash
+npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
+```
 
-### 开源、简单、开箱即用
+If you want a static evidence snapshot instead of the live local workbench:
 
-Harness 以普通项目文件运行：Markdown、模板、检查脚本、静态 Dashboard 快照和可选的本地动态 Workbench。核心包没有第三方运行时依赖，也不需要额外后台服务或数据库；需要网页操作时，用 `harness dev` 启动只绑定本机的临时操作台。
+```bash
+npx --yes coding-agent-harness dashboard --out-dir tmp/harness-dashboard .
+open tmp/harness-dashboard/index.html
+```
 
-你把安装提示发给 Agent，它就可以在目标项目里完成初始化、扫描、迁移和验证。
+## What The Agent Reads
 
-### 兼容主流 Coding Agent
+Harness is ordinary repository content. There is no required database or background service.
 
-只要 Agent 能读文件、写文件、执行命令，就可以使用这套 Harness。Codex、Claude Code、Gemini CLI、Cursor 风格 Agent、OpenClaw 等都可以接入。
+```text
+AGENTS.md
+docs/
+  03-ARCHITECTURE/
+  04-DEVELOPMENT/
+  05-TEST-QA/
+  09-PLANNING/TASKS/
+  10-WALKTHROUGH/
+  11-REFERENCE/
+```
 
-### 文档驱动，过程透明
+Typical task files:
 
-所有关键状态都在仓库里可见：
+```text
+task_plan.md
+execution_strategy.md
+visual_map.md
+progress.md
+review.md
+lesson_candidates.md
+```
 
-- 当前任务是什么
-- 为什么做
-- 执行策略是什么
-- 证据在哪里
-- 回归是否通过
-- 有哪些残余风险
-- 哪些任务已经完成，哪些还需要处理
+Humans can scan the Dashboard and briefs. Agents can read the structured files and continue the work with the same operating contract.
 
-人可以看 Brief、Dashboard 和迁移报告。Agent 可以看结构化文档、任务合同和检查结果。
+## Language Support
 
-### 为长程任务设计
+| Language | Public intro | README / guides | Executable templates |
+| --- | --- | --- | --- |
+| English | Full | Full | Full |
+| Simplified Chinese | Full | Full | Full |
+| Japanese | Intro | Routing only | Use English templates |
+| Korean | Intro | Routing only | Use English templates |
+| French | Intro | Routing only | Use English templates |
+| Spanish | Intro | Routing only | Use English templates |
+| German | Intro | Routing only | Use English templates |
 
-Harness 覆盖长程开发里的持续性问题：任务生命周期、Brief、Execution Strategy、Visual Map、Progress Log、Review、Regression Evidence、Closeout 和 Lessons。
+Intro-only languages are intentionally lightweight. Agent-executable templates are maintained in English and Simplified Chinese first, because stale translated instructions can create bad agent behavior.
 
-它让 Agent 每一步都有上下文、证据和收口标准。
+## Good Fit
 
-### 旧项目也能迁移
+Coding Agent Harness is useful when:
 
-旧项目迁移不是直接套模板。标准流程是：先扫描项目，生成迁移计划，推荐迁移模式，向用户提问确认，再执行迁移，最后用 Dashboard 和检查结果证明迁移状态。
+- agents work on real repositories for days or weeks;
+- multiple agents or developers share the same project;
+- task state, review evidence, and regression results need to survive across sessions;
+- an existing project has old plans, migration notes, or scattered agent instructions;
+- a team wants AI development to be visible and reviewable instead of hidden in chat logs.
 
-## 适合什么项目
+## Install The Skill
 
-Coding Agent Harness 适合：
-
-- 正在用 Coding Agent 做真实软件项目的团队。
-- 任务会持续多天、多周、多轮迭代的项目。
-- 需要多个 Agent 或多个开发者协作的项目。
-- 已经积累大量任务文档、回归记录、迁移记录的项目。
-- 希望 AI 开发过程可见、可审查、可复用的项目。
-
-## 快速开始
-
-### 安装 Skill
-
-如果你的 Agent 支持 Skills，用 `npx` 安装本 Skill：
+If your agent supports Skills:
 
 ```bash
 npx skills add FairladyZ625/coding-agent-harness --list
 npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
 ```
 
-安装到 Codex 全局 Skill 目录：
+Install into the global Codex skill directory:
 
 ```bash
 npx skills add FairladyZ625/coding-agent-harness \
@@ -100,138 +124,40 @@ npx skills add FairladyZ625/coding-agent-harness \
   -y
 ```
 
-CLI 不会自动写进目标项目依赖。需要运行 Harness 命令时，用 `npx` 即可；第一次执行会从 npm 拉取包到本机 npm 缓存，不会写入目标项目：
-
-```bash
-npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
-npx --yes coding-agent-harness dev .
-npx --yes coding-agent-harness check --profile target-project .
-```
-
-如果你希望长期直接使用 `harness` 命令，可以全局安装：
+Agents should not silently run a global npm install. If a long-lived `harness` command is desired, ask the human first:
 
 ```bash
 npm install -g coding-agent-harness
 harness --help
 ```
 
-Agent 不应静默执行全局安装。只有用户明确同意修改全局 npm 环境后，Agent 才能运行 `npm install -g coding-agent-harness`；否则继续使用 `npx --yes coding-agent-harness ...`。
+## Agent Prompt
 
-### 人看的常用命令
-
-初始化一个中文 Harness：
-
-```bash
-npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
-```
-
-启动本地动态 Workbench：
-
-```bash
-npx --yes coding-agent-harness dev .
-```
-
-生成可离线打开的静态 Dashboard：
-
-```bash
-npx --yes coding-agent-harness dashboard --out-dir tmp/harness-dashboard .
-open tmp/harness-dashboard/index.html
-```
-
-运行目标项目检查：
-
-```bash
-npx --yes coding-agent-harness check --profile target-project .
-```
-
-### 给 Agent 的提示词
-
-把下面这段话发给目标项目里的 Agent：
+Send this to an agent inside your target project:
 
 ```text
-请先安装并读取 Coding Agent Harness：
+Install and read Coding Agent Harness first:
 
 npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
 
-先检查当前环境是否有 harness 命令。
+First diagnose the project structure, then give me an initialization or migration plan.
+Do not overwrite existing business docs, historical tasks, regression records, or user changes.
 
-如果没有，不要静默全局安装。请先问我：
-“当前环境没有 harness 命令。是否允许我运行 npm install -g coding-agent-harness？
-这会修改全局 npm 环境，之后可以直接使用 harness。
-如果不同意，我会用 npx --yes coding-agent-harness ... 临时执行，不写入项目依赖。”
-
-只有我明确同意后，才运行：
-npm install -g coding-agent-harness
-
-如果我不同意或没有回复，后续 CLI 都用：
+Use npx unless I explicitly approve a global npm install:
 npx --yes coding-agent-harness <command>
 
-在当前项目上搭建 Coding Agent Harness。
-默认使用中文模板；如果项目明确是英文团队或英文文档，请先询问我是否改用英文。
-
-请先诊断项目结构，再给出初始化计划。
-如果项目是微服务、多仓、前后端分仓，或依赖外部系统，请主动询问我是否有外部架构文档、接口文档、流程图、会议纪要、链接或导出包。
-外部资料很多时，请先建立 external-source-packs 索引和摘要，再把稳定结论投影到 03-ARCHITECTURE / 04-DEVELOPMENT / 06-INTEGRATIONS。
-确认后，按照 Diagnose → Decide → Scaffold → Configure → Verify → Deliver 六阶段执行。
-执行初始化时使用：
-npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
-
-初始化完成后，日常查看和人工确认使用动态网页：
-npx --yes coding-agent-harness dev .
-
-如果只需要离线证据快照，再生成静态 dashboard：
-npx --yes coding-agent-harness dashboard --out-dir tmp/harness-dashboard .
-
-不要覆盖已有业务文档、历史任务、回归记录或用户改动。
-完成后请给出创建文件、检查结果和下一步建议。
+After confirmation, execute Diagnose -> Decide -> Scaffold -> Configure -> Verify -> Deliver.
+When finished, report created files, check results, Dashboard URL or HTML path, and recommended next steps.
 ```
 
-如果目标项目已经有旧版 Harness，用这段：
+## Learn More
 
-```text
-请先安装并读取 Coding Agent Harness：
-
-npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
-
-先检查当前环境是否有 harness 命令。
-
-如果没有，不要静默全局安装。请先问我：
-“当前环境没有 harness 命令。是否允许我运行 npm install -g coding-agent-harness？
-这会修改全局 npm 环境，之后可以直接使用 harness。
-如果不同意，我会用 npx --yes coding-agent-harness ... 临时执行，不写入项目依赖。”
-
-只有我明确同意后，才运行：
-npm install -g coding-agent-harness
-
-如果我不同意或没有回复，后续 CLI 都用：
-npx --yes coding-agent-harness <command>
-
-这个项目已有旧版 Harness。先不要改文件。
-
-请先执行详尽扫描，并给我一个迁移计划：
-1. 检查当前 git 状态、Harness 状态、任务数量、brief 覆盖、visual_map 覆盖、warning/action/residual、strict 状态和 dashboard 可用性。
-2. 如果项目是微服务、多仓、前后端分仓，或依赖外部系统，主动询问我是否有外部资料；资料很多时先建立 external-source-packs 索引和摘要，再投影到 03/04/06。
-3. 根据项目证据主动推荐迁移模式：
-   - baseline-preserve：先安全接入，只补必要结构和可见性。
-   - status-aware-rewrite：按 SSoT、Ledger、progress、review、git 证据重写当前或重新打开的任务。
-   - full-semantic-rewrite：全量重写任务的 brief / execution_strategy / visual_map，让旧项目整体变成 v1.0 可读项目。
-4. 给出推荐模式、原因、预计改动范围、预计 token/时间成本、风险和是否需要 subagent。
-5. 向我提出需要确认的问题，等我确认后再开始写文件。
-
-扫描阶段至少运行：
-npx --yes coding-agent-harness status --json .
-npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
-
-最终迁移完成时，必须给出动态 workbench 入口或静态 dashboard HTML、session.json、normal/strict check、migrate-plan summary，以及 full-cutover 验证是否通过。需要人工确认审查时，必须通过本地网页 workbench 暴露确认操作；静态 dashboard 只作为只读证据快照。
-```
-
-## 了解更多
-
-- Agent 安装指南：[`docs-release/guides/agent-installation.md`](docs-release/guides/agent-installation.md)
-- 新项目安装冒烟：[`examples/minimal-project/`](examples/minimal-project/)
-- 旧项目迁移指南：[`docs-release/guides/migration-playbook.md`](docs-release/guides/migration-playbook.md)
-- 完整旧项目迁移策略：[`docs-release/guides/full-legacy-migration-subagent-strategy.zh-CN.md`](docs-release/guides/full-legacy-migration-subagent-strategy.zh-CN.md)
-- 架构说明：[`docs-release/architecture/overview.md`](docs-release/architecture/overview.md)
+- Docs release index: [`docs-release/README.md`](docs-release/README.md)
+- Agent installation guide: [`docs-release/guides/agent-installation.en-US.md`](docs-release/guides/agent-installation.en-US.md)
+- Architecture overview: [`docs-release/architecture/overview.md`](docs-release/architecture/overview.md)
+- Migration playbook: [`docs-release/guides/migration-playbook.en-US.md`](docs-release/guides/migration-playbook.en-US.md)
+- Operating models: [`docs-release/guides/repository-operating-models.en-US.md`](docs-release/guides/repository-operating-models.en-US.md)
+- Minimal project example: [`examples/minimal-project/`](examples/minimal-project/)
 
 ## Star History
 
