@@ -10,6 +10,8 @@
   content instead of install instructions.
 - Removed source-checkout and private maintainer instructions from
   target-facing reports and public install guidance.
+- Replaced old 12-phase labels in the Skill reference/template indexes with
+  v1.0 capability and task-context routing.
 
 ## 1.0.0
 

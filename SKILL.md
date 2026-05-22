@@ -224,7 +224,7 @@ Summary 至少包含：
 
 harness bootstrap 完成后，项目中至少应存在以下文件：
 
-- [ ] `AGENTS.md`，100-300 行，宪章 + 索引结构
+- [ ] `AGENTS.md`，默认 80-160 行，宪章 + 阅读矩阵，不承载安装教程
 - [ ] `CLAUDE.md`，Claude Code 兼容 shim，指向 `AGENTS.md`（不复制完整规范）
 - [ ] `docs/11-REFERENCE/` 下至少 3 个标准文件
 - [ ] `docs/09-PLANNING/TASKS/_task-template/` 包含 task plan / findings / progress / review 模板
@@ -286,62 +286,65 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 
 ## Reference 索引
 
+旧 12 阶段编号只保留在 `references/legacy-12-phase-bootstrap.md`。下面按 v1.0
+能力和任务场景路由，不再使用旧 Phase 编号。
+
 | 模块 | Reference | 何时读取 |
 |------|-----------|---------|
-| 项目诊断 | `references/project-onboarding-audit.md` | Phase 1 |
-| AGENTS.md + CLAUDE.md | `references/agents-md-pattern.md` | Phase 4 |
-| 目录结构 | `references/docs-directory-standard.md` | Phase 3, 5 |
-| 外部资料摄取 | `references/external-source-intake-standard.md` | Phase 1, 2, 4 |
-| Delivery Operating Model | `references/delivery-operating-model-standard.md` | Phase 2b, 5 |
-| Repository Governance | `references/repo-governance-standard.md` | Phase 5b |
-| CI/CD | `references/ci-cd-standard.md` | Phase 5b |
-| Planning Loop | `references/planning-loop.md` | Phase 6 |
-| Long-Running Task | `references/long-running-task-standard.md` | Phase 7 |
-| Adversarial Review | `references/adversarial-review-standard.md` | Phase 5, 6, 7 |
-| Review Routing | `references/review-routing-standard.md` | Phase 5, 6, 7 |
-| SSoT 治理 | `references/ssot-governance.md` | Phase 8 |
-| 经验沉淀 | `references/lessons-governance.md` | Phase 8b |
-| Harness Ledger | `references/harness-ledger.md` | Phase 8c |
-| Regression | `references/regression-system.md` | Phase 9 |
-| Cadence Ledger | `references/cadence-ledger.md` | Phase 9 |
-| Walkthrough | `references/walkthrough-closeout.md` | Phase 10 |
-| Worktree | `references/worktree-parallel.md` | Phase 11 |
+| 项目诊断 | `references/project-onboarding-audit.md` | Diagnose 阶段判断项目形态、风险和 harness 深度 |
+| AGENTS.md + CLAUDE.md | `references/agents-md-pattern.md` | Scaffold / Configure 入口路由文件时 |
+| 目录结构 | `references/docs-directory-standard.md` | Scaffold docs 结构或检查目录边界时 |
+| 外部资料摄取 | `references/external-source-intake-standard.md` | 项目依赖微服务、多仓、外部团队资料或用户提供资料包时 |
+| Delivery Operating Model | `references/delivery-operating-model-standard.md` | Decide 阶段选择 solo / team / split-repo / program / stage-gate / kanban |
+| Repository Governance | `references/repo-governance-standard.md` | 配置 PR、分支、worktree、提交和发布边界时 |
+| CI/CD | `references/ci-cd-standard.md` | 配置或验证 required checks、release gate、CI residual 时 |
+| Planning Loop | `references/planning-loop.md` | 创建、推进或迁移任务计划时 |
+| Long-Running Task | `references/long-running-task-standard.md` | 任务需要连续执行、长上下文或 stop condition 时 |
+| Adversarial Review | `references/adversarial-review-standard.md` | 需要独立审查报告、信心挑战或 material finding 分级时 |
+| Review Routing | `references/review-routing-standard.md` | 决定 self-review、subagent、外部 reviewer 或人工审查时 |
+| SSoT 治理 | `references/ssot-governance.md` | 维护 Feature / Delivery / Regression / Lessons 等当前事实时 |
+| 经验沉淀 | `references/lessons-governance.md` | walkthrough 收口后判断是否沉淀 lesson 时 |
+| Harness Ledger | `references/harness-ledger.md` | 记录本轮 harness 上下文维护、证据和 residual 时 |
+| Regression | `references/regression-system.md` | 设计或更新回归面、evidence depth 和 gate 时 |
+| Cadence Ledger | `references/cadence-ledger.md` | 根据改动类型触发回归批次时 |
+| Walkthrough | `references/walkthrough-closeout.md` | 收口、Closeout SSoT 和交付说明时 |
+| Worktree | `references/worktree-parallel.md` | 并行开发、worker handoff 或隔离分支时 |
 
 ## Template 索引
 
 | 模板 | 路径 | 用途 |
 |------|------|------|
-| AGENTS.md | `templates/AGENTS.md.template` | Phase 4 |
-| CLAUDE.md | `templates/CLAUDE.md.template` | Phase 4，Claude Code 兼容 shim |
-| Feature SSoT | `templates/ssot/Feature-SSoT.md` | Phase 8 |
-| Regression SSoT | `templates/ssot/Regression-SSoT.md` | Phase 8 |
-| Lessons SSoT | `templates/ssot/Lessons-SSoT.md` | Phase 8b |
-| Delivery SSoT | `templates/ssot/Delivery-SSoT.md` | Phase 2b |
-| Harness Ledger | `templates/ledger/Harness-Ledger.md` | Phase 8c |
+| AGENTS.md | `templates/AGENTS.md.template` | 目标项目 agent 入口：宪章 + 阅读矩阵 |
+| CLAUDE.md | `templates/CLAUDE.md.template` | Claude Code 兼容 shim，指向 AGENTS.md |
+| Feature SSoT | `templates/ssot/Feature-SSoT.md` | 功能、wave、当前实施状态 |
+| Regression SSoT | `templates/ssot/Regression-SSoT.md` | 回归面、证据深度、gate 状态 |
+| Lessons SSoT | `templates/ssot/Lessons-SSoT.md` | 经验沉淀候选、审批和归档 |
+| Delivery SSoT | `templates/ssot/Delivery-SSoT.md` | 多人、多仓、阶段性交付计划 |
+| Harness Ledger | `templates/ledger/Harness-Ledger.md` | 全局 harness 上下文维护总账 |
 | Lesson (ref-change) | `templates/lessons/lesson-ref-change.md` | Walkthrough 收口后 |
 | Lesson (new-doc) | `templates/lessons/lesson-new-doc.md` | Walkthrough 收口后 |
 | Lesson (arch/process) | `templates/lessons/lesson-arch-process-change.md` | Walkthrough 收口后 |
-| Cadence Ledger | `templates/regression/Cadence-Ledger.md` | Phase 9 |
-| Task Plan | `templates/planning/task_plan.md` | Phase 6 |
-| Findings | `templates/planning/findings.md` | Phase 6 |
-| Progress | `templates/planning/progress.md` | Phase 6 |
-| Review Report | `templates/planning/review.md` | Phase 6 |
-| Long-Running Task Contract | `templates/planning/long-running-task-contract.md` | Phase 7 |
+| Cadence Ledger | `templates/regression/Cadence-Ledger.md` | 回归触发节奏和批次记录 |
+| Task Plan | `templates/planning/task_plan.md` | 当前任务计划 |
+| Findings | `templates/planning/findings.md` | 发现、风险和 residual |
+| Progress | `templates/planning/progress.md` | 生命周期状态和执行日志 |
+| Review Report | `templates/planning/review.md` | 审查发现、确认和残余风险 |
+| Long-Running Task Contract | `templates/planning/long-running-task-contract.md` | 长程任务授权、review loop 和停止条件 |
 | Module Session Prompt | `templates/planning/module_session_prompt.md` | 模块并行开发会话冷启动 |
-| Walkthrough | `templates/walkthrough/walkthrough-template.md` | Phase 10 |
-| Closeout SSoT | `templates/walkthrough/Closeout-SSoT.md` | Phase 10 |
-| Testing Standard | `templates/reference/testing-standard.md` | Phase 5 |
-| Execution Workflow | `templates/reference/execution-workflow-standard.md` | Phase 5 |
-| Delivery Operating Model Standard | `templates/reference/delivery-operating-model-standard.md` | Phase 2b |
-| Repository Governance Standard | `templates/reference/repo-governance-standard.md` | Phase 5b |
-| CI/CD Standard | `templates/reference/ci-cd-standard.md` | Phase 5b |
-| Long-Running Task Standard | `templates/reference/long-running-task-standard.md` | Phase 7 |
-| Adversarial Review Standard | `templates/reference/adversarial-review-standard.md` | Phase 5 |
-| Review Routing Standard | `templates/reference/review-routing-standard.md` | Phase 5 |
-| Docs Library | `templates/reference/docs-library-standard.md` | Phase 5 |
-| External Source Intake Standard | `templates/reference/external-source-intake-standard.md` | Phase 1, 2, 4 |
-| Harness Ledger Standard | `templates/reference/harness-ledger-standard.md` | Phase 5 |
-| Regression Governance | `templates/reference/regression-ssot-governance.md` | Phase 5 |
-| Walkthrough Standard | `templates/reference/walkthrough-standard.md` | Phase 5 |
-| Worktree Standard | `templates/reference/worktree-standard.md` | Phase 5 |
-| Engineering Standard | `templates/reference/engineering-standard.md` | Phase 5 |
+| Walkthrough | `templates/walkthrough/walkthrough-template.md` | 任务收口记录 |
+| Closeout SSoT | `templates/walkthrough/Closeout-SSoT.md` | closed task 索引和收口证据 |
+| Testing Standard | `templates/reference/testing-standard.md` | 测试、冒烟和回归规范 |
+| Execution Workflow | `templates/reference/execution-workflow-standard.md` | 执行、提交、PR 和证据记录 |
+| Delivery Operating Model Standard | `templates/reference/delivery-operating-model-standard.md` | 交付组织模型选择 |
+| Repository Governance Standard | `templates/reference/repo-governance-standard.md` | repo、分支、PR、worktree 规则 |
+| CI/CD Standard | `templates/reference/ci-cd-standard.md` | CI/CD、required checks、release residual |
+| Long-Running Task Standard | `templates/reference/long-running-task-standard.md` | 长程任务协议 |
+| Adversarial Review Standard | `templates/reference/adversarial-review-standard.md` | 对抗性审查协议 |
+| Review Routing Standard | `templates/reference/review-routing-standard.md` | reviewer / subagent / human review 路由 |
+| Docs Library | `templates/reference/docs-library-standard.md` | 文档结构、命名和归档 |
+| External Source Intake Standard | `templates/reference/external-source-intake-standard.md` | 外部资料摄取、摘要和投影 |
+| Harness Ledger Standard | `templates/reference/harness-ledger-standard.md` | Harness Ledger 写入规范 |
+| Regression Governance | `templates/reference/regression-ssot-governance.md` | Regression SSoT 治理 |
+| Walkthrough Standard | `templates/reference/walkthrough-standard.md` | walkthrough / closeout / lessons 收口规范 |
+| Worktree Standard | `templates/reference/worktree-standard.md` | worktree、分支和 worker handoff |
+| Engineering Standard | `templates/reference/engineering-standard.md` | 工程和架构约束 |
