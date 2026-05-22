@@ -55,7 +55,7 @@ docs/10-WALKTHROUGH/Closeout-SSoT.md
 Closeout SSoT 中：
 
 - walkthrough 列写实际路径，或写受控跳过原因。
-- Lessons 检查列写 `checked-created: L-YYYY-MM-DD-NNN` 或 `checked-none: <reason>`。
+- Lessons 检查列写 `checked-candidate: LC-...`、`queued-promotion: LC-...`、`checked-created: L-YYYY-MM-DD-NNN`，或旧任务兼容的 `checked-none: <reason>`。
 - 允许的跳过原因只有：`docs-only`、`no-runtime`、`superseded`、`historical-backfill`、`owner-deferred`。
 
 ## 经验沉淀反思规则
@@ -68,14 +68,14 @@ Closeout SSoT 中：
 
 任一答案为“有”时：
 
-- 先在 `docs/01-GOVERNANCE/lessons/` 写 lesson 详情文档。
-- 再在 Lessons SSoT 追加一行。
+- 先在任务目录 `lesson_candidates.md` 写候选。
+- 人工审查后，如需沉淀，再由维护命令写 lesson 详情文档并追加 Lessons SSoT。
 - Lessons SSoT 的详情文档列必须指向该详情文档。
 
 三个答案都为“没有”时，Closeout SSoT 和 Harness Ledger 仍要记录：
 
 ```text
-checked-none: <reason>
+lesson_candidates.md: no-candidate-accepted
 ```
 
 ## 收口要求

@@ -17,12 +17,12 @@
 
 ## 执行与可视化文件
 
-模块级 `execution_strategy.md` 和 `visual_roadmap.md` 应放在本模块目录，与 `module_plan.md` 同级，不嵌入本文件。
+模块级 `execution_strategy.md` 和 `visual_map.md` 应放在本模块目录，与 `module_plan.md` 同级，不嵌入本文件。
 
 | 合同文件 | 是否必需 | 用途 |
 | --- | --- | --- |
 | `execution_strategy.md` | yes | 模块执行模式、写入边界、subagent 使用、全局同步 owner、验证深度 |
-| `visual_roadmap.md` | yes | 模块阶段图、状态、完成度、证据状态、阻塞风险 |
+| `visual_map.md` | yes | 模块图表集合、阶段图、状态、完成度、证据状态、阻塞风险 |
 
 旧模块目录可以保留历史嵌入式段落作为 fallback；新模块目录必须使用独立文件。
 

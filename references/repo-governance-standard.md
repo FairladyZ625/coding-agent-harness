@@ -91,6 +91,7 @@ Required fields:
 - Branch pattern
 - Ownership rule
 - Subagent worker rule: each code-changing worker uses its own worktree / branch and hands off a commit SHA
+- Checkpoint commit rule: verified, meaningful slices are committed proactively; deferred commits require an explicit reason
 - Merge ordering rule
 - Cleanup rule
 
@@ -129,3 +130,4 @@ Bootstrap is not complete unless repository governance is at least:
 - Branch protection: `designed` with residual, or `verified`
 - Worktree concurrency: `implemented`
 - Harness checker: passing or blocked-with-owner with explicit residual
+- Checkpoint commit rule: `implemented`

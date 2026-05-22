@@ -36,6 +36,7 @@
   },
   "files": [
     "README.md",
+    "README.en-US.md",
     "CHANGELOG.md",
     "SKILL.md",
     "LICENSE",

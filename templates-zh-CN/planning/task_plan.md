@@ -1,5 +1,7 @@
 # [任务名称]
 
+Task Contract: harness-task/v1
+
 ## 目标
 
 [用一句话说明本任务完成后应达到的状态。]
@@ -14,8 +16,11 @@
 
 | 预算 | 适用场景 | 必需结构 |
 | --- | --- | --- |
-| simple | 单 owner、无 subagent、证据深度为 L0/L1 | 使用标准任务文件即可 |
-| complex | 需要 L2/L3 证据、subagent/reviewer、外部参考、生成产物，或超过 5 个切片 | 只启用实际需要的可选索引 |
+| simple | 单 owner、无 subagent、证据深度为 L0/L1、不需要正式 review gate | `brief.md`、`task_plan.md`、`visual_map.md`、`progress.md` |
+| standard | 常规功能、修复或文档改动 | 完整任务文件：计划、策略、图谱、进度、发现和按需审查 |
+| complex | 需要 L2/L3 证据、subagent/reviewer、外部参考、生成产物，或超过 5 个切片 | 完整任务文件，并只启用实际需要的可选索引 |
+
+选择预算：{{TASK_BUDGET}}
 
 可选子目录按触发条件创建，不作为默认脚手架：
 
@@ -40,12 +45,13 @@
 
 ## 执行与可视化文件
 
-`execution_strategy.md` 和 `visual_roadmap.md` 是本任务的同级合同文件，不嵌入 `task_plan.md`。这样 dashboard 和 checker 可以稳定读取。
+`execution_strategy.md` 和 `visual_map.md` 是本任务的同级合同文件，不嵌入 `task_plan.md`。这样 dashboard 和 checker 可以稳定读取。
 
 | 合同文件 | 是否必需 | 用途 |
 | --- | --- | --- |
 | `execution_strategy.md` | yes | 执行模式、subagent 使用、冲突控制、证据深度、交接规则 |
-| `visual_roadmap.md` | yes | Mermaid 路线图、阶段表、完成度、证据状态、阻塞风险 |
+| `visual_map.md` | yes | 图表集合：阶段图、可选架构/时序/数据流/状态图、完成度、证据状态、阻塞风险 |
+| `lesson_candidates.md` | standard/complex 必需 | 任务本地教训候选队列。人工审查确认前必须接受无候选、拒绝候选，或排队 promotion |
 | `review.md` | 按需 | 对抗性审查、release review、外部 reviewer 结论 |
 
 旧任务可以保留历史嵌入式段落作为 fallback；新任务必须使用独立文件。

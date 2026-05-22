@@ -28,8 +28,8 @@
 - 编辑前检查 dirty state，不要 revert 无关改动。
 - 如果另一个活跃会话拥有该模块或必需共享文件，停止并记录冲突。
 - 代码编辑前，基于项目 planning 模板创建或更新 docs/09-PLANNING/MODULES/<module-key>/TASKS/<current-step>-<short-name>/task_plan.md，写清范围、验收、验证、分支/worktree 和共享协调。
-- 代码编辑前，确认模块任务目录含有 `execution_strategy.md` 与 `visual_roadmap.md`。如缺失，先补齐再实现。
-- 如果 docs/09-PLANNING/MODULES/<module-key>/ 缺少模块级 `execution_strategy.md` 或 `visual_roadmap.md`，在派发 worker 前补齐或更新。
+- 代码编辑前，确认模块任务目录含有 `execution_strategy.md` 与 `visual_map.md`。如缺失，先补齐再实现。
+- 如果 docs/09-PLANNING/MODULES/<module-key>/ 缺少模块级 `execution_strategy.md` 或 `visual_map.md`，在派发 worker 前补齐或更新。
 
 分支与工作树：
 - Worktree path: <worktree-path>.
@@ -55,8 +55,9 @@
 - 除非 coordinator 明确分配共享锁，worker session 不得更新 docs/09-PLANNING/Module-Registry.md、docs/Harness-Ledger.md、Closeout SSoT、Regression SSoT 或 Cadence Ledger。
 - 如果需要全局表更新，在 task_plan.md 或 progress.md 写 Coordinator 交接，并标记 `Global sync status: pending-coordinator-pass`。
 - 只有 coordinator pass 或明确的 shared-lock owner 可以更新 docs/09-PLANNING/Module-Registry.md。
+- 汇报状态时区分 `task.state`、`lifecycleState`、`reviewStatus` 和 `closeoutStatus`；`done` 只表示实现步骤完成，不等于 `closed`。
 - 更新 docs/09-PLANNING/MODULES/<module-key>/module_plan.md。
-- 写 review.md，或记录 review skipped-with-reason。
+- 写 review.md，或记录 review skipped-with-reason。需要人工确认审查完成时，必须通过本地 dashboard workbench，或由 coordinator 执行 `harness review-confirm`；存在开放 P0/P1/P2 finding 时不得确认。
 - 步骤完成时写 walkthrough，并包含 Lessons 反思。
 - Coordinator pass 在任务关闭时更新 Closeout SSoT 和 Lessons 检查。
 - Coordinator pass 在行为、测试、架构或流程改变时更新 Regression SSoT 和 Harness Ledger。

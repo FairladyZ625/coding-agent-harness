@@ -37,7 +37,8 @@ docs/Harness-Ledger.md
 4. 状态值使用固定词，避免自由文本失控。
 5. 任务收口时最后更新 Harness Ledger。
 6. `closed` 行必须有 Lessons 检查结果。
-7. `checked-created` 必须引用 lesson ID 和详情文档。
+7. 新任务默认引用 `lesson_candidates.md`，并使用 `checked-candidate`、`queued-promotion` 或 `checked-created` 记录人工判定。
+8. `checked-created` 必须引用 lesson ID 和详情文档。
 8. 如果 closeout、review 或 regression 被跳过，必须写 `skipped-with-reason`。
 
 ## 固定状态词
@@ -46,6 +47,8 @@ docs/Harness-Ledger.md
 - `updated`
 - `created`
 - `checked-none`
+- `checked-candidate`
+- `queued-promotion`
 - `checked-created`
 - `n/a`
 - `skipped-with-reason`
@@ -66,7 +69,7 @@ docs/Harness-Ledger.md
 - [ ] Regression SSoT / Cadence Ledger 已更新，或标记 `n/a`。
 - [ ] walkthrough 已创建，或 Closeout SSoT 写明受控跳过原因。
 - [ ] walkthrough 包含 Lessons 反思。
-- [ ] Lessons 检查结果为 `checked-none: <reason>` 或 `checked-created: L-YYYY-MM-DD-NNN`。
+- [ ] Lessons 检查结果为 `checked-candidate: LC-...`、`queued-promotion: LC-...`、`checked-created: L-YYYY-MM-DD-NNN`，或旧任务兼容的 `checked-none: <reason>`。
 - [ ] Harness Ledger 行已收口，或 residual 已写明 owner 和后续路径。
 
 ## 框架更新检查清单

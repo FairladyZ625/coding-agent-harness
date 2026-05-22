@@ -43,28 +43,45 @@ docs/01-GOVERNANCE/
 3. 有没有踩坑经验值得记录，避免下次重复？
 4. 有没有架构层面的洞察，值得更新架构文档？
 
-如果任何一条答案是"有"，必须执行“双写”：
+如果任何一条答案是"有"，先写入任务目录的 `lesson_candidates.md`，由人工 review 决定是否进入治理 promotion。
+人工决定后只允许以下任务级状态：
+
+- `no-candidate-accepted`：接受本轮没有可复用 lesson。
+- `needs-promotion`：至少一个候选已排队进入治理沉淀。
+- `promoted`：维护命令已经写入 Lessons SSoT 和详情文档。
+- `rejected`：候选已带理由拒绝。
+
+`needs-promotion` 不阻塞任务 closeout，但必须在 Closeout SSoT / Harness Ledger 中记录
+`queued-promotion: LC-YYYYMMDD-NNN`，并由后续维护命令处理。`promoted` 或人工直接创建时记录
+`checked-created: L-YYYY-MM-DD-NNN`。如果没有候选，记录 `checked-candidate: LC-...` 或
+`checked-none: <reason>`，其中 `checked-none` 只用于旧任务兼容或没有 candidate 文件的历史收口。
+
+promotion 执行“双写”：
 
 1. 选择 `templates/lessons/` 下的对应模板，先创建详情文档。
 2. 详情文档必须写清背景、现状问题、建议改动、影响范围和冲突声明。
 3. 再在 Lessons SSoT 追加表行，`Detail Doc` 指向这篇详情文档。
-4. 在 Closeout SSoT / Harness Ledger 中记录 `checked-created`，并引用 lesson ID。
+4. 在 Closeout SSoT / Harness Ledger 中记录 `checked-created` 或 `queued-promotion`，并引用 lesson/candidate ID。
 
-如果四个问题的答案全是"没有"，也不能静默跳过。必须在 Closeout SSoT 和
-Harness Ledger 中记录 `checked-none: <一句话原因>`。
+如果四个问题的答案全是"没有"，也不能静默跳过。新任务必须在 `lesson_candidates.md` 中使用
+`no-candidate-accepted` 并填写 No-Candidate Reason；旧任务可在 Closeout SSoT 和 Harness Ledger 中记录
+`checked-none: <一句话原因>`。
 
 ## Closeout 判定
 
-收口时只允许以下两种合格状态：
+收口时只允许以下合格状态：
 
 - `checked-created: L-YYYY-MM-DD-NNN`：发现可沉淀经验，已创建详情文档并更新 Lessons SSoT。
-- `checked-none: <reason>`：已完整检查，确认本轮没有可复用的规范/流程/架构改进。
+- `queued-promotion: LC-YYYYMMDD-NNN`：人工确认候选值得沉淀，但交给维护命令后续提升。
+- `checked-candidate: LC-YYYYMMDD-NNN`：人工已审查 candidate 文件，结论为无候选或全部拒绝。
+- `checked-none: <reason>`：旧任务兼容状态，已完整检查且没有 candidate 文件。
 
 以下状态不合格：
 
 - 只写 Lessons SSoT 表行，没有详情文档。
 - 只写详情文档，没有 Lessons SSoT 表行。
 - 在 walkthrough 或 progress 中说“无 lessons”，但 Closeout SSoT / Harness Ledger 没有记录。
+- 新任务跳过 `lesson_candidates.md`，只用 `checked-none` 代替 candidate 判定。
 - 用 `n/a` 代替检查结果，除非任务是纯只读分析且没有 closed ledger row。
 
 ## 沉淀类型

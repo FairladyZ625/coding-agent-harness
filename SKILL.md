@@ -24,6 +24,7 @@ description: >
 - **单元测试只是底线，不是保障。** 真正的保障需要多层证据（Evidence Depth）。
 - **先识别交付组织，再设计 harness。** 一人多 agent、多人团队、前后端分仓、program 多仓、敏捷/瀑布，对应的 SSoT 和冲突治理不同。
 - **Repo 护栏是地基。** CI/CD、PR policy、branch protection、required checks、worktree concurrency 必须项目级定制，不能停留在模板。
+- **外部资料先摄取，再投影。** 微服务或多仓项目的外部文档不能直接塞进执行文档；先建 source pack、digest、验证，再投影到 `03/04/06`。
 - **长程任务先设计合同，再开放执行。** 连续跑数小时的前提是 Goal、Scope、Review Loop、Evidence、Stop Condition 都清楚。
 - **审查必须落盘。** 对抗性 review 是独立交付物，不应只留在对话、progress 或 walkthrough 里；reviewer 必须用 Confidence Challenge 反复挑战方案，直到没有 open material finding。
 - **Worker handoff 必须 commit-backed。** 可写 subagent 不是 reviewer；它必须在独立 worktree / branch 内实现、验证并提交，再由 coordinator 集成。
@@ -44,8 +45,9 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
    task progress、Feature SSoT、Regression SSoT 或 Lessons SSoT。
 5. 对已有文档采用 merge / append / residual-with-reason；只有全新缺失文件才从模板创建。
 6. 如果引入 Lessons SSoT、Harness Ledger 或新的 reference/template，同步更新入口索引。
-7. 收口时写 walkthrough，必须包含 Lessons Reflection；如发现可复用教训，先写
-   `docs/01-GOVERNANCE/lessons/` 详情文档，再写 Lessons SSoT；最后在
+7. 收口时写 walkthrough，必须包含 Lessons Reflection；新任务先写并审查
+   `lesson_candidates.md`。如人工标记值得沉淀，维护命令再写
+   `docs/01-GOVERNANCE/lessons/` 详情文档和 Lessons SSoT；最后在
    `docs/Harness-Ledger.md` 与 `docs/10-WALKTHROUGH/Closeout-SSoT.md` 记录本次 harness update 的 delta 和 Lessons Check。
 
 一句话：harness update 是 delta merge，不是重新搭一遍。
@@ -80,6 +82,12 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 读 `references/project-onboarding-audit.md`，扫描项目技术栈、目录结构、现有文档、
 CI、团队/agent 协作方式和风险面，输出诊断报告。
 
+如果发现项目属于微服务、多仓、前后端分仓、平台子系统，或代码中出现外部服务、
+SDK、API gateway、message queue、webhook、contract、schema、mock，必须询问用户是否有
+外部资料。问题至少覆盖：是否有外部团队文档、接口文档、架构图、会议纪要、链接或导出包；
+这些资料能否复制进仓；哪些资料是可信来源。外部资料处理方法见
+`references/external-source-intake-standard.md`。
+
 ### Phase 2: Decide / 方案决策
 
 与用户确认三件事：
@@ -91,6 +99,8 @@ CI、团队/agent 协作方式和风险面，输出诊断报告。
    kanban-continuous。
 3. Capability Packs：core 必装；按需选择 module-parallel、subagent-worker、
    adversarial-review、long-running-task、dashboard、safe-adoption。
+4. External Source Intake：如果外部资料超过 5 份、跨多个主题或会持续增长，
+   决定是否创建 `docs/04-DEVELOPMENT/external-source-packs/<source-key>/`。
 
 Capability 选择规则必须按表执行，不得凭感觉多装：
 
@@ -124,6 +134,35 @@ Regression surface、Delivery SSoT、Module Registry、review routing 和
 worktree/subagent handoff 规则。已有项目事实只能 merge/append/residual，
 不能模板覆盖。
 
+如果用户提供了外部资料，Configure 阶段必须按
+`external-source-intake-standard.md` 执行：Inventory、Classify、Sanitize、Digest、
+Project、Verify、Residual。`external-source-packs/` 只保存资料索引、摘要和投影状态；
+稳定事实必须回写到 `03-ARCHITECTURE`、`04-DEVELOPMENT/external-context` 或
+`06-INTEGRATIONS`。
+
+### Phase 4b: Task Lifecycle / 任务生命周期
+
+初始化或迁移完成后，活跃任务必须通过 CLI 创建和推进，避免 agent 手工复制模板造成漂移：
+
+```bash
+node scripts/harness.mjs new-task <task-id> --title "<title>" --locale zh-CN|en-US /path/to/project
+node scripts/harness.mjs task-start <task-id> --message "<what started>" /path/to/project
+node scripts/harness.mjs task-log <task-id> --message "<what changed>" --evidence "command:TARGET:path:summary" /path/to/project
+node scripts/harness.mjs task-block <task-id> --message "<blocker>" /path/to/project
+node scripts/harness.mjs task-review <task-id> --message "<ready for review>" /path/to/project
+node scripts/harness.mjs task-complete <task-id> --message "<closeout>" /path/to/project
+node scripts/harness.mjs task-list --json /path/to/project
+```
+
+- `new-task --budget simple` 创建轻量任务目录：`brief.md`、`task_plan.md`、`visual_map.md`、`progress.md`。
+- `new-task` 默认 `standard`，创建完整任务目录，包括 `brief.md`、计划、策略、路线图、进度、发现和审查文件。
+- `new-task --budget complex` 在完整任务文件之外创建 optional references/artifacts 索引。
+- 已存在任务不会被覆盖；旧项目迁移时先 `task-list --json`，再决定复用旧任务还是开新任务。
+- 状态推进只写 `progress.md`，不得重写历史 `task_plan.md`。
+- `simple` 任务可以直接 `in_progress -> done`；`standard` / `complex` 必须 `in_progress -> review -> done`，不能跳过 `task-review`。
+- `review-confirm` 只确认人工 review evidence / findings，不代表 closeout；closeout 仍走 walkthrough / Closeout SSoT。
+- 证据必须进入 `task-log` 或 `progress.md`，并继续遵守 `type:PATH:summary` 格式。
+
 ### Phase 5: Verify / 验证
 
 运行当前 repo 支持的检查命令，例如：
@@ -143,6 +182,15 @@ node scripts/harness.mjs status --json /path/to/project
 检查失败时不能声称 harness complete；必须修复或记录 owner/action/status 明确的
 residual。
 
+旧项目迁移时必须先运行：
+
+```bash
+node scripts/harness.mjs migrate-plan --json /path/to/project
+```
+
+然后按 `docs-release/guides/migration-playbook.md` 分阶段处理。不要机械迁移所有历史
+task；先迁移活跃或重新打开的任务，再升级当前门禁相关 review 和 capability。
+
 ### Phase 6: Deliver / 交付
 
 输出 bootstrap summary，说明创建/定制了哪些文件、启用了哪些 capability、当前
@@ -158,144 +206,11 @@ Summary 至少包含：
 - residual owner / action / status
 - 是否提交；若只是 dogfood 测试，必须清理测试产物
 
-### Historical 12-Phase Bootstrap（旧版参考）
+### 旧版 Bootstrap 参考
 
-以下 12-phase 流程是历史参考，用于理解旧版 harness 的组成，不再作为 v1.0
-`init` 的默认执行协议。
-
-### Phase 1: 项目诊断
-
-读 `references/project-onboarding-audit.md`，按其中的扫描清单分析用户项目现状，输出诊断报告。
-
-### Phase 2: 确认方案
-
-根据诊断结果，确定 harness 规模（参考 `references/project-onboarding-audit.md` 中的项目类型分支），与用户确认落地方案。
-
-### Phase 2b: 选择 Delivery Operating Model
-
-读 `references/delivery-operating-model-standard.md`。先判定项目的工程组织形态：
-
-- `solo-orchestrator`：一人主控，多 agent / worktree 并行
-- `team-feature-lead`：leader 拆 feature block，多人各带 agent 开发
-- `split-repo-contract`：前后端或 app/service 分仓，通过接口合同协作
-- `program-multi-repo`：主项目协调多个子仓库
-- `waterfall-stage-gate`：需求、设计、实现、验证、发布分阶段推进
-- `kanban-continuous`：连续流动式开发，用 WIP 和集成队列控节奏
-
-如果是多人、多仓或传统工程流程，必须创建或更新 `docs/09-PLANNING/Delivery-SSoT.md`。
-
-### Phase 2c: 模块识别与注册（可选）
-
-当项目满足以下条件时启用：
-
-- Operating Model 为 `solo-orchestrator` 或 `team-feature-lead`
-- 存在 2+ 个可独立演进的功能域
-- 开发者计划多会话 / 多 worktree 并行
-
-读 `references/module-parallel-standard.md`，执行：
-
-1. 识别项目中的独立模块（按功能域划分，不按技术层划分）
-2. 为每个模块声明 write scope，确认无交集
-3. 创建 `docs/09-PLANNING/Module-Registry.md`（使用 `templates/ssot/Module-Registry.md`）
-4. 为每个活跃模块创建 `docs/09-PLANNING/MODULES/<key>/module_plan.md`（使用 `templates/planning/module_plan.md`）
-5. 在 AGENTS.md 中添加模块冷启动指引段落
-6. 启用检查器的模块任务反向索引规则：模块 worker 必须把活跃任务写入 `module_plan.md`，并用 Coordinator Handoff 标记总表同步需求；只有 coordinator pass 或显式 shared lock owner 写 `Module-Registry.md` / Harness Ledger。
-
-如果项目从线性 Phase 模型迁移，还需执行迁移步骤（见 `references/module-parallel-standard.md` 的"从线性 Phase 迁移"段落）。
-
-### Phase 3: 搭建目录结构
-
-读 `references/docs-directory-standard.md`，在项目中创建 docs/ 目录结构。根据诊断结果裁剪不需要的目录。
-
-### Phase 4: 生成 AGENTS.md + CLAUDE.md
-
-读 `references/agents-md-pattern.md`，根据项目技术栈和目录结构生成 AGENTS.md。使用 `templates/AGENTS.md.template` 作为起点。
-
-同时生成 `CLAUDE.md`：
-- 优先使用 `templates/CLAUDE.md.template`
-- `CLAUDE.md` 只作为 Claude Code 兼容入口，指向 AGENTS.md
-- 不要在 `CLAUDE.md` 中复制完整规范，避免 AGENTS.md 与 CLAUDE.md 漂移
-
-### Phase 5: 生成 Reference 标准文件
-
-读 `references/docs-directory-standard.md` 中的 reference 文件清单，根据项目需要生成对应的标准文件到 `docs/11-REFERENCE/`。使用 `templates/reference/` 下的模板。
-标准 harness 安装必须包含 `adversarial-review-standard.md` 和
-`review-routing-standard.md`，因为 planned task closeout 默认启用 reviewer routing。
-标准 harness 安装也必须包含 `repo-governance-standard.md` 和 `ci-cd-standard.md`，
-因为 CI/CD、PR policy、branch protection、required checks 和 worktree concurrency 是 base guardrails。
-标准 harness 安装还必须包含 `delivery-operating-model-standard.md`，
-因为 harness 必须先知道自己服务的是哪一种工程组织形态。
-
-### Phase 5b: 初始化 Repository Governance / CI-CD
-
-读 `references/repo-governance-standard.md` 和 `references/ci-cd-standard.md`。
-根据项目技术栈和远端平台定制：
-
-- repo platform profile
-- branch model
-- PR policy
-- required checks
-- branch protection plan
-- CI workflow 或 blocked-with-owner residual
-- worktree concurrency
-
-如果是 GitHub 项目，优先生成或更新 `.github/pull_request_template.md` 和
-`.github/workflows/ci.yml`。如果 agent 没有权限设置 branch protection，必须写 manual setup residual，
-不能把 `designed` 冒充成 `verified`。
-
-### Phase 6: 初始化 Planning Loop
-
-读 `references/planning-loop.md`，在 `docs/09-PLANNING/TASKS/` 下建立任务模板目录。使用 `templates/planning/` 下的任务模板。
-模板目录必须额外包含 `review.md`，用于 reviewer agent / subagent / 自审写入对抗性 review 报告。
-
-### Phase 7: 初始化 Long-Running Task Protocol
-
-读 `references/long-running-task-standard.md`，在 `docs/11-REFERENCE/` 中生成长程任务标准。使用 `templates/reference/long-running-task-standard.md`，并把 `templates/planning/long-running-task-contract.md` 放入任务模板目录。
-
-### Phase 8: 初始化 SSoT
-
-读 `references/ssot-governance.md`，创建 Feature SSoT 和 Regression SSoT。使用 `templates/ssot/` 下的模板。
-
-### Phase 8b: 初始化经验沉淀体系
-
-读 `references/lessons-governance.md`，创建 Lessons SSoT。使用 `templates/ssot/Lessons-SSoT.md` 作为模板。同时在 `docs/01-GOVERNANCE/` 下创建 `lessons/` 和 `_archive/` 目录（含 `.gitkeep`）。
-
-### Phase 8c: 初始化 Harness Ledger
-
-读 `references/harness-ledger.md`，在 `docs/` 根目录创建 `Harness-Ledger.md`。使用 `templates/ledger/Harness-Ledger.md` 作为模板。
-
-### Phase 9: 初始化 Regression 体系
-
-读 `references/regression-system.md` 和 `references/cadence-ledger.md`，根据项目的关键 surface 建立回归 gate 和 cadence 规则。使用 `templates/regression/` 下的模板。
-
-### Phase 10: 初始化 Walkthrough 流程
-
-读 `references/walkthrough-closeout.md`，建立 walkthrough 模板和 Closeout SSoT。
-使用 `templates/walkthrough/` 下的模板。
-
-### Phase 11: 初始化 Worktree 规范
-
-读 `references/worktree-parallel.md`，确认 worktree 命名、分支规范、subagent worker
-handoff 和 coordinator integration 规则，写入 AGENTS.md 或对应 reference 文件。
-
-### Phase 11b: 初始化模块并行启动 Prompt（如启用）
-
-如果项目启用模块并行开发，读 `references/module-parallel-standard.md`，并为每个 active module 创建：
-
-- `docs/09-PLANNING/Module-Registry.md`
-- `docs/09-PLANNING/MODULES/<key>/module_plan.md`
-- `docs/09-PLANNING/MODULES/Session-Prompt-Pack.md` 或 `docs/09-PLANNING/MODULES/<key>/session_prompt.md`
-
-使用 `templates/planning/module_session_prompt.md` 填充每个模块的启动 prompt。Prompt 必须包含 start gate、worktree/branch preflight、Subagent Worker Invariant、write scope、shared coordination、verification、review/Lessons/Closeout 收口。
-
-### Phase 12: 输出 Bootstrap Summary
-
-输出一份 harness bootstrap 总结，包括：
-- 创建了哪些文件
-- 每个文件的用途
-- 建议的首批任务
-- 下一步行动
-- `node scripts/check-harness.mjs <project-root>` 的结果；未通过不得声称 bootstrap complete
+旧 12 阶段 bootstrap 只作为兼容迁移参考，不再放在 Skill 主执行协议里。
+需要理解旧项目结构或把旧任务迁移到 v1.0 时，读取
+`references/legacy-12-phase-bootstrap.md`。
 
 ---
 
@@ -323,6 +238,7 @@ harness bootstrap 完成后，项目中至少应存在以下文件：
 - [ ] `docs/01-GOVERNANCE/lessons/`（空目录 + .gitkeep）
 - [ ] `docs/01-GOVERNANCE/_archive/`（空目录 + .gitkeep）
 - [ ] `docs/Harness-Ledger.md`
+- [ ] `docs/11-REFERENCE/external-source-intake-standard.md`
 - [ ] `docs/11-REFERENCE/harness-ledger-standard.md`
 - [ ] `.github/pull_request_template.md` 或 platform-specific PR template / residual
 - [ ] CI workflow 或 `ci-cd-standard.md` 中的 blocked-with-owner residual
@@ -356,7 +272,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 11. **Merge + 自动回归** — Cadence Ledger 触发对应回归面；coordinator 只集成 worker commit，不混合多个 worker 的未提交改动
 12. **Walkthrough 收口** — 写收口记录并引用 review report
 13. **Closeout SSoT 回写** — 每个 closed 任务必须记录 walkthrough 路径或受控 skip reason
-14. **Lessons Reflection** — 写 walkthrough 时主动反思共性/反复问题；`checked-created` 必须有详情文档和 SSoT 表行，`checked-none` 必须写明原因
+14. **Lessons Reflection** — 写 walkthrough 时主动反思共性/反复问题；新任务用 `lesson_candidates.md` 承载人工判定，`queued-promotion` 进入维护队列，`checked-created` 必须有详情文档和 SSoT 表行，旧任务兼容的 `checked-none` 必须写明原因
 15. **Harness Ledger 回写** — 记录本轮上下文维护是否完成
 16. **Worktree 清理** — 删除已 merge 的 worktree
 
@@ -369,6 +285,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | 项目诊断 | `references/project-onboarding-audit.md` | Phase 1 |
 | AGENTS.md + CLAUDE.md | `references/agents-md-pattern.md` | Phase 4 |
 | 目录结构 | `references/docs-directory-standard.md` | Phase 3, 5 |
+| 外部资料摄取 | `references/external-source-intake-standard.md` | Phase 1, 2, 4 |
 | Delivery Operating Model | `references/delivery-operating-model-standard.md` | Phase 2b, 5 |
 | Repository Governance | `references/repo-governance-standard.md` | Phase 5b |
 | CI/CD | `references/ci-cd-standard.md` | Phase 5b |
@@ -416,6 +333,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | Adversarial Review Standard | `templates/reference/adversarial-review-standard.md` | Phase 5 |
 | Review Routing Standard | `templates/reference/review-routing-standard.md` | Phase 5 |
 | Docs Library | `templates/reference/docs-library-standard.md` | Phase 5 |
+| External Source Intake Standard | `templates/reference/external-source-intake-standard.md` | Phase 1, 2, 4 |
 | Harness Ledger Standard | `templates/reference/harness-ledger-standard.md` | Phase 5 |
 | Regression Governance | `templates/reference/regression-ssot-governance.md` | Phase 5 |
 | Walkthrough Standard | `templates/reference/walkthrough-standard.md` | Phase 5 |

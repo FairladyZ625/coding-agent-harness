@@ -1,0 +1,61 @@
+function taskDocument(task, fileName) {
+  if (fileName === "__walkthrough__" && task.walkthroughPath) return findDocument(task.walkthroughPath);
+  return findDocument(`${task.path}/${fileName}`);
+}
+
+function findDocument(pathSuffix) {
+  return (bundle.documents?.documents || []).find((doc) => doc.path.endsWith(pathSuffix) || doc.path === pathSuffix);
+}
+
+function mermaidLabel(id) {
+  const node = (bundle.graph?.nodes || []).find((item) => item.id === id);
+  return String(node?.label || id).replaceAll('"', "'").slice(0, 48);
+}
+
+function mermaidId(value) {
+  return `N_${String(value).replace(/[^A-Za-z0-9_]/g, "_")}`;
+}
+
+function progressBar(value) {
+  const score = Math.max(0, Math.min(100, Number(value) || 0));
+  return `<div class="progress" aria-label="${score}%"><i style="width:${score}%"></i></div>`;
+}
+
+function tag(value) {
+  const raw = String(value || "unknown");
+  const klass = /fail|blocked|open/i.test(raw) ? "fail" : /warn|advice|planned|missing|unknown/i.test(raw) ? "warn" : /pass|done|present|verified|review|in_progress/i.test(raw) ? "pass" : "";
+  return `<span class="tag ${klass}">${escapeHtml(label(raw))}</span>`;
+}
+
+function label(value) {
+  return t(`state_${value}`) || String(value || "unknown").replaceAll("_", " ");
+}
+
+function list(items = []) {
+  return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || `<li>${t("none")}</li>`}</ul>`;
+}
+
+function emptyState(text) {
+  return `<div class="empty">${escapeHtml(text)}</div>`;
+}
+
+function projectName() {
+  return bundle.status?.project?.name || "Harness";
+}
+
+function themeLabel() {
+  return state.theme === "dark" ? t("light") : state.theme === "light" ? t("system") : t("dark");
+}
+
+function groupBy(items, fn) {
+  return items.reduce((acc, item) => {
+    const key = fn(item);
+    acc[key] ||= [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+}
+
+function canUseWorkbenchAction(action) {
+  return state.runtime?.mode === "workbench" && (state.runtime?.writableActions || []).includes(action);
+}

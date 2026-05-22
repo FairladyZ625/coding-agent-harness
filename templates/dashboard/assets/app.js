@@ -1,383 +1,1232 @@
 const bundle = window.__HARNESS_DASHBOARD__ || {};
+const defaultLocale = window.__HARNESS_LOCALE__ || ((navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en");
+let locale = localStorage.getItem("harness.locale") || defaultLocale;
+if (!window.HarnessI18n?.[locale]) locale = "en";
+let labels = window.HarnessI18n?.[locale] || {};
+
 const state = {
-  page: "overview",
-  lang: "en",
-  theme: localStorage.getItem("harness.theme") || "system",
-  density: localStorage.getItem("harness.density") || "comfortable",
-  selected: null,
-  tab: "plan",
+  query: "",
+  taskState: "all",
+  taskGroupMode: "migration",
+  taskPageByGroup: {},
+  taskGroupPage: 1,
+  warningFilter: "all",
+  warningPage: 1,
   renderMode: "rendered",
+  theme: localStorage.getItem("harness.theme") || "system",
+  taskLayout: localStorage.getItem("harness.taskLayout") || "list",
+  runtime: { mode: "static", csrfToken: "", writableActions: [] },
+  runtimeLoaded: false,
+  runtimePoller: null,
 };
 
-const pageKeys = ["overview", "ledger", "tasks", "modules", "evidence", "lessons", "adoption", "settings"];
+const taskPageSize = 25;
+const taskGroupsPerPage = 8;
+const warningPageSize = 18;
+
 const taskDocTabs = [
-  ["plan", "task_plan.md"],
+  ["brief", "brief.md"],
+  ["taskPlan", "task_plan.md"],
   ["strategy", "execution_strategy.md"],
-  ["roadmap", "visual_roadmap.md"],
+  ["visualMap", "visual_map.md"],
+  ["legacyRoadmap", "visual_roadmap.md"],
   ["progress", "progress.md"],
   ["review", "review.md"],
   ["findings", "findings.md"],
+  ["walkthrough", "__walkthrough__"],
   ["references", "references/INDEX.md"],
   ["artifacts", "artifacts/INDEX.md"],
 ];
 
 function t(key) {
-  return (window.HarnessI18n?.en || {})[key] || key;
+  return labels[key] || key;
+}
+
+function setLocale(nextLocale) {
+  locale = window.HarnessI18n?.[nextLocale] ? nextLocale : "en";
+  labels = window.HarnessI18n?.[locale] || {};
+  localStorage.setItem("harness.locale", locale);
 }
 
 function app() {
   const systemTheme = window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   document.documentElement.dataset.theme = state.theme === "system" ? systemTheme : state.theme;
-  document.documentElement.dataset.density = state.density;
-  document.documentElement.lang = "en";
+  document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
   const root = document.getElementById("app");
-  root.innerHTML = `
-    <div class="layout">
-      <aside class="sidebar">
-        <div class="brand">
-          <strong>${escapeHtml(bundle.status?.project?.name || "Harness")}</strong>
-          <span>${escapeHtml(bundle.status?.project?.root || "TARGET:.")}</span>
-        </div>
-        <nav class="nav">${pageKeys.map((page) => navButton(page)).join("")}</nav>
-      </aside>
-      <main class="main">
-        ${topbar()}
-        ${renderPage()}
-      </main>
-    </div>`;
+  root.innerHTML = shell();
   bind();
 }
 
-function navButton(page) {
-  return `<button data-page="${page}" class="${state.page === page ? "active" : ""}">${t(page)}</button>`;
-}
-
-function topbar() {
-  return `<div class="topbar">
-    <div>
-      <p class="eyebrow">Coding Agent Harness Dashboard</p>
-      <h1>${escapeHtml(pageTitle())}</h1>
-    </div>
-    <div class="controls">
-      <div class="control">
-        <button data-theme="light" class="${state.theme === "light" ? "active" : ""}">${t("light")}</button>
-        <button data-theme="dark" class="${state.theme === "dark" ? "active" : ""}">${t("dark")}</button>
-        <button data-theme="system" class="${state.theme === "system" ? "active" : ""}">${t("system")}</button>
+function shell() {
+  return `<div class="visibility-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">${t("eyebrow")}</p>
+        <h1>${escapeHtml(projectName())} ${t("projectCockpit")}</h1>
       </div>
-      <div class="control">
-        <button data-density="compact" class="${state.density === "compact" ? "active" : ""}">${t("compact")}</button>
-        <button data-density="comfortable" class="${state.density === "comfortable" ? "active" : ""}">${t("comfortable")}</button>
+      <div class="hero-actions">
+        ${routeLink("#/", t("overview"), "overview")}
+        ${routeLink("#/tasks", t("taskIndex"), "tasks")}
+        ${routeLink("#/review", t("reviewQueue"), "review")}
+        ${routeLink("#/modules", t("moduleView"), "modules")}
+        <button data-language-toggle>${locale === "zh" ? "EN" : "中文"}</button>
+        <button data-theme-toggle>${themeLabel()}</button>
       </div>
-    </div>
+    </header>
+    ${renderRoute()}
+    <div id="drawer-overlay" class="drawer-overlay"></div>
+    <div id="task-drawer" class="task-drawer"></div>
   </div>`;
 }
 
-function pageTitle() {
-  const project = bundle.status?.project?.name || "project";
-  if (state.page === "overview") return `${project} project cockpit`;
-  return t(state.page);
+function renderRoute() {
+  const route = currentRoute();
+  if (route.name === "task") return taskDetail(route);
+  if (route.name === "review") return reviewQueue();
+  if (route.name === "modules") return modulesView(route.id);
+  if (route.name === "tasks") return taskIndex();
+  return overview();
 }
 
-function renderPage() {
-  if (state.page === "overview") return overview();
-  if (state.page === "ledger") return withDrawer(ledgerTable());
-  if (state.page === "tasks") return withDrawer(taskTable());
-  if (state.page === "modules") return withDrawer(moduleTable());
-  if (state.page === "evidence") return withDrawer(evidenceTable());
-  if (state.page === "lessons") return withDrawer(lessonsTable());
-  if (state.page === "adoption") return adoption();
-  return settings();
+function currentRoute() {
+  const hash = window.location.hash || "#/";
+  const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
+  if (parts[0] === "tasks" && parts[1]) return { name: "task", id: parts[1], doc: parts[2] === "docs" ? parts[3] || "" : "" };
+  if (parts[0] === "review") return { name: "review" };
+  if (parts[0] === "modules") return { name: "modules", id: parts[1] || "" };
+  if (parts[0] === "tasks") return { name: "tasks" };
+  return { name: "overview" };
+}
+
+function routeLink(hash, text, routeName) {
+  const active = currentRoute().name === routeName;
+  return `<a class="${active ? "active" : ""}" href="${hash}">${escapeHtml(text)}</a>`;
 }
 
 function overview() {
-  const status = bundle.status || {};
-  const evidence = evidenceHealth(status.tasks || []);
-  const blockers = status.checkState?.failures || 0;
-  const warnings = status.checkState?.warnings || 0;
-  return `<section class="status-grid">
-    <div class="readiness panel">
-    <span class="state ${status.checkState?.status || "warn"}">${t("readiness")}: ${label(status.checkState?.status || "unknown")}</span>
-      <h2>${nextActionText()}</h2>
-      <p class="muted">Blockers, evidence gaps, and adoption advice are separated.</p>
+  return `<div class="dashboard-grid">
+    <main class="dashboard-main stack">
+      ${flowPanel()}
+      ${activeTaskBriefs()}
+      ${migrationSummaryPanel()}
+    </main>
+    <aside class="dashboard-sidebar stack">
+      ${statusStrip()}
+      ${ledgerPanel()}
+      ${healthPanel()}
+      ${lessonPanel()}
+    </aside>
+  </div>`;
+}
+
+function statusStrip() {
+  const status = bundle.status?.checkState?.status || "unknown";
+  const failures = bundle.status?.checkState?.failures || 0;
+  const warnings = bundle.status?.checkState?.warnings || 0;
+  const tasks = bundle.status?.tasks || [];
+  const summary = bundle.status?.summary || {};
+  const visual = summary.visualMapCoverage || {};
+  const withBrief = tasks.filter((task) => task.briefSource === "standalone").length;
+  return `<section class="status-card-group">
+    <div class="status-primary ${status}">
+      <span>${t("readiness")}</span>
+      <strong>${label(status)}</strong>
+      <p>${nextActionText()}</p>
     </div>
-    ${metric(t("activeTasks"), status.tasks?.length || 0)}
-    ${metric(t("blockers"), blockers)}
-    ${metric(t("warnings"), warnings)}
-  </section>
-  <section class="page-grid">
-    <div>
-      ${overviewTasks()}
-      ${ledgerSummary()}
-      ${riskPanel()}
+    <div class="metrics-grid">
+      ${metric(t("tasks"), tasks.length)}
+      ${metric(t("briefCoverage"), `${withBrief}/${tasks.length}`)}
+      ${metric(t("visualMapCoverage"), `${visual.canonical || 0}/${summary.visualMapRequiredCount || tasks.length}`)}
+      ${metric(t("fullCutover"), summary.fullCutoverEligible ? t("ready") : t("notReady"))}
+      ${metric(t("legacyVisualOnly"), summary.legacyVisualOnlyCount || 0)}
+      ${metric(t("weakBrief"), summary.weakBriefCount || 0)}
+      ${metric(t("blockers"), failures)}
+      ${metric(t("advice"), warnings)}
     </div>
-    ${drawer()}
   </section>`;
 }
 
-function metric(label, value) {
-  return `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`;
+function metric(labelText, value) {
+  return `<div class="metric"><span>${escapeHtml(labelText)}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
 
 function nextActionText() {
   const failures = bundle.status?.checkState?.failures || 0;
-  if (failures > 0) return "Resolve release blockers first";
-  const advice = bundle.adoption?.warnings?.length || 0;
-  if (advice > 0) return "Proceed, with adoption advice to address";
-  return "No blockers in this snapshot";
+  if (failures > 0) return t("resolveBlockers");
+  const missingBriefs = (bundle.status?.tasks || []).filter((task) => task.briefSource !== "standalone").length;
+  if (missingBriefs > 0) return `${missingBriefs} ${t("missingBriefs")}`;
+  const warnings = bundle.status?.checkState?.warnings || 0;
+  if (warnings > 0) return t("reviewAdvice");
+  return t("noBlockers");
 }
 
-function overviewTasks() {
-  const rows = (bundle.status?.tasks || []).slice(0, 6);
-  return tablePanel(t("tasks"), [t("task"), t("state"), t("completion"), t("roadmapSource")], rows.map((task) => [
-    clickable(task.title, "task", task.id),
-    tag(task.state, label(task.state)),
-    progress(task.completion),
-    escapeHtml(label(task.roadmapSource || "unknown")),
-  ]));
-}
-
-function riskPanel() {
-  const warnings = bundle.adoption?.warnings || [];
-  const grouped = groupBy(warnings, (item) => item.category);
-  return `<section class="panel" style="padding:16px;margin-top:16px">
-    <h2>Risks and adoption advice</h2>
-    <div class="risk-list">${Object.entries(grouped).map(([category, items]) => `
-      <div class="risk-item"><strong>${escapeHtml(category)}</strong><p class="muted">${items.length} items</p></div>
-    `).join("") || `<p class="empty">No advice</p>`}</div>
+function flowPanel() {
+  const tasks = bundle.status?.tasks || [];
+  const total = tasks.length;
+  if (total === 0) return "";
+  const active = tasks.filter((task) => isActiveTaskState(task.state)).length;
+  const done = tasks.filter((task) => !isActiveTaskState(task.state) && (task.state === "done" || task.completion === 100)).length;
+  const planned = Math.max(0, total - done - active);
+  const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
+  return `<section class="flow-panel">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">${t("firstLook")}</p>
+        <h2>${t("projectProgress")}</h2>
+      </div>
+      <span class="subtle">${done}/${total} ${t("completed")}</span>
+    </div>
+    <div class="progress-bar-container">
+      <div class="progress-bar">
+        ${done > 0 ? `<div class="progress-segment done" style="width:${pct(done)}%" title="${t("done")}: ${done}"></div>` : ""}
+        ${active > 0 ? `<div class="progress-segment active" style="width:${pct(active)}%" title="${t("active")}: ${active}"></div>` : ""}
+        ${planned > 0 ? `<div class="progress-segment planned" style="width:${pct(planned)}%" title="${t("planned")}: ${planned}"></div>` : ""}
+      </div>
+      <div class="progress-legend">
+        <span class="legend-item"><span class="legend-dot done"></span>${t("done")} ${done}</span>
+        <span class="legend-item"><span class="legend-dot active"></span>${t("active")} ${active}</span>
+        <span class="legend-item"><span class="legend-dot planned"></span>${t("planned")} ${planned}</span>
+      </div>
+    </div>
+    ${usesAggregateFlow() ? migrationRunwayBreakdown() : ""}
   </section>`;
 }
 
-function taskTable() {
-  const rows = bundle.status?.tasks || [];
-  return tablePanel(t("tasks"), [t("task"), t("state"), t("completion"), t("evidence"), t("roadmapSource")], rows.map((task) => [
-    clickable(task.title, "task", task.id),
-    tag(task.state, label(task.state)),
-    progress(task.completion),
-    progress(evidenceHealth([task])),
-    escapeHtml(label(task.roadmapSource || "unknown")),
-  ]));
+function projectMermaid() {
+  if (usesAggregateFlow()) return migrationAggregateMermaid();
+  const graph = bundle.graph || { nodes: [], edges: [] };
+  const preferredTypes = graph.nodes?.some((node) => node.type === "module") ? ["module", "step"] : ["task", "phase"];
+  const nodes = (graph.nodes || [])
+    .filter((node) => preferredTypes.includes(node.type))
+    .filter((node) => node.type !== "phase" || ["in_progress", "review", "blocked", "done"].includes(node.state))
+    .slice(0, 28);
+  if (nodes.length < 2) return mermaidFromBriefs();
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const lines = ["flowchart LR"];
+  let edgeCount = 0;
+  for (const edge of graph.edges || []) {
+    if (!nodeIds.has(edge.from) || !nodeIds.has(edge.to)) continue;
+    lines.push(`  ${mermaidId(edge.from)}["${mermaidLabel(edge.from)}"] --> ${mermaidId(edge.to)}["${mermaidLabel(edge.to)}"]`);
+    edgeCount += 1;
+    if (edgeCount >= 34) break;
+  }
+  if (edgeCount === 0) {
+    for (let index = 1; index < nodes.length; index += 1) {
+      lines.push(`  ${mermaidId(nodes[index - 1].id)}["${mermaidLabel(nodes[index - 1].id)}"] --> ${mermaidId(nodes[index].id)}["${mermaidLabel(nodes[index].id)}"]`);
+    }
+  }
+  return lines.join("\n");
 }
 
-function ledgerSummary() {
-  const tables = (bundle.tables?.tables || []).filter((table) => table.kind === "harness-ledger");
-  if (tables.length === 0) return "";
-  const rows = tables.flatMap((table) => table.rows).slice(0, 5);
-  return `<section class="panel ledger-summary">
-    <div class="panel-head"><h2>${t("ledger")}</h2><span class="muted">${rows.length}</span></div>
-    <div class="risk-list">${rows.map((row) => {
-      const cells = row.cells || {};
-      const title = cells.Task || cells.ID || cells.Item || cells.Title || cells.Module || "Ledger item";
-      const state = cells.State || cells.Status || cells.Review || cells["Review State"] || "";
-      const action = cells["Next Action"] || cells.Action || cells.Owner || cells["Required Action"] || "";
-      return `<div class="risk-item"><strong>${escapeHtml(title)}</strong><p class="muted">${escapeHtml([label(state), action].filter(Boolean).join(" · "))}</p></div>`;
-    }).join("")}</div>
+function usesAggregateFlow() {
+  const graph = bundle.graph || { nodes: [], edges: [] };
+  const taskCount = (bundle.status?.tasks || []).length;
+  const taskNodes = (graph.nodes || []).filter((node) => node.type === "task").length;
+  const usefulEdges = (graph.edges || []).filter((edge) => ["depends_on", "current_step"].includes(edge.type)).length;
+  return taskCount > 80 || taskNodes > 80 || ((graph.nodes || []).length > 80 && usefulEdges < 6);
+}
+
+function migrationAggregateMermaid() {
+  const tasks = bundle.status?.tasks || [];
+  const warnings = warningQueue();
+  const activeContracts = warnings.filter((warning) => warning.phase === "active-task-contracts").length;
+  const moduleCount = new Set(tasks.map(taskModuleKey)).size;
+  const reviewWarnings = warnings.filter((warning) => ["review-evidence", "strict-cutover"].includes(warning.phase)).length;
+  const lines = [
+    "flowchart LR",
+    `  baseline["${t("runwayBaseline")}\\n${tasks.length} ${t("tasks")}"] --> triage["${t("runwayTriage")}\\n${warnings.length} ${t("warnings")}"]`,
+    `  triage --> contracts["${t("runwayContracts")}\\n${activeContracts} ${t("items")}"]`,
+    `  contracts --> modules["${t("runwayModules")}\\n${moduleCount} ${t("groups")}"]`,
+    `  modules --> cutover["${t("runwayCutover")}\\n${reviewWarnings} ${t("items")}"]`,
+  ];
+  return lines.join("\n");
+}
+
+function migrationRunwayBreakdown() {
+  const tasks = bundle.status?.tasks || [];
+  const warnings = warningQueue();
+  const phases = [
+    ["baseline", t("runwayBaseline"), tasks.length, t("tasks"), "#/tasks"],
+    ["triage", t("runwayTriage"), warnings.length, t("warnings"), "#/"],
+    ["active-task-contracts", t("runwayContracts"), warnings.filter((warning) => warning.phase === "active-task-contracts").length, t("items"), "#/"],
+    ["module-classification", t("runwayModules"), new Set(tasks.map(taskModuleKey)).size, t("groups"), "#/tasks"],
+    ["strict-cutover", t("runwayCutover"), warnings.filter((warning) => warning.phase === "strict-cutover").length, t("items"), "#/"],
+  ];
+  return `<div class="runway-breakdown">
+    ${phases.map(([phase, title, count, unit, href]) => `<a href="${href}" data-runway-phase="${escapeAttr(phase)}"><strong>${escapeHtml(title)}</strong><span>${count} ${escapeHtml(unit)}</span></a>`).join("")}
+  </div>`;
+}
+
+function mermaidFromBriefs() {
+  const brief = activeTasks().map((task) => taskDocument(task, "brief.md")).find((doc) => doc?.content?.includes("```mermaid"));
+  const match = brief?.content.match(/```mermaid\s*([\s\S]*?)```/i);
+  return match ? match[1].trim() : "";
+}
+
+function graphSummary() {
+  const graph = bundle.graph || { nodes: [], edges: [] };
+  if (usesAggregateFlow()) return `${t("aggregateMigrationView")} · ${(bundle.status?.tasks || []).length} ${t("tasks")}`;
+  return `${graph.nodes?.length || 0} ${t("nodes")} · ${graph.edges?.length || 0} ${t("edges")}`;
+}
+
+function activeTaskBriefs() {
+  const tasks = activeTasks().slice(0, 8);
+  return `<section class="task-briefs">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">${t("currentWork")}</p>
+        <h2>${t("activeBriefs")}</h2>
+      </div>
+      <a href="#/tasks">${t("openTaskIndex")}</a>
+    </div>
+    <div class="brief-grid">${tasks.map((task) => taskBriefCard(task, { compact: false })).join("") || emptyState(t("noActiveTasks"))}</div>
   </section>`;
 }
 
-function ledgerTable() {
-  const tables = (bundle.tables?.tables || []).filter((table) => table.kind === "harness-ledger");
-  if (tables.length === 0) return emptyTable(t("ledger"), "No Harness Ledger found.");
-  return genericTables(t("ledger"), tables);
+function activeTasks() {
+  const tasks = bundle.status?.tasks || [];
+  const active = tasks.filter((task) => isActiveTaskState(task.state) || ["planned", "not_started"].includes(task.state));
+  if (active.length > 0) return active;
+  return tasks.filter((task) => task.briefSource === "standalone").slice(0, 6);
 }
 
-function moduleTable() {
-  const tables = (bundle.tables?.tables || []).filter((table) => table.kind === "module-registry");
-  const graph = graphPanel();
-  if (tables.length === 0) return `${graph}${emptyTable(t("modules"), "No Module Registry found.")}`;
-  return `${graph}${genericTables(t("modules"), tables)}`;
+function isActiveTaskState(state) {
+  return ["active", "in_progress", "review", "blocked", "reopened", "current-evidence"].includes(state);
 }
 
-function evidenceTable() {
-  const items = evidenceItems();
-  return tablePanel(t("evidence"), [t("origin"), t("task"), t("state"), t("title"), t("affected")], items.map((item) => [
-    escapeHtml(label(item.source)),
-    escapeHtml(item.task || "-"),
-    tag(item.state || "present", label(item.state || "present")),
-    escapeHtml(item.title),
-    escapeHtml(item.affected || ""),
-  ]));
+function taskBriefCard(task, { compact = true } = {}) {
+  const doc = taskDocument(task, "brief.md");
+  const summaryText = doc ? getBriefSummary(doc.content) : t("missingBriefExplain");
+  return `<article class="brief-card ${compact ? "compact" : ""}">
+    <div class="card-head">
+      <div>
+        <a href="#/tasks/${encodeURIComponent(task.id)}">${escapeHtml(task.title)}</a>
+        <p>${escapeHtml(task.id)}</p>
+      </div>
+      ${tag(task.state)}
+    </div>
+    ${progressBar(task.completion)}
+    <div class="brief-content">
+      <p class="brief-teaser">${escapeHtml(summaryText)}</p>
+    </div>
+    <div class="card-actions">
+      <button class="btn-drawer-trigger" data-open-drawer="${escapeAttr(task.id)}">${t("viewDetails")}</button>
+    </div>
+  </article>`;
 }
 
-function evidenceItems() {
-  const taskEvidence = (bundle.status?.tasks || []).flatMap((task) => [
-    ...(task.evidence || []).map((item) => ({
-      source: item.type || "task-progress",
-      task: task.title,
-      state: item.status || "present",
-      title: item.summary || item.id,
-      affected: item.path || "",
-    })),
-    ...(task.risks || []).map((item) => ({
-      source: "task-review",
-      task: task.title,
-      state: item.open ? "open" : "closed",
-      title: item.summary || item.id,
-      affected: `${item.severity || ""}${item.blocksRelease ? " · blocks" : ""}`.trim(),
-    })),
-  ]);
-  const qaTables = (bundle.tables?.tables || [])
-    .filter((table) => ["task-review", "regression-ssot", "cadence-ledger"].includes(table.kind))
-    .flatMap((table) => table.rows.slice(0, 12).map((row) => {
-      const cells = row.cells || {};
-      return {
-        source: table.kind,
-        task: cells.Task || cells.Module || cells.ID || "-",
-        state: cells.Status || cells.State || cells.Open || cells.Verdict || "present",
-        title: cells.Finding || cells.Summary || cells.Check || cells.Item || cells.Title || table.source,
-        affected: cells["Evidence Checked"] || cells.Path || cells.Owner || cells["Required Action"] || table.source,
-      };
-    }));
-  return [...taskEvidence, ...qaTables];
+function getBriefSummary(content) {
+  if (!content) return "";
+  let text = content
+    .replace(/#+\s+/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[*_`]/g, "")
+    .replace(/-\s+/g, "")
+    .replace(/>\s+/g, "")
+    .replaceAll("\n", " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text.length > 140) text = text.slice(0, 137) + "...";
+  return text;
 }
 
-function lessonsTable() {
-  const tables = (bundle.tables?.tables || []).filter((table) => table.kind === "lessons-ssot");
-  if (tables.length === 0) return emptyTable(t("lessons"), "No Lessons SSoT found.");
-  return genericTables(t("lessons"), tables);
+function generatedBrief(task) {
+  const phaseText = (task.phases || []).slice(0, 6).map((phase) => `<li><strong>${escapeHtml(phase.id)}</strong> ${escapeHtml(phase.output || phase.state)} · ${phase.completion}%</li>`).join("");
+  return `<div class="missing-brief">
+    <strong>${t("visibilityBriefMissing")}</strong>
+    <p>${t("missingBriefExplain")}</p>
+    <ul>${phaseText || `<li>${t("noPhaseData")}</li>`}</ul>
+  </div>`;
 }
 
-function adoption() {
-  const advice = bundle.adoption?.warnings || [];
-  return `<section class="page-grid">
-    <div>
-      ${tablePanel(t("adoption"), [t("category"), t("severity"), t("title"), t("affected"), t("requiredAction")], advice.map((item) => [
-        escapeHtml(item.category),
-        tag(item.severity, label(item.severity)),
-        escapeHtml(item.title),
-        escapeHtml(item.affected),
-        escapeHtml(item.requiredAction),
-      ]))}
-      <section class="panel" style="padding:16px;margin-top:16px">
-        <h2>${t("nextAction")}</h2>
-        <ol>${((bundle.adoption?.manualSteps || {})[state.lang] || []).map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
+function clampCompletion(value) {
+  const number = Number(value) || 0;
+  return Math.max(0, Math.min(100, Math.round(number)));
+}
+
+function stateToColorVar(state) {
+  const map = { in_progress: "--accent", review: "--accent-2", blocked: "--danger", done: "--ok", planned: "--muted", not_started: "--muted" };
+  return map[state] || "--muted";
+}
+
+function taskToolbarCard(filteredCount) {
+  return `<section class="sidebar-card">
+    <h3>${t("filterTitle")}</h3>
+    <div class="input-group">
+      <input data-search value="${escapeAttr(state.query)}" placeholder="${t("searchPlaceholder")}" aria-label="${t("searchTasks")}">
+    </div>
+    <div class="select-group">
+      <label>${t("stateFilter")}</label>
+      <select data-state-filter aria-label="${t("stateFilter")}">
+        ${["all", "in_progress", "review", "blocked", "planned", "done", "unknown"].map((value) => `<option value="${value}" ${state.taskState === value ? "selected" : ""}>${label(value)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="select-group">
+      <label>${t("groupBy")}</label>
+      <select data-group-mode aria-label="${t("groupBy")}">
+        ${["migration", "module", "month", "state"].map((value) => `<option value="${value}" ${state.taskGroupMode === value ? "selected" : ""}>${t(`group_${value}`)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="select-group">
+      <label>${t("layout")}</label>
+      <div class="layout-toggle-group">
+        <button class="layout-btn ${state.taskLayout === "list" ? "active" : ""}" data-layout="list" aria-label="${t("layoutList")}">
+          <svg style="width:12px;height:12px;vertical-align:middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          ${t("layoutList")}
+        </button>
+        <button class="layout-btn ${state.taskLayout === "grid" ? "active" : ""}" data-layout="grid" aria-label="${t("layoutGrid")}">
+          <svg style="width:12px;height:12px;vertical-align:middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          ${t("layoutGrid")}
+        </button>
+      </div>
+    </div>
+    <div class="search-stats">
+      ${t("showing")} <strong>${filteredCount}</strong> / ${(bundle.status?.tasks || []).length} ${t("tasks")}
+    </div>
+  </section>`;
+}
+
+function taskStatsCard() {
+  const allTasks = bundle.status?.tasks || [];
+  const avgCompletion = allTasks.length ? clampCompletion(allTasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / allTasks.length) : 0;
+  return `<section class="sidebar-card">
+    <h3>${t("releaseHealth")}</h3>
+    <div class="stats-hero-gauge">
+      <span class="gauge-percentage">${avgCompletion}%</span>
+      <span class="gauge-label">${t("statOverall")}</span>
+    </div>
+    <div class="stats-breakdown">
+      ${[
+        { state: "in_progress", label: t("statInProgress"), colorVar: "--accent" },
+        { state: "review", label: t("statReview"), colorVar: "--accent-2" },
+        { state: "blocked", label: t("statBlocked"), colorVar: "--danger" },
+        { state: "done", label: t("statDone"), colorVar: "--ok" }
+      ].map(({ state, label, colorVar }) => {
+        const count = allTasks.filter(t => t.state === state).length;
+        return `<div class="stats-breakdown-row">
+          <span class="stat-label">
+            <span class="state-dot" style="background:var(${colorVar})"></span>
+            ${label}
+          </span>
+          <span class="stat-value">${count}</span>
+        </div>`;
+      }).join("")}
+    </div>
+  </section>`;
+}
+
+function taskLegendCard() {
+  return `<section class="sidebar-card">
+    <h3>${t("legendTitle")}</h3>
+    <div class="legend-list">
+      <div class="legend-item">
+        <span class="badge brief ready" style="margin-top:2px">
+          <svg style="width:10px;height:10px;margin-right:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          ${t("badgeBrief")}
+        </span>
+        <span>${t("legendBriefDesc")}</span>
+      </div>
+      <div class="legend-item">
+        <span class="badge map ready" style="margin-top:2px">
+          <svg style="width:10px;height:10px;margin-right:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          ${t("badgeMap")}
+        </span>
+        <span>${t("legendMapDesc")}</span>
+      </div>
+    </div>
+  </section>`;
+}
+
+function taskStatsBar() {
+  const allTasks = bundle.status?.tasks || [];
+  const inProgress = allTasks.filter(t => t.state === "in_progress").length;
+  const blocked = allTasks.filter(t => t.state === "blocked").length;
+  const done = allTasks.filter(t => t.state === "done").length;
+  const review = allTasks.filter(t => t.state === "review").length;
+  const avgCompletion = allTasks.length ? clampCompletion(allTasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / allTasks.length) : 0;
+
+  return `<section class="task-stats-bar">
+    <div class="stat-chip">
+      <span class="stat-value">${allTasks.length}</span>
+      <span class="stat-label">${t("statTotal")}</span>
+    </div>
+    <div class="stat-chip in-progress">
+      <span class="stat-value">${inProgress}</span>
+      <span class="stat-label">${t("statInProgress")}</span>
+    </div>
+    <div class="stat-chip review">
+      <span class="stat-value">${review}</span>
+      <span class="stat-label">${t("statReview")}</span>
+    </div>
+    <div class="stat-chip blocked">
+      <span class="stat-value">${blocked}</span>
+      <span class="stat-label">${t("statBlocked")}</span>
+    </div>
+    <div class="stat-chip done">
+      <span class="stat-value">${done}</span>
+      <span class="stat-label">${t("statDone")}</span>
+    </div>
+    <div class="stat-chip completion">
+      <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${avgCompletion}%"></div></div>
+      <div style="text-align:right">
+        <span class="stat-value">${avgCompletion}%</span>
+        <span class="stat-label" style="display:block;margin-top:2px">${t("statOverall")}</span>
+      </div>
+    </div>
+  </section>`;
+}
+
+function taskRow(task) {
+  const completion = clampCompletion(task.completion);
+  const briefReady = task.briefSource === "standalone" || !!taskDocument(task, "brief.md");
+  const mapReady = !!taskDocument(task, "visual_map.md");
+  const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
+  const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
+
+  return `<a class="task-row-card" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(task.state)})">
+    <div class="row-accent-bar"></div>
+    <div class="row-main">
+      <strong>${escapeHtml(task.title)}</strong>
+      <span class="row-meta">${escapeHtml(task.id)} · ${escapeHtml(taskModuleKey(task))}</span>
+    </div>
+    <div class="row-status">${tag(task.state)}</div>
+    <div class="row-progress">
+      <div class="mini-progress-track"><div class="mini-progress-fill" style="width:${completion}%"></div></div>
+      <span class="row-pct">${completion}%</span>
+    </div>
+    <div class="row-brief ${briefReady ? "ready" : "missing"}" title="${escapeAttr(briefLabel)}" aria-label="${escapeAttr(briefLabel)}">
+      <span class="badge brief ${briefReady ? "ready" : "missing"}">
+        <svg style="width:10px;height:10px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        ${briefReady ? t("badgeBrief") : t("badgeBriefMissing")}
+      </span>
+    </div>
+    <div class="row-map ${mapReady ? "ready" : "missing"}" title="${escapeAttr(mapLabel)}" aria-label="${escapeAttr(mapLabel)}">
+      <span class="badge map ${mapReady ? "ready" : "missing"}">
+        <svg style="width:10px;height:10px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        ${mapReady ? t("badgeMap") : t("badgeMapMissing")}
+      </span>
+    </div>
+  </a>`;
+}
+
+function taskIndex() {
+  const tasks = filteredTasks();
+  const groups = taskGroups(tasks);
+  const orderedGroups = orderedTaskGroups(groups);
+  const groupPageCount = Math.max(1, Math.ceil(orderedGroups.length / taskGroupsPerPage));
+  const groupPage = Math.min(Math.max(1, Number(state.taskGroupPage) || 1), groupPageCount);
+  const visibleGroups = orderedGroups.slice((groupPage - 1) * taskGroupsPerPage, groupPage * taskGroupsPerPage);
+
+  return `<div class="tasks-grid">
+    <div class="tasks-main stack">
+      ${taskStatsBar()}
+      ${visibleGroups.map(([group, groupTasks]) => taskGroup(group, groupTasks)).join("")}
+      <section class="group-pager">
+        <span>${t("showingGroups")} ${visibleGroups.length ? (groupPage - 1) * taskGroupsPerPage + 1 : 0}-${Math.min(groupPage * taskGroupsPerPage, orderedGroups.length)} / ${orderedGroups.length}</span>
+        ${pager("task-groups", groupPage, groupPageCount)}
       </section>
     </div>
-    ${drawer()}
-  </section>`;
+    <aside class="tasks-sidebar stack">
+      ${taskToolbarCard(tasks.length)}
+      ${taskStatsCard()}
+      ${taskLegendCard()}
+    </aside>
+  </div>`;
 }
 
-function settings() {
-  return `<section class="panel" style="padding:18px">
-    <h2>${t("settings")}</h2>
-    <p class="muted">These settings are browser-local and never write back to the project.</p>
-    <p>${t("rendered")} / ${t("source")}: Switch inside the detail drawer.</p>
-  </section>`;
+function orderedTaskGroups(groups) {
+  const rank = (group) => {
+    if (group.startsWith("module:")) return 2;
+    if (group.startsWith("state:")) return 2;
+    if (group.startsWith("month:")) return 2;
+    if (group === "active") return 0;
+    if (group === "brief-ready") return 1;
+    if (group.startsWith("legacy:")) return 2;
+    if (group === "unknown") return 3;
+    return 4;
+  };
+  return Object.entries(groups).sort(([left], [right]) => rank(left) - rank(right) || left.localeCompare(right));
 }
 
-function withDrawer(content) {
-  return `<section class="page-grid"><div>${content}</div>${drawer()}</section>`;
-}
-
-function tablePanel(title, headers, rows) {
-  return `<section class="table-panel">
-    <div class="panel-head"><h2>${escapeHtml(title)}</h2><span class="muted">${rows.length}</span></div>
-    <div class="table-wrap"><table>
-      <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
-      <tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody>
-    </table></div>
-  </section>`;
-}
-
-function genericTables(title, tables) {
-  return tables.map((table) => tablePanel(`${title} · ${table.source}`, table.columns, table.rows.map((row) => table.columns.map((column) => escapeHtml(row.cells[column] || ""))))).join("");
-}
-
-function graphPanel() {
-  const graph = bundle.graph || { nodes: [], edges: [] };
-  const modules = graph.nodes.filter((node) => node.type === "module");
-  const fallbackTasks = graph.nodes.filter((node) => node.type === "task");
-  const laneNodes = modules.length > 0 ? modules : fallbackTasks;
-  const edges = graph.edges || [];
-  return `<section class="panel graph-panel">
-    <div class="panel-head"><h2>${t("graph")}</h2><span class="muted">${modules.length} modules · ${fallbackTasks.length} tasks · ${edges.length} edges</span></div>
-    <div class="graph-lanes">${laneNodes.slice(0, 12).map((module) => {
-      const owned = edges.filter((edge) => edge.from === module.id).slice(0, 8);
-      return `<div class="lane"><strong>${escapeHtml(module.label)}</strong><span>${label(module.state || "")}</span>${owned.map((edge) => `<small>${escapeHtml(edge.type)} → ${escapeHtml(edge.to.replace(/^step:/, ""))}</small>`).join("")}</div>`;
-    }).join("") || `<p class="empty">No module graph data</p>`}</div>
-  </section>`;
-}
-
-function emptyTable(title, message) {
-  return `<section class="table-panel"><div class="panel-head"><h2>${escapeHtml(title)}</h2></div><p class="empty">${escapeHtml(message)}</p></section>`;
-}
-
-function drawer() {
-  const selection = state.selected;
-  if (!selection) {
-    return `<aside class="drawer"><div class="drawer-head"><h2>${t("detail")}</h2></div><div class="drawer-body empty">${t("noSelection")}</div></aside>`;
+function taskGroups(tasks) {
+  if (state.taskGroupMode === "module") {
+    return groupBy(tasks, (task) => `module:${taskModuleKey(task)}`);
   }
-  const docs = docsForSelection(selection);
-  const active = docs.find((doc) => doc.tab === state.tab) || docs[0];
-  return `<aside class="drawer">
-    <div class="drawer-head"><h2>${escapeHtml(selection.label)}</h2><p class="muted">${escapeHtml(active?.path || "")}</p></div>
-    <div class="drawer-tabs">${docs.map((doc) => `<button data-tab="${doc.tab}" class="${active?.tab === doc.tab ? "active" : ""}">${t(doc.tab)}</button>`).join("")}</div>
-    <div class="drawer-mode"><button data-render-mode="rendered" class="${state.renderMode === "rendered" ? "active" : ""}">${t("rendered")}</button><button data-render-mode="source" class="${state.renderMode === "source" ? "active" : ""}">${t("source")}</button></div>
-    <div class="drawer-body"><article class="markdown">${active ? window.HarnessMarkdown.render(active.content, state.renderMode) : t("noSelection")}</article></div>
-  </aside>`;
+  if (state.taskGroupMode === "month") {
+    return groupBy(tasks, (task) => {
+      const match = task.shortId?.match(/^(\d{4}-\d{2})/);
+      return match ? `month:${match[1]}` : "month:unknown";
+    });
+  }
+  if (state.taskGroupMode === "state") {
+    return groupBy(tasks, (task) => `state:${task.state || "unknown"}`);
+  }
+  return groupBy(tasks, (task) => {
+    if (["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state)) return "active";
+    if (task.briefSource === "standalone") return "brief-ready";
+    const match = task.shortId?.match(/^(\d{4}-\d{2})/);
+    return match ? `legacy:${match[1]}` : task.state || "unknown";
+  });
 }
 
-function docsForSelection(selection) {
-  if (selection.type !== "task") return [];
-  const task = (bundle.status?.tasks || []).find((item) => item.id === selection.id);
-  if (!task) return [];
-  return taskDocTabs.map(([tab, suffix]) => {
-    const doc = findDocument(`${task.path}/${suffix}`);
-    return doc ? { tab, ...doc } : null;
-  }).filter(Boolean);
+function taskGroup(group, tasks) {
+  const pageCount = Math.max(1, Math.ceil(tasks.length / taskPageSize));
+  const page = Math.min(Math.max(1, Number(state.taskPageByGroup[group]) || 1), pageCount);
+  const start = (page - 1) * taskPageSize;
+  const visibleTasks = tasks.slice(start, start + taskPageSize);
+  const avgCompletion = tasks.length ? clampCompletion(tasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / tasks.length) : 0;
+
+  const isGrid = state.taskLayout === "grid";
+  const layoutClass = isGrid ? "task-card-grid" : "task-list";
+  const itemRenderer = isGrid ? taskCard : taskRow;
+  const listHeader = isGrid ? "" : `<div class="task-list-header">
+    <div class="col-main">${t("columnTask")}</div>
+    <div class="col-status">${t("columnState")}</div>
+    <div class="col-progress">${t("columnCompletion")}</div>
+    <div class="col-brief">${t("columnBrief")}</div>
+    <div class="col-map">${t("badgeMap")}</div>
+  </div>`;
+
+  return `<section class="task-group">
+      <div class="section-head">
+        <div>
+          <h2>${taskGroupLabel(group)}</h2>
+          <p class="subtle">${t("showing")} ${Math.min(start + 1, tasks.length)}-${Math.min(start + visibleTasks.length, tasks.length)} / ${tasks.length}</p>
+        </div>
+        <div class="group-actions">
+          <div class="group-progress" aria-label="${escapeAttr(t("groupCompletion"))}">
+            <div class="group-progress-track"><div class="group-progress-fill" style="width:${avgCompletion}%"></div></div>
+            <span>${avgCompletion}%</span>
+          </div>
+          ${pager("task", page, pageCount, group)}
+        </div>
+      </div>
+      <div class="${layoutClass}">
+        ${listHeader}
+        ${visibleTasks.map(itemRenderer).join("")}
+      </div>
+    </section>`;
+}
+
+function taskCard(task) {
+  const completion = clampCompletion(task.completion);
+  const stateColor = stateToColorVar(task.state);
+  const briefReady = task.briefSource === "standalone" || !!taskDocument(task, "brief.md");
+  const mapReady = !!taskDocument(task, "visual_map.md");
+  const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
+  const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
+
+  return `<a class="task-card" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateColor})">
+    <div class="card-header">
+      <span class="card-id">${escapeHtml(task.id)}</span>
+      ${tag(task.state)}
+    </div>
+    <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
+    <div class="card-meta">
+      <span class="meta-module" title="${escapeAttr(taskModuleKey(task))}">
+        <svg style="width:12px;height:12px;vertical-align:middle;margin-right:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        ${escapeHtml(taskModuleKey(task))}
+      </span>
+    </div>
+    <div class="card-progress">
+      <div class="card-progress-track"><div class="card-progress-fill" style="width:${completion}%"></div></div>
+      <span class="progress-pct">${completion}%</span>
+    </div>
+    <div class="card-badges">
+      <span class="badge brief ${briefReady ? "ready" : "missing"}" title="${escapeAttr(briefLabel)}">
+        <svg style="width:10px;height:10px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        ${briefReady ? t("badgeBrief") : t("badgeBriefMissing")}
+      </span>
+      <span class="badge map ${mapReady ? "ready" : "missing"}" title="${escapeAttr(mapLabel)}">
+        <svg style="width:10px;height:10px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+        ${mapReady ? t("badgeMap") : t("badgeMapMissing")}
+      </span>
+    </div>
+  </a>`;
+}
+
+function taskGroupLabel(group) {
+  if (group === "active") return t("activeCurrent");
+  if (group === "brief-ready") return t("briefReadyGroup");
+  if (group.startsWith("legacy:")) return `${t("legacyMonth")} ${group.slice("legacy:".length)}`;
+  if (group.startsWith("module:")) return `${t("inferredModule")} · ${group.slice("module:".length)}`;
+  if (group.startsWith("month:")) return `${t("legacyMonth")} ${group.slice("month:".length)}`;
+  if (group.startsWith("state:")) return `${t("columnState")} · ${label(group.slice("state:".length))}`;
+  return label(group);
+}
+
+function filteredTasks() {
+  const query = state.query.trim().toLowerCase();
+  return (bundle.status?.tasks || []).filter((task) => {
+    const stateMatch = state.taskState === "all" || task.state === state.taskState;
+    if (!stateMatch) return false;
+    if (!query) return true;
+    return [task.id, task.shortId, task.title, task.module, task.inferredModule, task.classificationSource, task.classificationBucket, task.state].some((value) => String(value || "").toLowerCase().includes(query));
+  });
+}
+
+function taskModuleKey(task) {
+  return task.module || task.inferredModule || "legacy-unclassified";
+}
+
+function taskDetail(route) {
+  const taskId = route.id;
+  const task = (bundle.status?.tasks || []).find((item) => item.id === taskId);
+  if (!task) return `<main>${emptyState(t("taskNotFound"))}</main>`;
+  return `<main class="task-detail">
+    <nav class="crumbs"><a href="#/tasks">${t("taskIndex")}</a><span>/</span><span>${escapeHtml(task.id)}</span></nav>
+    <section class="detail-hero">
+      <div>
+        <p class="eyebrow">${t("taskVisibility")}</p>
+        <h2>${escapeHtml(task.title)}</h2>
+        <p>${escapeHtml(task.path)}</p>
+      </div>
+      <div class="detail-score">${task.completion}%</div>
+    </section>
+    ${taskStateSummary(task)}
+    ${phaseTimeline(task)}
+    <section class="detail-grid">
+      <article class="detail-main">
+        ${taskDocumentLibrary(task, route.doc)}
+      </article>
+      <aside class="detail-side">
+        ${reviewActionPanel(task)}
+        ${openFindings(task)}
+        ${evidenceList(task)}
+        ${documentTabs(task)}
+      </aside>
+    </section>
+  </main>`;
+}
+
+function taskStateSummary(task) {
+  return `<section class="task-state-summary">
+    <div>
+      <span>${t("legacyState")}</span>
+      ${tag(task.state)}
+    </div>
+    <div>
+      <span>${t("lifecycleState")}</span>
+      ${tag(task.lifecycleState || "unknown")}
+    </div>
+    <div>
+      <span>${t("reviewStatus")}</span>
+      ${tag(task.reviewStatus || "missing")}
+    </div>
+    <div>
+      <span>${t("closeoutStatus")}</span>
+      ${tag(task.closeoutStatus || "missing")}
+    </div>
+  </section>`;
+}
+
+function phaseTimeline(task) {
+  return `<section class="phase-timeline">
+    <h2>${t("phaseTimeline")}</h2>
+    ${(task.phases || []).map((phase) => `<div class="phase-step ${phase.state}">
+      <strong>${escapeHtml(phase.id)}</strong>
+      <span>${phase.completion}%</span>
+      <p>${escapeHtml(phase.output || phase.blockingRisk || phase.state)}</p>
+      ${progressBar(phase.completion)}
+    </div>`).join("") || emptyState(t("noPhaseData"))}
+  </section>`;
+}
+
+function taskDocSection(task, fileName, title, required) {
+  const doc = taskDocument(task, fileName);
+  if (!doc && !required) return "";
+  return `<section class="doc-section">
+    <div class="section-head"><h2>${escapeHtml(title)}</h2>${doc ? `<button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button>` : ""}</div>
+    <div class="markdown">${doc ? window.HarnessMarkdown.render(doc.content, state.renderMode) : generatedBrief(task)}</div>
+  </section>`;
+}
+
+function taskDocumentLibrary(task, selectedTab) {
+  const docs = orderedTaskDocuments(task);
+  if (!docs.length) return taskDocSection(task, "brief.md", t("brief"), true);
+  const selectedKey = docs.some((doc) => doc.key === selectedTab) ? selectedTab : defaultTaskDocumentKey(task, docs);
+  return `<section class="doc-library">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">${t("taskDocuments")}</p>
+        <h2>${escapeHtml(t("sourceDocuments"))}</h2>
+      </div>
+      <button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button>
+    </div>
+    <div class="doc-accordion-list">
+      ${docs.map((item) => documentAccordion(item, item.key === selectedKey)).join("")}
+    </div>
+  </section>`;
+}
+
+function orderedTaskDocuments(task) {
+  const docs = taskDocTabs
+    .map(([key, file]) => {
+      const doc = taskDocument(task, file);
+      if (doc) return { key, file, title: t(key), path: doc.path, content: doc.content };
+      if (key === "brief") return { key, file, title: t(key), path: `${task.path}/brief.md`, content: generatedBrief(task), generated: true };
+      return null;
+    })
+    .filter(Boolean);
+  const priority = taskDocumentPriority(task);
+  const rank = new Map(priority.map((key, index) => [key, index]));
+  return docs.sort((a, b) => (rank.get(a.key) ?? 99) - (rank.get(b.key) ?? 99));
+}
+
+function taskDocumentPriority(task) {
+  const stateName = task?.state || "";
+  const lifecycle = task?.lifecycleState || "";
+  if (stateName === "review" || ["in_review", "review-blocked"].includes(lifecycle)) {
+    return ["walkthrough", "review", "findings", "visualMap", "progress", "brief", "taskPlan", "strategy", "legacyRoadmap", "references", "artifacts"];
+  }
+  if (stateName === "in_progress" || lifecycle === "active" || stateName === "blocked") {
+    return ["progress", "visualMap", "brief", "taskPlan", "strategy", "findings", "review", "walkthrough", "references", "artifacts", "legacyRoadmap"];
+  }
+  if (stateName === "done" || ["closing", "closed"].includes(lifecycle)) {
+    return ["walkthrough", "progress", "review", "findings", "visualMap", "brief", "taskPlan", "strategy", "references", "artifacts", "legacyRoadmap"];
+  }
+  return ["brief", "taskPlan", "visualMap", "strategy", "progress", "findings", "review", "walkthrough", "references", "artifacts", "legacyRoadmap"];
+}
+
+function defaultTaskDocumentKey(task, docs) {
+  const priority = taskDocumentPriority(task);
+  return priority.find((key) => docs.some((doc) => doc.key === key)) || docs[0]?.key || "brief";
+}
+
+function documentAccordion(item, open) {
+  return `<details class="doc-accordion" ${open ? "open" : ""}>
+    <summary>
+      <span>${escapeHtml(item.title)}</span>
+      <small>${escapeHtml(item.generated ? t("generatedFallback") : item.path)}</small>
+    </summary>
+    <div class="markdown">${window.HarnessMarkdown.render(item.content, state.renderMode)}</div>
+  </details>`;
+}
+
+function documentTabs(task) {
+  const docs = orderedTaskDocuments(task);
+  return `<section class="side-panel">
+    <h3>${t("sourceDocuments")}</h3>
+    ${docs.map((doc) => `<a href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(doc.key)}" title="${escapeAttr(doc.path)}">${escapeHtml(doc.title)}</a>`).join("") || `<p>${t("noDocuments")}</p>`}
+  </section>`;
+}
+
+function selectedSourceDocument(task, tab) {
+  if (!tab) return "";
+  const match = taskDocTabs.find(([key]) => key === tab);
+  if (!match) return "";
+  const doc = taskDocument(task, match[1]);
+  if (!doc) return "";
+  return `<section class="doc-section selected-source">
+    <div class="section-head"><h2>${t("selectedSource")} · ${t(match[0])}</h2><button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button></div>
+    <div class="markdown">${window.HarnessMarkdown.render(doc.content, state.renderMode)}</div>
+  </section>`;
+}
+
+function openFindings(task) {
+  const risks = task.risks || [];
+  return `<section class="side-panel">
+    <h3>${t("openFindings")}</h3>
+    ${risks.map((risk) => `<div class="finding ${risk.open || risk.blocksRelease ? "open" : ""}"><strong>${escapeHtml(risk.severity)}</strong><span>${escapeHtml(risk.summary)}</span></div>`).join("") || `<p>${t("noOpenFindings")}</p>`}
+  </section>`;
+}
+
+function reviewActionPanel(task) {
+  if (!canUseWorkbenchAction("review-complete")) return "";
+  if (!isTaskInReviewStage(task)) return "";
+  const blocking = task.reviewStatus === "blocked-open-findings" || (task.risks || []).some((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease));
+  const confirmed = task.reviewStatus === "confirmed";
+  if (confirmed) {
+    return `<section class="side-panel review-actions">
+      <h3>${t("reviewActions")}</h3>
+      <p>${escapeHtml(t("reviewAlreadyConfirmed"))}</p>
+    </section>`;
+  }
+  const missingWalkthrough = task.budget !== "simple" && !task.walkthroughPath;
+  const disabled = blocking || missingWalkthrough;
+  const message = missingWalkthrough ? t("reviewWalkthroughRequired") : blocking ? t("reviewBlocked") : t("reviewWorkbenchReady");
+  return `<section class="side-panel review-actions">
+    <h3>${t("reviewActions")}</h3>
+    <p>${escapeHtml(message)}</p>
+    <label class="review-check">
+      <input type="checkbox" data-review-confirm-check="${escapeAttr(task.id)}" ${disabled ? "disabled" : ""}>
+      <span>${t("reviewConfirmChecklist")}</span>
+    </label>
+    <input data-review-confirm-text="${escapeAttr(task.id)}" value="" placeholder="${escapeAttr(task.shortId || task.id)}" ${disabled ? "disabled" : ""}>
+    <button data-review-complete="${escapeAttr(task.id)}" ${disabled ? "disabled" : ""}>${t("confirmReviewComplete")}</button>
+    <div class="review-result" data-review-result="${escapeAttr(task.id)}"></div>
+  </section>`;
+}
+
+function isTaskInReviewStage(task) {
+  const state = task?.state || "";
+  const lifecycle = task?.lifecycleState || "";
+  if (["not_started", "planned", "in_progress"].includes(state)) return false;
+  return state === "review" || ["in_review", "review-blocked"].includes(lifecycle);
+}
+
+function evidenceList(task) {
+  const evidence = task.evidence || [];
+  return `<section class="side-panel">
+    <h3>${t("evidence")}</h3>
+    ${evidence.map((item) => `<p><strong>${escapeHtml(item.type || "evidence")}</strong> ${escapeHtml(item.summary || "")}</p>`).join("") || `<p>${t("noEvidence")}</p>`}
+  </section>`;
+}
+
+function modulesView(moduleId = "") {
+  const graph = bundle.graph || { nodes: [], edges: [] };
+  const explicitModules = (graph.nodes || []).filter((node) => node.type === "module");
+  const moduleMap = new Map(explicitModules.map((module) => [module.id.replace(/^module:/, ""), module]));
+  for (const task of bundle.status?.tasks || []) {
+    const key = taskModuleKey(task);
+    if (!moduleMap.has(key)) moduleMap.set(key, { id: `module:${key}`, type: "module", label: key, state: task.classificationSource || "inferred" });
+  }
+  const modules = [...moduleMap.values()];
+  return `<main class="stack">
+    <section class="module-grid">
+      ${modules.map((module) => moduleCard(module)).join("") || emptyState(t("noModules"))}
+    </section>
+  </main>`;
+}
+
+function moduleTaskRow(task) {
+  const dotClass = /fail|blocked|open/i.test(task.state) ? "state-fail" : /warn|advice|planned|missing|unknown/i.test(task.state) ? "state-warn" : "state-pass";
+  return `<a class="module-task-row" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}">
+    <div class="module-task-left">
+      <i class="module-task-dot ${dotClass}" title="${escapeAttr(task.state)}"></i>
+      <span class="module-task-title">${escapeHtml(task.title)}</span>
+    </div>
+    <span class="module-task-pct">${task.completion}%</span>
+  </a>`;
+}
+
+function moduleCard(module) {
+  const moduleKey = module.id.replace(/^module:/, "");
+  const tasks = (bundle.status?.tasks || []).filter((task) => taskModuleKey(task) === moduleKey);
+
+  // Inline Pagination
+  state.modulePages = state.modulePages || {};
+  const currentPage = state.modulePages[moduleKey] || 1;
+  const pageCount = Math.ceil(tasks.length / 8) || 1;
+  const visibleTasks = tasks.slice((currentPage - 1) * 8, currentPage * 8);
+
+  const brief = findDocument(`TARGET:docs/09-PLANNING/MODULES/${moduleKey}/brief.md`);
+
+  let pagerHtml = "";
+  if (tasks.length > 8) {
+    pagerHtml = `<div class="module-pager">
+      <button ${currentPage <= 1 ? "disabled" : ""} onclick="window.setModulePage('${escapeAttr(moduleKey)}', ${currentPage - 1})">${t("prevPage")}</button>
+      <span>${currentPage} / ${pageCount}</span>
+      <button ${currentPage >= pageCount ? "disabled" : ""} onclick="window.setModulePage('${escapeAttr(moduleKey)}', ${currentPage + 1})">${t("nextPage")}</button>
+    </div>`;
+  }
+
+  return `<article class="module-card">
+    <div class="card-head"><h2>${escapeHtml(module.label || moduleKey)}</h2>${tag(module.state || "unknown")}</div>
+    <div class="markdown">${brief ? window.HarnessMarkdown.render(brief.content, "rendered") : `<p>${t("moduleBriefMissing")}</p>`}</div>
+    <h3>${t("moduleTasks")} · ${tasks.length}</h3>
+    <div class="module-task-list">
+      ${visibleTasks.map(moduleTaskRow).join("") || `<p>${t("noModuleTasks")}</p>`}
+    </div>
+    ${pagerHtml}
+  </article>`;
+}
+
+function reviewQueue() {
+  const tasks = reviewQueueTasks();
+  const ready = tasks.filter((task) => task.reviewStatus !== "blocked-open-findings" && task.reviewStatus !== "confirmed").length;
+  const blocked = tasks.filter((task) => task.reviewStatus === "blocked-open-findings").length;
+  const confirmed = tasks.filter((task) => task.reviewStatus === "confirmed").length;
+  return `<div class="dashboard-grid review-queue-page">
+    <main class="dashboard-main stack">
+      <section class="flow-panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">${t("review")}</p>
+            <h2>${t("reviewQueue")}</h2>
+            <p class="subtle">${t("reviewQueueSubtitle")}</p>
+          </div>
+          <span class="subtle">${ready}/${tasks.length} ${t("reviewReady")}</span>
+        </div>
+        <div class="task-card-grid review-queue-grid">
+          ${tasks.map(reviewQueueCard).join("") || emptyState(t("noReviewTasks"))}
+        </div>
+      </section>
+    </main>
+    <aside class="dashboard-sidebar stack">
+      <section class="side-panel review-queue-summary">
+        <h3>${t("reviewQueue")}</h3>
+        <div class="review-queue-stats">
+          ${metric(t("reviewReady"), ready)}
+          ${metric(t("reviewBlockedQueue"), blocked)}
+          ${metric(t("reviewConfirmedQueue"), confirmed)}
+        </div>
+      </section>
+      <section class="side-panel">
+        <h3>${t("review")}</h3>
+        <p>${escapeHtml(t("reviewQueueSubtitle"))}</p>
+      </section>
+    </aside>
+  </div>`;
+}
+
+function reviewQueueTasks() {
+  return (bundle.status?.tasks || [])
+    .filter(isTaskInReviewStage)
+    .sort((left, right) => reviewSortKey(left).localeCompare(reviewSortKey(right)));
+}
+
+function reviewSortKey(task) {
+  const rank = task.reviewStatus === "blocked-open-findings" ? "0" : task.reviewStatus === "confirmed" ? "2" : "1";
+  return `${rank}:${task.id}`;
+}
+
+function reviewQueueCard(task) {
+  const openMaterial = (task.risks || []).filter((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease)).length;
+  return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(task.state)})">
+    <div class="card-header">
+      <span class="card-id">${escapeHtml(task.id)}</span>
+      ${tag(task.reviewStatus || "missing")}
+    </div>
+    <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
+    <div class="card-meta">
+      <span>${tag(task.lifecycleState || "unknown")}</span>
+      <span>${tag(task.closeoutStatus || "missing")}</span>
+      <span>${openMaterial} ${t("openFindings")}</span>
+    </div>
+    <p class="subtle">${escapeHtml(firstUsefulLine(task.summary || task.briefText || ""))}</p>
+    <div class="review-queue-actions">
+      <a href="#/tasks/${encodeURIComponent(task.id)}">${t("fullView")}</a>
+      <button data-open-drawer="${escapeAttr(task.id)}">${t("viewDetails")}</button>
+    </div>
+    ${reviewActionPanel(task)}
+  </article>`;
+}
+
+function firstUsefulLine(text) {
+  return String(text || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)[0] || "";
+}
+
+function migrationPanel() {
+  const advice = warningQueue();
+  const missingBriefs = advice.filter((warning) => warning.type === "missing-brief").length;
+  if (advice.length === 0 && missingBriefs === 0) return "";
+  const groups = groupBy(advice, (item) => item.category || "Advice");
+  const categories = Object.entries(groups).slice(0, 6);
+  return `<section class="migration-panel">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">${t("migration")}</p>
+        <h2>${t("migrationWorkbench")}</h2>
+      </div>
+      <span>${advice.length} ${t("advice")} · ${missingBriefs} ${t("briefMissing")}</span>
+    </div>
+    <div class="migration-grid">
+      ${categories.map(([category, items]) => `<button data-warning-filter="${escapeAttr(category)}" class="${state.warningFilter === category ? "active" : ""}"><strong>${escapeHtml(category)}</strong><p>${items.length} ${t("items")}</p></button>`).join("")}
+      ${missingBriefs > 0 ? `<div><strong>${t("visibilityLayer")}</strong><p>${missingBriefs} ${t("missingBriefs")}</p></div>` : ""}
+    </div>
+    ${migrationWarningWorkbench(advice)}
+  </section>`;
+}
+
+function migrationWarningWorkbench(advice) {
+  const groups = groupBy(advice, (item) => item.category || "Advice");
+  const filters = ["all", ...Object.keys(groups).sort(), ...new Set(advice.map((item) => item.type).filter(Boolean)), "active-task-contracts", "strict-cutover"];
+  const filtered = state.warningFilter === "all" ? advice : advice.filter((item) => (item.category || "Advice") === state.warningFilter || item.phase === state.warningFilter || item.type === state.warningFilter);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / warningPageSize));
+  const page = Math.min(Math.max(1, Number(state.warningPage) || 1), pageCount);
+  const visible = filtered.slice((page - 1) * warningPageSize, page * warningPageSize);
+  return `<div class="warning-workbench">
+      <div class="warning-toolbar">
+        <select data-warning-filter-select aria-label="${t("warningFilter")}">
+          ${filters.map((filter) => `<option value="${escapeAttr(filter)}" ${state.warningFilter === filter ? "selected" : ""}>${filter === "all" ? t("allWarnings") : escapeHtml(filter)}</option>`).join("")}
+        </select>
+        <span>${t("showing")} ${visible.length ? (page - 1) * warningPageSize + 1 : 0}-${Math.min(page * warningPageSize, filtered.length)} / ${filtered.length}</span>
+        ${pager("warning", page, pageCount)}
+      </div>
+      <div class="warning-list">
+        ${visible.map(warningRow).join("") || emptyState(t("noWarnings"))}
+      </div>
+    </div>`;
+}
+
+function migrationSummaryPanel() {
+  const advice = warningQueue();
+  const summary = bundle.status?.summary || {};
+  if (advice.length === 0 && summary.fullCutoverEligible) {
+    return `<section class="migration-panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">${t("migration")}</p>
+          <h2>${t("fullCutover")}</h2>
+        </div>
+        <span>${t("ready")}</span>
+      </div>
+      ${emptyState(t("noWarnings"))}
+    </section>`;
+  }
+  const cards = [
+    [t("advice"), advice.length],
+    [t("legacyVisualOnly"), summary.legacyVisualOnlyCount || 0],
+    [t("weakBrief"), summary.weakBriefCount || 0],
+    [t("blockers"), bundle.status?.checkState?.failures || 0],
+  ];
+  return `<section class="migration-panel">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">${t("migration")}</p>
+        <h2>${t("migrationSummary")}</h2>
+      </div>
+      <a href="#/tasks">${t("openTaskIndex")}</a>
+    </div>
+    <div class="migration-grid">
+      ${cards.map(([title, count]) => `<a href="#/tasks"><strong>${escapeHtml(title)}</strong><p>${count} ${t("items")}</p></a>`).join("")}
+    </div>
+    ${migrationWarningWorkbench(advice)}
+  </section>`;
+}
+
+function warningRow(warning) {
+  const affected = warning.affectedPaths?.length ? warning.affectedPaths.join(", ") : warning.affected;
+  return `<article class="warning-row">
+    <div>
+      <strong>${escapeHtml(warning.id)} · ${escapeHtml(warning.title)}</strong>
+      <p>${escapeHtml(affected || "project")}</p>
+    </div>
+    <span>${tag(warning.priority || warning.severity)}</span>
+    <span>${escapeHtml(warning.status || "open")}</span>
+    <span>${escapeHtml(warning.fixability || "manual")}</span>
+    <span>${escapeHtml(warning.phase || "triage")}</span>
+    <p>${escapeHtml(warning.requiredAction || warning.detail || "")} · ${t("confidence")}: ${escapeHtml(warning.confidence || "medium")}</p>
+  </article>`;
+}
+
+function warningQueue() {
+  const adoptionWarnings = (bundle.adoption?.warnings || []).map((warning) => ({ ...warning }));
+  const existingBriefPaths = new Set(adoptionWarnings.filter((warning) => warning.type === "missing-brief").map((warning) => warning.affected));
+  const briefWarnings = (bundle.status?.tasks || [])
+    .filter((task) => task.briefSource !== "standalone")
+    .filter((task) => !existingBriefPaths.has(task.path))
+    .map((task, index) => ({
+      id: `VB-${String(index + 1).padStart(3, "0")}`,
+      category: "Visibility Layer",
+      type: "missing-brief",
+      scope: "task",
+      priority: (typeof isActiveTaskState === "function" && isActiveTaskState(task.state)) || ["planned", "not_started"].includes(task.state) ? "P2" : "P3",
+      phase: "active-task-contracts",
+      fixability: "guided",
+      status: "open",
+      confidence: task.state === "unknown" ? "medium" : "high",
+      severity: "advice",
+      title: t("visibilityBriefMissing"),
+      affected: task.path,
+      affectedPaths: [task.path],
+      requiredAction: t("addVisibilityBrief"),
+      detail: `${task.id} ${task.title}`,
+    }));
+  return [...adoptionWarnings, ...briefWarnings].sort(warningSort);
+}
+
+function warningSort(left, right) {
+  const priorityRank = { P0: 0, P1: 1, P2: 2, P3: 3 };
+  const fixRank = { template: 0, guided: 1, "human-evidence": 2, decision: 3, manual: 4 };
+  return (priorityRank[left.priority] ?? 9) - (priorityRank[right.priority] ?? 9)
+    || (fixRank[left.fixability] ?? 9) - (fixRank[right.fixability] ?? 9)
+    || String(left.phase || "").localeCompare(String(right.phase || ""))
+    || String(left.id || "").localeCompare(String(right.id || ""));
+}
+
+function pager(kind, page, pageCount, group = "") {
+  if (pageCount <= 1) return `<span class="pager muted">${page}/${pageCount}</span>`;
+  const groupAttr = group ? ` data-page-group="${escapeAttr(group)}"` : "";
+  return `<div class="pager">
+    <button data-page-kind="${kind}" data-page="${page - 1}"${groupAttr} ${page <= 1 ? "disabled" : ""}>${t("prevPage")}</button>
+    <span>${page}/${pageCount}</span>
+    <button data-page-kind="${kind}" data-page="${page + 1}"${groupAttr} ${page >= pageCount ? "disabled" : ""}>${t("nextPage")}</button>
+  </div>`;
+}
+
+function lessonPanel() {
+  const lessons = (bundle.tables?.tables || [])
+    .filter((table) => table.kind === "lessons-ssot")
+    .flatMap((table) => table.rows);
+  return `<section class="lesson-panel">
+    <div class="section-head"><h2>${t("lessons")}</h2><span>${lessons.length}</span></div>
+    <div class="lesson-list" style="padding-top: 10px;">
+      ${lessons.map((row) => {
+        const cells = row.cells || {};
+        const lessonId = cells.ID || cells.Lesson || cells["Lesson ID"] || cells["ID"] || "";
+        const summary = cells.Summary || cells["\u6458\u8981"] || cells.Pattern || cells.Status || "";
+        return `<div class="lesson" data-open-lesson-drawer="${escapeAttr(lessonId)}">
+          <strong>${escapeHtml(lessonId)}</strong>
+          <p>${escapeHtml(summary)}</p>
+        </div>`;
+      }).join("") || emptyState(t("noLessons"))}
+    </div>
+  </section>`;
+}
+
+function healthPanel() {
+  const details = bundle.status?.checkState?.details || { failures: [], warnings: [] };
+  return `<section class="health-panel">
+    <div><h2>${t("releaseHealth")}</h2><p>${escapeHtml(bundle.status?.mode || "unknown")} · schema ${escapeHtml(bundle.status?.schemaVersion || "n/a")}</p></div>
+    <div class="health-lists">
+      <details ${details.failures?.length ? "open" : ""}><summary>${t("failures")} (${details.failures?.length || 0})</summary>${list(details.failures)}</details>
+      <details><summary>${t("warnings")} (${details.warnings?.length || 0})</summary>${list(details.warnings?.slice(0, 40))}</details>
+    </div>
+  </section>`;
+}
+
+function taskDocument(task, fileName) {
+  if (fileName === "__walkthrough__" && task.walkthroughPath) return findDocument(task.walkthroughPath);
+  return findDocument(`${task.path}/${fileName}`);
 }
 
 function findDocument(pathSuffix) {
-  return (bundle.documents?.documents || []).find((doc) => doc.path.endsWith(pathSuffix));
+  return (bundle.documents?.documents || []).find((doc) => doc.path.endsWith(pathSuffix) || doc.path === pathSuffix);
 }
 
-function clickable(label, type, id) {
-  return `<button class="linklike" data-select-type="${type}" data-select-id="${id}" data-select-label="${escapeAttr(label)}">${escapeHtml(label)}</button>`;
+function mermaidLabel(id) {
+  const node = (bundle.graph?.nodes || []).find((item) => item.id === id);
+  return String(node?.label || id).replaceAll('"', "'").slice(0, 48);
 }
 
-function tag(value, text = value) {
+function mermaidId(value) {
+  return `N_${String(value).replace(/[^A-Za-z0-9_]/g, "_")}`;
+}
+
+function progressBar(value) {
+  const score = Math.max(0, Math.min(100, Number(value) || 0));
+  return `<div class="progress" aria-label="${score}%"><i style="width:${score}%"></i></div>`;
+}
+
+function tag(value) {
   const raw = String(value || "unknown");
-  const klass = /fail|blocked|open/i.test(raw) ? "fail" : /warn|advice|planned|missing/i.test(raw) ? "warn" : /pass|done|present|verified/i.test(raw) ? "pass" : "";
-  return `<span class="tag ${klass}">${escapeHtml(text)}</span>`;
+  const klass = /fail|blocked|open/i.test(raw) ? "fail" : /warn|advice|planned|missing|unknown/i.test(raw) ? "warn" : /pass|done|present|verified|review|in_progress/i.test(raw) ? "pass" : "";
+  return `<span class="tag ${klass}">${escapeHtml(label(raw))}</span>`;
 }
 
 function label(value) {
-  const labels = {
-    pass: "pass",
-    warn: "warn",
-    fail: "fail",
-    in_progress: "in progress",
-    planned: "planned",
-    done: "done",
-    blocked: "blocked",
-    missing: "missing",
-    present: "present",
-    closed: "closed",
-    advice: "advice",
-    standalone: "standalone",
-    legacy: "legacy",
-    "task-review": "review",
-    "task-progress": "progress",
-    "regression-ssot": "regression",
-    "cadence-ledger": "cadence",
-    unknown: "unknown",
-  };
-  return labels[value] || value;
+  return t(`state_${value}`) || String(value || "unknown").replaceAll("_", " ");
 }
 
-function progress(value) {
-  const score = Math.max(0, Math.min(100, Number(value) || 0));
-  return `<span>${score}%</span><div class="bar"><i style="width:${score}%"></i></div>`;
+function list(items = []) {
+  return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || `<li>${t("none")}</li>`}</ul>`;
 }
 
-function evidenceHealth(tasks) {
-  const phases = tasks.flatMap((task) => task.phases || []).filter((phase) => phase.state !== "skipped");
-  if (phases.length === 0) return 0;
-  const score = phases.reduce((sum, phase) => {
-    if (["present", "waived"].includes(phase.evidenceStatus)) return sum + 100;
-    if (phase.evidenceStatus === "partial") return sum + 50;
-    return sum;
-  }, 0);
-  return Math.round(score / phases.length);
+function emptyState(text) {
+  return `<div class="empty">${escapeHtml(text)}</div>`;
+}
+
+function projectName() {
+  return bundle.status?.project?.name || "Harness";
+}
+
+function themeLabel() {
+  return state.theme === "dark" ? t("light") : state.theme === "light" ? t("system") : t("dark");
 }
 
 function groupBy(items, fn) {
@@ -389,35 +1238,375 @@ function groupBy(items, fn) {
   }, {});
 }
 
+function canUseWorkbenchAction(action) {
+  return state.runtime?.mode === "workbench" && (state.runtime?.writableActions || []).includes(action);
+}
+
+window.setModulePage = function(moduleKey, page) {
+  state.modulePages = state.modulePages || {};
+  state.modulePages[moduleKey] = page;
+  app();
+};
+
 function bind() {
-  document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => {
-    state.page = button.dataset.page;
-    state.selected = null;
+  document.querySelectorAll("[data-search]").forEach((input) => input.addEventListener("input", () => {
+    state.query = input.value;
+    state.taskPageByGroup = {};
+    state.taskGroupPage = 1;
     app();
   }));
-  document.querySelectorAll("[data-theme]").forEach((button) => button.addEventListener("click", () => {
-    state.theme = button.dataset.theme;
+  document.querySelectorAll("[data-state-filter]").forEach((select) => select.addEventListener("change", () => {
+    state.taskState = select.value;
+    state.taskPageByGroup = {};
+    state.taskGroupPage = 1;
+    app();
+  }));
+  document.querySelectorAll("[data-group-mode]").forEach((select) => select.addEventListener("change", () => {
+    state.taskGroupMode = select.value;
+    state.taskPageByGroup = {};
+    state.taskGroupPage = 1;
+    app();
+  }));
+  document.querySelectorAll("[data-layout]").forEach((btn) => btn.addEventListener("click", () => {
+    state.taskLayout = btn.dataset.layout;
+    localStorage.setItem("harness.taskLayout", state.taskLayout);
+    app();
+  }));
+  document.querySelectorAll("[data-render-toggle]").forEach((button) => button.addEventListener("click", () => {
+    state.renderMode = state.renderMode === "rendered" ? "source" : "rendered";
+    app();
+  }));
+  document.querySelectorAll("[data-warning-filter]").forEach((button) => button.addEventListener("click", () => {
+    state.warningFilter = button.dataset.warningFilter || "all";
+    state.warningPage = 1;
+    app();
+  }));
+  document.querySelectorAll("[data-warning-filter-select]").forEach((select) => select.addEventListener("change", () => {
+    state.warningFilter = select.value;
+    state.warningPage = 1;
+    app();
+  }));
+  document.querySelectorAll("[data-page-kind]").forEach((button) => button.addEventListener("click", () => {
+    const page = Math.max(1, Number(button.dataset.page) || 1);
+    if (button.dataset.pageKind === "warning") state.warningPage = page;
+    if (button.dataset.pageKind === "task-groups") state.taskGroupPage = page;
+    if (button.dataset.pageKind === "task") state.taskPageByGroup[button.dataset.pageGroup || ""] = page;
+    app();
+  }));
+  document.querySelectorAll("[data-runway-phase]").forEach((link) => link.addEventListener("click", () => {
+    const phase = link.dataset.runwayPhase || "all";
+    if (phase === "module-classification") state.taskGroupMode = "module";
+    if (["triage", "active-task-contracts", "strict-cutover"].includes(phase)) state.warningFilter = phase === "triage" ? "all" : phase;
+    state.warningPage = 1;
+    state.taskGroupPage = 1;
+    if (link.getAttribute("href") === "#/") app();
+  }));
+  document.querySelectorAll("[data-theme-toggle]").forEach((button) => button.addEventListener("click", () => {
+    state.theme = state.theme === "dark" ? "light" : state.theme === "light" ? "system" : "dark";
     localStorage.setItem("harness.theme", state.theme);
     app();
   }));
-  document.querySelectorAll("[data-density]").forEach((button) => button.addEventListener("click", () => {
-    state.density = button.dataset.density;
-    localStorage.setItem("harness.density", state.density);
+  document.querySelectorAll("[data-language-toggle]").forEach((button) => button.addEventListener("click", () => {
+    setLocale(locale === "zh" ? "en" : "zh");
     app();
   }));
-  document.querySelectorAll("[data-select-type]").forEach((button) => button.addEventListener("click", () => {
-    state.selected = { type: button.dataset.selectType, id: button.dataset.selectId, label: button.dataset.selectLabel };
-    state.tab = "plan";
-    app();
+  document.querySelectorAll("[data-open-drawer]").forEach((el) => el.addEventListener("click", (e) => {
+    e.preventDefault();
+    const taskId = el.dataset.openDrawer;
+    openDrawer(taskId);
   }));
-  document.querySelectorAll("[data-tab]").forEach((button) => button.addEventListener("click", () => {
-    state.tab = button.dataset.tab;
-    app();
+  document.querySelectorAll("[data-open-lesson-drawer]").forEach((el) => el.addEventListener("click", (e) => {
+    e.preventDefault();
+    const lessonId = el.dataset.openLessonDrawer;
+    openLessonDrawer(lessonId);
   }));
-  document.querySelectorAll("[data-render-mode]").forEach((button) => button.addEventListener("click", () => {
-    state.renderMode = button.dataset.renderMode;
+  document.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
+  const overlay = document.getElementById("drawer-overlay");
+  if (overlay) overlay.addEventListener("click", closeDrawer);
+}
+
+async function loadRuntime() {
+  if (state.runtimeLoaded || window.__HARNESS_WORKBENCH__ !== true || !/^https?:$/.test(window.location.protocol)) return;
+  state.runtimeLoaded = true;
+  try {
+    const response = await fetch("/api/runtime", { cache: "no-store" });
+    if (!response.ok) return;
+    state.runtime = await response.json();
+    startRuntimePolling();
     app();
+  } catch {
+    state.runtime = { mode: "static", csrfToken: "", writableActions: [] };
+  }
+}
+
+function startRuntimePolling() {
+  if (!state.runtime?.autoRefresh || state.runtimePoller) return;
+  state.runtimePoller = setInterval(async () => {
+    try {
+      const response = await fetch("/api/runtime", { cache: "no-store" });
+      if (!response.ok) return;
+      const nextRuntime = await response.json();
+      if (state.runtime?.snapshotVersion && nextRuntime.snapshotVersion !== state.runtime.snapshotVersion) {
+        window.location.reload();
+        return;
+      }
+      state.runtime = nextRuntime;
+    } catch {
+      clearInterval(state.runtimePoller);
+      state.runtimePoller = null;
+    }
+  }, 1500);
+}
+
+async function completeReviewFromDashboard(taskId) {
+  const result = document.querySelector(`[data-review-result="${CSS.escape(taskId)}"]`);
+  const checkbox = document.querySelector(`[data-review-confirm-check="${CSS.escape(taskId)}"]`);
+  const confirmInput = document.querySelector(`[data-review-confirm-text="${CSS.escape(taskId)}"]`);
+  const task = (bundle.status?.tasks || []).find((item) => item.id === taskId);
+  if (!checkbox?.checked) {
+    if (result) result.textContent = t("reviewChecklistRequired");
+    return;
+  }
+  if (!confirmInput?.value || ![task?.shortId, task?.id].includes(confirmInput.value.trim())) {
+    if (result) result.textContent = t("reviewConfirmTextMismatch");
+    return;
+  }
+  if (result) result.textContent = t("reviewSubmitting");
+  try {
+    const response = await fetch("/api/tasks/review-complete", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-harness-csrf": state.runtime?.csrfToken || "",
+      },
+      body: JSON.stringify({
+        taskId,
+        confirmText: confirmInput.value.trim(),
+        reviewer: "Human Reviewer",
+        message: "confirmed from dashboard workbench",
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || t("reviewCompleteFailed"));
+    if (result) result.textContent = t("reviewCompleteSuccess");
+    setTimeout(() => window.location.reload(), 500);
+  } catch (error) {
+    if (result) result.textContent = `${t("reviewCompleteFailed")}: ${error.message}`;
+  }
+}
+
+function renderDrawerContent(taskId) {
+  const task = (bundle.status?.tasks || []).find((item) => item.id === taskId);
+  if (!task) return `<div class="empty">${t("taskNotFound")}</div>`;
+
+  const header = `
+    <div class="task-drawer-header">
+      <div>
+        <h2>${escapeHtml(task.title)}</h2>
+        <p style="font-family: var(--font-mono); font-size: 11px; margin: 4px 0 0; color: var(--muted);">${escapeHtml(task.id)}</p>
+      </div>
+      <button class="btn-close" data-close-drawer>×</button>
+    </div>
+  `;
+
+  const timeline = phaseTimeline(task);
+  const documents = taskDocumentLibrary(task, "");
+  const findings = openFindings(task);
+  const evidence = evidenceList(task);
+
+  const body = `
+    <div class="task-drawer-body stack">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--paper-2); padding: 12px 16px; border-radius: 8px;">
+        <div style="font-size: 24px; font-weight: 800; color: var(--accent);">${task.completion}%</div>
+        <a href="#/tasks/${encodeURIComponent(task.id)}" class="btn-drawer-trigger" style="text-decoration: none;">${t("fullView")}</a>
+      </div>
+      ${taskStateSummary(task)}
+      ${reviewActionPanel(task)}
+      ${timeline}
+      ${documents}
+      ${findings}
+      ${evidence}
+    </div>
+  `;
+
+  return header + body;
+}
+
+function openDrawer(taskId) {
+  const drawer = document.getElementById("task-drawer");
+  const overlay = document.getElementById("drawer-overlay");
+  if (!drawer || !overlay) return;
+  drawer.innerHTML = renderDrawerContent(taskId);
+  drawer.classList.add("active");
+  overlay.classList.add("active");
+
+  drawer.querySelector("[data-close-drawer]").addEventListener("click", closeDrawer);
+  drawer.querySelectorAll("[data-render-toggle]").forEach((button) => button.addEventListener("click", () => {
+    state.renderMode = state.renderMode === "rendered" ? "source" : "rendered";
+    openDrawer(taskId);
   }));
+  drawer.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
+}
+
+function renderLessonDrawerContent(lessonId) {
+  const lessonTable = (bundle.tables?.tables || []).find((table) => table.kind === "lessons-ssot");
+  const row = (lessonTable?.rows || []).find((r) => {
+    const cells = r.cells || {};
+    const id = cells.ID || cells.Lesson || cells["Lesson ID"] || cells["ID"] || "";
+    return id === lessonId;
+  });
+
+  if (!row) {
+    return `<div class="task-drawer-header">
+      <h2>${escapeHtml(lessonId)}</h2>
+      <button class="btn-close" data-close-drawer>×</button>
+    </div>
+    <div class="task-drawer-body">
+      <div class="empty">${t("lessonNotFound")}</div>
+    </div>`;
+  }
+
+  const cells = row.cells || {};
+  const summary = cells.Summary || cells["\u6458\u8981"] || cells.Pattern || cells.Status || "";
+  const docPath = cells["\u8be6\u60c5\u6587\u6863"] || cells.Document || cells.document || "";
+
+  let doc = null;
+  if (docPath) {
+    doc = findDocument(docPath);
+  }
+  if (!doc) {
+    doc = (bundle.documents?.documents || []).find((d) => d.path.includes(lessonId) || d.path.endsWith(`${lessonId}.md`));
+  }
+
+  const header = `
+    <div class="task-drawer-header">
+      <div>
+        <h2>${escapeHtml(lessonId)}</h2>
+        <p style="font-size: 12px; margin: 4px 0 0; color: var(--muted); font-weight: 600;">${escapeHtml(summary)}</p>
+      </div>
+      <button class="btn-close" data-close-drawer>×</button>
+    </div>
+  `;
+
+  let markdownBody = "";
+  if (doc && doc.content) {
+    markdownBody = `<div class="markdown">${window.HarnessMarkdown.render(doc.content, "rendered")}</div>`;
+  } else {
+    const rowsHtml = Object.entries(cells)
+      .map(([key, val]) => `<tr><th>${escapeHtml(key)}</th><td>${escapeHtml(val)}</td></tr>`)
+      .join("");
+    markdownBody = `
+      <div style="margin-bottom: 20px; background: var(--paper-2); padding: 16px; border-radius: 8px; border: 1px dashed var(--line);">
+        <p style="margin: 0; font-size: 13px; color: var(--muted);">${t("lessonDocMissing")}</p>
+      </div>
+      <table class="rendered-table" style="width: 100%;">
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    `;
+  }
+
+  const body = `
+    <div class="task-drawer-body stack">
+      ${markdownBody}
+    </div>
+  `;
+
+  return header + body;
+}
+
+function openLessonDrawer(lessonId) {
+  const drawer = document.getElementById("task-drawer");
+  const overlay = document.getElementById("drawer-overlay");
+  if (!drawer || !overlay) return;
+  drawer.innerHTML = renderLessonDrawerContent(lessonId);
+  drawer.classList.add("active");
+  overlay.classList.add("active");
+
+  drawer.querySelector("[data-close-drawer]").addEventListener("click", closeDrawer);
+}
+
+function closeDrawer() {
+  const drawer = document.getElementById("task-drawer");
+  const overlay = document.getElementById("drawer-overlay");
+  if (drawer) drawer.classList.remove("active");
+  if (overlay) overlay.classList.remove("active");
+}
+
+function ledgerPanel() {
+  const ledgerTable = (bundle.tables?.tables || []).find((table) => table.kind === "harness-ledger");
+  const rows = ledgerTable?.rows || [];
+
+  let closedCount = 0;
+  let openCount = 0;
+  let blockedCount = 0;
+
+  let lessonsReviewed = 0;
+  let lessonsTotal = 0;
+
+  let evidenceAudited = 0;
+  let evidenceTotal = 0;
+
+  for (const row of rows) {
+    const cells = row.cells || {};
+    const status = String(cells.Status || cells["\u72b6\u6001"] || "").toLowerCase();
+    if (status.includes("close") || status.includes("done") || status.includes("\u7ed3") || status.includes("\u5b8c")) {
+      closedCount++;
+    } else if (status.includes("block") || status.includes("\u963b")) {
+      blockedCount++;
+    } else {
+      openCount++;
+    }
+
+    const lesson = String(cells.Lessons || cells["\u7ecf\u9a8c"] || cells["\u7ecf\u9a8c\u5ba1\u67e5"] || cells["Lesson"] || "");
+    if (lesson) {
+      lessonsTotal++;
+      if (lesson.toLowerCase().includes("pass") || lesson.includes("\u901a\u8fc7") || lesson.includes("\u5c31\u7eea") || lesson.toLowerCase().includes("checked") || lesson.toLowerCase().includes("done")) {
+        lessonsReviewed++;
+      }
+    }
+
+    const evidence = String(cells.Evidence || cells["\u8bc1\u636e"] || cells["\u9a8c\u8bc1\u8bc1\u636e"] || cells["Evidence Checked"] || "");
+    if (evidence) {
+      evidenceTotal++;
+      if (evidence.toLowerCase().includes("pass") || evidence.includes("\u901a\u8fc7") || evidence.toLowerCase().includes("present") || evidence.toLowerCase().includes("verified") || evidence.toLowerCase().includes("done")) {
+        evidenceAudited++;
+      }
+    }
+  }
+
+  const total = closedCount + openCount + blockedCount || 1;
+  const closedPct = Math.round((closedCount / total) * 100);
+  const openPct = Math.round((openCount / total) * 100);
+  const blockedPct = total - closedPct - openPct;
+
+  const lessonsPct = lessonsTotal ? Math.round((lessonsReviewed / lessonsTotal) * 100) : 0;
+  const evidencePct = evidenceTotal ? Math.round((evidenceAudited / evidenceTotal) * 100) : 0;
+
+  if (rows.length === 0) return "";
+
+  return `<section class="ledger-panel">
+    <h2>${t("ssotLedger")}</h2>
+    <div class="ledger-split-bar" title="${t("tagClosed")}: ${closedCount}, ${t("tagOpen")}: ${openCount}, ${t("tagBlocked")}: ${blockedCount}">
+      <div class="ledger-split-segment closed" style="width: ${closedPct}%"></div>
+      <div class="ledger-split-segment open" style="width: ${openPct}%"></div>
+      <div class="ledger-split-segment blocked" style="width: ${Math.max(0, blockedPct)}%"></div>
+    </div>
+    <div class="ledger-split-legend">
+      <span class="ledger-split-legend-item"><i class="ledger-split-legend-dot closed"></i>${t("tagClosed")} (${closedCount})</span>
+      <span class="ledger-split-legend-item"><i class="ledger-split-legend-dot open"></i>${t("tagOpen")} (${openCount})</span>
+      <span class="ledger-split-legend-item"><i class="ledger-split-legend-dot blocked"></i>${t("tagBlocked")} (${blockedCount})</span>
+    </div>
+    <div class="ledger-gauge-row">
+      <div class="ledger-gauge-card">
+        <span>${t("lessonsCheckRate")}</span>
+        <strong>${lessonsPct}%</strong>
+      </div>
+      <div class="ledger-gauge-card">
+        <span>${t("evidenceAuditRate")}</span>
+        <strong>${evidencePct}%</strong>
+      </div>
+    </div>
+  </section>`;
 }
 
 function escapeHtml(value) {
@@ -432,4 +1621,6 @@ function escapeAttr(value) {
   return escapeHtml(value).replaceAll("'", "&#39;");
 }
 
+window.addEventListener("hashchange", app);
 app();
+loadRuntime();

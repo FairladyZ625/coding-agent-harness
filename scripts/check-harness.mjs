@@ -63,6 +63,8 @@ const allowedWalkthroughSkip =
   /walkthrough skipped-with-reason:\s*(docs-only|no-runtime|superseded|historical-backfill|owner-deferred)/i;
 const lessonsCreatedPattern = /checked-created:\s*(L-\d{4}-\d{2}-\d{2}-\d{3}|L-\d+)/i;
 const lessonsNonePattern = /checked-none:\s*\S+/i;
+const lessonsCandidatePattern = /checked-candidate:\s*(LC-[A-Za-z0-9-]+)/i;
+const lessonsQueuedPromotionPattern = /queued-promotion:\s*(LC-[A-Za-z0-9-]+)/i;
 
 const failures = [];
 const warnings = [];
@@ -387,15 +389,15 @@ function checkGovernanceContent() {
   if (!exists(governancePath)) return;
   const content = read(governancePath);
   const requiredTerms = [
-    "Repo Platform Profile",
-    "Branch Model",
-    "PR Policy",
-    "Required Checks",
-    "Branch Protection",
-    "Worktree Concurrency",
+    ["Repo Platform Profile", "仓库平台画像"],
+    ["Branch Model", "分支模型"],
+    ["PR Policy", "PR 规则"],
+    ["Required Checks", "必要检查"],
+    ["Branch Protection", "分支保护"],
+    ["Worktree Concurrency", "Worktree 并发"],
   ];
-  for (const term of requiredTerms) {
-    if (!content.includes(term)) fail(`${governancePath} missing section: ${term}`);
+  for (const terms of requiredTerms) {
+    if (!contentIncludesAny(content, terms)) fail(`${governancePath} missing section: ${terms[0]}`);
   }
   if (!statusWords.some((status) => content.includes(status))) {
     fail(`${governancePath} does not use evidence status model`);
@@ -408,13 +410,13 @@ function checkCiCdContent() {
   if (!exists(ciPath)) return;
   const content = read(ciPath);
   const requiredTerms = [
-    "CI Profile",
-    "Workflow",
-    "Required Checks",
-    "Evidence Status",
+    ["CI Profile", "CI 画像"],
+    ["Workflow", "工作流"],
+    ["Required Checks", "必要检查"],
+    ["Evidence Status", "证据状态"],
   ];
-  for (const term of requiredTerms) {
-    if (!content.includes(term)) fail(`${ciPath} missing section: ${term}`);
+  for (const terms of requiredTerms) {
+    if (!contentIncludesAny(content, terms)) fail(`${ciPath} missing section: ${terms[0]}`);
   }
   if (!statusWords.some((status) => content.includes(status))) {
     fail(`${ciPath} does not use evidence status model`);
@@ -428,14 +430,14 @@ function checkDeliveryOperatingModelContent() {
   const content = read(deliveryPath);
   const normalized = content.toLowerCase();
   const requiredTerms = [
-    "operating model profile",
-    "work decomposition rule",
-    "agent visibility",
-    "integration owner",
-    "delivery ssot",
+    ["operating model profile", "运行模型"],
+    ["work decomposition rule", "工作拆分规则"],
+    ["agent visibility", "agent 可见性"],
+    ["integration owner", "集成 owner"],
+    ["delivery ssot", "交付 ssot"],
   ];
-  for (const term of requiredTerms) {
-    if (!normalized.includes(term)) fail(`${deliveryPath} missing section: ${term}`);
+  for (const terms of requiredTerms) {
+    if (!contentIncludesAny(normalized, terms.map((term) => term.toLowerCase()))) fail(`${deliveryPath} missing section: ${terms[0]}`);
   }
   if (!/solo-orchestrator|team-feature-lead|split-repo-contract|program-multi-repo|waterfall-stage-gate|kanban-continuous/.test(content)) {
     fail(`${deliveryPath} does not define a recognized operating model`);
@@ -480,7 +482,7 @@ function checkReviewTemplate() {
   const reviewPath = "docs/09-PLANNING/TASKS/_task-template/review.md";
   if (!exists(reviewPath)) return;
   const content = read(reviewPath);
-  if (!content.includes("Confidence Challenge")) {
+  if (!contentIncludesAny(content, ["Confidence Challenge", "信心挑战"])) {
     fail(`${reviewPath} missing Confidence Challenge`);
   }
   if (/\|\s*R-001\s*\|\s*P[01]\s*\|.*\|\s*open\s*\|/i.test(content)) {
@@ -519,6 +521,14 @@ function columnIndex(header, pattern) {
   return header.findIndex((cell) => pattern.test(cell));
 }
 
+function contentIncludesAny(content, terms) {
+  return terms.some((term) => (term instanceof RegExp ? term.test(content) : content.includes(term)));
+}
+
+function columnIndexAny(header, patterns) {
+  return header.findIndex((cell) => patterns.some((pattern) => pattern.test(cell)));
+}
+
 function checkDuplicateIds(rows, sourcePath) {
   const seen = new Set();
   for (const cells of rows) {
@@ -535,9 +545,9 @@ function checkCloseoutSsot() {
   if (!exists(closeoutPath)) return;
 
   const closeoutContent = read(closeoutPath);
-  for (const term of ["Walkthrough", "Lessons Check", "Closeout Status"]) {
-    if (!closeoutContent.includes(term)) {
-      fail(`${closeoutPath} missing required closeout column or section: ${term}`);
+  for (const terms of [["Walkthrough"], ["Lessons Check", "Lessons 检查"], ["Closeout Status", "收口状态"]]) {
+    if (!contentIncludesAny(closeoutContent, terms)) {
+      fail(`${closeoutPath} missing required closeout column or section: ${terms[0]}`);
     }
   }
   checkNoGenericPlaceholders(closeoutPath);
@@ -545,7 +555,7 @@ function checkCloseoutSsot() {
   const closeoutTable = markdownTable(closeoutContent);
   const closeoutHeaderIndex = findHeaderIndex(closeoutTable, /^Harness ID$/i);
   const closeoutHeader = closeoutHeaderIndex >= 0 ? closeoutTable[closeoutHeaderIndex] : [];
-  const lessonsColumn = columnIndex(closeoutHeader, /^Lessons Check$/i);
+  const lessonsColumn = columnIndexAny(closeoutHeader, [/^Lessons Check$/i, /^Lessons 检查$/i, /^Lessons 检查\s*\/\s*Lessons Check$/i]);
   if (lessonsColumn < 0) {
     fail(`${closeoutPath} missing Lessons Check column`);
   }
@@ -553,10 +563,11 @@ function checkCloseoutSsot() {
   if (!exists("docs/Harness-Ledger.md")) return;
   const ledgerContent = read("docs/Harness-Ledger.md");
   const lessonIds = collectLessonIds();
+  const lessonCandidateIds = collectLessonCandidateIds();
   const ledgerTable = markdownTable(ledgerContent);
   const ledgerHeaderIndex = findHeaderIndex(ledgerTable, /^ID$/i);
   const ledgerHeader = ledgerHeaderIndex >= 0 ? ledgerTable[ledgerHeaderIndex] : [];
-  const ledgerLessonsColumn = columnIndex(ledgerHeader, /^Lessons Check$/i);
+  const ledgerLessonsColumn = columnIndexAny(ledgerHeader, [/^Lessons Check$/i, /^Lessons 检查$/i, /^Lessons 检查\s*\/\s*Lessons Check$/i]);
   if (ledgerLessonsColumn < 0) {
     fail("docs/Harness-Ledger.md missing Lessons Check column");
   }
@@ -587,20 +598,26 @@ function checkCloseoutSsot() {
     if (lessonsColumn >= 0) {
       const lessonsCheck = closeout[lessonsColumn] || "";
       const createdMatch = lessonsCheck.match(lessonsCreatedPattern);
-      if (!createdMatch && !lessonsNonePattern.test(lessonsCheck)) {
-        fail(`${closeoutPath} row ${id} needs Lessons Check value: checked-created:<lesson-id> or checked-none:<reason>`);
+      const candidateMatch = lessonsCheck.match(lessonsCandidatePattern) || lessonsCheck.match(lessonsQueuedPromotionPattern);
+      if (!createdMatch && !candidateMatch && !lessonsNonePattern.test(lessonsCheck)) {
+        fail(`${closeoutPath} row ${id} needs Lessons Check value: checked-created:<lesson-id>, checked-candidate:<candidate-id>, queued-promotion:<candidate-id>, or checked-none:<reason>`);
       } else if (createdMatch && !lessonIds.has(createdMatch[1])) {
         fail(`${closeoutPath} row ${id} references missing Lessons SSoT id: ${createdMatch[1]}`);
+      } else if (candidateMatch && !lessonCandidateIds.has(candidateMatch[1])) {
+        fail(`${closeoutPath} row ${id} references missing lesson candidate id: ${candidateMatch[1]}`);
       }
     }
 
     if (ledgerLessonsColumn >= 0) {
       const ledgerLessonsCheck = cells[ledgerLessonsColumn] || "";
       const ledgerCreatedMatch = ledgerLessonsCheck.match(lessonsCreatedPattern);
-      if (!ledgerCreatedMatch && !lessonsNonePattern.test(ledgerLessonsCheck)) {
-        fail(`docs/Harness-Ledger.md row ${id} needs Lessons Check value: checked-created:<lesson-id> or checked-none:<reason>`);
+      const ledgerCandidateMatch = ledgerLessonsCheck.match(lessonsCandidatePattern) || ledgerLessonsCheck.match(lessonsQueuedPromotionPattern);
+      if (!ledgerCreatedMatch && !ledgerCandidateMatch && !lessonsNonePattern.test(ledgerLessonsCheck)) {
+        fail(`docs/Harness-Ledger.md row ${id} needs Lessons Check value: checked-created:<lesson-id>, checked-candidate:<candidate-id>, queued-promotion:<candidate-id>, or checked-none:<reason>`);
       } else if (ledgerCreatedMatch && !lessonIds.has(ledgerCreatedMatch[1])) {
         fail(`docs/Harness-Ledger.md row ${id} references missing Lessons SSoT id: ${ledgerCreatedMatch[1]}`);
+      } else if (ledgerCandidateMatch && !lessonCandidateIds.has(ledgerCandidateMatch[1])) {
+        fail(`docs/Harness-Ledger.md row ${id} references missing lesson candidate id: ${ledgerCandidateMatch[1]}`);
       }
     }
   }
@@ -621,21 +638,45 @@ function collectLessonIds() {
   );
 }
 
+function collectLessonCandidateIds() {
+  const root = filePath("docs/09-PLANNING");
+  const ids = new Set();
+  if (!fs.existsSync(root)) return ids;
+  function visit(dir) {
+    for (const entry of fs.readdirSync(dir)) {
+      const full = path.join(dir, entry);
+      const stat = fs.statSync(full);
+      if (stat.isDirectory()) {
+        if (entry === "_archive") continue;
+        visit(full);
+        continue;
+      }
+      if (entry !== "lesson_candidates.md") continue;
+      const content = fs.readFileSync(full, "utf8");
+      for (const match of content.matchAll(/\|\s*(LC-[A-Za-z0-9-]+)\s*\|/g)) {
+        ids.add(match[1]);
+      }
+    }
+  }
+  visit(root);
+  return ids;
+}
+
 function checkLessonsSsot() {
   const lessonsPath = "docs/01-GOVERNANCE/Lessons-SSoT.md";
   if (!exists(lessonsPath)) return;
 
   const content = read(lessonsPath);
-  if (!/Detail Doc/i.test(content)) {
+  if (!contentIncludesAny(content, [/Detail Doc/i, "详情文档"])) {
     fail(`${lessonsPath} missing Detail Doc column`);
   }
 
   const table = markdownTable(content);
   const headerIndex = findHeaderIndex(table, /^ID$/i);
   const header = headerIndex >= 0 ? table[headerIndex] : [];
-  const detailColumn = columnIndex(header, /^(Detail Doc|Detail)$/i);
+  const detailColumn = columnIndexAny(header, [/^(Detail Doc|Detail)$/i, /^详情文档$/i, /^详情文档\s*\/\s*Detail Doc$/i]);
   const idColumn = columnIndex(header, /^ID$/i);
-  const statusColumn = columnIndex(header, /^Status$/i);
+  const statusColumn = columnIndexAny(header, [/^Status$/i, /^状态$/i, /^状态\s*\/\s*Status$/i]);
   if (idColumn < 0) fail(`${lessonsPath} missing ID column`);
   if (detailColumn < 0) fail(`${lessonsPath} missing Detail Doc column`);
   if (statusColumn < 0) fail(`${lessonsPath} missing Status column`);
@@ -675,7 +716,7 @@ function checkWalkthroughTemplate() {
   const walkthroughTemplate = "docs/10-WALKTHROUGH/_walkthrough-template.md";
   if (!exists(walkthroughTemplate)) return;
   const content = read(walkthroughTemplate);
-  if (!content.includes("Lessons Reflection")) {
+  if (!contentIncludesAny(content, ["Lessons Reflection", "Lessons 回看"])) {
     fail(`${walkthroughTemplate} missing Lessons Reflection section`);
   }
 }

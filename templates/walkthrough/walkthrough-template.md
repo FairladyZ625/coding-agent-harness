@@ -49,8 +49,8 @@ One sentence describing what changed and why it matters.
 | --- | --- |
 | Did this reveal a reusable reference, workflow, or checker gap? | yes / no, reason |
 | Could a future agent repeat the same mistake? | yes / no, reason |
-| Was a lesson created or updated? | L-YYYY-MM-DD-001 or checked-none: reason |
-| Lessons detail doc | path or none |
+| Was a lesson candidate reviewed? | checked-candidate:LC-... / queued-promotion:LC-... / checked-created:L-YYYY-MM-DD-001 / legacy checked-none: reason |
+| Lessons detail doc | lesson_candidates.md, governance detail doc, or none |
 
 ## Closeout Links
 

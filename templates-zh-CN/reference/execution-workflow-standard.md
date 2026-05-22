@@ -27,7 +27,7 @@
 5. 可写 worker 必须在自己的 worktree 内实现、验证、提交，并 handoff branch、commit SHA、checks、residual。
 6. 遇到共享文件冲突，由 coordinator 或人工决定串行顺序。
 7. 遇到目标失效、权限阻塞、高风险决策或 stop condition 不适用，立即暂停并记录。
-8. 有意义地提交中间成果；commit message 应说明变更类型和范围。
+8. 主动提交已验证的、有意义的中间成果；commit message 应说明变更类型和范围。除非用户明确要求暂不提交，或检查失败 / diff 归属不清，否则不要把已完成切片长期留在未提交状态。
 
 ## 完成任务后
 
@@ -38,7 +38,7 @@
 5. 确认 `review.md` 没有 open P0/P1 finding；material P2 已修复或写为 `accepted-risk` 并路由。
 6. planned task 必须完成 closeout review，或写明 `skipped-with-reason`。
 7. 写 walkthrough，引用 task plan、review、证据、residual、Regression SSoT 和 commit。
-8. 执行 Lessons 检查：有可复用经验则写 lesson 详情并更新 Lessons SSoT；没有也记录 `checked-none: <reason>`。
+8. 执行 Lessons 检查：新任务默认先写 `lesson_candidates.md` 并交给人工审查；人工标记后可记录 `queued-promotion`，再由维护命令写 lesson 详情并更新 Lessons SSoT。没有可复用候选时记录 `no-candidate-accepted`；旧任务兼容可记录 `checked-none: <reason>`。
 9. 最后更新 Harness Ledger，因为它记录本轮上下文维护的最终状态。
 10. 完成 commit / PR / release note，并确认本任务工作区没有未解释的遗留改动。
 11. 如使用 worker，coordinator 集成 worker commit 后运行最终 gates，并记录 integration evidence。
@@ -70,6 +70,13 @@ PR 描述必须包含：
 - 实际运行的检查和证据。
 - residual、owner 和不阻塞理由。
 - required checks、reviewer、merge method 是否满足 `repo-governance-standard.md`。
+
+## 主动提交规则
+
+- 每个已验证的、有意义的切片默认都要提交。
+- 提交前只 stage 本任务范围内文件，不能顺手带入无关 dirty 文件、私有文件或生成产物。
+- 如果用户明确说不要提交、检查失败、或 diff 归属还没厘清，必须把未提交原因写入 `progress.md` 或交接说明。
+- closeout 时必须列出相关 commit SHA；如果没有 commit，必须说明为什么这是安全的例外。
 
 ## 禁止事项
 

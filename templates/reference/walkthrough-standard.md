@@ -10,7 +10,7 @@ Define the closeout walkthrough that converts implementation work into durable p
 2. A walkthrough must explain what changed, why it changed, how it was verified, what review found, and what residual risk remains.
 3. Do not paste large raw logs. Link to evidence files, commands, PRs, screenshots, or CI runs.
 4. Material findings and their resolution must be visible.
-5. Lessons that change future behavior must be routed to the appropriate SSoT, reference standard, or Harness Ledger.
+5. Lessons that change future behavior must first be routed through `lesson_candidates.md`; accepted candidates are then routed to the appropriate SSoT, reference standard, or Harness Ledger.
 6. Walkthroughs must be written from the final integrated state, not from a single worker's partial view.
 7. If work is incomplete, the walkthrough must identify the next safe action and stop reason.
 
@@ -21,6 +21,7 @@ Define the closeout walkthrough that converts implementation work into durable p
 - Review summary with material findings and disposition.
 - Residual risk section.
 - Lesson or follow-up section.
+- Lesson candidate decision: `checked-candidate:<LC-ID>`, `queued-promotion:<LC-ID>`, `checked-created:<L-ID>`, or legacy `checked-none:<reason>`.
 - Links to updated SSoT, Regression SSoT, or Harness Ledger entries when applicable.
 
 ## Closeout Expectations

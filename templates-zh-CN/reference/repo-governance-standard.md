@@ -73,6 +73,7 @@
 | branch 命名 | 分支模式 |
 | owner 规则 | 谁创建、谁清理、谁集成 |
 | subagent worker 规则 | 每个可写 worker 使用独立 worktree / branch，并 handoff commit SHA |
+| 主动提交规则 | 已验证的、有意义的切片默认主动提交；暂不提交必须写明原因 |
 | merge 顺序 | coordinator 或 release owner 决定 |
 | 清理规则 | merge 后删除，保留需写原因 |
 
@@ -81,4 +82,5 @@
 - 非平凡任务的 PR 或 walkthrough 必须说明 required checks 的执行结果。
 - branch protection 未 verified 时，不能声称仓库已受保护；只能写 `designed`、`implemented` 或 `blocked-with-owner`。
 - worker 结果只能通过 commit / branch 集成，不能混入 coordinator 未提交改动。
+- coordinator 自己执行时也要主动提交已验证切片；未提交状态必须有 owner、原因和下一步。
 - repo governance 变化必须同步 CI/CD 标准、worktree 标准和 Harness Ledger。

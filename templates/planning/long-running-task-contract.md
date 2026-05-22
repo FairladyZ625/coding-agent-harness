@@ -18,6 +18,12 @@
 
 - [Shared files that may conflict with other work, or none]
 
+## Primary Caller / Entry
+
+- Primary caller: [CLI / local agent / UI / API / automation / integration / other]
+- Entries this task must support: [list]
+- Entries explicitly not required: [list]
+
 ## Permission Boundaries
 
 - Continuous execution allowed: yes / no
@@ -50,6 +56,7 @@
 - [ ] Runtime verification: [URL / command / log]
 - [ ] Review report: `review.md` / n/a
 - [ ] Residual risks recorded: yes / no
+- [ ] Lesson candidate review recorded: `lesson_candidates.md` uses `no-candidate-accepted`, `needs-promotion`, `promoted`, or `rejected`
 
 ## Stop Conditions
 

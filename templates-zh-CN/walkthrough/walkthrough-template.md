@@ -46,8 +46,8 @@
 | 本轮是否暴露 reference、workflow、模板或 checker 的缺口？ | [有 / 无，写一句理由] |
 | 是否出现跨模块、跨阶段、跨 agent 的重复问题？ | [有 / 无，写一句理由] |
 | 下次 agent 是否可能在同类任务中重复踩坑？ | [有 / 无，写一句理由] |
-| Lessons 结果 | `checked-created: L-YYYY-MM-DD-NNN` / `checked-none: [一句话原因]` |
-| Lessons 详情文档 | `docs/01-GOVERNANCE/lessons/[file].md` / `none` |
+| Lessons 结果 | `checked-candidate: LC-...` / `queued-promotion: LC-...` / `checked-created: L-YYYY-MM-DD-NNN` / 旧任务 `checked-none: [一句话原因]` |
+| Lessons 详情文档 | `lesson_candidates.md` / `docs/01-GOVERNANCE/lessons/[file].md` / `none` |
 
 ## 关联索引
 

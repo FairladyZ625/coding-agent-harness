@@ -38,5 +38,5 @@
 2. 实现类任务应写 walkthrough；跳过原因只用于受限场景，不用于省略收口。
 3. `证据` 必须列出实际检查、冒烟、review、运行时验证或发布证据。
 4. `残余路由` 必须写 `none`，或指向负责人、任务、Regression SSoT、Harness Ledger、issue 或接受风险记录。
-5. `Lessons 检查` 只能写 `checked-created: L-YYYY-MM-DD-NNN` 或 `checked-none: [原因]`。
-6. `checked-created` 必须同时存在 Lessons SSoT 行和 lesson 详情文档。
+5. `Lessons 检查` 只能写 `checked-candidate: LC-...`、`queued-promotion: LC-...`、`checked-created: L-YYYY-MM-DD-NNN`，或旧任务兼容的 `checked-none: [原因]`。
+6. `checked-created` 必须同时存在 Lessons SSoT 行和 lesson 详情文档；`queued-promotion` 必须能追溯到任务目录 `lesson_candidates.md`。

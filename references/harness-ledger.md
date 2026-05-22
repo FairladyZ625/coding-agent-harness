@@ -74,6 +74,8 @@ Harness Ledger 不记录：
 - `updated`
 - `created`
 - `checked-none`
+- `checked-candidate`
+- `queued-promotion`
 - `checked-created`
 - `n/a`
 - `skipped-with-reason`
@@ -118,14 +120,14 @@ docs/01-GOVERNANCE/_archive/Harness-Ledger-archive-YYYY-QN.md
 6. 回写 Regression SSoT / Cadence Ledger（如适用）
 7. 写 walkthrough
 8. 更新 Closeout SSoT
-9. 执行 Lessons 检查；如有沉淀，先写详情文档，再更新 Lessons SSoT
+9. 执行 Lessons 检查；新任务先更新 `lesson_candidates.md`，如人工确认沉淀，再由维护命令写详情文档并更新 Lessons SSoT
 10. 更新 Harness Ledger
 
 最后更新 Harness Ledger，是为了让它记录本轮所有上下文维护的最终状态。
 如果 Harness Ledger row 进入 `closed` / `closed-with-residual` / `closed-local-only`，
 必须同步在 `docs/10-WALKTHROUGH/Closeout-SSoT.md` 登记 walkthrough 或受控 skip reason。
-同时必须登记 Lessons Check：`checked-created: L-YYYY-MM-DD-NNN` 或
-`checked-none: <reason>`。
+同时必须登记 Lessons Check：`checked-candidate: LC-...`、`queued-promotion: LC-...`、
+`checked-created: L-YYYY-MM-DD-NNN`，或旧任务兼容的 `checked-none: <reason>`。
 
 ## Harness Update 记录
 

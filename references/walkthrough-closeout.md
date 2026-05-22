@@ -35,8 +35,8 @@
 - 本轮有没有发现 reference / workflow / checker 不够用或有误：[有/无，写一句理由]
 - 有没有反复出现、跨页面/跨模块/跨阶段的共性问题：[有/无，写一句理由]
 - 有没有下次 agent 也可能重复踩的坑：[有/无，写一句理由]
-- Lessons 结果：[checked-created: L-YYYY-MM-DD-NNN / checked-none: 一句话原因]
-- Lessons Detail Doc：[如 checked-created，填 `docs/01-GOVERNANCE/lessons/...md`；否则写"无"]
+- Lessons 结果：[checked-created: L-YYYY-MM-DD-NNN / queued-promotion: LC-YYYYMMDD-NNN / checked-candidate: LC-YYYYMMDD-NNN / checked-none: 一句话原因]
+- Lessons Detail Doc：[如 checked-created，填 `docs/01-GOVERNANCE/lessons/...md`；如 queued/checked-candidate，填 `lesson_candidates.md`；否则写"无"]
 
 ## 相关文件
 - Task Plan: [路径]
@@ -108,11 +108,12 @@ docs/10-WALKTHROUGH/Closeout-SSoT.md
 
 1. 完整读一遍 `docs/01-GOVERNANCE/Lessons-SSoT.md`
 2. 按 `references/lessons-governance.md` 中的规则处理冲突
-3. 在 `docs/01-GOVERNANCE/lessons/` 下写入详细建议（使用 `templates/lessons/` 下的对应模板）
-4. 更新 Lessons SSoT 表，`Detail Doc` 必须指向刚写的详情文档
-5. 在 Closeout SSoT 和 Harness Ledger 中记录 `checked-created: L-YYYY-MM-DD-NNN`
+3. 先在任务目录 `lesson_candidates.md` 中登记候选并等待人工 review
+4. 人工确认后，如需沉淀，使用 maintenance CLI 写入 `docs/01-GOVERNANCE/lessons/` 和 Lessons SSoT
+5. 在 Closeout SSoT 和 Harness Ledger 中记录 `queued-promotion: LC-...` 或 `checked-created: L-YYYY-MM-DD-NNN`
 
 如果所有答案都是“没有”，不能静默跳过；在 Closeout SSoT 和 Harness Ledger 中记录
+新任务在 `lesson_candidates.md` 中写 `no-candidate-accepted` 和 No-Candidate Reason；旧任务可记录
 `checked-none: <一句话原因>`。
 
 ## Harness Ledger 回写

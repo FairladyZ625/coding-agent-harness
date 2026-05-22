@@ -1,5 +1,7 @@
 # [Task Name]
 
+Task Contract: harness-task/v1
+
 ## Goal
 
 [State the outcome this task must deliver in one sentence.]
@@ -13,12 +15,11 @@
 
 | Budget | Use When | Required Structure |
 | --- | --- | --- |
-| simple | One owner, no subagent, L0/L1 evidence | Standard task files only |
+| simple | One owner, no subagent, L0/L1 evidence, no formal review gate | `brief.md`, `task_plan.md`, `visual_map.md`, `progress.md` |
 | standard | Normal feature, fix, or documentation change | Plan, strategy, roadmap, progress, findings, and review as needed |
-| long-running | Multi-hour autonomous loop | Add `long-running-task-contract.md` and a review loop |
-| module-parallel | Independent module slices | Add `module_plan.md`, module registry updates, and worker handoff |
+| complex | Multi-hour work, L2/L3 evidence, subagent/reviewer, or optional artifact/reference indexes | Standard files plus optional structures as needed |
 
-Selected budget: [simple / standard / long-running / module-parallel]
+Selected budget: {{TASK_BUDGET}}
 
 ## Context Packet
 
@@ -31,9 +32,10 @@ Selected budget: [simple / standard / long-running / module-parallel]
 | Contract File | Required | Purpose |
 | --- | --- | --- |
 | `execution_strategy.md` | yes | Operating model, allocation, conflict control, and evidence strategy |
-| `visual_roadmap.md` | yes | Phase graph, completion state, evidence state, and blocking risk |
+| `visual_map.md` | yes | Diagram collection: phase map, optional architecture/sequence/data-flow/state diagrams, completion state, evidence state, and blocking risk |
 | `progress.md` | yes | Execution log, decisions, and handoff |
 | `findings.md` | yes | Findings, research notes, and unresolved risks |
+| `lesson_candidates.md` | yes for standard/complex | Task-local lesson candidate queue. Human review must accept no-candidate, reject candidates, or queue promotion before review confirmation |
 | `review.md` | if needed | Adversarial or specialist review report |
 | `long-running-task-contract.md` | if needed | Continuous execution permission, loop rules, and stop conditions |
 

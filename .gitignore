@@ -2,12 +2,22 @@
 # Task-local plans belong under templates/planning or target-project docs/09-PLANNING/TASKS.
 docs/plans/
 
+# Local-only agent entrypoints for developing this source repository.
+# They route agents into .harness-private/ and must not be published.
+/AGENTS.md
+/CLAUDE.md
+/docs/
+
 # Private self-hosted harness for this source repository.
 # This directory is versioned by its own local/private git repository and must not be
 # published with the open-source package.
 .harness-private/
+.worktrees/
 
 # Generated local dashboards and smoke-test output.
 tmp/
 .playwright-mcp/
 harness-dashboard-*.png
+
+# Local npm install artifact; this package currently publishes from package.json.
+package-lock.json

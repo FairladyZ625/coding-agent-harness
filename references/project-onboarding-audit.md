@@ -25,6 +25,8 @@
 - 有没有 docs/ 目录？结构如何？
 - 有没有 README 以外的开发文档？
 - 有没有架构设计文档？
+- 如果项目属于微服务、多仓或前后端分仓，用户是否有外部服务文档、接口文档、架构图、会议纪要、链接或导出包？
+- 外部资料能否复制进本仓？如果不能，是否需要只保存本地路径、URL、owner 和摘要？
 
 ### 4. 现有测试
 - 有没有测试框架？（jest / vitest / pytest / go test 等）
@@ -98,6 +100,7 @@
 | Regression 体系 | [有/无/需改造] | 🟢/🟡/🔴 |
 | CI/CD | [有/无/需改造] | 🟢/🟡/🔴 |
 | Repo Governance | [有/无/需改造] | 🟢/🟡/🔴 |
+| External Source Intake | [无外部资料 / 少量 evidence 链接 / 需要 source pack / 需询问用户] | 🟢/🟡/🔴 |
 | Branch Protection | [designed/implemented/verified/blocked] | 🟢/🟡/🔴 |
 | Required Checks | [有/无/需改造] | 🟢/🟡/🔴 |
 | Harness Ledger | [有/无/需改造] | 🟢/🟡/🔴 |
@@ -108,6 +111,13 @@
 1. [Surface 1]：[描述]
 2. [Surface 2]：[描述]
 ...
+
+## 外部资料判断
+
+- 是否属于微服务 / 多仓 / 前后端分仓：[是/否/不确定]
+- 是否已询问用户外部资料：[是/否/不适用]
+- 外部资料规模：[无 / 1-4 份 / 5+ 份 / 未知]
+- 推荐处理：[仅作为 Source Evidence / 创建 external-source-packs/<source-key> / 暂停等待用户提供资料 / 不适用]
 
 ## 推荐 Harness 规模
 [Lite / Standard / Full]（见下方项目类型分支）

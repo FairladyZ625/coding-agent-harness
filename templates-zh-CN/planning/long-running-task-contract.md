@@ -113,6 +113,6 @@
 - [ ] `progress.md` / `findings.md` 更新
 - [ ] Harness Ledger 更新
 - [ ] 收口记录
-- [ ] Lessons 反思与检查（`checked-created` 或 `checked-none`）
+- [ ] Lessons 反思与检查：`lesson_candidates.md` 已进入 `no-candidate-accepted` / `needs-promotion` / `promoted` / `rejected`
 - [ ] PR / commit / 发布说明
 - [ ] 残余风险摘要

@@ -13,6 +13,7 @@ Define when and how the Harness Ledger records durable changes to the agent oper
 5. Do not store secrets, personal data, large logs, or raw generated output in the ledger.
 6. If a lesson changes a reference standard, record both the lesson and the reference update.
 7. If no ledger update is needed, closeout should say why.
+8. New task closeout should route lesson review through `lesson_candidates.md`; record `checked-candidate:<LC-ID>`, `queued-promotion:<LC-ID>`, or `checked-created:<L-ID>` as the final lesson outcome.
 
 ## Required Artifacts
 
