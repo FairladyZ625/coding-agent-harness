@@ -2,7 +2,7 @@
 
 Coding Agent Harness keeps coding-agent work inside the repository instead of leaving it buried in chat history. Plans, progress, reviews, migration notes, and dashboard snapshots stay with the code.
 
-![Dashboard overview](../assets/dashboard-overview-en.png)
+![Dashboard overview](../assets/dashboard-overview.png)
 
 ## How It Works
 

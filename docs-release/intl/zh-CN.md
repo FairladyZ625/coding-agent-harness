@@ -2,7 +2,7 @@
 
 Coding Agent Harness 把 Coding Agent 的计划、进度、审查、迁移记录和 Dashboard 快照留在仓库里，而不是散在聊天记录里。
 
-![Dashboard overview](../assets/dashboard-overview-en.png)
+![Dashboard overview](../assets/dashboard-overview.png)
 
 ## 怎么用
 
