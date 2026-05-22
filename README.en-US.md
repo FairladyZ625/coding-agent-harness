@@ -4,7 +4,22 @@
 
 [简体中文](README.md) | English
 
+![Coding Agent Harness architecture](docs-release/assets/harness-architecture.svg)
+
 > An open-source, document-native, ready-to-use Agent Harness for keeping Codex, Claude Code, Gemini CLI, and other coding agents clear, transparent, and reviewable during long-running software work.
+
+## At A Glance
+
+Coding Agent Harness is not another collection of chat prompts. It turns the durable facts that coding agents need into repository files: entry agreements, task plans, execution evidence, regression results, dashboards, and closeout records.
+
+The smallest loop is:
+
+- A human states the goal, and the agent reads the repository Harness first.
+- The agent follows Diagnose → Decide → Scaffold → Configure → Verify → Deliver.
+- The CLI and Dashboard expose status, risk, migration plans, and review evidence.
+- The next agent resumes from repository facts instead of previous chat memory.
+
+![Harness workflow](docs-release/assets/harness-workflow.svg)
 
 ## What It Is
 
@@ -102,7 +117,34 @@ harness --help
 
 Agents must not silently run a global install. They may run `npm install -g coding-agent-harness` only after the user explicitly approves changing the global npm environment. Without that approval, keep using `npx --yes coding-agent-harness ...`.
 
-### Ask The Agent To Run It
+### Commands For Humans
+
+Initialize a Chinese Harness:
+
+```bash
+npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
+```
+
+Start the local dynamic Workbench:
+
+```bash
+npx --yes coding-agent-harness dev .
+```
+
+Generate a static Dashboard that can be opened offline:
+
+```bash
+npx --yes coding-agent-harness dashboard --out-dir tmp/harness-dashboard .
+open tmp/harness-dashboard/index.html
+```
+
+Run target-project checks:
+
+```bash
+npx --yes coding-agent-harness check --profile target-project .
+```
+
+### Prompt For Agents
 
 Send this to the agent inside your target project:
 

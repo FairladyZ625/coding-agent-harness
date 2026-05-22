@@ -4,7 +4,22 @@
 
 简体中文 | [English](README.en-US.md)
 
+![Coding Agent Harness 架构图](docs-release/assets/harness-architecture.svg)
+
 > 开源、文档驱动、开箱即用的 Agent Harness。让 Codex、Claude Code、Gemini CLI 等 Coding Agent 在长程开发中保持上下文清晰、过程透明、结果可审查。
+
+## 一眼看懂
+
+Coding Agent Harness 不是另一个聊天提示词集合。它把 Agent 长程开发需要依赖的事实沉淀到仓库：入口协议、任务计划、执行证据、回归结果、Dashboard 和收口记录。
+
+最小闭环是：
+
+- 人提出目标，Agent 先读仓库里的 Harness 协议。
+- Agent 按 Diagnose → Decide → Scaffold → Configure → Verify → Deliver 执行。
+- CLI 和 Dashboard 把状态、风险、迁移计划和审查证据暴露出来。
+- 下一个 Agent 不靠上一轮聊天记忆，而是从仓库事实继续。
+
+![Harness 执行流程](docs-release/assets/harness-workflow.svg)
 
 ## 这是什么
 
@@ -102,7 +117,34 @@ harness --help
 
 Agent 不应静默执行全局安装。只有用户明确同意修改全局 npm 环境后，Agent 才能运行 `npm install -g coding-agent-harness`；否则继续使用 `npx --yes coding-agent-harness ...`。
 
-### 让 Agent 执行
+### 人看的常用命令
+
+初始化一个中文 Harness：
+
+```bash
+npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
+```
+
+启动本地动态 Workbench：
+
+```bash
+npx --yes coding-agent-harness dev .
+```
+
+生成可离线打开的静态 Dashboard：
+
+```bash
+npx --yes coding-agent-harness dashboard --out-dir tmp/harness-dashboard .
+open tmp/harness-dashboard/index.html
+```
+
+运行目标项目检查：
+
+```bash
+npx --yes coding-agent-harness check --profile target-project .
+```
+
+### 给 Agent 的提示词
 
 把下面这段话发给目标项目里的 Agent：
 
