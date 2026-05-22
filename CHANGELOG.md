@@ -14,6 +14,9 @@
   v1.0 capability and task-context routing.
 - Added README architecture diagrams and separated human CLI commands from
   agent-facing setup prompts.
+- Expanded the public architecture overview with Mermaid diagrams for package
+  boundaries, CLI surfaces, dashboard data flow, lifecycle state, migration
+  rails, release docs boundaries, and runtime safety.
 
 ## 1.0.0
 
