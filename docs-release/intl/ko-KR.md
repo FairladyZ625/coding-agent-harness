@@ -1,8 +1,8 @@
 # Coding Agent Harness
 
-Coding Agent Harness는 코딩 에이전트를 위한 저장소 기반 운영 레이어입니다. Codex, Claude Code, Gemini CLI, Cursor 스타일 에이전트가 장기 소프트웨어 작업을 계획하고, 확인하고, 리뷰하고, 다음 세션으로 이어 갈 수 있게 합니다.
+Coding Agent Harness는 코딩 에이전트의 작업을 채팅 기록이 아니라 저장소 안에 남기기 위한 도구입니다. 계획, 진행 상황, 리뷰, 마이그레이션 메모, Dashboard 상태가 코드와 함께 남습니다.
 
-![Dashboard overview](../assets/dashboard-overview.png)
+전체 UI와 실행 가능한 템플릿은 현재 English와 Simplified Chinese를 중심으로 유지됩니다.
 
 ## 사용 방식
 

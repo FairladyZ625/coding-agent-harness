@@ -1,8 +1,8 @@
 # Coding Agent Harness
 
-Coding Agent Harness 是一套给 Coding Agent 使用的仓库原生工作层。它让 Codex、Claude Code、Gemini CLI、Cursor 风格 Agent 等工具在长程开发中有稳定的计划、证据、审查和交接记录。
+Coding Agent Harness 把 Coding Agent 的计划、进度、审查、迁移记录和 Dashboard 快照留在仓库里，而不是散在聊天记录里。
 
-![Dashboard overview](../assets/dashboard-overview.png)
+![Dashboard overview](../assets/dashboard-overview-zh.png)
 
 ## 怎么用
 

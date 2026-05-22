@@ -4,31 +4,31 @@
 
 English | [简体中文](README.zh-CN.md) | [日本語](docs-release/intl/ja-JP.md) | [한국어](docs-release/intl/ko-KR.md) | [Français](docs-release/intl/fr-FR.md) | [Español](docs-release/intl/es-ES.md) | [Deutsch](docs-release/intl/de-DE.md)
 
-> A repo-native operating layer for coding agents. It gives Codex, Claude Code, Gemini CLI, Cursor-style agents, and similar tools a durable way to plan, execute, review, and hand off long-running software work.
+Coding agents can write code quickly. The annoying part starts later: one session made a plan, another changed files, and the next agent has to guess what is still risky.
 
-![Coding Agent Harness dashboard overview](docs-release/assets/dashboard-overview.png)
+Coding Agent Harness keeps that work in the repo: plans, progress, reviews, migration notes, and a dashboard that shows the current state.
 
-## What You Get
+![Coding Agent Harness dashboard overview](docs-release/assets/dashboard-overview-en.png)
 
-Coding Agent Harness turns agent work into visible repository facts:
+## What It Looks Like
 
-- `AGENTS.md` and reference docs tell agents how to operate in the project.
-- Task plans, execution strategies, progress logs, reviews, and closeout records keep long work inspectable.
-- Regression and migration checks show what changed and what still needs attention.
-- A local Dashboard lets humans review status, warnings, task state, and evidence without reading every Markdown file.
+The harness is just files plus a local dashboard.
 
-The point is simple: the next agent should resume from the repository, not from chat memory.
+- `AGENTS.md` tells the next agent how this repo works.
+- `task_plan.md`, `progress.md`, and `review.md` keep the task from turning into chat history.
+- Checks and migration reports say what is safe, what is stale, and what still needs a human decision.
+- `harness dev` opens the dashboard for everyday review.
 
-## How It Works
+## The Loop
 
 | Step | Human Experience | Agent / CLI Surface |
 | --- | --- | --- |
-| 1. Install | Give your agent the Harness entrypoint. | `npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness` |
-| 2. Initialize or migrate | The agent diagnoses the repo, proposes a plan, then writes the harness files you approve. | `npx --yes coding-agent-harness init ...` or `migrate-plan` |
-| 3. Review the workbench | Open a local Dashboard to inspect tasks, warnings, reviews, and evidence. | `npx --yes coding-agent-harness dev .` |
-| 4. Verify | Run project checks before handoff or release. | `npx --yes coding-agent-harness check --profile target-project .` |
+| Install | Give the agent one entrypoint. | `npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness` |
+| Start | The agent scans first, then proposes an init or migration plan. | `npx --yes coding-agent-harness init ...` or `migrate-plan` |
+| Review | Open the dashboard and check the task state. | `npx --yes coding-agent-harness dev .` |
+| Verify | Run checks before handoff. | `npx --yes coding-agent-harness check --profile target-project .` |
 
-![Coding Agent Harness review workspace](docs-release/assets/dashboard-review.png)
+![Coding Agent Harness review workspace](docs-release/assets/dashboard-review-en.png)
 
 ## Try It In A Project
 
@@ -55,7 +55,7 @@ open tmp/harness-dashboard/index.html
 
 ## What The Agent Reads
 
-Harness is ordinary repository content. There is no required database or background service.
+Harness is ordinary repository content. There is no database to run.
 
 ```text
 AGENTS.md
@@ -79,7 +79,7 @@ review.md
 lesson_candidates.md
 ```
 
-Humans can scan the Dashboard and briefs. Agents can read the structured files and continue the work with the same operating contract.
+Humans scan the dashboard. Agents read the files. That is the whole trick.
 
 ## Language Support
 
@@ -93,17 +93,17 @@ Humans can scan the Dashboard and briefs. Agents can read the structured files a
 | Spanish | Intro | Routing only | Use English templates |
 | German | Intro | Routing only | Use English templates |
 
-Intro-only languages are intentionally lightweight. Agent-executable templates are maintained in English and Simplified Chinese first, because stale translated instructions can create bad agent behavior.
+Intro-only pages are deliberately small. Agent-executable templates stay in English and Simplified Chinese first, because stale translated instructions are worse than no translation.
 
 ## Good Fit
 
-Coding Agent Harness is useful when:
+This is useful when:
 
 - agents work on real repositories for days or weeks;
 - multiple agents or developers share the same project;
 - task state, review evidence, and regression results need to survive across sessions;
 - an existing project has old plans, migration notes, or scattered agent instructions;
-- a team wants AI development to be visible and reviewable instead of hidden in chat logs.
+- the important parts of AI work should not live only in chat logs.
 
 ## Install The Skill
 

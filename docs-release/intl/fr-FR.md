@@ -1,8 +1,8 @@
 # Coding Agent Harness
 
-Coding Agent Harness est une couche de travail, native au depot, pour les agents de code. Elle aide Codex, Claude Code, Gemini CLI, les agents de style Cursor et les outils similaires a planifier, suivre, revoir et reprendre des travaux logiciels longs.
+Coding Agent Harness garde le travail des agents de code dans le depot, pas seulement dans l'historique de discussion. Plans, progression, revues, notes de migration et etats du Dashboard restent avec le code.
 
-![Dashboard overview](../assets/dashboard-overview.png)
+L'interface complete et les modeles executables sont actuellement maintenus en English et Simplified Chinese.
 
 ## Fonctionnement
 

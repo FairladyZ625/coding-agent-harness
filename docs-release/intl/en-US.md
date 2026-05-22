@@ -1,8 +1,8 @@
 # Coding Agent Harness
 
-Coding Agent Harness is a repo-native operating layer for coding agents. It helps Codex, Claude Code, Gemini CLI, Cursor-style agents, and similar tools keep long-running software work planned, visible, reviewable, and resumable.
+Coding Agent Harness keeps coding-agent work inside the repository instead of leaving it buried in chat history. Plans, progress, reviews, migration notes, and dashboard snapshots stay with the code.
 
-![Dashboard overview](../assets/dashboard-overview.png)
+![Dashboard overview](../assets/dashboard-overview-en.png)
 
 ## How It Works
 

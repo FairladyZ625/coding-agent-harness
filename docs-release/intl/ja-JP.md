@@ -1,8 +1,8 @@
 # Coding Agent Harness
 
-Coding Agent Harness は、コーディングエージェントのためのリポジトリネイティブな運用レイヤーです。Codex、Claude Code、Gemini CLI、Cursor 系エージェントなどが、長期的なソフトウェア開発を計画し、可視化し、レビューし、次のセッションへ引き継げるようにします。
+Coding Agent Harness は、コーディングエージェントの作業をチャット履歴ではなくリポジトリに残すための仕組みです。計画、進捗、レビュー、移行メモ、Dashboard の状態がコードと一緒に残ります。
 
-![Dashboard overview](../assets/dashboard-overview.png)
+UI と実行可能なテンプレートは、現在 English と Simplified Chinese を中心に保守されています。
 
 ## 使い方
 
