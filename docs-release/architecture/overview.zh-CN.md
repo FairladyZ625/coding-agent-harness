@@ -83,6 +83,18 @@ flowchart TB
 
 目标仓库是事实源。Agent 应该能从这些文件恢复上下文，而不是依赖上一轮聊天记忆。
 
+## 仓库运行模式
+
+目标项目可以采用三种仓库组织方式：
+
+| 模式 | 控制面 | 执行面 |
+| --- | --- | --- |
+| 单仓模式 | 同一个仓库管理 `AGENTS.md`、`docs/`、代码、测试和收口。 | 同一个仓库。 |
+| 多仓独立模式 | 每个仓库都有自己的局部 `AGENTS.md` 和 `docs/`。 | 每个仓库独立执行。 |
+| 主控仓库模式 | 父仓库管理全局 Harness 控制面。 | 子仓库管理实现代码和局部检查。 |
+
+如果一个产品拆成前端、后端、SDK、微服务和上游参考仓库，主控仓库模式可以把 Agent 启动入口、Feature SSoT、回归状态和收口证据固定在一个地方。详见 `docs-release/guides/repository-operating-models.md` 和 `docs-release/guides/parent-control-repository-pattern.md`。
+
 ## CLI 命令面
 
 ```mermaid

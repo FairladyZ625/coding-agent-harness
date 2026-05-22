@@ -92,6 +92,22 @@ flowchart TB
 The target repository is the source of truth. The agent should be able to resume
 from these files without relying on previous chat memory.
 
+## Repository Operating Models
+
+The target repository can be organized in three ways:
+
+| Model | Control surface | Execution surface |
+| --- | --- | --- |
+| Single repo | The same repository owns `AGENTS.md`, `docs/`, code, tests, and closeout. | The same repository. |
+| Independent multi-repo | Each repository owns its own local `AGENTS.md` and `docs/`. | Each repository runs independently. |
+| Parent-control repository | A parent repository owns the global Harness control plane. | Child repositories own implementation code and local checks. |
+
+For products split across frontend, backend, SDKs, services, and upstream references,
+the parent-control model keeps the agent startup point, Feature SSoT, regression
+state, and closeout evidence in one place. See
+`docs-release/guides/repository-operating-models.en-US.md` and
+`docs-release/guides/parent-control-repository-pattern.en-US.md`.
+
 ## CLI Command Surface
 
 ```mermaid
