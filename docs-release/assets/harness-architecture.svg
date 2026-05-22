@@ -1,0 +1,163 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 1400 760" role="img" aria-labelledby="title desc">
+  <title id="title">Prompt, context, and harness engineering comparison</title>
+  <desc id="desc">A side-by-side architecture diagram comparing prompt engineering, context engineering, and harness engineering for coding agents.</desc>
+  <defs>
+    <marker id="arrowhead" markerWidth="18" markerHeight="18" refX="15" refY="9" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2L16 9L2 16Z" fill="#476b32"/>
+    </marker>
+    <filter id="paperShadow" x="-4%" y="-4%" width="108%" height="108%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.4" flood-color="#000000" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <style>
+    .outer{fill:#fffdf9;stroke:#ddd5c7;stroke-width:2}
+    .dash{fill:none;stroke:#2f332e;stroke-width:2;stroke-dasharray:8 7}
+    .arrow-band{fill:#d7e1de;opacity:.95}
+    .arrow-stroke{fill:none;stroke:#476b32;stroke-width:0}
+    .prompt-band{fill:#fee8a7;stroke:#111;stroke-width:4}
+    .context-band{fill:#b7d2eb;stroke:#111;stroke-width:4}
+    .harness-band{fill:#c5dfb2;stroke:#111;stroke-width:4}
+    .prompt-col{fill:#f8f0d8}
+    .context-col{fill:#eaf3fb}
+    .harness-col{fill:#eaf3e3}
+    .prompt-floor{fill:#c6b47a}
+    .context-floor{fill:#8ba6bd}
+    .harness-floor{fill:#8fa887}
+    .card{fill:#fff;stroke:#efe9de;stroke-width:1.2;filter:url(#paperShadow)}
+    .card-round{fill:#fff;stroke:#e8ece9;stroke-width:1.2;filter:url(#paperShadow)}
+    .prompt-text{fill:#846500}.context-text{fill:#21557f}.harness-text{fill:#3f672e}
+    .prompt-icon{stroke:#d79a00}.context-icon{stroke:#2d65ad}.harness-icon{stroke:#5c9d42}
+    .ink{fill:#111}.muted{fill:#727272}.caption{fill:#777b82}
+    .heading{font-family:Georgia, 'Times New Roman', serif;font-size:31px;font-weight:700}
+    .sub{font-family:Georgia, 'Times New Roman', serif;font-size:25px}
+    .band{font-family:'Courier New', ui-monospace, monospace;font-size:25px;font-weight:700;letter-spacing:.5px}
+    .card-title{font-family:Georgia, 'Times New Roman', serif;font-size:26px;font-weight:700}
+    .card-sub{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:18px;font-style:italic;font-weight:500}
+    .small{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:16px}
+    .caption-text{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:24px;font-style:italic}
+    .icon{fill:none;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+  </style>
+
+  <rect x="48" y="42" width="1304" height="636" rx="8" class="outer"/>
+  <rect x="56" y="88" width="1288" height="70" class="arrow-band"/>
+  <path d="M56 88H1288L1342 123L1288 158H56Z" fill="#d7e1de"/>
+  <rect x="56" y="88" width="1288" height="70" class="dash"/>
+
+  <rect x="82" y="97" width="360" height="52" rx="14" class="prompt-band"/>
+  <text x="262" y="131" text-anchor="middle" class="ink band">Prompt Engineering</text>
+  <rect x="490" y="97" width="388" height="52" rx="14" class="context-band"/>
+  <text x="684" y="131" text-anchor="middle" class="ink band">Context Engineering</text>
+  <rect x="926" y="97" width="390" height="52" rx="14" class="harness-band"/>
+  <text x="1121" y="131" text-anchor="middle" class="ink band">Harness Engineering</text>
+
+  <rect x="82" y="158" width="360" height="486" class="prompt-col"/>
+  <rect x="82" y="612" width="360" height="32" class="prompt-floor"/>
+  <rect x="490" y="158" width="388" height="486" class="context-col"/>
+  <rect x="490" y="612" width="388" height="32" class="context-floor"/>
+  <rect x="926" y="158" width="390" height="486" class="harness-col"/>
+  <rect x="926" y="612" width="390" height="32" class="harness-floor"/>
+
+  <text x="262" y="187" text-anchor="middle" class="prompt-text heading">Single-call</text>
+  <text x="262" y="223" text-anchor="middle" class="prompt-text sub">Optimize the model input</text>
+  <text x="684" y="187" text-anchor="middle" class="context-text heading">Multi-step context</text>
+  <text x="684" y="223" text-anchor="middle" class="context-text sub">Optimize what the model sees</text>
+  <text x="1121" y="187" text-anchor="middle" class="harness-text heading">System-level</text>
+  <text x="1121" y="223" text-anchor="middle" class="harness-text sub">Optimize how the agent runs</text>
+
+  <rect x="124" y="250" width="276" height="94" class="card"/>
+  <g transform="translate(148 274)" class="icon prompt-icon">
+    <rect x="0" y="0" width="39" height="48" rx="3"/>
+    <path d="M9 12H29M9 23H25M9 34H20"/>
+    <path d="M33 36L48 51M48 51L58 36M48 51V18"/>
+  </g>
+  <text x="376" y="288" text-anchor="end" class="prompt-text card-title">Instruction</text>
+  <text x="376" y="315" text-anchor="end" class="muted card-sub">role, task, constraints</text>
+
+  <rect x="124" y="386" width="276" height="94" class="card"/>
+  <g transform="translate(147 410)" class="icon prompt-icon">
+    <rect x="0" y="0" width="24" height="24" rx="3"/>
+    <rect x="33" y="0" width="24" height="24" rx="3"/>
+    <rect x="0" y="34" width="24" height="24" rx="3"/>
+    <rect x="33" y="34" width="24" height="24" rx="3"/>
+    <path d="M7 12H17M40 12H50M7 46H17M40 46H50"/>
+  </g>
+  <text x="376" y="424" text-anchor="end" class="prompt-text card-title">Examples</text>
+  <text x="376" y="451" text-anchor="end" class="muted card-sub">format and persona</text>
+
+  <rect x="124" y="522" width="276" height="94" class="card"/>
+  <g transform="translate(149 545)" class="icon prompt-icon">
+    <circle cx="29" cy="29" r="24"/>
+    <circle cx="29" cy="29" r="9"/>
+    <path d="M29 5V18M53 29H40M29 53V40M5 29H18"/>
+    <path d="M49 8L57 1M57 1L57 12M57 1H46"/>
+  </g>
+  <text x="376" y="560" text-anchor="end" class="prompt-text card-title">Iteration</text>
+  <text x="376" y="587" text-anchor="end" class="muted card-sub">refine wording</text>
+
+  <rect x="522" y="250" width="324" height="94" rx="28" class="card-round"/>
+  <g transform="translate(545 274)" class="icon context-icon">
+    <ellipse cx="25" cy="8" rx="22" ry="8"/>
+    <path d="M3 8V38C3 43 13 48 25 48S47 43 47 38V8"/>
+    <path d="M3 23C3 28 13 33 25 33S47 28 47 23"/>
+    <circle cx="58" cy="43" r="13"/>
+    <path d="M68 53L81 66"/>
+  </g>
+  <text x="820" y="288" text-anchor="end" class="context-text card-title">Retrieval</text>
+  <text x="820" y="315" text-anchor="end" class="muted card-sub">load files, docs, outputs</text>
+
+  <rect x="522" y="386" width="324" height="94" rx="28" class="card-round"/>
+  <g transform="translate(548 411)" class="icon context-icon">
+    <rect x="12" y="8" width="48" height="48" rx="4"/>
+    <path d="M22 0V8M34 0V8M46 0V8M22 56V64M34 56V64M46 56V64M4 18H12M4 32H12M4 46H12M60 18H68M60 32H68M60 46H68"/>
+  </g>
+  <text x="820" y="424" text-anchor="end" class="context-text card-title">Memory</text>
+  <text x="820" y="451" text-anchor="end" class="muted card-sub">progress and decisions</text>
+
+  <rect x="522" y="522" width="324" height="94" rx="28" class="card-round"/>
+  <g transform="translate(547 546)" class="icon context-icon">
+    <path d="M0 8H64L44 31V56L22 66V31Z"/>
+    <path d="M13 8V0M32 8V0M51 8V0"/>
+    <path d="M16 21H48"/>
+  </g>
+  <text x="820" y="560" text-anchor="end" class="context-text card-title">Filtering</text>
+  <text x="820" y="587" text-anchor="end" class="muted card-sub">remove stale context</text>
+
+  <rect x="958" y="244" width="326" height="76" rx="34" class="card-round"/>
+  <g transform="translate(982 266) scale(.78)" class="icon harness-icon">
+    <path d="M12 12L24 24M24 24L12 36M24 24H58"/>
+    <rect x="58" y="8" width="42" height="32" rx="5"/>
+    <path d="M69 24H90"/>
+  </g>
+  <text x="1258" y="276" text-anchor="end" class="harness-text card-title">CLI &amp; tools</text>
+  <text x="1258" y="301" text-anchor="end" class="muted card-sub">init, status, check</text>
+
+  <rect x="958" y="340" width="326" height="76" rx="34" class="card-round"/>
+  <g transform="translate(984 364) scale(.78)" class="icon harness-icon">
+    <rect x="0" y="0" width="68" height="44" rx="4"/>
+    <path d="M10 32L26 20L38 27L58 11"/>
+    <circle cx="26" cy="20" r="3"/><circle cx="38" cy="27" r="3"/><circle cx="58" cy="11" r="3"/>
+  </g>
+  <text x="1258" y="372" text-anchor="end" class="harness-text card-title">Dashboard</text>
+  <text x="1258" y="397" text-anchor="end" class="muted card-sub">inspect status and risks</text>
+
+  <rect x="958" y="436" width="326" height="76" rx="34" class="card-round"/>
+  <g transform="translate(985 459) scale(.78)" class="icon harness-icon">
+    <path d="M35 4L65 16V36C65 55 52 68 35 73C18 68 5 55 5 36V16Z"/>
+    <path d="M22 39L32 49L52 27"/>
+  </g>
+  <text x="1258" y="468" text-anchor="end" class="harness-text card-title">Guardrails</text>
+  <text x="1258" y="493" text-anchor="end" class="muted card-sub">boundaries and approvals</text>
+
+  <rect x="958" y="532" width="326" height="76" rx="34" class="card-round"/>
+  <g transform="translate(985 555) scale(.78)" class="icon harness-icon">
+    <path d="M8 34C8 19 20 8 36 8S64 19 64 34S52 60 36 60"/>
+    <path d="M36 60H16M16 60L25 50M16 60L25 70"/>
+    <path d="M28 31L36 39L50 24"/>
+  </g>
+  <text x="1258" y="564" text-anchor="end" class="harness-text card-title">Review loop</text>
+  <text x="1258" y="589" text-anchor="end" class="muted card-sub">regression, closeout, lessons</text>
+
+  <path d="M442 123H490" stroke="#2f332e" stroke-width="2" fill="none"/>
+  <path d="M878 123H926" stroke="#2f332e" stroke-width="2" fill="none"/>
+  <text x="700" y="725" text-anchor="middle" class="caption caption-text">From optimizing one prompt, to managing context, to engineering the agent's operating system.</text>
+</svg>

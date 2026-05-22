@@ -168,9 +168,9 @@ export function buildInstallReport({ target, locale, capabilities, changes, dryR
       "Run harness check/status/dashboard and record residuals before delivery.",
     ],
     verificationCommands: [
-      `node scripts/harness.mjs check --profile target-project ${target.projectRoot}`,
-      `node scripts/harness.mjs status --json ${target.projectRoot}`,
-      `node scripts/harness.mjs dashboard --out /tmp/harness-dashboard.html ${target.projectRoot}`,
+      `harness check --profile target-project ${target.projectRoot}`,
+      `harness status --json ${target.projectRoot}`,
+      `harness dashboard --out /tmp/harness-dashboard.html ${target.projectRoot}`,
     ],
   };
 }

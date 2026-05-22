@@ -6,6 +6,14 @@
   lesson candidate governance, and refreshed public installation guidance.
 - Added bilingual README coverage and restored Star History in the public
   project README.
+- Slimmed the generated `AGENTS.md` templates back to charter and routing
+  content instead of install instructions.
+- Removed source-checkout and private maintainer instructions from
+  target-facing reports and public install guidance.
+- Replaced old 12-phase labels in the Skill reference/template indexes with
+  v1.0 capability and task-context routing.
+- Added README architecture diagrams and separated human CLI commands from
+  agent-facing setup prompts.
 
 ## 1.0.0
 
