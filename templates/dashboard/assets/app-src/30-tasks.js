@@ -42,9 +42,15 @@ function sortTasksByTime(tasks) {
   return [...tasks].sort(compareTasksByTime);
 }
 
+function taskFolderName(task) {
+  const fromPath = String(task?.path || "").split("/").filter(Boolean).pop();
+  const fromId = String(task?.id || "").split("/").filter(Boolean).pop();
+  return task?.shortId || fromPath || fromId || task?.title || "";
+}
+
 function taskCopyButton(task, extraClass = "") {
-  const taskName = task?.title || task?.id || "";
-  return `<button type="button" class="copy-task-name ${extraClass}" data-copy-task-name="${escapeAttr(taskName)}" aria-label="${escapeAttr(t("copyTaskName"))}" title="${escapeAttr(t("copyTaskName"))}">
+  const folderName = taskFolderName(task);
+  return `<button type="button" class="copy-task-name ${extraClass}" data-copy-task-name="${escapeAttr(folderName)}" data-copy-task-folder="${escapeAttr(folderName)}" aria-label="${escapeAttr(t("copyTaskName"))}" title="${escapeAttr(t("copyTaskName"))}">
     ${t("copyTaskNameShort")}
   </button>`;
 }

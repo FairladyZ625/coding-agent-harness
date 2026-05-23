@@ -183,6 +183,7 @@ button, input, select {
   letter-spacing: 0.08em;
   margin: 0 0 6px;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .hero-actions {
@@ -239,9 +240,15 @@ button, input, select {
   margin-top: 16px;
 }
 
-@media (min-width: 1024px) {
+.dashboard-main,
+.dashboard-sidebar,
+.status-card-group {
+  min-width: 0;
+}
+
+@media (min-width: 1280px) {
   .dashboard-grid {
-    grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
     align-items: start;
   }
 }
@@ -348,6 +355,11 @@ button, input, select {
   gap: 18px;
   align-items: center;
   margin-bottom: 16px;
+  min-width: 0;
+}
+
+.section-head > div {
+  min-width: 0;
 }
 
 .section-actions {
@@ -367,6 +379,7 @@ button, input, select {
   font-size: 18px;
   font-weight: 800;
   letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
 }
 
 .flow-panel,
@@ -731,6 +744,8 @@ button, input, select {
 
 /* Premium Typography & Markdown Rendering */
 .markdown {
+  min-width: 0;
+  max-width: 100%;
   line-height: 1.6;
   overflow-wrap: anywhere;
   font-size: 14px;
@@ -765,6 +780,7 @@ button, input, select {
 }
 
 .markdown pre {
+  max-width: 100%;
   overflow: auto;
   background: var(--paper-2);
   border: 1px solid var(--line);
@@ -793,6 +809,7 @@ button, input, select {
 }
 
 .rendered-table-wrap {
+  max-width: 100%;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1693,17 +1710,28 @@ button, input, select {
 .review-workspace {
   display: grid;
   gap: 20px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .review-workspace-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 20px;
+  min-width: 0;
+  max-width: 100%;
 }
 
-@media (min-width: 1180px) {
+.review-workspace-main,
+.review-workspace-side,
+.review-doc-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (min-width: 1280px) {
   .review-workspace-grid {
-    grid-template-columns: minmax(0, 2fr) minmax(320px, 420px);
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
     align-items: start;
   }
 }
@@ -1898,6 +1926,9 @@ button, input, select {
 
 .doc-section {
   padding: 24px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .doc-library {
@@ -1985,6 +2016,8 @@ button, input, select {
 
 .side-panel {
   padding: 20px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .side-panel a {
@@ -2335,7 +2368,7 @@ details summary {
 .task-drawer {
   position: fixed;
   top: 0;
-  right: -67vw;
+  right: 0;
   width: 65vw;
   max-width: 100%;
   height: 100%;
@@ -2345,15 +2378,15 @@ details summary {
   z-index: 1001;
   display: flex;
   flex-direction: column;
-  transition: right 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateX(105%);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .task-drawer.active {
-  right: 0;
+  transform: translateX(0);
 }
 @media (max-width: 768px) {
   .task-drawer {
     width: 100%;
-    right: -102%;
   }
 }
 
@@ -2652,6 +2685,7 @@ details summary {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px;
+  min-width: 0;
 }
 .task-state-summary span:first-child {
   display: block;
@@ -2660,6 +2694,15 @@ details summary {
   font-weight: 800;
   margin-bottom: 6px;
   text-transform: uppercase;
+}
+.task-state-summary .tag {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 .review-actions {
   display: grid;
@@ -2692,14 +2735,14 @@ details summary {
 }
 .review-confirm-copy {
   display: flex;
+  justify-content: flex-start;
 }
 .review-actions .copy-task-name.review-copy-task-name {
-  width: 100%;
-  justify-content: center;
+  width: fit-content;
   background: var(--paper-2);
   color: var(--ink);
   border: 1px solid var(--line);
-  padding: 9px 10px;
+  padding: 6px 10px;
 }
 .review-actions button {
   width: 100%;
@@ -2750,7 +2793,7 @@ details summary {
 </head>
 <body>
   <div id="app" class="app-shell" aria-live="polite"></div>
-  <script>window.__HARNESS_DASHBOARD__ = {"status":{"project":{"name":"minimal-project","root":"TARGET:.","docsOnly":false},"schemaVersion":2,"generatedAt":"2026-05-23T10:24:21.934Z","mode":"declared-capability","checkState":{"status":"pass","failures":0,"warnings":0,"details":{"failures":[],"warnings":[]},"legacy":{"status":"skipped","code":0,"stdout":"","stderr":""}},"summary":{"tasks":1,"briefCoverage":{"ready":1,"missing":0,"total":1},"visualMapCoverage":{"canonical":1,"legacyOnly":0,"missing":0,"total":1},"fullCutoverEligible":true,"legacyVisualOnlyCount":0,"unknownClassificationCount":0,"weakBriefCount":0,"visualMapRequiredCount":1,"missingCanonicalVisualMapCount":0},"capabilities":[{"name":"core","state":"configured","dependencyStatus":"valid","warnings":[]},{"name":"adversarial-review","state":"verified","dependencyStatus":"valid","warnings":[]},{"name":"dashboard","state":"verified","dependencyStatus":"valid","warnings":[]}],"tasks":[{"id":"TASKS/demo-task","shortId":"demo-task","title":"Demo task","path":"TARGET:docs/09-PLANNING/TASKS/demo-task","taskPlanPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/task_plan.md","executionStrategyPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/execution_strategy.md","progressPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/progress.md","reviewPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/review.md","findingsPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/findings.md","module":null,"inferredModule":"task-lifecycle","classificationSource":"inferred","classificationBucket":"current","briefSource":"standalone","briefPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/brief.md","visualMapSource":"canonical","visualMapStatus":"present","visualMapPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md","legacyVisualRoadmapPresent":false,"briefQuality":{"status":"pass","issues":[]},"migrationClassification":"active","roadmapSource":"canonical","state":"in_progress","budget":"standard","taskContractVersion":"harness-task/v1","taskContractGenerated":true,"stateSource":"explicit","stateRaw":"in-progress","lifecycleState":"active","reviewStatus":"required","reviewConfirmation":null,"closeoutStatus":"missing","walkthroughPath":"","lessonCandidatePath":"TARGET:docs/09-PLANNING/TASKS/demo-task/lesson_candidates.md","lessonCandidateStatus":"no-candidate-accepted","lessonCandidateReviewDecision":"accepted-no-candidate","lessonCandidatePromotionState":"not-promoted","lessonCandidateCloseoutToken":"checked-candidate:LC-20260101-000","lessonCandidateRowCount":0,"lessonCandidateOpenCount":0,"lessonCandidateIssues":[],"lessonCandidateDecisionComplete":true,"longRunningContractPath":"","longRunningContractStatus":"missing","stateConflicts":[],"completion":50,"phases":[{"id":"P1","dependsOn":[],"state":"done","completion":100,"output":"Example plan","requiredEvidence":["review"],"evidenceStatus":"present","blockingRisk":"none","owner":"coordinator"},{"id":"P2","dependsOn":["P1"],"state":"planned","completion":0,"output":"Example verification","requiredEvidence":["command"],"evidenceStatus":"missing","blockingRisk":"none","owner":"coordinator"}],"risks":[{"id":"R-001","severity":"P3","open":false,"blocksRelease":false,"summary":"Example only"}],"evidence":[{"id":"E-001","type":"report","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md","status":"present","summary":"example phase table"}],"handoffs":[],"dependencies":[]}],"handoffs":[],"recentActivity":[{"at":"2026-05-23T10:24:21.935Z","type":"task","summary":"Demo task"}]},"tables":{"tables":[{"id":"execution-strategy-01","kind":"execution-strategy","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/execution_strategy.md","line":3,"columns":["Decision","Choice","Notes"],"rows":[{"id":"execution-strategy-01-row-001","cells":{"Decision":"Primary executor","Choice":"coordinator","Notes":"Example task only."}},{"id":"execution-strategy-01-row-002","cells":{"Decision":"Subagents","Choice":"none","Notes":"No parallel work needed."}},{"id":"execution-strategy-01-row-003","cells":{"Decision":"Review model","Choice":"self-check","Notes":"Demonstrates the contract shape."}},{"id":"execution-strategy-01-row-004","cells":{"Decision":"Worktree strategy","Choice":"same checkout","Notes":"Public example fixture."}},{"id":"execution-strategy-01-row-005","cells":{"Decision":"Conflict control","Choice":"coordinator owns shared files","Notes":"No shared-file contention."}},{"id":"execution-strategy-01-row-006","cells":{"Decision":"Evidence depth","Choice":"L0","Notes":"Fixture-level evidence only."}}]},{"id":"lesson-candidates-01","kind":"lesson-candidates","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/lesson_candidates.md","line":5,"columns":["Field","Value"],"rows":[{"id":"lesson-candidates-01-row-001","cells":{"Field":"Schema version","Value":"lesson-candidate-v1"}},{"id":"lesson-candidates-01-row-002","cells":{"Field":"Task-level status","Value":"no-candidate-accepted"}},{"id":"lesson-candidates-01-row-003","cells":{"Field":"Review gate","Value":"candidate-file-present"}},{"id":"lesson-candidates-01-row-004","cells":{"Field":"Review decision","Value":"accepted-no-candidate"}},{"id":"lesson-candidates-01-row-005","cells":{"Field":"Promotion state","Value":"not-promoted"}},{"id":"lesson-candidates-01-row-006","cells":{"Field":"Closeout token","Value":"checked-candidate:LC-20260101-000"}},{"id":"lesson-candidates-01-row-007","cells":{"Field":"Source task","Value":"demo-task"}},{"id":"lesson-candidates-01-row-008","cells":{"Field":"Owner","Value":"coordinator"}},{"id":"lesson-candidates-01-row-009","cells":{"Field":"Last updated","Value":"2026-01-01"}}]},{"id":"lesson-candidates-02","kind":"lesson-candidates","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/lesson_candidates.md","line":19,"columns":["ID","Row Status","Title","Why It Might Matter","Review Decision","Promotion Target"],"rows":[]},{"id":"task-progress-01","kind":"task-progress","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/progress.md","line":9,"columns":["Date","Update","Evidence"],"rows":[{"id":"task-progress-01-row-001","cells":{"Date":"2026-05-18","Update":"Created example visual map","Evidence":"report:TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md:example phase table"}}]},{"id":"task-review-01","kind":"task-review","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/review.md","line":5,"columns":["Reviewer","Type","Scope"],"rows":[{"id":"task-review-01-row-001","cells":{"Reviewer":"coordinator","Type":"self-check","Scope":"example"}}]},{"id":"task-review-02","kind":"task-review","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/review.md","line":15,"columns":["Evidence ID","Type","Path","Summary"],"rows":[{"id":"task-review-02-row-001","cells":{"Evidence ID":"E-001","Type":"review","Path":"TARGET:docs/09-PLANNING/TASKS/demo-task/task_plan.md","Summary":"Visual roadmap table exists"}}]},{"id":"task-review-03","kind":"task-review","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/review.md","line":21,"columns":["ID","Severity","Finding","Evidence Checked","Required Action","Open","Disposition","Blocks Release","Follow-up"],"rows":[{"id":"task-review-03-row-001","cells":{"ID":"R-001","Severity":"P3","Finding":"Example only","Evidence Checked":"E-001","Required Action":"none","Open":"no","Disposition":"closed","Blocks Release":"no","Follow-up":"none"}}]},{"id":"visual-map-01","kind":"visual-map","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md","line":7,"columns":["ID","Type","Purpose","Required For Understanding","Source Evidence","Promotion Candidate"],"rows":[{"id":"visual-map-01-row-001","cells":{"ID":"MAP-01","Type":"phase","Purpose":"Show the demo task phase relationship","Required For Understanding":"yes","Source Evidence":"`task_plan.md`","Promotion Candidate":"no"}}]},{"id":"visual-map-02","kind":"visual-map","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md","line":16,"columns":["Phase ID","Depends On","State","Completion","Output","Required Evidence","Evidence Status","Blocking Risk","Owner / Handoff"],"rows":[{"id":"visual-map-02-row-001","cells":{"Phase ID":"P1","Depends On":"none","State":"done","Completion":"100","Output":"Example plan","Required Evidence":"review","Evidence Status":"present","Blocking Risk":"none","Owner / Handoff":"coordinator"}},{"id":"visual-map-02-row-002","cells":{"Phase ID":"P2","Depends On":"P1","State":"planned","Completion":"0","Output":"Example verification","Required Evidence":"command","Evidence Status":"missing","Blocking Risk":"none","Owner / Handoff":"coordinator"}}]},{"id":"harness-ledger-01","kind":"harness-ledger","source":"TARGET:docs/Harness-Ledger.md","line":3,"columns":["ID","Task","Status","Review State","Next Action","Owner"],"rows":[{"id":"harness-ledger-01-row-001","cells":{"ID":"LED-001","Task":"demo-task","Status":"in_progress","Review State":"review-ready","Next Action":"Verify rendered roadmap and evidence","Owner":"coordinator"}},{"id":"harness-ledger-01-row-002","cells":{"ID":"LED-002","Task":"escaped-pipe-demo","Status":"planned","Review State":"pending","Next Action":"Confirm parser keeps alpha|beta notes","Owner":"coordinator"}}]}]},"documents":{"documents":[{"id":"doc-0001-brief","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/brief.md","title":"Demo task","type":"task-brief","content":"# Demo task\n\n## Brief\n\nMinimal example task used by the dashboard smoke tests.\n\n## Task ID\n\n`demo-task`\n\n## Outcome\n\nShow a readable task summary in the static dashboard without requiring an editor.\n"},{"id":"doc-0002-execution-strategy","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/execution_strategy.md","title":"Execution Strategy","type":"execution-strategy","content":"# Execution Strategy\n\n| Decision | Choice | Notes |\n| --- | --- | --- |\n| Primary executor | coordinator | Example task only. |\n| Subagents | none | No parallel work needed. |\n| Review model | self-check | Demonstrates the contract shape. |\n| Worktree strategy | same checkout | Public example fixture. |\n| Conflict control | coordinator owns shared files | No shared-file contention. |\n| Evidence depth | L0 | Fixture-level evidence only. |\n"},{"id":"doc-0003-lesson-candidates","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/lesson_candidates.md","title":"Demo Task - Lesson Candidates","type":"lesson-candidates","content":"# Demo Task - Lesson Candidates\n\n## Candidate Status\n\n| Field | Value |\n| --- | --- |\n| Schema version | lesson-candidate-v1 |\n| Task-level status | no-candidate-accepted |\n| Review gate | candidate-file-present |\n| Review decision | accepted-no-candidate |\n| Promotion state | not-promoted |\n| Closeout token | checked-candidate:LC-20260101-000 |\n| Source task | demo-task |\n| Owner | coordinator |\n| Last updated | 2026-01-01 |\n\n## Candidates\n\n| ID | Row Status | Title | Why It Might Matter | Review Decision | Promotion Target |\n| --- | --- | --- | --- | --- | --- |\n\n## No-Candidate Reason\n\nThe example task exists only to demonstrate dashboard parsing and does not produce a reusable governance lesson.\n"},{"id":"doc-0004-progress","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/progress.md","title":"Demo Task - Progress","type":"task-progress","content":"# Demo Task - Progress\n\n## Status\n\nin-progress\n\n## Updates\n\n| Date | Update | Evidence |\n| --- | --- | --- |\n| 2026-05-18 | Created example visual map | report:TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md:example phase table |\n"},{"id":"doc-0005-review","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/review.md","title":"Demo Task - Review","type":"task-review","content":"# Demo Task - Review\n\n## Reviewer Identity\n\n| Reviewer | Type | Scope |\n| --- | --- | --- |\n| coordinator | self-check | example |\n\n## Confidence Challenge\n\nNo material finding for this example.\n\n## Evidence Checked\n\n| Evidence ID | Type | Path | Summary |\n| --- | --- | --- | --- |\n| E-001 | review | TARGET:docs/09-PLANNING/TASKS/demo-task/task_plan.md | Visual roadmap table exists |\n\n## Findings\n\n| ID | Severity | Finding | Evidence Checked | Required Action | Open | Disposition | Blocks Release | Follow-up |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| R-001 | P3 | Example only | E-001 | none | no | closed | no | none |\n\n## Final Confidence Basis\n\nself-check only; example is not a release approval.\n"},{"id":"doc-0006-task-plan","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/task_plan.md","title":"Demo Task","type":"markdown-table","content":"# Demo Task\n\nTask Contract: harness-task/v1\n\n## Goal\n\nShow the v1.0 visual map contract.\n\n## Scope\n\nPublic example only.\n\n## Execution & Visualization Files\n\n- `execution_strategy.md`\n- `visual_map.md`\n"},{"id":"doc-0007-visual-map","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md","title":"Visual Map","type":"visual-map","content":"# Visual Map\n\nVisual Map Contract: v1.0\n\n## Map Index\n\n| ID | Type | Purpose | Required For Understanding | Source Evidence | Promotion Candidate |\n| --- | --- | --- | --- | --- | --- |\n| MAP-01 | phase | Show the demo task phase relationship | yes | `task_plan.md` | no |\n\n```mermaid\nflowchart LR\n  P1[\"Plan\"] --> P2[\"Verify\"]\n```\n\n| Phase ID | Depends On | State | Completion | Output | Required Evidence | Evidence Status | Blocking Risk | Owner / Handoff |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| P1 | none | done | 100 | Example plan | review | present | none | coordinator |\n| P2 | P1 | planned | 0 | Example verification | command | missing | none | coordinator |\n"},{"id":"doc-0008-harness-ledger","path":"TARGET:docs/Harness-Ledger.md","title":"Harness Ledger","type":"harness-ledger","content":"# Harness Ledger\n\n| ID | Task | Status | Review State | Next Action | Owner |\n| --- | --- | --- | --- | --- | --- |\n| LED-001 | demo-task | in_progress | review-ready | Verify rendered roadmap and evidence | coordinator |\n| LED-002 | escaped-pipe-demo | planned | pending | Confirm parser keeps alpha\\|beta notes | coordinator |\n"}]},"graph":{"nodes":[{"id":"task:TASKS/demo-task","type":"task","label":"Demo task","state":"in_progress","completion":50},{"id":"phase:TASKS/demo-task:P1","type":"phase","label":"P1","state":"done","completion":100,"taskId":"TASKS/demo-task"},{"id":"phase:TASKS/demo-task:P2","type":"phase","label":"P2","state":"planned","completion":0,"taskId":"TASKS/demo-task"}],"edges":[{"from":"task:TASKS/demo-task","to":"phase:TASKS/demo-task:P1","type":"contains"},{"from":"task:TASKS/demo-task","to":"phase:TASKS/demo-task:P2","type":"contains"},{"from":"phase:TASKS/demo-task:P1","to":"phase:TASKS/demo-task:P2","type":"depends_on"}]},"adoption":{"mode":"declared-capability","project":{"name":"minimal-project","root":"TARGET:.","docsOnly":false},"summary":{"blockers":0,"advice":0,"total":0,"byCategory":{},"byType":{},"byPriority":{},"byPhase":{},"byFixability":{},"activeTaskWarnings":0,"strictCutoverWarnings":0},"warnings":[],"manualSteps":{"zh":["先查看升级建议，决定当前项目要采用哪些 v1.0 能力合同。","为仍在活跃的任务手工补齐 execution_strategy.md 和 visual_map.md。","只有在项目明确声明 v1.0 capability 后，再把 strict check 当成阻塞门禁。"],"en":["Review adoption advice and decide which v1.0 capability contracts should be adopted.","Manually add execution_strategy.md and visual_map.md for active tasks.","Treat strict check as blocking only after the project intentionally declares v1.0 capabilities."]}}};</script>
+  <script>window.__HARNESS_DASHBOARD__ = {"status":{"project":{"name":"minimal-project","root":"TARGET:.","docsOnly":false},"schemaVersion":2,"generatedAt":"2026-05-23T11:16:01.569Z","mode":"declared-capability","checkState":{"status":"pass","failures":0,"warnings":0,"details":{"failures":[],"warnings":[]},"legacy":{"status":"skipped","code":0,"stdout":"","stderr":""}},"summary":{"tasks":1,"briefCoverage":{"ready":1,"missing":0,"total":1},"visualMapCoverage":{"canonical":1,"legacyOnly":0,"missing":0,"total":1},"fullCutoverEligible":true,"legacyVisualOnlyCount":0,"unknownClassificationCount":0,"weakBriefCount":0,"visualMapRequiredCount":1,"missingCanonicalVisualMapCount":0},"capabilities":[{"name":"core","state":"configured","dependencyStatus":"valid","warnings":[]},{"name":"adversarial-review","state":"verified","dependencyStatus":"valid","warnings":[]},{"name":"dashboard","state":"verified","dependencyStatus":"valid","warnings":[]}],"tasks":[{"id":"TASKS/demo-task","shortId":"demo-task","title":"Demo task","path":"TARGET:docs/09-PLANNING/TASKS/demo-task","taskPlanPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/task_plan.md","executionStrategyPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/execution_strategy.md","progressPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/progress.md","reviewPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/review.md","findingsPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/findings.md","module":null,"inferredModule":"task-lifecycle","classificationSource":"inferred","classificationBucket":"current","briefSource":"standalone","briefPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/brief.md","visualMapSource":"canonical","visualMapStatus":"present","visualMapPath":"TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md","legacyVisualRoadmapPresent":false,"briefQuality":{"status":"pass","issues":[]},"migrationClassification":"active","roadmapSource":"canonical","state":"in_progress","budget":"standard","taskContractVersion":"harness-task/v1","taskContractGenerated":true,"stateSource":"explicit","stateRaw":"in-progress","taskKind":"general","taskPreset":"none","presetVersion":"","migrationTargetLevel":"","migrationAchievedLevel":"","evidenceBundle":"","migrationSnapshot":null,"lifecycleState":"active","reviewStatus":"required","reviewConfirmation":null,"closeoutStatus":"missing","walkthroughPath":"","lessonCandidatePath":"TARGET:docs/09-PLANNING/TASKS/demo-task/lesson_candidates.md","lessonCandidateStatus":"no-candidate-accepted","lessonCandidateReviewDecision":"accepted-no-candidate","lessonCandidatePromotionState":"not-promoted","lessonCandidateCloseoutToken":"checked-candidate:LC-20260101-000","lessonCandidateRowCount":0,"lessonCandidateOpenCount":0,"lessonCandidateIssues":[],"lessonCandidateDecisionComplete":true,"longRunningContractPath":"","longRunningContractStatus":"missing","stateConflicts":[],"completion":50,"phases":[{"id":"P1","dependsOn":[],"state":"done","completion":100,"output":"Example plan","requiredEvidence":["review"],"evidenceStatus":"present","blockingRisk":"none","owner":"coordinator"},{"id":"P2","dependsOn":["P1"],"state":"planned","completion":0,"output":"Example verification","requiredEvidence":["command"],"evidenceStatus":"missing","blockingRisk":"none","owner":"coordinator"}],"risks":[{"id":"R-001","severity":"P3","open":false,"blocksRelease":false,"summary":"Example only"}],"evidence":[{"id":"E-001","type":"report","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md","status":"present","summary":"example phase table"}],"handoffs":[],"dependencies":[]}],"handoffs":[],"recentActivity":[{"at":"2026-05-23T11:16:01.569Z","type":"task","summary":"Demo task"}]},"tables":{"tables":[{"id":"execution-strategy-01","kind":"execution-strategy","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/execution_strategy.md","line":3,"columns":["Decision","Choice","Notes"],"rows":[{"id":"execution-strategy-01-row-001","cells":{"Decision":"Primary executor","Choice":"coordinator","Notes":"Example task only."}},{"id":"execution-strategy-01-row-002","cells":{"Decision":"Subagents","Choice":"none","Notes":"No parallel work needed."}},{"id":"execution-strategy-01-row-003","cells":{"Decision":"Review model","Choice":"self-check","Notes":"Demonstrates the contract shape."}},{"id":"execution-strategy-01-row-004","cells":{"Decision":"Worktree strategy","Choice":"same checkout","Notes":"Public example fixture."}},{"id":"execution-strategy-01-row-005","cells":{"Decision":"Conflict control","Choice":"coordinator owns shared files","Notes":"No shared-file contention."}},{"id":"execution-strategy-01-row-006","cells":{"Decision":"Evidence depth","Choice":"L0","Notes":"Fixture-level evidence only."}}]},{"id":"lesson-candidates-01","kind":"lesson-candidates","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/lesson_candidates.md","line":5,"columns":["Field","Value"],"rows":[{"id":"lesson-candidates-01-row-001","cells":{"Field":"Schema version","Value":"lesson-candidate-v1"}},{"id":"lesson-candidates-01-row-002","cells":{"Field":"Task-level status","Value":"no-candidate-accepted"}},{"id":"lesson-candidates-01-row-003","cells":{"Field":"Review gate","Value":"candidate-file-present"}},{"id":"lesson-candidates-01-row-004","cells":{"Field":"Review decision","Value":"accepted-no-candidate"}},{"id":"lesson-candidates-01-row-005","cells":{"Field":"Promotion state","Value":"not-promoted"}},{"id":"lesson-candidates-01-row-006","cells":{"Field":"Closeout token","Value":"checked-candidate:LC-20260101-000"}},{"id":"lesson-candidates-01-row-007","cells":{"Field":"Source task","Value":"demo-task"}},{"id":"lesson-candidates-01-row-008","cells":{"Field":"Owner","Value":"coordinator"}},{"id":"lesson-candidates-01-row-009","cells":{"Field":"Last updated","Value":"2026-01-01"}}]},{"id":"lesson-candidates-02","kind":"lesson-candidates","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/lesson_candidates.md","line":19,"columns":["ID","Row Status","Title","Why It Might Matter","Review Decision","Promotion Target"],"rows":[]},{"id":"task-progress-01","kind":"task-progress","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/progress.md","line":9,"columns":["Date","Update","Evidence"],"rows":[{"id":"task-progress-01-row-001","cells":{"Date":"2026-05-18","Update":"Created example visual map","Evidence":"report:TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md:example phase table"}}]},{"id":"task-review-01","kind":"task-review","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/review.md","line":5,"columns":["Reviewer","Type","Scope"],"rows":[{"id":"task-review-01-row-001","cells":{"Reviewer":"coordinator","Type":"self-check","Scope":"example"}}]},{"id":"task-review-02","kind":"task-review","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/review.md","line":15,"columns":["Evidence ID","Type","Path","Summary"],"rows":[{"id":"task-review-02-row-001","cells":{"Evidence ID":"E-001","Type":"review","Path":"TARGET:docs/09-PLANNING/TASKS/demo-task/task_plan.md","Summary":"Visual roadmap table exists"}}]},{"id":"task-review-03","kind":"task-review","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/review.md","line":21,"columns":["ID","Severity","Finding","Evidence Checked","Required Action","Open","Disposition","Blocks Release","Follow-up"],"rows":[{"id":"task-review-03-row-001","cells":{"ID":"R-001","Severity":"P3","Finding":"Example only","Evidence Checked":"E-001","Required Action":"none","Open":"no","Disposition":"closed","Blocks Release":"no","Follow-up":"none"}}]},{"id":"visual-map-01","kind":"visual-map","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md","line":7,"columns":["ID","Type","Purpose","Required For Understanding","Source Evidence","Promotion Candidate"],"rows":[{"id":"visual-map-01-row-001","cells":{"ID":"MAP-01","Type":"phase","Purpose":"Show the demo task phase relationship","Required For Understanding":"yes","Source Evidence":"`task_plan.md`","Promotion Candidate":"no"}}]},{"id":"visual-map-02","kind":"visual-map","source":"TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md","line":16,"columns":["Phase ID","Depends On","State","Completion","Output","Required Evidence","Evidence Status","Blocking Risk","Owner / Handoff"],"rows":[{"id":"visual-map-02-row-001","cells":{"Phase ID":"P1","Depends On":"none","State":"done","Completion":"100","Output":"Example plan","Required Evidence":"review","Evidence Status":"present","Blocking Risk":"none","Owner / Handoff":"coordinator"}},{"id":"visual-map-02-row-002","cells":{"Phase ID":"P2","Depends On":"P1","State":"planned","Completion":"0","Output":"Example verification","Required Evidence":"command","Evidence Status":"missing","Blocking Risk":"none","Owner / Handoff":"coordinator"}}]},{"id":"harness-ledger-01","kind":"harness-ledger","source":"TARGET:docs/Harness-Ledger.md","line":3,"columns":["ID","Task","Status","Review State","Next Action","Owner"],"rows":[{"id":"harness-ledger-01-row-001","cells":{"ID":"LED-001","Task":"demo-task","Status":"in_progress","Review State":"review-ready","Next Action":"Verify rendered roadmap and evidence","Owner":"coordinator"}},{"id":"harness-ledger-01-row-002","cells":{"ID":"LED-002","Task":"escaped-pipe-demo","Status":"planned","Review State":"pending","Next Action":"Confirm parser keeps alpha|beta notes","Owner":"coordinator"}}]}]},"documents":{"documents":[{"id":"doc-0001-brief","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/brief.md","title":"Demo task","type":"task-brief","content":"# Demo task\n\n## Brief\n\nMinimal example task used by the dashboard smoke tests.\n\n## Task ID\n\n`demo-task`\n\n## Outcome\n\nShow a readable task summary in the static dashboard without requiring an editor.\n"},{"id":"doc-0002-execution-strategy","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/execution_strategy.md","title":"Execution Strategy","type":"execution-strategy","content":"# Execution Strategy\n\n| Decision | Choice | Notes |\n| --- | --- | --- |\n| Primary executor | coordinator | Example task only. |\n| Subagents | none | No parallel work needed. |\n| Review model | self-check | Demonstrates the contract shape. |\n| Worktree strategy | same checkout | Public example fixture. |\n| Conflict control | coordinator owns shared files | No shared-file contention. |\n| Evidence depth | L0 | Fixture-level evidence only. |\n"},{"id":"doc-0003-lesson-candidates","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/lesson_candidates.md","title":"Demo Task - Lesson Candidates","type":"lesson-candidates","content":"# Demo Task - Lesson Candidates\n\n## Candidate Status\n\n| Field | Value |\n| --- | --- |\n| Schema version | lesson-candidate-v1 |\n| Task-level status | no-candidate-accepted |\n| Review gate | candidate-file-present |\n| Review decision | accepted-no-candidate |\n| Promotion state | not-promoted |\n| Closeout token | checked-candidate:LC-20260101-000 |\n| Source task | demo-task |\n| Owner | coordinator |\n| Last updated | 2026-01-01 |\n\n## Candidates\n\n| ID | Row Status | Title | Why It Might Matter | Review Decision | Promotion Target |\n| --- | --- | --- | --- | --- | --- |\n\n## No-Candidate Reason\n\nThe example task exists only to demonstrate dashboard parsing and does not produce a reusable governance lesson.\n"},{"id":"doc-0004-progress","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/progress.md","title":"Demo Task - Progress","type":"task-progress","content":"# Demo Task - Progress\n\n## Status\n\nin-progress\n\n## Updates\n\n| Date | Update | Evidence |\n| --- | --- | --- |\n| 2026-05-18 | Created example visual map | report:TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md:example phase table |\n"},{"id":"doc-0005-review","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/review.md","title":"Demo Task - Review","type":"task-review","content":"# Demo Task - Review\n\n## Reviewer Identity\n\n| Reviewer | Type | Scope |\n| --- | --- | --- |\n| coordinator | self-check | example |\n\n## Confidence Challenge\n\nNo material finding for this example.\n\n## Evidence Checked\n\n| Evidence ID | Type | Path | Summary |\n| --- | --- | --- | --- |\n| E-001 | review | TARGET:docs/09-PLANNING/TASKS/demo-task/task_plan.md | Visual roadmap table exists |\n\n## Findings\n\n| ID | Severity | Finding | Evidence Checked | Required Action | Open | Disposition | Blocks Release | Follow-up |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| R-001 | P3 | Example only | E-001 | none | no | closed | no | none |\n\n## Final Confidence Basis\n\nself-check only; example is not a release approval.\n"},{"id":"doc-0006-task-plan","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/task_plan.md","title":"Demo Task","type":"markdown-table","content":"# Demo Task\n\nTask Contract: harness-task/v1\n\n## Goal\n\nShow the v1.0 visual map contract.\n\n## Scope\n\nPublic example only.\n\n## Execution & Visualization Files\n\n- `execution_strategy.md`\n- `visual_map.md`\n"},{"id":"doc-0007-visual-map","path":"TARGET:docs/09-PLANNING/TASKS/demo-task/visual_map.md","title":"Visual Map","type":"visual-map","content":"# Visual Map\n\nVisual Map Contract: v1.0\n\n## Map Index\n\n| ID | Type | Purpose | Required For Understanding | Source Evidence | Promotion Candidate |\n| --- | --- | --- | --- | --- | --- |\n| MAP-01 | phase | Show the demo task phase relationship | yes | `task_plan.md` | no |\n\n```mermaid\nflowchart LR\n  P1[\"Plan\"] --> P2[\"Verify\"]\n```\n\n| Phase ID | Depends On | State | Completion | Output | Required Evidence | Evidence Status | Blocking Risk | Owner / Handoff |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| P1 | none | done | 100 | Example plan | review | present | none | coordinator |\n| P2 | P1 | planned | 0 | Example verification | command | missing | none | coordinator |\n"},{"id":"doc-0008-harness-ledger","path":"TARGET:docs/Harness-Ledger.md","title":"Harness Ledger","type":"harness-ledger","content":"# Harness Ledger\n\n| ID | Task | Status | Review State | Next Action | Owner |\n| --- | --- | --- | --- | --- | --- |\n| LED-001 | demo-task | in_progress | review-ready | Verify rendered roadmap and evidence | coordinator |\n| LED-002 | escaped-pipe-demo | planned | pending | Confirm parser keeps alpha\\|beta notes | coordinator |\n"}]},"graph":{"nodes":[{"id":"task:TASKS/demo-task","type":"task","label":"Demo task","state":"in_progress","completion":50},{"id":"phase:TASKS/demo-task:P1","type":"phase","label":"P1","state":"done","completion":100,"taskId":"TASKS/demo-task"},{"id":"phase:TASKS/demo-task:P2","type":"phase","label":"P2","state":"planned","completion":0,"taskId":"TASKS/demo-task"}],"edges":[{"from":"task:TASKS/demo-task","to":"phase:TASKS/demo-task:P1","type":"contains"},{"from":"task:TASKS/demo-task","to":"phase:TASKS/demo-task:P2","type":"contains"},{"from":"phase:TASKS/demo-task:P1","to":"phase:TASKS/demo-task:P2","type":"depends_on"}]},"adoption":{"mode":"declared-capability","project":{"name":"minimal-project","root":"TARGET:.","docsOnly":false},"summary":{"blockers":0,"advice":0,"total":0,"byCategory":{},"byType":{},"byPriority":{},"byPhase":{},"byFixability":{},"activeTaskWarnings":0,"strictCutoverWarnings":0},"warnings":[],"manualSteps":{"zh":["先查看升级建议，决定当前项目要采用哪些 v1.0 能力合同。","为仍在活跃的任务手工补齐 execution_strategy.md 和 visual_map.md。","只有在项目明确声明 v1.0 capability 后，再把 strict check 当成阻塞门禁。"],"en":["Review adoption advice and decide which v1.0 capability contracts should be adopted.","Manually add execution_strategy.md and visual_map.md for active tasks.","Treat strict check as blocking only after the project intentionally declares v1.0 capabilities."]}}};</script>
   <script>window.__HARNESS_LOCALE__ = "en";</script>
   <script>window.HarnessI18n = {
   "en": {
@@ -2926,7 +2969,7 @@ details summary {
     "sortNewest": "Newest first",
     "sortOldest": "Oldest first",
     "activeBriefCount": "{count} briefs · {order}",
-    "copyTaskName": "Copy task name",
+    "copyTaskName": "Copy task folder name",
     "copyTaskNameShort": "Copy",
     "copyTaskNameSuccess": "Copied",
     "copyTaskNameFailed": "Failed",
@@ -3143,7 +3186,7 @@ details summary {
     "sortNewest": "最新优先",
     "sortOldest": "最早优先",
     "activeBriefCount": "{count} 个 Brief · {order}",
-    "copyTaskName": "复制任务名",
+    "copyTaskName": "复制任务文件夹名",
     "copyTaskNameShort": "复制",
     "copyTaskNameSuccess": "已复制",
     "copyTaskNameFailed": "失败",
@@ -3822,9 +3865,15 @@ function sortTasksByTime(tasks) {
   return [...tasks].sort(compareTasksByTime);
 }
 
+function taskFolderName(task) {
+  const fromPath = String(task?.path || "").split("/").filter(Boolean).pop();
+  const fromId = String(task?.id || "").split("/").filter(Boolean).pop();
+  return task?.shortId || fromPath || fromId || task?.title || "";
+}
+
 function taskCopyButton(task, extraClass = "") {
-  const taskName = task?.title || task?.id || "";
-  return `<button type="button" class="copy-task-name ${extraClass}" data-copy-task-name="${escapeAttr(taskName)}" aria-label="${escapeAttr(t("copyTaskName"))}" title="${escapeAttr(t("copyTaskName"))}">
+  const folderName = taskFolderName(task);
+  return `<button type="button" class="copy-task-name ${extraClass}" data-copy-task-name="${escapeAttr(folderName)}" data-copy-task-folder="${escapeAttr(folderName)}" aria-label="${escapeAttr(t("copyTaskName"))}" title="${escapeAttr(t("copyTaskName"))}">
     ${t("copyTaskNameShort")}
   </button>`;
 }
