@@ -36,6 +36,7 @@ import {
   parsePhases,
   taskCutoverCounters,
 } from "./task-scanner.mjs";
+import { validateTaskCompletionConsistency } from "./task-completion-consistency.mjs";
 export { renderDashboard } from "./status-dashboard-renderer.mjs";
 
 export function runLegacyCheck(target) {
@@ -335,6 +336,9 @@ export function buildStatus(targetInput, options = {}) {
   }
 
   const tasks = collectTasks(target);
+  const taskCompletionConsistency = validateTaskCompletionConsistency(tasks);
+  failures.push(...taskCompletionConsistency.failures);
+  warnings.push(...taskCompletionConsistency.warnings);
   const briefReady = tasks.filter((task) => task.briefSource === "standalone").length;
   const briefMissing = tasks.length - briefReady;
   for (const task of tasks) {

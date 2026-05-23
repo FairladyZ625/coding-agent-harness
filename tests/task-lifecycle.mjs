@@ -313,6 +313,26 @@ assert(confirmedTask?.reviewStatus === "confirmed", "status should expose confir
 assert(confirmedTask?.closeoutStatus === "pending", "status should keep pending closeout separate from review confirmation");
 assert(fs.readFileSync(lifecycleReviewPath, "utf8").includes("Human Review Confirmation"), "review-confirm should write a human review confirmation block");
 assert(fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/progress.md`), "utf8").includes("review-confirm"), "review-confirm should append a progress log entry");
+
+const staleCompletionTarget = path.join(tmpRoot, "stale-completion-target");
+fs.mkdirSync(staleCompletionTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard", staleCompletionTarget]);
+expectJson(["new-task", "stale-phase-closeout", "--title", "Stale phase closeout", "--locale", "en-US", staleCompletionTarget]);
+const staleTaskDir = path.join(staleCompletionTarget, `docs/09-PLANNING/TASKS/${todayLocal}-stale-phase-closeout`);
+fs.writeFileSync(path.join(staleTaskDir, "progress.md"), "# Progress\n\n## Status\n\ndone\n");
+const staleWalkthrough = path.join(staleCompletionTarget, "docs/10-WALKTHROUGH/stale-phase-closeout.md");
+fs.writeFileSync(staleWalkthrough, "# Walkthrough: Stale phase closeout\n\n## Summary\n\nClosed while the phase table is stale.\n");
+fs.appendFileSync(
+  path.join(staleCompletionTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
+  `\n| CL-STALE-PHASE | 2026-05-23 | Stale phase closeout | \`docs/09-PLANNING/TASKS/${todayLocal}-stale-phase-closeout/task_plan.md\` | \`docs/09-PLANNING/TASKS/${todayLocal}-stale-phase-closeout/review.md\` | \`docs/10-WALKTHROUGH/stale-phase-closeout.md\` | closeout complete | none | checked-none | closed |\n`,
+);
+const staleCompletionCheck = run(["check", "--profile", "target-project", staleCompletionTarget]);
+assert(staleCompletionCheck.status !== 0, "closed done tasks should fail when Visual Map phases are incomplete");
+assert(
+  staleCompletionCheck.stderr.includes("done task has incomplete Visual Map phases"),
+  "stale phase closeout failure should explain the inconsistent Visual Map phases",
+);
+
 const moduleLifecycle = expectJson(["new-task", "module-lifecycle", "--module", "auth", "--budget", "complex", "--title", "模块生命周期", "--locale", "zh-CN", lifecycleTarget]);
 assert(moduleLifecycle.task?.id === `MODULES/auth/${todayLocal}-module-lifecycle`, "new-task --module should create a module task id");
 assert(fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/MODULES/auth/${todayLocal}-module-lifecycle/references/INDEX.md`)), "complex module task should create references index");
@@ -363,6 +383,7 @@ fs.writeFileSync(
   workbenchClosedReviewProgress,
   fs.readFileSync(workbenchClosedReviewProgress, "utf8").replace(/^## 状态：.*$/m, "## 状态：done"),
 );
+expectJson(["task-phase", "workbench-closed-review", "PH-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
 const closedReviewWalkthrough = path.join(lifecycleTarget, "docs/10-WALKTHROUGH/workbench-closed-walkthrough.md");
 fs.writeFileSync(
   closedReviewWalkthrough,
