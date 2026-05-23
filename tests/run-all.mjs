@@ -8,6 +8,7 @@ const suites = [
   "tests/meta-test-layout.mjs",
   "tests/source-package-boundary.mjs",
   "tests/dashboard-generation.mjs",
+  "tests/template-governance.mjs",
   "tests/test-harness.mjs",
 ];
 
