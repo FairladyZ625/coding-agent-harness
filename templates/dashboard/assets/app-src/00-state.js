@@ -15,6 +15,7 @@ const state = {
   renderMode: "rendered",
   theme: localStorage.getItem("harness.theme") || "system",
   taskLayout: localStorage.getItem("harness.taskLayout") || "list",
+  taskSortOrder: localStorage.getItem("harness.taskSortOrder") === "asc" ? "asc" : "desc",
   runtime: { mode: "static", csrfToken: "", writableActions: [] },
   runtimeLoaded: false,
   runtimePoller: null,

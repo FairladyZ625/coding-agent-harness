@@ -8,6 +8,53 @@ function stateToColorVar(state) {
   return map[state] || "--muted";
 }
 
+function taskSortLabel() {
+  return state.taskSortOrder === "asc" ? t("sortOldest") : t("sortNewest");
+}
+
+function taskDateKey(task) {
+  const source = `${task.shortId || ""} ${task.id || ""}`.trim();
+  const match = source.match(/(?:^|[^\d])(\d{4})-(\d{2})(?:-(\d{2}))?/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3] || "1");
+  if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return Date.UTC(year, month - 1, day);
+}
+
+function stableTaskLabel(task) {
+  return `${task.shortId || ""} ${task.id || ""} ${task.title || ""}`.trim();
+}
+
+function compareTasksByTime(left, right) {
+  const leftDate = taskDateKey(left);
+  const rightDate = taskDateKey(right);
+  if (leftDate !== null && rightDate !== null && leftDate !== rightDate) {
+    return state.taskSortOrder === "asc" ? leftDate - rightDate : rightDate - leftDate;
+  }
+  if (leftDate !== null && rightDate === null) return -1;
+  if (leftDate === null && rightDate !== null) return 1;
+  return stableTaskLabel(left).localeCompare(stableTaskLabel(right));
+}
+
+function sortTasksByTime(tasks) {
+  return [...tasks].sort(compareTasksByTime);
+}
+
+function taskCopyButton(task, extraClass = "") {
+  const taskName = task?.title || task?.id || "";
+  return `<button type="button" class="copy-task-name ${extraClass}" data-copy-task-name="${escapeAttr(taskName)}" aria-label="${escapeAttr(t("copyTaskName"))}" title="${escapeAttr(t("copyTaskName"))}">
+    ${t("copyTaskNameShort")}
+  </button>`;
+}
+
+function taskGroupTimeKey(group) {
+  const match = group.match(/^(?:month|legacy):(\d{4})-(\d{2})$/);
+  if (!match) return null;
+  return Date.UTC(Number(match[1]), Number(match[2]) - 1, 1);
+}
+
 function taskToolbarCard(filteredCount) {
   return `<section class="sidebar-card">
     <h3>${t("filterTitle")}</h3>
@@ -36,6 +83,17 @@ function taskToolbarCard(filteredCount) {
         <button class="layout-btn ${state.taskLayout === "grid" ? "active" : ""}" data-layout="grid" aria-label="${t("layoutGrid")}">
           <svg style="width:12px;height:12px;vertical-align:middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
           ${t("layoutGrid")}
+        </button>
+      </div>
+    </div>
+    <div class="select-group">
+      <label>${t("sortByTime")}</label>
+      <div class="layout-toggle-group sort-toggle-group">
+        <button class="layout-btn ${state.taskSortOrder === "desc" ? "active" : ""}" data-task-sort-order="desc" aria-label="${t("sortNewest")}">
+          ${t("sortNewest")}
+        </button>
+        <button class="layout-btn ${state.taskSortOrder === "asc" ? "active" : ""}" data-task-sort-order="asc" aria-label="${t("sortOldest")}">
+          ${t("sortOldest")}
         </button>
       </div>
     </div>
@@ -142,11 +200,12 @@ function taskRow(task) {
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
 
-  return `<a class="task-row-card" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(task.state)})">
+  return `<article class="task-row-card" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(task.state)})">
     <div class="row-accent-bar"></div>
     <div class="row-main">
       <strong>${escapeHtml(task.title)}</strong>
       <span class="row-meta">${escapeHtml(task.id)} · ${escapeHtml(taskModuleKey(task))}</span>
+      ${taskCopyButton(task, "row-copy")}
     </div>
     <div class="row-status">${tag(task.state)}</div>
     <div class="row-progress">
@@ -165,7 +224,7 @@ function taskRow(task) {
         ${mapReady ? t("badgeMap") : t("badgeMapMissing")}
       </span>
     </div>
-  </a>`;
+  </article>`;
 }
 
 function taskIndex() {
@@ -204,7 +263,18 @@ function orderedTaskGroups(groups) {
     if (group === "unknown") return 3;
     return 4;
   };
-  return Object.entries(groups).sort(([left], [right]) => rank(left) - rank(right) || left.localeCompare(right));
+  return Object.entries(groups).sort(([left], [right]) => {
+    const rankDiff = rank(left) - rank(right);
+    if (rankDiff !== 0) return rankDiff;
+    const leftTime = taskGroupTimeKey(left);
+    const rightTime = taskGroupTimeKey(right);
+    if (leftTime !== null && rightTime !== null && leftTime !== rightTime) {
+      return state.taskSortOrder === "asc" ? leftTime - rightTime : rightTime - leftTime;
+    }
+    if (leftTime !== null && rightTime === null) return -1;
+    if (leftTime === null && rightTime !== null) return 1;
+    return left.localeCompare(right);
+  });
 }
 
 function taskGroups(tasks) {
@@ -229,11 +299,12 @@ function taskGroups(tasks) {
 }
 
 function taskGroup(group, tasks) {
-  const pageCount = Math.max(1, Math.ceil(tasks.length / taskPageSize));
+  const orderedTasks = sortTasksByTime(tasks);
+  const pageCount = Math.max(1, Math.ceil(orderedTasks.length / taskPageSize));
   const page = Math.min(Math.max(1, Number(state.taskPageByGroup[group]) || 1), pageCount);
   const start = (page - 1) * taskPageSize;
-  const visibleTasks = tasks.slice(start, start + taskPageSize);
-  const avgCompletion = tasks.length ? clampCompletion(tasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / tasks.length) : 0;
+  const visibleTasks = orderedTasks.slice(start, start + taskPageSize);
+  const avgCompletion = orderedTasks.length ? clampCompletion(orderedTasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / orderedTasks.length) : 0;
 
   const isGrid = state.taskLayout === "grid";
   const layoutClass = isGrid ? "task-card-grid" : "task-list";
@@ -250,7 +321,7 @@ function taskGroup(group, tasks) {
       <div class="section-head">
         <div>
           <h2>${taskGroupLabel(group)}</h2>
-          <p class="subtle">${t("showing")} ${Math.min(start + 1, tasks.length)}-${Math.min(start + visibleTasks.length, tasks.length)} / ${tasks.length}</p>
+          <p class="subtle">${t("showing")} ${Math.min(start + 1, orderedTasks.length)}-${Math.min(start + visibleTasks.length, orderedTasks.length)} / ${orderedTasks.length}</p>
         </div>
         <div class="group-actions">
           <div class="group-progress" aria-label="${escapeAttr(t("groupCompletion"))}">
@@ -275,10 +346,13 @@ function taskCard(task) {
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
 
-  return `<a class="task-card" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateColor})">
+  return `<article class="task-card" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateColor})">
     <div class="card-header">
       <span class="card-id">${escapeHtml(task.id)}</span>
-      ${tag(task.state)}
+      <div class="card-header-actions">
+        ${taskCopyButton(task, "compact")}
+        ${tag(task.state)}
+      </div>
     </div>
     <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
     <div class="card-meta">
@@ -301,7 +375,7 @@ function taskCard(task) {
         ${mapReady ? t("badgeMap") : t("badgeMapMissing")}
       </span>
     </div>
-  </a>`;
+  </article>`;
 }
 
 function taskGroupLabel(group) {
@@ -316,12 +390,12 @@ function taskGroupLabel(group) {
 
 function filteredTasks() {
   const query = state.query.trim().toLowerCase();
-  return (bundle.status?.tasks || []).filter((task) => {
+  return sortTasksByTime((bundle.status?.tasks || []).filter((task) => {
     const stateMatch = state.taskState === "all" || task.state === state.taskState;
     if (!stateMatch) return false;
     if (!query) return true;
     return [task.id, task.shortId, task.title, task.module, task.inferredModule, task.classificationSource, task.classificationBucket, task.state].some((value) => String(value || "").toLowerCase().includes(query));
-  });
+  }));
 }
 
 function taskModuleKey(task) {
@@ -339,6 +413,7 @@ function taskDetail(route) {
         <p class="eyebrow">${t("taskVisibility")}</p>
         <h2>${escapeHtml(task.title)}</h2>
         <p>${escapeHtml(task.path)}</p>
+        ${taskCopyButton(task, "detail-copy")}
       </div>
       <div class="detail-score">${task.completion}%</div>
     </section>

@@ -286,6 +286,7 @@ const graph = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/graph.jso
 assert(graph.edges.length > 0, "graph should include task/phase edges");
 assertGraphIntegrity(graph, "example graph");
 const dashboardApp = fs.readFileSync(path.join(dashboardDir, "assets/app.js"), "utf8");
+const dashboardCss = fs.readFileSync(path.join(dashboardDir, "assets/app.css"), "utf8");
 const dashboardMarkdown = fs.readFileSync(path.join(dashboardDir, "assets/markdown-reader.js"), "utf8");
 const dashboardMermaid = fs.readFileSync(path.join(dashboardDir, "assets/mermaid-renderer.js"), "utf8");
 assert(dashboardApp.includes("hashchange"), "dashboard should use hash routing");
@@ -295,6 +296,14 @@ assert(dashboardApp.includes("data-search"), "dashboard missing task search cont
 assert(dashboardApp.includes("taskGroupsPerPage"), "dashboard missing global task group paging");
 assert(dashboardApp.includes("taskStatsBar"), "dashboard missing task stats bar");
 assert(dashboardApp.includes("task-row-card"), "dashboard missing upgraded task row card");
+assert(dashboardApp.includes("taskSortOrder"), "dashboard missing task time sort state");
+assert(dashboardApp.includes("data-task-sort-order"), "dashboard missing task time sort controls");
+assert(dashboardApp.includes("sortTasksByTime"), "dashboard missing reusable task time sort helper");
+assert(dashboardApp.includes("activeBriefCount"), "dashboard missing active brief count label");
+assert(dashboardApp.includes("data-copy-task-name"), "dashboard missing task name copy controls");
+assert(dashboardApp.includes("copyTaskNameSuccess"), "dashboard missing task name copy success feedback");
+assert(dashboardApp.includes("copyTaskNameFailed"), "dashboard missing task name copy failure feedback");
+assert(!dashboardApp.includes("activeTasks().slice(0, 8)"), "dashboard should not hard-cap active briefs at 8 items");
 assert(dashboardApp.includes("fullCutoverEligible"), "dashboard missing full cutover summary field");
 assert(dashboardApp.includes("legacyVisualOnlyCount"), "dashboard missing legacy visual-only summary field");
 assert(dashboardApp.includes("weakBriefCount"), "dashboard missing weak brief summary field");
@@ -306,9 +315,9 @@ assert(dashboardApp.includes("[\"brief\", \"brief.md\"]"), "dashboard should mak
 assert(dashboardApp.includes("[\"visualMap\", \"visual_map.md\"]"), "dashboard should expose canonical visual_map.md tab");
 assert(dashboardApp.includes("projectMermaid"), "dashboard should render project flow from graph data");
 assert(dashboardApp.includes("escapeHtml(projectName())"), "dashboard project title must be escaped");
+assert(dashboardCss.includes(".brief-scroll"), "dashboard missing scrollable active brief container styles");
 assert(dashboardMarkdown.includes("rendered-table"), "dashboard missing rendered markdown table support");
 assert(dashboardMermaid.includes("mermaid-rendered"), "dashboard missing rendered mermaid output");
-const dashboardCss = fs.readFileSync(path.join(dashboardDir, "assets/app.css"), "utf8");
 assert(dashboardCss.includes(".runtime-banner"), "dashboard missing static read-only banner styling");
 assert(dashboardCss.includes("max-height: min(68vh, 620px)"), "dashboard missing mermaid viewport containment");
 assert(dashboardCss.includes(".review-workspace-grid"), "dashboard missing review workspace layout");

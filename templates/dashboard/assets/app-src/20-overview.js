@@ -165,24 +165,29 @@ function graphSummary() {
 }
 
 function activeTaskBriefs() {
-  const tasks = activeTasks().slice(0, 8);
+  const tasks = activeTasks();
   return `<section class="task-briefs">
     <div class="section-head">
       <div>
         <p class="eyebrow">${t("currentWork")}</p>
         <h2>${t("activeBriefs")}</h2>
       </div>
-      <a href="#/tasks">${t("openTaskIndex")}</a>
+      <div class="section-actions">
+        <span class="subtle">${t("activeBriefCount").replace("{count}", tasks.length).replace("{order}", taskSortLabel())}</span>
+        <a href="#/tasks">${t("openTaskIndex")}</a>
+      </div>
     </div>
-    <div class="brief-grid">${tasks.map((task) => taskBriefCard(task, { compact: false })).join("") || emptyState(t("noActiveTasks"))}</div>
+    <div class="brief-scroll">
+      <div class="brief-grid">${tasks.map((task) => taskBriefCard(task, { compact: false })).join("") || emptyState(t("noActiveTasks"))}</div>
+    </div>
   </section>`;
 }
 
 function activeTasks() {
   const tasks = bundle.status?.tasks || [];
   const active = tasks.filter((task) => isActiveTaskState(task.state) || ["planned", "not_started"].includes(task.state));
-  if (active.length > 0) return active;
-  return tasks.filter((task) => task.briefSource === "standalone").slice(0, 6);
+  if (active.length > 0) return sortTasksByTime(active);
+  return sortTasksByTime(tasks.filter((task) => task.briefSource === "standalone"));
 }
 
 function isActiveTaskState(state) {
@@ -205,6 +210,7 @@ function taskBriefCard(task, { compact = true } = {}) {
       <p class="brief-teaser">${escapeHtml(summaryText)}</p>
     </div>
     <div class="card-actions">
+      ${taskCopyButton(task)}
       <button class="btn-drawer-trigger" data-open-drawer="${escapeAttr(task.id)}">${t("viewDetails")}</button>
     </div>
   </article>`;

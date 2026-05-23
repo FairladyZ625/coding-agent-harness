@@ -28,6 +28,13 @@ function bind() {
     localStorage.setItem("harness.taskLayout", state.taskLayout);
     app();
   }));
+  document.querySelectorAll("[data-task-sort-order]").forEach((btn) => btn.addEventListener("click", () => {
+    state.taskSortOrder = btn.dataset.taskSortOrder === "asc" ? "asc" : "desc";
+    localStorage.setItem("harness.taskSortOrder", state.taskSortOrder);
+    state.taskPageByGroup = {};
+    state.taskGroupPage = 1;
+    app();
+  }));
   document.querySelectorAll("[data-render-toggle]").forEach((button) => button.addEventListener("click", () => {
     state.renderMode = state.renderMode === "rendered" ? "source" : "rendered";
     app();
@@ -71,6 +78,7 @@ function bind() {
     const taskId = el.dataset.openDrawer;
     openDrawer(taskId);
   }));
+  bindCopyTaskNameButtons(document);
   document.querySelectorAll("[data-open-lesson-drawer]").forEach((el) => el.addEventListener("click", (e) => {
     e.preventDefault();
     const lessonId = el.dataset.openLessonDrawer;
@@ -160,6 +168,7 @@ function renderDrawerContent(taskId) {
       <div>
         <h2>${escapeHtml(task.title)}</h2>
         <p style="font-family: var(--font-mono); font-size: 11px; margin: 4px 0 0; color: var(--muted);">${escapeHtml(task.id)}</p>
+        ${taskCopyButton(task, "detail-copy")}
       </div>
       <button class="btn-close" data-close-drawer>×</button>
     </div>
@@ -201,7 +210,43 @@ function openDrawer(taskId) {
     state.renderMode = state.renderMode === "rendered" ? "source" : "rendered";
     openDrawer(taskId);
   }));
+  bindCopyTaskNameButtons(drawer);
   drawer.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
+}
+
+function bindCopyTaskNameButtons(root) {
+  root.querySelectorAll("[data-copy-task-name]").forEach((button) => button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const taskName = button.dataset.copyTaskName || "";
+    const defaultText = t("copyTaskNameShort");
+    try {
+      await copyText(taskName);
+      button.textContent = t("copyTaskNameSuccess");
+    } catch {
+      button.textContent = t("copyTaskNameFailed");
+    }
+    window.setTimeout(() => {
+      button.textContent = defaultText;
+    }, 1400);
+  }));
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("copy failed");
 }
 
 function renderLessonDrawerContent(lessonId) {
