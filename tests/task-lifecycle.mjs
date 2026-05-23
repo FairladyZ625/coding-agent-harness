@@ -285,9 +285,13 @@ fs.appendFileSync(
   `\n| CL-PHASE-2-LIFECYCLE | 2026-05-21 | Phase 2 lifecycle | \`docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/task_plan.md\` | \`docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/review.md\` | \`docs/10-WALKTHROUGH/${todayLocal}-phase-2-lifecycle-walkthrough.md\` | pending human review | none | checked-none | pending |\n`,
 );
 acceptNoLessonCandidate(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle`));
+expectJson(["new-task", "review-template-placeholder", "--title", "Review template placeholder", "--locale", "en-US", lifecycleTarget]);
 const preCompleteStatus = expectJson(["status", "--json", lifecycleTarget]);
 const preCompleteTask = preCompleteStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-phase-2-lifecycle`);
 assert(preCompleteTask?.walkthroughPath?.endsWith(`docs/10-WALKTHROUGH/${todayLocal}-phase-2-lifecycle-walkthrough.md`), "status should expose walkthrough before human review confirmation");
+assert(preCompleteTask?.reviewStatus === "agent-reviewed", "status should classify agent-written review evidence separately from human confirmation");
+const reviewTemplateTask = preCompleteStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-review-template-placeholder`);
+assert(reviewTemplateTask?.reviewStatus === "required", "review template placeholder Verdict: yes / no should not count as a completed review");
 const preCompleteConfirm = expectJson(["review-confirm", `TASKS/${todayLocal}-phase-2-lifecycle`, "--reviewer", "Human Reviewer", "--message", "walkthrough reviewed", "--confirm", `${todayLocal}-phase-2-lifecycle`, lifecycleTarget]);
 assert(preCompleteConfirm.task?.reviewStatus === "confirmed", "review-confirm should confirm review before task-complete");
 const lifecycleComplete = expectJson(["task-complete", "phase-2-lifecycle", "--message", "生命周期闭环完成", lifecycleTarget]);

@@ -460,8 +460,18 @@ export function taskReviewStatus({ reviewContent = "", risks = [], confirmation 
   if (risks.some(isBlockingReviewRisk)) return "blocked-open-findings";
   if (confirmation?.confirmed) return "confirmed";
   if (!String(reviewContent || "").trim()) return "missing";
-  if (/Verdict\s*[:：]\s*yes/i.test(reviewContent) || /本轮已检查|未发现阻塞目标的重要发现/.test(reviewContent)) return "reviewed-unconfirmed";
+  if (hasAgentReviewSignal(reviewContent)) return "agent-reviewed";
   return "required";
+}
+
+function hasAgentReviewSignal(reviewContent) {
+  const content = String(reviewContent || "");
+  const verdict = content.match(/^\s*[-*]?\s*Verdict\s*[:：]\s*([^\n]+)/im);
+  if (verdict) {
+    const value = verdict[1].trim().toLowerCase();
+    if (/^yes(?:$|[-_\s])/i.test(value) && !/^yes\s*\/\s*no\b/i.test(value)) return true;
+  }
+  return /本轮已检查|未发现阻塞目标的重要发现/.test(content);
 }
 
 export function isBlockingReviewRisk(risk) {
