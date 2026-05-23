@@ -22,9 +22,10 @@ assert(fs.existsSync(path.join(repoRoot, "tests/migration-adoption.mjs")), "migr
 assert(fs.existsSync(path.join(repoRoot, "tests/helpers/harness-test-utils.mjs")), "shared test utilities should live outside individual suites");
 
 const cliEntrypoint = fs.readFileSync(path.join(repoRoot, "scripts/harness.mjs"), "utf8");
-assert(cliEntrypoint.split(/\r?\n/).length <= 430, "scripts/harness.mjs should stay below 430 lines by routing command handlers out");
+assert(cliEntrypoint.split(/\r?\n/).length <= 320, "scripts/harness.mjs should stay below 320 lines by routing command handlers out");
 assert(fs.existsSync(path.join(repoRoot, "scripts/commands/dashboard-command.mjs")), "dashboard command handler should live outside scripts/harness.mjs");
 assert(fs.existsSync(path.join(repoRoot, "scripts/commands/migration-command.mjs")), "migration command handler should live outside scripts/harness.mjs");
+assert(fs.existsSync(path.join(repoRoot, "scripts/commands/task-command.mjs")), "task command handler should live outside scripts/harness.mjs");
 
 const cssManifestPath = path.join(repoRoot, "templates/dashboard/assets/app.css.manifest.json");
 assert(fs.existsSync(cssManifestPath), "dashboard CSS should be assembled from a manifest of css-src files");
