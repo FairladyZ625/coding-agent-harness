@@ -173,19 +173,23 @@ stateDiagram-v2
   closed --> [*]
 ```
 
-The scanner keeps raw task state and derived lifecycle state separate:
+The scanner keeps raw task state, review status, closeout status, and derived
+lifecycle state separate:
 
-| Raw task state | Derived lifecycle meaning |
+| Raw task state / evidence | Derived lifecycle meaning |
 | --- | --- |
 | `not_started` / `planned` | `ready` |
 | `in_progress` | `active` |
 | `blocked` | `blocked` |
-| `review` with open blocking findings | `review-blocked` |
+| `reviewStatus = blocked-open-findings` | `review-blocked` |
 | `review` without blocking findings | `in_review` |
 | `done` without closeout | `closing` |
-| any state with closed closeout evidence | `closed` |
+| `closeoutStatus = closed` and missing human confirmation | `closed-review-pending` |
+| `closeoutStatus = closed` and `reviewStatus = confirmed` | `closed` |
 
 This prevents a task from looking finished just because one file says `done`.
+See `docs-release/guides/task-state-machine.en-US.md` for the full state and
+review queue matrix.
 
 ## Review And Closeout Gate
 
@@ -215,6 +219,11 @@ flowchart TB
 
 Standard and complex tasks must show progress, evidence, lesson resolution,
 review confirmation, and closeout linkage before they are treated as closed.
+
+The review queue is the human review workbench. It includes active review tasks
+and closed tasks that still lack human confirmation. Agent-authored review notes
+are reported as `agent-reviewed`; only a `Human Review Confirmation` block marks
+the task as `confirmed`.
 
 ## Migration Rails
 

@@ -40,6 +40,7 @@ Not every document is written for the same reader.
 | --- | --- | --- |
 | Product / engineering leaders 产品和工程负责人 | `guides/repository-operating-models.md` / `guides/repository-operating-models.en-US.md` | Choose single-repo, independent multi-repo, or parent-control repository mode. 选择单仓、多仓独立或主控仓库模式。 |
 | Architects / tech leads 架构负责人 | `architecture/overview.md` / `architecture/overview.zh-CN.md` | Understand the product architecture and task lifecycle. 理解产品架构和任务生命周期。 |
+| Review owners / maintainers 审查负责人和维护者 | `guides/task-state-machine.md` / `guides/task-state-machine.en-US.md` | Understand task state, review status, closeout, and review queue semantics. 理解任务状态、审查状态、收口和审查队列语义。 |
 | Teams adopting Harness 项目接入团队 | `guides/agent-installation.md` / `guides/agent-installation.en-US.md` | Install and operate the agent entrypoint in a target project. 在目标项目中安装和运行 Agent 入口。 |
 | Agents running a migration 执行迁移的 Agent | `guides/legacy-migration-agent-prompt.md` / `guides/legacy-migration-agent-prompt.zh-CN.md` | Follow an executable migration contract. 按可执行迁移合同工作。 |
 | Maintainers deciding what to publish 维护者 | `guides/document-audience-and-surfaces.md` / `guides/document-audience-and-surfaces.en-US.md` | Separate human docs, agent docs, and private operating state. 区分人读文档、Agent 执行文档和私有运行状态。 |
@@ -60,6 +61,7 @@ Not every document is written for the same reader.
 - `guides/document-audience-and-surfaces.md` / `guides/document-audience-and-surfaces.en-US.md` — explains which docs are for humans, which docs are for agents, and which state must stay out of public release docs. 说明哪些文档给人看，哪些给 Agent 执行，以及哪些状态不能进入公开发布文档。
 - `guides/repository-operating-models.md` / `guides/repository-operating-models.en-US.md` — compares single-repo, independent multi-repo, and parent-control repository operating models. 对比单仓、多仓独立、主控仓库三种运行模式。
 - `guides/parent-control-repository-pattern.md` / `guides/parent-control-repository-pattern.en-US.md` — describes the control-plane pattern for products with many child repositories, services, SDKs, or upstream references. 解释多子仓库、多服务、SDK、上游参考仓库场景下的控制面模式。
+- `guides/task-state-machine.md` / `guides/task-state-machine.en-US.md` — explains task state, derived lifecycle, review status, closeout, review queue buckets, and human confirmation flow. 解释任务状态、派生生命周期、审查状态、收口、审查队列分桶和人工确认流程。
 
 ### Adoption And Migration / 接入与迁移
 

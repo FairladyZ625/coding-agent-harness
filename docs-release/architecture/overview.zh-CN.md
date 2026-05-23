@@ -158,19 +158,21 @@ stateDiagram-v2
   closed --> [*]
 ```
 
-扫描器会区分原始任务状态和派生生命周期状态：
+扫描器会区分原始任务状态、审查状态、收口状态和派生生命周期状态：
 
-| 原始任务状态 | 派生生命周期含义 |
+| 原始任务状态 / 证据 | 派生生命周期含义 |
 | --- | --- |
 | `not_started` / `planned` | `ready` |
 | `in_progress` | `active` |
 | `blocked` | `blocked` |
-| `review` 且存在阻塞 finding | `review-blocked` |
+| `reviewStatus = blocked-open-findings` | `review-blocked` |
 | `review` 且无阻塞 finding | `in_review` |
 | `done` 但缺少 closeout | `closing` |
-| 任意状态且已有 closed closeout 证据 | `closed` |
+| `closeoutStatus = closed` 且缺少人工确认 | `closed-review-pending` |
+| `closeoutStatus = closed` 且 `reviewStatus = confirmed` | `closed` |
 
 这样可以避免一个文件里写了 `done`，任务就被误认为真正完成。
+完整状态机和审查队列矩阵见 `docs-release/guides/task-state-machine.md`。
 
 ## Review 与 Closeout 门禁
 
@@ -199,6 +201,8 @@ flowchart TB
 ```
 
 standard 和 complex 任务必须具备进度、证据、lesson 决议、人工确认和收口链接，才会被视为真正关闭。
+
+审查队列是人工审查工作台。它包含执行中的审查任务，也包含已经收口但缺少人工确认的审查债务。Agent 写入的审查记录会显示为 `agent-reviewed`；只有 `Human Review Confirmation` 存在时，任务才是 `confirmed`。
 
 ## 迁移轨道
 
