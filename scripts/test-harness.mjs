@@ -299,6 +299,9 @@ assert(dashboardApp.includes("task-row-card"), "dashboard missing upgraded task 
 assert(dashboardApp.includes("taskSortOrder"), "dashboard missing task time sort state");
 assert(dashboardApp.includes("data-task-sort-order"), "dashboard missing task time sort controls");
 assert(dashboardApp.includes("sortTasksByTime"), "dashboard missing reusable task time sort helper");
+assert(dashboardApp.includes("function taskFolderName"), "dashboard missing reusable task folder name helper");
+assert(dashboardApp.includes("data-copy-task-folder"), "dashboard copy controls must copy task folder names");
+assert(!dashboardApp.includes("task?.title || task?.id || \"\""), "dashboard copy controls must not copy display titles");
 assert(dashboardApp.includes("activeBriefCount"), "dashboard missing active brief count label");
 assert(dashboardApp.includes("data-copy-task-name"), "dashboard missing task name copy controls");
 assert(dashboardApp.includes("copyTaskNameSuccess"), "dashboard missing task name copy success feedback");
@@ -322,6 +325,14 @@ assert(dashboardMermaid.includes("mermaid-rendered"), "dashboard missing rendere
 assert(dashboardCss.includes(".runtime-banner"), "dashboard missing static read-only banner styling");
 assert(dashboardCss.includes("max-height: min(68vh, 620px)"), "dashboard missing mermaid viewport containment");
 assert(dashboardCss.includes(".review-workspace-grid"), "dashboard missing review workspace layout");
+assert(dashboardCss.includes("@media (min-width: 1280px)"), "dashboard desktop sidebar should wait for wider viewports");
+assert(dashboardCss.includes("grid-template-columns: minmax(0, 1fr) minmax(300px, 360px)"), "overview sidebar should not overtake the main column");
+assert(dashboardCss.includes(".review-actions .copy-task-name.review-copy-task-name"), "review copy control should have scoped styles");
+assert(dashboardCss.includes(".review-workspace-main,"), "review workspace columns must be shrinkable");
+assert(dashboardCss.includes(".review-doc-panel"), "review document panels must be width-contained");
+assert(dashboardCss.includes("overflow: hidden;"), "document panels must prevent long review content from widening the page");
+assert(dashboardCss.includes("max-width: 100%;"), "markdown and review panels must cap rendered content width");
+assert(dashboardCss.includes("transform: translateX(105%)"), "closed task drawer must not widen the page");
 for (const generated of ["data/status.json", "data/tables.json", "data/documents.json", "data/graph.json", "data/adoption.json", "assets/dashboard-data.js"]) {
   const content = fs.readFileSync(path.join(dashboardDir, generated), "utf8");
   assert(!content.includes(repoRoot), `${generated} leaked absolute repo path`);
