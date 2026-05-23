@@ -27,6 +27,10 @@ assert(fs.existsSync(path.join(repoRoot, "scripts/commands/dashboard-command.mjs
 assert(fs.existsSync(path.join(repoRoot, "scripts/commands/migration-command.mjs")), "migration command handler should live outside scripts/harness.mjs");
 assert(fs.existsSync(path.join(repoRoot, "scripts/commands/task-command.mjs")), "task command handler should live outside scripts/harness.mjs");
 
+const taskLifecycleModule = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-lifecycle.mjs"), "utf8");
+assert(taskLifecycleModule.split(/\r?\n/).length <= 650, "task lifecycle core should stay below 650 lines by routing preset-specific evidence helpers out");
+assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-migration-preset.mjs")), "legacy migration preset task helpers should live outside task-lifecycle.mjs");
+
 const cssManifestPath = path.join(repoRoot, "templates/dashboard/assets/app.css.manifest.json");
 assert(fs.existsSync(cssManifestPath), "dashboard CSS should be assembled from a manifest of css-src files");
 const cssManifest = JSON.parse(fs.readFileSync(cssManifestPath, "utf8"));
