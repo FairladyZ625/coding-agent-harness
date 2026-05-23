@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import {
   repoRoot,
   visualMapFile,
@@ -23,7 +25,13 @@ import {
   normalizeTaskId,
   renderTaskTemplate,
 } from "./core-shared.mjs";
+import { verifyMigrationSession } from "./migration-planner.mjs";
 import { readCapabilityRegistry } from "./capability-registry.mjs";
+import {
+  buildPresetAudit,
+  readPresetPackage,
+  renderPresetTemplate,
+} from "./preset-registry.mjs";
 import {
   collectTasks,
   collectReviewRisks,
@@ -150,6 +158,12 @@ function normalizeTaskBudgetInput(budget) {
   throw new Error(`Invalid task budget: ${budget}. Expected one of: simple, standard, complex`);
 }
 
+function normalizeTaskPresetInput(preset) {
+  const normalized = String(preset || "none").trim().toLowerCase().replaceAll("_", "-");
+  if (!normalized || normalized === "none") return "none";
+  return readPresetPackage(normalized).id;
+}
+
 function taskFilesForBudget({ budget, locale }) {
   if (budget === "simple") return simpleTaskTemplateFiles({ locale });
   if (budget === "complex") return [...taskTemplateFiles({ locale }), ...optionalTaskTemplateFiles({ locale })];
@@ -252,18 +266,30 @@ function bareSlug(datedId) {
   return datedId;
 }
 
-export function createTask(targetInput, taskId, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard", longRunning = false } = {}) {
-  const target = normalizeTarget(targetInput);
-  const rawNormalized = normalizeTaskId(taskId);
+export function createTask(targetInput, taskId, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard", longRunning = false, preset = "", fromSession = "" } = {}) {
+  const normalizedPreset = normalizeTaskPresetInput(preset);
+  const presetPackage = normalizedPreset === "none" ? null : readPresetPackage(normalizedPreset);
+  const migrationSession = fromSession ? readMigrationSession(fromSession) : null;
+  const target = migrationSession ? normalizeTarget(migrationSession.target) : normalizeTarget(targetInput);
+  if (migrationSession && targetInput && targetInput !== "." && path.resolve(targetInput) !== path.resolve(migrationSession.target)) {
+    throw new Error(`--from-session target mismatch: session target is ${migrationSession.target}`);
+  }
+  const normalizedBudget = normalizeTaskBudgetInput(budget);
+  if (presetPackage && !presetPackage.compatibleBudgets.includes(normalizedBudget)) throw new Error(`${normalizedPreset} preset requires --budget ${presetPackage.compatibleBudgets.join("|")}`);
+  if (presetPackage?.task?.projectLevelOnly === true && moduleKey) throw new Error(`${normalizedPreset} preset is project-level and cannot be combined with --module`);
+  if (presetPackage?.task?.requiresFromSession === true && !migrationSession) throw new Error(`${normalizedPreset} preset requires --from-session`);
+  const rawNormalized = normalizeTaskId(taskId || (presetPackage?.task?.defaultTaskId || ""));
   const normalizedTaskId = ensureDatePrefix(rawNormalized);
   if (!normalizedTaskId) throw new Error("Missing task id");
   const semanticSlug = bareSlug(normalizedTaskId);
   const normalizedModuleKey = moduleKey ? normalizeTaskId(moduleKey) : "";
   const normalizedLocale = normalizeLocale(locale || readCapabilityRegistry(target).locale);
-  const normalizedBudget = normalizeTaskBudgetInput(budget);
-  const taskTitle = title || semanticSlug;
+  const taskTitle = title || (normalizedPreset === "legacy-migration" ? "Harness v1 legacy migration" : semanticSlug);
   const directory = taskRoot(target, normalizedTaskId, { moduleKey: normalizedModuleKey });
   if (fs.existsSync(directory)) throw new Error(`Task already exists: ${normalizedTaskId}`);
+  const presetContext = presetPackage
+    ? legacyMigrationPresetContext({ presetPackage, target, taskDir: directory, taskId: normalizedTaskId, session: migrationSession })
+    : null;
   const changes = [];
   if (normalizedModuleKey) {
     const moduleDirectory = path.dirname(directory);
@@ -305,13 +331,26 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
     fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
     fs.writeFileSync(
       destinationPath,
-      renderTaskTemplate(readBundledTemplate(source), {
+      renderPresetTaskTemplate(destination, renderTaskTemplate(readBundledTemplate(source), {
         taskId: normalizedTaskId,
         title: taskTitle,
         locale: normalizedLocale,
         budget: normalizedBudget,
-      }),
+      }), presetContext),
     );
+  }
+  if (presetContext) {
+    for (const evidence of presetContext.evidenceFiles) {
+      const destinationPath = path.join(target.projectRoot, evidence.relativePath);
+      changes.push({
+        destination: toPosix(evidence.relativePath),
+        source: evidence.source,
+        action: dryRun ? "would-create" : "create",
+      });
+      if (dryRun) continue;
+      fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+      fs.writeFileSync(destinationPath, evidence.content);
+    }
   }
   return {
     dryRun,
@@ -323,10 +362,224 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
       path: `TARGET:${toPosix(path.relative(target.projectRoot, directory))}`,
       locale: normalizedLocale,
       budget: normalizedBudget,
+      kind: presetContext?.kind || "general",
+      preset: normalizedPreset,
+      presetVersion: presetContext?.presetVersion || "",
+      presetAudit: presetContext?.audit || null,
+      migrationTargetLevel: presetContext?.migrationTargetLevel || "",
+      migrationAchievedLevel: presetContext?.migrationAchievedLevel || "",
+      evidenceBundle: presetContext?.evidenceBundle || "",
       longRunning,
     },
     changes,
   };
+}
+
+function readMigrationSession(fromSession) {
+  const sessionPath = path.resolve(fromSession || "");
+  if (!sessionPath || !fs.existsSync(sessionPath)) throw new Error(`Migration session not found: ${fromSession}`);
+  let session;
+  try {
+    session = JSON.parse(fs.readFileSync(sessionPath, "utf8"));
+  } catch (error) {
+    throw new Error(`Invalid migration session JSON: ${error.message}`);
+  }
+  if (session.operation !== "migrate-run") throw new Error("legacy-migration preset requires a migrate-run session");
+  if (session.planOnly) throw new Error("legacy-migration preset cannot use plan-only session evidence");
+  if (!session.target || !fs.existsSync(session.target)) throw new Error(`Migration session target missing: ${session.target || "(none)"}`);
+  return { ...session, sourcePath: sessionPath };
+}
+
+function legacyMigrationPresetContext({ presetPackage, target, taskDir, taskId, session }) {
+  const stamp = String(session.generatedAt || new Date().toISOString()).replace(/[^0-9A-Za-z-]+/g, "-").replace(/-+$/g, "");
+  const evidenceBundle = toPosix(path.relative(target.projectRoot, path.join(taskDir, "evidence", stamp || "session")));
+  const targetLevel = presetPackage.task?.migrationTargetLevel || "migration-baseline";
+  const achievedLevel = session.strictDeferred ? "migration-deferred" : session.result === "complete" ? "migration-full-cutover" : "migration-baseline";
+  const verifyResult = verifyMigrationSession(session.sourcePath, { fullCutover: false });
+  const audit = buildPresetAudit(presetPackage, {
+    taskId,
+    targetRoot: target.projectRoot,
+    entrypoint: "newTask",
+  });
+  return {
+    kind: presetPackage.task?.kind || "project-migration",
+    preset: presetPackage.id,
+    presetVersion: String(presetPackage.version),
+    presetPackage,
+    audit,
+    migrationTargetLevel: targetLevel,
+    migrationAchievedLevel: achievedLevel,
+    evidenceBundle,
+    session,
+    evidenceFiles: legacyMigrationEvidenceFiles({ target, session, evidenceBundle, verifyResult, presetPackage, audit }),
+  };
+}
+
+function legacyMigrationEvidenceFiles({ target, session, evidenceBundle, verifyResult, presetPackage, audit }) {
+  const files = [];
+  const addJson = (name, value, source = "session") => files.push({
+    relativePath: path.join(evidenceBundle, name),
+    source,
+    content: `${JSON.stringify(value, null, 2)}\n`,
+  });
+  const addText = (name, value, source = "generated") => files.push({
+    relativePath: path.join(evidenceBundle, name),
+    source,
+    content: `${String(value || "").trim()}\n`,
+  });
+  addJson("session.json", session, "session.json");
+  addJson("migrate-plan.json", session.plan || {}, "migrate-plan.json");
+  addJson("normal-check.json", session.checks?.normal || {}, "session.checks.normal");
+  addJson("strict-check.json", session.checks?.strict || {}, "session.checks.strict");
+  addJson("migrate-verify.json", verifyResult, "migrate-verify");
+  addJson("migration-ledger.json", migrationLedger({ session, presetPackage, verifyResult }), "preset-ledger");
+  addJson("preset-manifest.json", {
+    id: presetPackage.id,
+    version: presetPackage.version,
+    manifestPath: presetPackage.manifestRelativePath,
+    manifestSha256: presetPackage.manifestSha256,
+    compatibleBudgets: presetPackage.compatibleBudgets,
+    entrypoints: presetPackage.entrypoints,
+    audit: presetPackage.audit,
+    writeScopes: presetPackage.writeScopes,
+  }, "preset.yaml");
+  addJson("preset-audit.json", audit, "preset-audit");
+  addJson("write-scope.json", {
+    preset: presetPackage.id,
+    scopes: presetPackage.writeScopes,
+    entrypointScopes: audit.writeScopes,
+  }, "preset.yaml");
+  addText("dashboard.hash.txt", dashboardHash(session.dashboard?.indexPath || ""), "dashboard");
+  addText("target-git-status.txt", JSON.stringify(session.git?.after || {}, null, 2), "session.git.after");
+  addText("target-commit.txt", targetCommit(target.projectRoot), "git");
+  addText("harness-version.txt", packageVersion(), "package.json");
+  addText("generated-at.txt", new Date().toISOString(), "generated");
+  return files;
+}
+
+function migrationLedger({ session, presetPackage, verifyResult }) {
+  const summary = session.plan?.summary || {};
+  return {
+    schemaVersion: "legacy-migration-ledger/v2",
+    preset: presetPackage.id,
+    presetVersion: presetPackage.version,
+    staticDashboardRole: "evidence-snapshot",
+    workbenchRole: "human-confirmation-control-plane",
+    phases: [
+      {
+        id: "baseline",
+        state: verifyResult.status === "pass" ? "done" : "blocked",
+        evidence: ["session.json", "migrate-plan.json", "normal-check.json", "strict-check.json", "migrate-verify.json"],
+      },
+      {
+        id: "mechanical-scaffold",
+        state: "planned",
+        automationAllowed: true,
+        outputPolicy: "May add missing task contract files and placeholders, but must not mark semantic reconstruction complete.",
+        counters: {
+          taskActions: Number(summary.taskActions || 0),
+          reviewSchemaGaps: Number(summary.reviewSchemaGaps || 0),
+          legacyReferenceGaps: Number(summary.legacyReferenceGaps || 0),
+        },
+      },
+      {
+        id: "semantic-reconstruction",
+        state: "planned",
+        automationAllowed: false,
+        evidenceLedgerRequired: true,
+        requiredEvidenceSources: ["task_plan.md", "progress.md", "review.md", "walkthrough", "Harness-Ledger", "git"],
+        completionRule: "Each task needs explicit evidenceSources and reviewState before semantic completion.",
+      },
+      {
+        id: "cutover-review",
+        state: "planned",
+        humanConfirmationRequired: true,
+        workbenchQueueRequired: true,
+        staticDashboardRole: "evidence-snapshot",
+      },
+    ],
+    counters: {
+      warnings: Number(summary.warnings || 0),
+      taskActions: Number(summary.taskActions || 0),
+      reviewSchemaGaps: Number(summary.reviewSchemaGaps || 0),
+      legacyReferenceGaps: Number(summary.legacyReferenceGaps || 0),
+      legacyResiduals: Number(summary.legacyResiduals || 0),
+      fullCutoverEligible: summary.fullCutoverEligible === true,
+    },
+    queue: [],
+  };
+}
+
+function dashboardHash(indexPath) {
+  if (!indexPath || !fs.existsSync(indexPath)) return "missing";
+  const hash = crypto.createHash("sha256").update(fs.readFileSync(indexPath)).digest("hex");
+  return `sha256:${hash}`;
+}
+
+function targetCommit(projectRoot) {
+  const result = spawnSync("git", ["-C", projectRoot, "rev-parse", "HEAD"], { encoding: "utf8" });
+  return result.status === 0 ? result.stdout.trim() : "n/a";
+}
+
+function packageVersion() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")).version || "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+function renderPresetTaskTemplate(destination, content, presetContext) {
+  if (!presetContext) return content;
+  if (destination === "task_plan.md") content = renderLegacyMigrationTaskPlan(content, presetContext);
+  const templateKey = {
+    task_plan: "taskPlanAppend",
+    "task_plan.md": "taskPlanAppend",
+    execution_strategy: "executionStrategyAppend",
+    "execution_strategy.md": "executionStrategyAppend",
+    findings: "findingsSeed",
+    "findings.md": "findingsSeed",
+    review: "reviewSeed",
+    "review.md": "reviewSeed",
+    [visualMapFile]: "visualMapAppend",
+  }[destination];
+  const templatePath = presetContext.presetPackage?.newTaskTemplates?.[templateKey];
+  if (templatePath) {
+    return `${content.trimEnd()}\n\n${renderPresetTemplate(presetContext.presetPackage, templatePath, presetTemplateValues(presetContext)).trimEnd()}\n`;
+  }
+  return content;
+}
+
+function presetTemplateValues(context) {
+  return {
+    preset: context.preset,
+    presetVersion: context.presetVersion,
+    kind: context.kind,
+    evidenceBundle: context.evidenceBundle,
+    migrationTargetLevel: context.migrationTargetLevel,
+    migrationAchievedLevel: context.migrationAchievedLevel,
+    strictDeferred: context.session.strictDeferred ? "yes" : "no",
+    fullCutoverClaimAllowed: context.migrationAchievedLevel === "migration-full-cutover" ? "yes" : "no",
+    warnings: context.session.plan?.summary?.warnings || 0,
+    taskActions: context.session.plan?.summary?.taskActions || 0,
+    legacyResiduals: context.session.plan?.summary?.legacyResiduals || 0,
+  };
+}
+
+function renderLegacyMigrationTaskPlan(content, context) {
+  const metadata = [
+    `Selected budget: complex`,
+    `Task Kind: ${context.kind}`,
+    `Task Preset: ${context.preset}`,
+    `Preset Version: ${context.presetVersion}`,
+    `Migration Target Level: ${context.migrationTargetLevel}`,
+    `Migration Achieved Level: ${context.migrationAchievedLevel}`,
+    `Evidence Bundle: ${context.evidenceBundle}`,
+  ].join("\n");
+  let next = String(content).replace(/^(Task Contract:\s*harness-task\/v1\s*)$/im, `$1\n${metadata}`);
+  next = next.replace("[State the outcome this task must deliver in one sentence.]", "Create a controlled Harness v1 migration task from the recorded migrate-run session without rewriting history automatically.");
+  next = next.replace("[用一句话说明本任务完成后应达到的状态。]", "基于已记录的 migrate-run session 创建受控的 Harness v1 迁移任务，不自动改写历史材料。");
+  return next;
 }
 
 export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", state = "", message = "", evidence = "" } = {}) {

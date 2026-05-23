@@ -13,6 +13,9 @@ import {
   doctorUserSkill,
   installUserSkill,
   listLifecycleTasks,
+  checkPresetPackage,
+  inspectPresetPackage,
+  listPresetPackages,
   normalizeLocale,
   promoteLessonCandidate,
   runMigration,
@@ -96,7 +99,10 @@ Usage:
   harness migrate-plan [--json] [--limit n] [target]
   harness migrate-run [--locale zh-CN|en-US] [--assume-locale] [--allow-dirty] [--plan-only] [--out-dir folder] [--session-dir folder] [target]
   harness migrate-verify [--json] [--full-cutover] <session.json>
-  harness new-task <task-id> [--module key] [--budget simple|standard|complex] [--long-running] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
+  harness preset list [--json]
+  harness preset inspect <id> [--json]
+  harness preset check <id> [--json]
+  harness new-task <task-id> [--module key] [--budget simple|standard|complex] [--preset legacy-migration] [--from-session session.json] [--long-running] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
   harness task-start <task-id> [--message text] [target]
   harness task-phase <task-id> <phase-id> [--state done] [--completion 100] [--evidence present] [target]
   harness task-log <task-id> --message text [--evidence type:PATH:summary] [target]
@@ -338,20 +344,61 @@ if (command === "help" || command === "--help" || command === "-h") {
     console.log(`Migration verify ${result.status}: ${result.sessionPath}`);
   }
   process.exit(result.status === "pass" ? 0 : 1);
+} else if (command === "preset") {
+  const subcommand = args.shift() || "list";
+  const json = takeFlag("--json");
+  try {
+    if (subcommand === "list") {
+      const presets = listPresetPackages().map((preset) => ({
+        id: preset.id,
+        version: preset.version,
+        purpose: preset.purpose,
+        compatibleBudgets: preset.compatibleBudgets,
+        manifestPath: preset.manifestRelativePath,
+      }));
+      if (json) console.log(JSON.stringify({ presets }, null, 2));
+      else for (const preset of presets) console.log(`${preset.id}@${preset.version} ${preset.compatibleBudgets.join(",")}`);
+    } else if (subcommand === "inspect") {
+      const id = args.shift();
+      if (!id) throw new Error("Missing preset id");
+      const preset = inspectPresetPackage(id);
+      if (json) console.log(JSON.stringify(preset, null, 2));
+      else console.log(`${preset.id}@${preset.version}\n${preset.purpose}`);
+    } else if (subcommand === "check") {
+      const id = args.shift();
+      if (!id) throw new Error("Missing preset id");
+      const report = checkPresetPackage(id);
+      if (json) console.log(JSON.stringify(report, null, 2));
+      else {
+        for (const failure of report.failures) console.error(`Failure: ${failure}`);
+        for (const warning of report.warnings) console.log(`Warning: ${warning}`);
+        console.log(`Preset check ${report.status}: ${report.id}@${report.version}`);
+      }
+      process.exit(report.status === "pass" ? 0 : 1);
+    } else {
+      throw new Error(`Unknown preset subcommand: ${subcommand}`);
+    }
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
 } else if (command === "new-task") {
   const dryRun = takeFlag("--dry-run");
   const locale = takeOption("--locale", "");
   const title = takeOption("--title", "");
   const moduleKey = takeOption("--module", "");
   const budget = takeOption("--budget", "standard");
+  const preset = takeOption("--preset", "");
+  const fromSession = takeOption("--from-session", "");
   const longRunning = takeFlag("--long-running");
-  const taskId = args.shift();
+  const shouldDeriveTaskId = fromSession && args.length === 0;
+  const taskId = shouldDeriveTaskId ? "harness-v1-migration" : args.shift();
   if (!taskId) {
     console.error("Missing task id");
     process.exit(2);
   }
   try {
-    console.log(JSON.stringify(createTask(targetArg(), taskId, { title, locale, dryRun, moduleKey, budget, longRunning }), null, 2));
+    console.log(JSON.stringify(createTask(targetArg(), taskId, { title, locale, dryRun, moduleKey, budget, longRunning, preset, fromSession }), null, 2));
   } catch (error) {
     console.error(error.message);
     process.exit(1);

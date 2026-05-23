@@ -1,0 +1,57 @@
+id: legacy-migration
+version: 2
+compatibleBudgets: [complex]
+localeSupport: [en-US, zh-CN]
+purpose: migrate legacy Harness projects into v1 task readability and cutover gates
+task:
+  kind: project-migration
+  defaultTaskId: harness-v1-migration
+  requiresFromSession: true
+  projectLevelOnly: true
+  migrationTargetLevel: migration-baseline
+entrypoints:
+  newTask:
+    type: template
+    writes: [docs/09-PLANNING/TASKS/**]
+    reads: [session.json]
+    audit: true
+    templates:
+      taskPlanAppend: templates/task_plan.append.md
+      executionStrategyAppend: templates/execution_strategy.append.md
+      visualMapAppend: templates/visual_map.append.md
+      findingsSeed: templates/findings.seed.md
+      reviewSeed: templates/review.seed.md
+  plan:
+    type: script
+    command: scripts/plan-work-queue.mjs
+    writes: [docs/09-PLANNING/TASKS/**]
+    reads: [docs/**, .git/**]
+    audit: true
+  scaffold:
+    type: script
+    command: scripts/scaffold-task-contracts.mjs
+    writes: [docs/09-PLANNING/TASKS/**]
+    reads: [docs/**]
+    audit: true
+  check:
+    type: check
+    command: checks/preset-check.mjs
+    writes: [docs/09-PLANNING/TASKS/**]
+    reads: [docs/**]
+    audit: true
+workbench:
+  panels: workbench/dashboard-panels.yaml
+  migrationQueueSchema: workbench/migration-queue.schema.json
+evidence:
+  bundleDir: evidence
+  ledger: migration-ledger.json
+review:
+  required: true
+  materialFindingPolicy: block-open-p0-p2
+audit:
+  manifestRequired: true
+  evidenceFiles: [preset-manifest.json, preset-audit.json, write-scope.json]
+writeScopes:
+  taskArtifacts:
+    path: docs/09-PLANNING/TASKS/**
+    access: write

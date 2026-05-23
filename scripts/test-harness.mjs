@@ -522,6 +522,123 @@ assert(
   fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-long-running-lifecycle/long-running-task-contract.md`)),
   "new-task --long-running should create long-running-task-contract.md",
 );
+const legacyPresetSessionDir = path.join(tmpRoot, "legacy-preset-session");
+fs.mkdirSync(path.join(legacyPresetSessionDir, "dashboard"), { recursive: true });
+fs.writeFileSync(path.join(legacyPresetSessionDir, "dashboard/index.html"), "<html>legacy migration dashboard</html>\n");
+fs.writeFileSync(path.join(legacyPresetSessionDir, "migrate-plan.json"), JSON.stringify({ operation: "migrate-plan", summary: { warnings: 2, legacyResiduals: 1 } }, null, 2));
+const legacyPresetSessionPath = path.join(legacyPresetSessionDir, "session.json");
+fs.writeFileSync(
+  legacyPresetSessionPath,
+  JSON.stringify(
+    {
+      operation: "migrate-run",
+      schemaVersion: 1,
+      generatedAt: "2026-05-22T00:00:00.000Z",
+      result: "adopted-with-strict-deferred",
+      target: lifecycleTarget,
+      sessionDir: legacyPresetSessionDir,
+      planOnly: false,
+      dashboard: { dir: path.join(legacyPresetSessionDir, "dashboard"), indexPath: path.join(legacyPresetSessionDir, "dashboard/index.html"), kind: "html-folder" },
+      plan: {
+        mode: "legacy-compat",
+        summary: {
+          warnings: 2,
+          visualMapActions: 0,
+          legacyVisualOnly: 0,
+          unknownClassification: 0,
+          weakBrief: 0,
+          missingCanonicalVisualMap: 0,
+          taskActions: 0,
+          reviewSchemaGaps: 0,
+          legacyReferenceGaps: 0,
+          legacyResiduals: 1,
+          fullCutoverEligible: false,
+          recommendedCapabilities: ["safe-adoption"],
+        },
+      },
+      checks: {
+        normal: { status: "warn", failures: 0, warnings: 2, failureDetails: [], warningDetails: ["legacy residual"] },
+        strict: { status: "fail", failures: 1, warnings: 2, failureDetails: ["strict residual"], warningDetails: [] },
+      },
+      strictDeferred: {
+        owner: "migration-owner",
+        trigger: "strict-cutover",
+        nextAction: "Assign real owner before full cutover.",
+        reason: "Historical residual remains.",
+        failureCount: 1,
+        failures: ["strict residual"],
+      },
+      git: {
+        before: { inGit: false, branch: "", entries: [], staged: [], dirty: false },
+        after: { inGit: false, branch: "", entries: [], staged: [], dirty: false },
+      },
+    },
+    null,
+    2,
+  ),
+);
+const legacyPresetDryRun = expectJson(["new-task", "--budget", "complex", "--preset", "legacy-migration", "--from-session", legacyPresetSessionPath, "--dry-run"]);
+assert(legacyPresetDryRun.task?.preset === "legacy-migration", "new-task legacy-migration dry-run should report preset");
+assert(!fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-harness-v1-migration`)), "legacy-migration dry-run should not mutate target");
+const legacyPresetInspect = expectJson(["preset", "inspect", "legacy-migration", "--json"]);
+assert(legacyPresetInspect.id === "legacy-migration", "preset inspect should load legacy-migration from presets/<id>/preset.yaml");
+assert(legacyPresetInspect.version === 2, "legacy-migration preset package should report version 2");
+assert(legacyPresetInspect.compatibleBudgets?.includes("complex"), "legacy-migration preset should declare complex budget compatibility");
+assert(legacyPresetInspect.audit?.manifestRequired === true, "preset package should require manifest audit evidence");
+assert(legacyPresetInspect.writeScopes?.some((scope) => scope.path === "docs/09-PLANNING/TASKS/**"), "preset package should declare task write scope");
+assert(legacyPresetInspect.workbench?.migrationQueueSchema === "workbench/migration-queue.schema.json", "legacy-migration preset should declare a workbench migration queue schema");
+const legacyPresetCheck = expectJson(["preset", "check", "legacy-migration", "--json"]);
+assert(legacyPresetCheck.status === "pass", "preset check legacy-migration should pass");
+assert(legacyPresetCheck.entrypoints?.newTask?.type === "template", "preset check should validate the newTask entrypoint manifest");
+const legacyPresetTask = expectJson(["new-task", "--budget", "complex", "--preset", "legacy-migration", "--from-session", legacyPresetSessionPath]);
+assert(legacyPresetTask.task?.id === `TASKS/${todayLocal}-harness-v1-migration`, "legacy-migration preset should derive a default task id");
+assert(legacyPresetTask.task?.kind === "project-migration", "legacy-migration preset should report project-migration kind");
+assert(legacyPresetTask.task?.preset === "legacy-migration", "legacy-migration preset should report preset");
+assert(legacyPresetTask.task?.presetVersion === "2", "legacy-migration preset should use version from preset.yaml");
+assert(legacyPresetTask.task?.presetAudit?.manifestPath === "presets/legacy-migration/preset.yaml", "legacy-migration preset should report manifest audit path");
+assert(legacyPresetTask.task?.evidenceBundle, "legacy-migration preset should report evidence bundle");
+const legacyPresetTaskDir = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-harness-v1-migration`);
+const legacyPresetTaskPlan = fs.readFileSync(path.join(legacyPresetTaskDir, "task_plan.md"), "utf8");
+assert(legacyPresetTaskPlan.includes("Task Preset: legacy-migration"), "legacy-migration task plan should persist preset metadata");
+assert(legacyPresetTaskPlan.includes("Migration Achieved Level: migration-deferred"), "strict-deferred session should start as migration-deferred");
+for (const required of ["session.json", "migrate-plan.json", "normal-check.json", "strict-check.json", "migrate-verify.json", "dashboard.hash.txt", "target-git-status.txt", "target-commit.txt", "harness-version.txt", "generated-at.txt"]) {
+  assert(
+    fs.existsSync(path.join(lifecycleTarget, legacyPresetTask.task.evidenceBundle, required)),
+    `legacy-migration preset should copy evidence file ${required}`,
+  );
+}
+for (const required of ["preset-manifest.json", "preset-audit.json", "write-scope.json", "migration-ledger.json"]) {
+  assert(
+    fs.existsSync(path.join(lifecycleTarget, legacyPresetTask.task.evidenceBundle, required)),
+    `legacy-migration preset should write audit evidence file ${required}`,
+  );
+}
+const legacyPresetAudit = JSON.parse(fs.readFileSync(path.join(lifecycleTarget, legacyPresetTask.task.evidenceBundle, "preset-audit.json"), "utf8"));
+assert(legacyPresetAudit.manifestPath === "presets/legacy-migration/preset.yaml", "preset audit should record the manifest path");
+assert(legacyPresetAudit.entrypoints.newTask.type === "template", "preset audit should record audited newTask entrypoint");
+assert(legacyPresetAudit.writeScopes.includes("docs/09-PLANNING/TASKS/**"), "preset audit should record allowed write scopes");
+const legacyMigrationLedger = JSON.parse(fs.readFileSync(path.join(lifecycleTarget, legacyPresetTask.task.evidenceBundle, "migration-ledger.json"), "utf8"));
+assert(legacyMigrationLedger.phases.some((phase) => phase.id === "mechanical-scaffold" && phase.automationAllowed === true), "migration ledger should allow mechanical scaffold automation");
+assert(legacyMigrationLedger.phases.some((phase) => phase.id === "semantic-reconstruction" && phase.evidenceLedgerRequired === true && phase.automationAllowed === false), "migration ledger should block scaffold-only semantic reconstruction");
+assert(legacyMigrationLedger.workbenchRole === "human-confirmation-control-plane", "migration ledger should mark workbench as human confirmation control plane");
+assert(legacyMigrationLedger.staticDashboardRole === "evidence-snapshot", "migration ledger should mark static dashboard as evidence snapshot");
+const legacyPresetStatus = expectJson(["status", "--json", lifecycleTarget]);
+const legacyPresetStatusTask = legacyPresetStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-harness-v1-migration`);
+assert(legacyPresetStatusTask?.taskKind === "project-migration", "status should expose taskKind");
+assert(legacyPresetStatusTask?.taskPreset === "legacy-migration", "status should expose taskPreset");
+assert(legacyPresetStatusTask?.migrationSnapshot?.strictDeferred === true, "status should expose migration snapshot strictDeferred");
+const legacyPresetDashboardDir = path.join(tmpRoot, "legacy-preset-dashboard");
+expectPass(["dashboard", "--out-dir", legacyPresetDashboardDir, lifecycleTarget]);
+const legacyPresetDashboardData = fs.readFileSync(path.join(legacyPresetDashboardDir, "assets/dashboard-data.js"), "utf8");
+assert(legacyPresetDashboardData.includes("migrationSnapshot"), "dashboard bundle should expose migrationSnapshot");
+fs.writeFileSync(
+  path.join(legacyPresetTaskDir, "task_plan.md"),
+  legacyPresetTaskPlan.replace("Migration Achieved Level: migration-deferred", "Migration Achieved Level: migration-full-cutover"),
+);
+const falseFullCutoverCheck = run(["check", "--profile", "target-project", lifecycleTarget]);
+assert(falseFullCutoverCheck.status !== 0, "check should reject migration-full-cutover when evidence still has residuals");
+assert(falseFullCutoverCheck.stderr.includes("migration-full-cutover"), "full-cutover preset failure should explain achieved level");
+fs.writeFileSync(path.join(legacyPresetTaskDir, "task_plan.md"), legacyPresetTaskPlan);
 const promotableCandidatePath = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-long-running-lifecycle/lesson_candidates.md`);
 fs.writeFileSync(
   promotableCandidatePath,

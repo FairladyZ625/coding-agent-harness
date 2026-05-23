@@ -6,5 +6,6 @@ export * from "./check-profiles.mjs";
 export * from "./dashboard-data.mjs";
 export * from "./dashboard-workbench.mjs";
 export * from "./migration-planner.mjs";
+export * from "./preset-registry.mjs";
 export * from "./task-lifecycle.mjs";
 export * from "./lesson-maintenance.mjs";

@@ -60,6 +60,46 @@ export function parseTaskBudget(taskPlanContent) {
   return "standard";
 }
 
+function parseMetadataLine(content, labels) {
+  const escaped = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const match = String(content || "").match(new RegExp(`^(?:${escaped})\\s*[:：]\\s*([^\\n]+)`, "im"));
+  return match ? match[1].replace(/`/g, "").trim() : "";
+}
+
+function normalizeMetadataValue(value, fallback = "") {
+  const normalized = String(value || "")
+    .replace(/`/g, "")
+    .trim()
+    .toLowerCase()
+    .replaceAll("_", "-")
+    .replace(/\s+/g, "-");
+  return normalized || fallback;
+}
+
+export function parseTaskMetadata(taskPlanContent) {
+  const content = String(taskPlanContent || "");
+  const kind = normalizeMetadataValue(parseMetadataLine(content, ["Task Kind", "任务类型"]), "general");
+  const preset = normalizeMetadataValue(parseMetadataLine(content, ["Task Preset", "Preset", "任务预设"]), "none");
+  const presetVersion = parseMetadataLine(content, ["Preset Version", "预设版本"]);
+  const migrationTargetLevel = normalizeMetadataValue(
+    parseMetadataLine(content, ["Migration Target Level", "Target Level", "迁移目标等级", "目标等级"]),
+    "",
+  );
+  const migrationAchievedLevel = normalizeMetadataValue(
+    parseMetadataLine(content, ["Migration Achieved Level", "Achieved Level", "迁移实际完成等级", "实际完成等级"]),
+    "",
+  );
+  const evidenceBundle = parseMetadataLine(content, ["Evidence Bundle", "证据包"]);
+  return {
+    kind,
+    preset,
+    presetVersion,
+    migrationTargetLevel,
+    migrationAchievedLevel,
+    evidenceBundle,
+  };
+}
+
 export function parseTaskContractInfo(taskPlanContent) {
   const content = String(taskPlanContent || "");
   const explicit =
@@ -281,6 +321,7 @@ export function collectTasks(target) {
     const title = titleFromMarkdown(brief.content || taskPlan, path.basename(taskDir));
     const stateInfo = parseTaskStateInfo(progress);
     const budget = parseTaskBudget(taskPlan);
+    const metadata = parseTaskMetadata(taskPlan);
     const taskContract = parseTaskContractInfo(taskPlan);
     const explicitModule = id.startsWith("MODULES/") ? id.split("/")[1] : null;
     const legacyCandidate = brief.source !== "standalone" || visualMap.status === "legacy-only" || !fs.existsSync(executionStrategyPath);
@@ -322,6 +363,13 @@ export function collectTasks(target) {
       taskContractGenerated: taskContract.generated,
       stateSource: stateInfo.source,
       stateRaw: stateInfo.raw,
+      taskKind: metadata.kind,
+      taskPreset: metadata.preset,
+      presetVersion: metadata.presetVersion,
+      migrationTargetLevel: metadata.migrationTargetLevel,
+      migrationAchievedLevel: metadata.migrationAchievedLevel,
+      evidenceBundle: metadata.evidenceBundle,
+      migrationSnapshot: collectMigrationSnapshot(target, metadata),
       lifecycleState,
       reviewStatus,
       reviewConfirmation,
@@ -351,6 +399,37 @@ export function collectTasks(target) {
       dependencies: [],
     };
   });
+}
+
+function collectMigrationSnapshot(target, metadata) {
+  if (metadata.preset !== "legacy-migration") return null;
+  const evidenceBundle = String(metadata.evidenceBundle || "").replace(/^TARGET:/, "").replace(/^\/+/, "");
+  const bundlePath = evidenceBundle ? path.join(target.projectRoot, evidenceBundle) : "";
+  const sessionPath = bundlePath ? path.join(bundlePath, "session.json") : "";
+  let session = null;
+  try {
+    session = sessionPath && fs.existsSync(sessionPath) ? JSON.parse(fs.readFileSync(sessionPath, "utf8")) : null;
+  } catch {
+    session = null;
+  }
+  const summary = session?.plan?.summary || {};
+  return {
+    targetLevel: metadata.migrationTargetLevel || "",
+    achievedLevel: metadata.migrationAchievedLevel || "",
+    evidenceBundle: evidenceBundle ? `TARGET:${evidenceBundle}` : "",
+    evidencePresent: Boolean(bundlePath && fs.existsSync(bundlePath)),
+    sessionPresent: Boolean(session),
+    sessionResult: session?.result || "",
+    normalStatus: session?.checks?.normal?.status || "",
+    strictStatus: session?.checks?.strict?.status || "",
+    strictDeferred: Boolean(session?.strictDeferred),
+    warnings: Number(summary.warnings || 0),
+    taskActions: Number(summary.taskActions || 0),
+    reviewSchemaGaps: Number(summary.reviewSchemaGaps || 0),
+    legacyReferenceGaps: Number(summary.legacyReferenceGaps || 0),
+    legacyResiduals: Number(summary.legacyResiduals || 0),
+    fullCutoverEligible: summary.fullCutoverEligible === true,
+  };
 }
 
 export function parseLessonCandidateStatus(content) {

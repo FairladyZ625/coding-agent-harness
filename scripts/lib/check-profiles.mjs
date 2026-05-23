@@ -204,6 +204,62 @@ export function validatePlanContracts(target, { strict = true } = {}) {
   return { failures, warnings };
 }
 
+export function validateTaskPresetContracts(target) {
+  const failures = [];
+  const allowedMigrationLevels = new Set([
+    "migration-baseline",
+    "migration-current-cutover",
+    "migration-full-cutover",
+    "migration-deferred",
+  ]);
+  for (const task of collectTasks(target)) {
+    if (!task.taskPreset || task.taskPreset === "none") continue;
+    if (task.taskPreset !== "legacy-migration") {
+      failures.push(`${task.path} unsupported Task Preset: ${task.taskPreset}`);
+      continue;
+    }
+    if (task.budget !== "complex") failures.push(`${task.path} legacy-migration preset requires Selected budget: complex`);
+    if (!task.presetVersion) failures.push(`${task.path} legacy-migration preset missing Preset Version`);
+    if (!task.taskKind || task.taskKind === "general") failures.push(`${task.path} legacy-migration preset missing Task Kind`);
+    if (!allowedMigrationLevels.has(task.migrationTargetLevel)) {
+      failures.push(`${task.path} legacy-migration preset invalid Migration Target Level: ${task.migrationTargetLevel || "(missing)"}`);
+    }
+    const achievedLevel = task.migrationAchievedLevel || "";
+    if (achievedLevel !== "pending" && !allowedMigrationLevels.has(achievedLevel)) {
+      failures.push(`${task.path} legacy-migration preset invalid Migration Achieved Level: ${achievedLevel || "(missing)"}`);
+    }
+    if (!task.evidenceBundle) {
+      failures.push(`${task.path} legacy-migration preset missing Evidence Bundle`);
+    } else if (!task.migrationSnapshot?.evidencePresent) {
+      failures.push(`${task.path} legacy-migration preset Evidence Bundle missing: ${task.evidenceBundle}`);
+    } else if (!task.migrationSnapshot?.sessionPresent) {
+      failures.push(`${task.path} legacy-migration preset Evidence Bundle missing session.json`);
+    }
+    if (achievedLevel === "migration-full-cutover") {
+      const snapshot = task.migrationSnapshot || {};
+      const blockers = [];
+      if (!snapshot.sessionPresent) blockers.push("missing session evidence");
+      if (snapshot.sessionResult !== "complete") blockers.push(`session result is ${snapshot.sessionResult || "(missing)"}`);
+      if (snapshot.strictDeferred) blockers.push("strictDeferred is present");
+      if (snapshot.strictStatus !== "pass") blockers.push(`strict status is ${snapshot.strictStatus || "(missing)"}`);
+      for (const [field, value] of [
+        ["warnings", snapshot.warnings],
+        ["taskActions", snapshot.taskActions],
+        ["reviewSchemaGaps", snapshot.reviewSchemaGaps],
+        ["legacyReferenceGaps", snapshot.legacyReferenceGaps],
+        ["legacyResiduals", snapshot.legacyResiduals],
+      ]) {
+        if (Number(value || 0) !== 0) blockers.push(`${field}=${value}`);
+      }
+      if (snapshot.fullCutoverEligible !== true) blockers.push("fullCutoverEligible is not true");
+      if (blockers.length) {
+        failures.push(`${task.path} migration-full-cutover is not proven: ${blockers.join("; ")}`);
+      }
+    }
+  }
+  return { failures, warnings: [] };
+}
+
 export function validateContextDocs(target, { strict = true } = {}) {
   const failures = [];
   const warnings = [];
@@ -268,9 +324,10 @@ export function buildStatus(targetInput, options = {}) {
   const reviews = validateReviewSchema(target, { strict: contractStrict });
   const visualMaps = validateVisualMaps(target);
   const planContracts = validatePlanContracts(target, { strict: contractStrict });
+  const presetContracts = validateTaskPresetContracts(target);
   const contextDocs = validateContextDocs(target, { strict: contractStrict });
-  const failures = [...capabilityState.failures, ...reviews.failures, ...visualMaps.failures, ...planContracts.failures, ...contextDocs.failures];
-  const warnings = [...capabilityState.warnings, ...reviews.warnings, ...visualMaps.warnings, ...planContracts.warnings, ...contextDocs.warnings];
+  const failures = [...capabilityState.failures, ...reviews.failures, ...visualMaps.failures, ...planContracts.failures, ...presetContracts.failures, ...contextDocs.failures];
+  const warnings = [...capabilityState.warnings, ...reviews.warnings, ...visualMaps.warnings, ...planContracts.warnings, ...presetContracts.warnings, ...contextDocs.warnings];
   if (legacy.status === "fail") {
     if (options.strictLegacy) failures.push("legacy check failed");
     else warnings.push(`adoption-needed: legacy check failed: ${(legacy.stderr || legacy.stdout).trim()}`);
