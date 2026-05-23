@@ -176,13 +176,15 @@ fs.writeFileSync(path.join(sourceBoundaryTarget, "templates/planning/task_plan.m
 fs.writeFileSync(path.join(sourceBoundaryTarget, "AGENTS.md"), "# Local only\n");
 fs.writeFileSync(path.join(sourceBoundaryTarget, "docs/private/plan.md"), "# Private\n");
 fs.writeFileSync(path.join(sourceBoundaryTarget, ".harness-private/AGENTS.md"), "# Private harness\n");
+fs.writeFileSync(path.join(sourceBoundaryTarget, "harness-dashboard.html"), "<html>generated dashboard</html>\n");
 spawnSync("git", ["init"], { cwd: sourceBoundaryTarget, encoding: "utf8" });
-spawnSync("git", ["add", "-f", "AGENTS.md", "docs/private/plan.md", ".harness-private/AGENTS.md"], { cwd: sourceBoundaryTarget, encoding: "utf8" });
+spawnSync("git", ["add", "-f", "AGENTS.md", "docs/private/plan.md", ".harness-private/AGENTS.md", "harness-dashboard.html"], { cwd: sourceBoundaryTarget, encoding: "utf8" });
 const sourceBoundaryCheck = run(["check", "--profile", "source-package", sourceBoundaryTarget]);
 assert(sourceBoundaryCheck.status !== 0, "source-package check should reject staged local-only harness files");
 assert(sourceBoundaryCheck.stderr.includes("private local-only file staged: AGENTS.md"), "source-package check should report staged AGENTS.md");
 assert(sourceBoundaryCheck.stderr.includes("private local-only file staged: docs/private/plan.md"), "source-package check should report staged docs/");
 assert(sourceBoundaryCheck.stderr.includes("private local-only file staged: .harness-private/AGENTS.md"), "source-package check should report staged .harness-private/");
+assert(sourceBoundaryCheck.stderr.includes("generated dashboard file tracked in source root: harness-dashboard.html"), "source-package check should report tracked root dashboard output");
 
 const englishTemplateFiles = relativeFiles(path.join(repoRoot, "templates"));
 const chineseTemplateFiles = relativeFiles(path.join(repoRoot, "templates-zh-CN"));
@@ -359,6 +361,14 @@ assert(
 );
 const helpOutput = expectPass(["help"]).stdout;
 assert(helpOutput.includes("harness dev"), "help should advertise harness dev as the daily dynamic workbench entry");
+
+const rootDashboardPath = path.join(repoRoot, "harness-dashboard.html");
+assert(!fs.existsSync(rootDashboardPath), "source package root must not contain tracked generated harness-dashboard.html");
+const defaultDashboard = expectPass(["dashboard", "examples/minimal-project"]).stdout.trim();
+const expectedDefaultDashboard = path.join(repoRoot, "tmp/harness-dashboard.html");
+assert(defaultDashboard === expectedDefaultDashboard, "dashboard default output should be tmp/harness-dashboard.html");
+assert(fs.existsSync(expectedDefaultDashboard), "dashboard default output file was not created under tmp/");
+assert(!fs.existsSync(rootDashboardPath), "dashboard default generation must not recreate root harness-dashboard.html");
 
 const redactionTarget = path.join(tmpRoot, "redaction-target");
 fs.mkdirSync(path.join(redactionTarget, "docs/09-PLANNING/TASKS/path-check"), { recursive: true });

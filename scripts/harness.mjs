@@ -183,7 +183,7 @@ if (command === "help" || command === "--help" || command === "-h") {
 } else if (command === "dashboard") {
   const watch = takeFlag("--watch");
   const workbench = takeFlag("--workbench");
-  const out = takeOption("--out", "harness-dashboard.html");
+  const out = takeOption("--out", path.join("tmp", "harness-dashboard.html"));
   const outDir = takeOption("--out-dir", "");
   const host = takeOption("--host", "127.0.0.1");
   const port = takeOption("--port", "0");

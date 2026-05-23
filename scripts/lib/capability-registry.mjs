@@ -124,9 +124,17 @@ export function validateSourcePackageBoundary(targetInput = ".") {
     .split("\0")
     .filter(Boolean)
     .filter((file) => file === "AGENTS.md" || file === "CLAUDE.md" || file === "docs" || file.startsWith("docs/") || file === ".harness-private" || file.startsWith(".harness-private/"));
+  const tracked = spawnSync("git", ["-C", root, "ls-files", "-z", "--", "harness-dashboard.html"], { encoding: "utf8" });
+  const generatedRootDashboard = tracked.status === 0
+    ? tracked.stdout.split("\0").filter(Boolean)
+      .filter((file) => fs.existsSync(path.join(root, file)))
+    : [];
   return {
-    failures: localOnly.map((file) => `private local-only file staged: ${file}`),
-    warnings: [],
+    failures: [
+      ...localOnly.map((file) => `private local-only file staged: ${file}`),
+      ...generatedRootDashboard.map((file) => `generated dashboard file tracked in source root: ${file}`),
+    ],
+    warnings: tracked.status === 0 ? [] : [`could not inspect tracked generated dashboard files: ${tracked.stderr.trim() || tracked.status}`],
   };
 }
 
