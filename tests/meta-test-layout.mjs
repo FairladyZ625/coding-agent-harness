@@ -43,6 +43,10 @@ const checkProfilesModule = fs.readFileSync(path.join(repoRoot, "scripts/lib/che
 assert(checkProfilesModule.split(/\r?\n/).length <= 420, "check profiles should stay below 420 lines by routing legacy status dashboard rendering out");
 assert(fs.existsSync(path.join(repoRoot, "scripts/lib/status-dashboard-renderer.mjs")), "legacy status dashboard renderer should live outside check-profiles.mjs");
 
+const dashboardTaskSource = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/app-src/30-tasks.js"), "utf8");
+assert(dashboardTaskSource.split(/\r?\n/).length <= 520, "dashboard task index source should stay below 520 lines by routing task detail rendering out");
+assert(fs.existsSync(path.join(repoRoot, "templates/dashboard/assets/app-src/35-task-detail.js")), "dashboard task detail rendering should live outside 30-tasks.js");
+
 const cssManifestPath = path.join(repoRoot, "templates/dashboard/assets/app.css.manifest.json");
 assert(fs.existsSync(cssManifestPath), "dashboard CSS should be assembled from a manifest of css-src files");
 const cssManifest = JSON.parse(fs.readFileSync(cssManifestPath, "utf8"));

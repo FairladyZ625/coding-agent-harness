@@ -3,6 +3,7 @@
   "app-src/10-router.js",
   "app-src/20-overview.js",
   "app-src/30-tasks.js",
+  "app-src/35-task-detail.js",
   "app-src/40-modules.js",
   "app-src/45-review.js",
   "app-src/50-migration.js",
