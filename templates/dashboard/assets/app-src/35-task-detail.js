@@ -162,7 +162,7 @@ function openFindings(task) {
 }
 
 function reviewActionPanel(task, { mode = "summary" } = {}) {
-  if (!isTaskInReviewStage(task)) return "";
+  if (!isTaskInReviewQueue(task)) return "";
   const blocking = task.reviewStatus === "blocked-open-findings" || (task.risks || []).some((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease));
   const confirmed = task.reviewStatus === "confirmed";
   const candidateBlocked = task.budget !== "simple" && !task.lessonCandidateDecisionComplete;
@@ -207,11 +207,8 @@ function reviewActionPanel(task, { mode = "summary" } = {}) {
   </section>`;
 }
 
-function isTaskInReviewStage(task) {
-  const state = task?.state || "";
-  const lifecycle = task?.lifecycleState || "";
-  if (["not_started", "planned", "in_progress"].includes(state)) return false;
-  return state === "review" || ["in_review", "review-blocked"].includes(lifecycle);
+function isTaskInReviewQueue(task) {
+  return (task?.reviewQueueState || "not-in-queue") !== "not-in-queue";
 }
 
 function evidenceList(task) {

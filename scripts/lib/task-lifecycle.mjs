@@ -214,10 +214,10 @@ function validateReviewEntryGate(taskDir, budget) {
 
 function validateHumanReviewConfirmation({ task, budget }) {
   if (budget === "simple") return;
-  const state = task?.state || "unknown";
-  const lifecycle = task?.lifecycleState || "";
-  if (state !== "review" && !["in_review", "review-blocked"].includes(lifecycle)) {
-    throw new Error(`Human review confirmation requires current state review; current state is ${state}. Run task-review first.`);
+  const queueState = task?.reviewQueueState || "not-in-queue";
+  if (queueState === "not-in-queue") {
+    const state = task?.state || "unknown";
+    throw new Error(`Human review confirmation requires a task in the review queue; current state is ${state}.`);
   }
   if (!task?.walkthroughPath) {
     throw new Error("Human review confirmation requires a walkthrough linked from Closeout SSoT before review-confirm.");

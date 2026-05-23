@@ -52,8 +52,8 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
           writeJson(response, 404, { error: "Task not found" });
           return;
         }
-        if (!isTaskInReviewStage(task)) {
-          writeJson(response, 409, { error: "Review completion is only available while the task is in review." });
+        if (!isTaskInReviewQueue(task)) {
+          writeJson(response, 409, { error: "Review completion is only available for tasks in the review queue." });
           return;
         }
         if (task.reviewStatus === "confirmed") {
@@ -103,11 +103,8 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
   await new Promise(() => {});
 }
 
-function isTaskInReviewStage(task) {
-  const state = task?.state || "";
-  const lifecycle = task?.lifecycleState || "";
-  if (["not_started", "planned", "in_progress"].includes(state)) return false;
-  return state === "review" || ["in_review", "review-blocked"].includes(lifecycle);
+function isTaskInReviewQueue(task) {
+  return (task?.reviewQueueState || "not-in-queue") !== "not-in-queue";
 }
 
 function startPollingWatch(root, regenerate) {

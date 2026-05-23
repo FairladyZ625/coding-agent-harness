@@ -322,6 +322,15 @@ export function collectTasks(target) {
     const closeoutInfo = taskCloseoutInfo(target, taskPlanPath);
     const lifecycleState = deriveLifecycleState({ state: stateInfo.state, reviewStatus, closeoutStatus: closeoutInfo.status });
     const stateConflicts = collectStateConflicts({ state: stateInfo.state, reviewStatus, closeoutStatus: closeoutInfo.status, lifecycleState });
+    const reviewQueueState = deriveReviewQueueState({
+      state: stateInfo.state,
+      lifecycleState,
+      reviewStatus,
+      closeoutStatus: closeoutInfo.status,
+      budget,
+      walkthroughPath: closeoutInfo.walkthroughPath,
+      lessonCandidateDecisionComplete: isLessonCandidateDecisionComplete(lessonCandidates),
+    });
     return {
       id,
       shortId: path.basename(taskDir),
@@ -360,6 +369,7 @@ export function collectTasks(target) {
       migrationSnapshot: collectMigrationSnapshot(target, metadata),
       lifecycleState,
       reviewStatus,
+      reviewQueueState,
       reviewConfirmation,
       closeoutStatus: closeoutInfo.status,
       walkthroughPath: closeoutInfo.walkthroughPath ? `TARGET:${closeoutInfo.walkthroughPath}` : "",
@@ -479,14 +489,41 @@ export function isBlockingReviewRisk(risk) {
 }
 
 export function deriveLifecycleState({ state = "unknown", reviewStatus = "missing", closeoutStatus = "missing" } = {}) {
+  if (reviewStatus === "blocked-open-findings") return "review-blocked";
+  if (closeoutStatus === "closed" && reviewStatus !== "confirmed") return "closed-review-pending";
   if (closeoutStatus === "closed") return "closed";
   if (state === "blocked") return "blocked";
-  if (reviewStatus === "blocked-open-findings") return "review-blocked";
   if (state === "done") return "closing";
   if (state === "review") return "in_review";
   if (state === "in_progress") return "active";
   if (["planned", "not_started"].includes(state)) return "ready";
   return "unknown";
+}
+
+export function deriveReviewQueueState({
+  state = "unknown",
+  lifecycleState = "unknown",
+  reviewStatus = "missing",
+  closeoutStatus = "missing",
+  budget = "standard",
+  walkthroughPath = "",
+  lessonCandidateDecisionComplete = false,
+} = {}) {
+  if (reviewStatus === "blocked-open-findings") return "blocked";
+  if (["not_started", "planned", "in_progress"].includes(state)) return "not-in-queue";
+  const reviewSurface =
+    state === "review" ||
+    state === "done" ||
+    ["in_review", "review-blocked", "closing", "closed-review-pending"].includes(lifecycleState) ||
+    closeoutStatus === "closed";
+  if (!reviewSurface) return "not-in-queue";
+  if (reviewStatus === "confirmed") return closeoutStatus === "closed" ? "not-in-queue" : "confirmed";
+  if (budget === "simple" && reviewStatus === "missing") return "not-in-queue";
+  const missingWalkthrough = budget !== "simple" && !walkthroughPath;
+  const missingCandidateDecision = budget !== "simple" && !lessonCandidateDecisionComplete;
+  if (missingWalkthrough || missingCandidateDecision || ["missing", "required"].includes(reviewStatus)) return "needs-material";
+  if (closeoutStatus === "closed") return "closed-debt";
+  return "ready-to-confirm";
 }
 
 function collectStateConflicts({ state, reviewStatus, closeoutStatus, lifecycleState }) {
@@ -496,6 +533,13 @@ function collectStateConflicts({ state, reviewStatus, closeoutStatus, lifecycleS
       code: "done-without-closeout",
       severity: "warn",
       message: "Task state is done, but closeout is still missing or pending.",
+    });
+  }
+  if (closeoutStatus === "closed" && reviewStatus !== "confirmed") {
+    conflicts.push({
+      code: "closed-without-human-review",
+      severity: "warn",
+      message: "Task is closed, but human review confirmation is still missing.",
     });
   }
   if (reviewStatus === "blocked-open-findings") {

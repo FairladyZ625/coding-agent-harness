@@ -397,9 +397,12 @@ fs.appendFileSync(
   path.join(lifecycleTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
   `\n| CL-WORKBENCH-CLOSED | 2026-05-21 | Closed review debt | \`docs/09-PLANNING/TASKS/${todayLocal}-workbench-closed-review/task_plan.md\` | \`docs/09-PLANNING/TASKS/${todayLocal}-workbench-closed-review/review.md\` | \`docs/10-WALKTHROUGH/workbench-closed-walkthrough.md\` | test evidence | none | checked-none | closed |\n`,
 );
+acceptNoLessonCandidate(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-workbench-closed-review`));
 const closedReviewStatus = expectJson(["status", "--json", lifecycleTarget]);
 const closedReviewTask = closedReviewStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-workbench-closed-review`);
 assert(closedReviewTask?.walkthroughPath?.endsWith("docs/10-WALKTHROUGH/workbench-closed-walkthrough.md"), "status should expose task walkthrough path from Closeout SSoT");
+assert(closedReviewTask?.lifecycleState === "closed-review-pending", "closed tasks without human confirmation should remain visible as review debt");
+assert(closedReviewTask?.reviewQueueState === "closed-debt", "closed tasks without human confirmation should enter the review queue as closed debt");
 const workbenchDir = path.join(tmpRoot, "review-workbench");
 const workbench = spawn(node, [cli, "dashboard", "--workbench", "--out-dir", workbenchDir, "--host", "127.0.0.1", "--port", "0", lifecycleTarget], {
   cwd: repoRoot,
@@ -430,7 +433,7 @@ try {
     headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
     body: JSON.stringify({ taskId: `TASKS/${todayLocal}-workbench-review`, confirmText: `${todayLocal}-workbench-review`, reviewer: "Human Reviewer" }),
   });
-  assert(plannedReview.status === 409, "workbench review completion should reject tasks that are not in review state");
+  assert(plannedReview.status === 409, "workbench review completion should reject tasks outside the review queue");
   fs.writeFileSync(
     workbenchReviewProgress,
     fs.readFileSync(workbenchReviewProgress, "utf8").replace(/^## 状态：.*$/m, "## 状态：review"),
@@ -468,8 +471,9 @@ try {
     body: JSON.stringify({ taskId: `TASKS/${todayLocal}-workbench-closed-review`, confirmText: `${todayLocal}-workbench-closed-review`, reviewer: "Human Reviewer", message: "closed debt confirmed from workbench" }),
   });
   const closedReviewText = await closedReviewResponse.text();
-  assert(closedReviewResponse.status === 409, `workbench review completion should reject closed closeout tasks, got ${closedReviewResponse.status}: ${closedReviewText}`);
-  assert(closedReviewText.includes("review"), "workbench closed closeout rejection should explain review stage boundary");
+  assert(closedReviewResponse.status === 200, `workbench review completion should allow closed review debt confirmation, got ${closedReviewResponse.status}: ${closedReviewText}`);
+  const closedReviewPayload = JSON.parse(closedReviewText);
+  assert(closedReviewPayload.task?.reviewStatus === "confirmed", "closed review debt confirmation should return confirmed review status");
 } finally {
   workbench.kill("SIGTERM");
 }

@@ -109,6 +109,7 @@ assert(dashboardApp.includes("legacyVisualOnlyCount"), "dashboard missing legacy
 assert(dashboardApp.includes("weakBriefCount"), "dashboard missing weak brief summary field");
 assert(dashboardApp.includes("warningQueue()"), "dashboard missing warning queue workbench");
 assert(dashboardApp.includes("reviewWorkspace("), "dashboard missing review workspace route implementation");
+assert(dashboardApp.includes("reviewQueueState"), "dashboard review queue must use status-level review queue state");
 assert(dashboardApp.includes("[\"lessonCandidates\", \"lesson_candidates.md\"]"), "dashboard should expose lesson candidate documents");
 assert(dashboardApp.includes("migrationRunwayBreakdown"), "dashboard missing aggregate migration runway drilldown");
 assert(dashboardApp.includes("[\"brief\", \"brief.md\"]"), "dashboard should make brief.md the first task detail tab");

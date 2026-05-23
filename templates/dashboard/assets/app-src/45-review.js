@@ -1,8 +1,10 @@
 function reviewQueue() {
   const tasks = reviewQueueTasks();
-  const ready = tasks.filter((task) => task.reviewStatus !== "blocked-open-findings" && task.reviewStatus !== "confirmed").length;
-  const blocked = tasks.filter((task) => task.reviewStatus === "blocked-open-findings").length;
-  const confirmed = tasks.filter((task) => task.reviewStatus === "confirmed").length;
+  const ready = tasks.filter((task) => task.reviewQueueState === "ready-to-confirm").length;
+  const material = tasks.filter((task) => task.reviewQueueState === "needs-material").length;
+  const debt = tasks.filter((task) => task.reviewQueueState === "closed-debt").length;
+  const blocked = tasks.filter((task) => task.reviewQueueState === "blocked").length;
+  const confirmed = tasks.filter((task) => task.reviewQueueState === "confirmed").length;
   return `<div class="dashboard-grid review-queue-page">
     <main class="dashboard-main stack">
       <section class="flow-panel">
@@ -12,7 +14,7 @@ function reviewQueue() {
             <h2>${t("reviewQueue")}</h2>
             <p class="subtle">${t("reviewQueueSubtitle")}</p>
           </div>
-          <span class="subtle">${ready}/${tasks.length} ${t("reviewReady")}</span>
+          <span class="subtle">${ready + debt}/${tasks.length} ${t("reviewReady")}</span>
         </div>
         <div class="task-card-grid review-queue-grid">
           ${tasks.map(reviewQueueCard).join("") || emptyState(t("noReviewTasks"))}
@@ -24,6 +26,8 @@ function reviewQueue() {
         <h3>${t("reviewQueue")}</h3>
         <div class="review-queue-stats">
           ${metric(t("reviewReady"), ready)}
+          ${metric(t("reviewNeedsMaterial"), material)}
+          ${metric(t("reviewClosedDebt"), debt)}
           ${metric(t("reviewBlockedQueue"), blocked)}
           ${metric(t("reviewConfirmedQueue"), confirmed)}
         </div>
@@ -38,12 +42,13 @@ function reviewQueue() {
 
 function reviewQueueTasks() {
   return (bundle.status?.tasks || [])
-    .filter(isTaskInReviewStage)
+    .filter(isTaskInReviewQueue)
     .sort((left, right) => reviewSortKey(left).localeCompare(reviewSortKey(right)));
 }
 
 function reviewSortKey(task) {
-  const rank = task.reviewStatus === "blocked-open-findings" ? "0" : task.reviewStatus === "confirmed" ? "2" : "1";
+  const ranks = { blocked: "0", "ready-to-confirm": "1", "closed-debt": "2", "needs-material": "3", confirmed: "4" };
+  const rank = ranks[task.reviewQueueState] || "5";
   return `${rank}:${task.id}`;
 }
 
@@ -53,6 +58,7 @@ function reviewQueueCard(task) {
     <div class="card-header">
       <span class="card-id">${escapeHtml(task.id)}</span>
       ${tag(task.reviewStatus || "missing")}
+      ${tag(task.reviewQueueState || "not-in-queue")}
     </div>
     <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
     <div class="card-meta">
