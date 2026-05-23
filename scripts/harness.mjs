@@ -100,9 +100,14 @@ Usage:
   harness task-block <task-id> [--message text] [target]
   harness task-review <task-id> [--message text] [target]
   harness review-confirm <task-id> --confirm task-id [--reviewer name] [--message text] [target]
-  harness lesson-promote <task-id> <candidate-id> [--dry-run] [target]
+  harness lesson-promote <task-id> <candidate-id> [--dry-run|--apply] [target]
   harness task-complete <task-id> [--message text] [target]
   harness task-list [--json] [--state state] [--module key] [target]
+  harness task-index [--json] [target]
+  harness task-supersede <old-task-id> --by <new-task-id> [--reason text] [target]
+  harness task-delete <task-id> --soft [--reason text] [target]
+  harness task-archive <task-id> [--reason text] [target]
+  harness task-reopen <task-id> [--reason text] [target]
   harness module-step <module-key> <step-id> [--state done|in-progress|blocked] [target]
   harness install-user [--agent codex|claude|gemini|openclaw|agents|all] [--home dir] [--dry-run] [--force] [--yes]
   harness doctor-user [--agent codex|claude|gemini|openclaw|agents|all] [--home dir]
@@ -240,7 +245,7 @@ if (command === "help" || command === "--help" || command === "-h") {
     console.error(error.message);
     process.exit(1);
   }
-} else if (["new-task", "task-phase", "task-start", "task-log", "task-block", "task-review", "task-complete", "review-confirm", "lesson-promote", "task-list", "module-step"].includes(command)) {
+} else if (["new-task", "task-phase", "task-start", "task-log", "task-block", "task-review", "task-complete", "review-confirm", "lesson-promote", "task-list", "task-index", "task-supersede", "task-delete", "task-archive", "task-reopen", "module-step"].includes(command)) {
   runTaskCommand(command, { args, takeFlag, takeOption, targetArg });
 } else if (command === "install-user") {
   const dryRun = takeFlag("--dry-run");

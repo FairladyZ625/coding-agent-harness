@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import {
   visualMapFile,
   legacyVisualRoadmapFile,
@@ -23,9 +24,7 @@ import {
   renderTaskTemplate,
 } from "./core-shared.mjs";
 import { readCapabilityRegistry } from "./capability-registry.mjs";
-import {
-  readPresetPackage,
-} from "./preset-registry.mjs";
+import { readPresetPackage } from "./preset-registry.mjs";
 import {
   legacyMigrationPresetContext,
   readMigrationSession,
@@ -43,6 +42,7 @@ import {
   parseReviewConfirmation,
   readVisualMapContractFile,
   taskIdForDirectory,
+  taskScannerVersion,
 } from "./task-scanner.mjs";
 import {
   getColumn,
@@ -214,13 +214,17 @@ function validateReviewEntryGate(taskDir, budget) {
 
 function validateHumanReviewConfirmation({ task, budget }) {
   if (budget === "simple") return;
-  const queueState = task?.reviewQueueState || "not-in-queue";
-  if (queueState === "not-in-queue") {
-    const state = task?.state || "unknown";
-    throw new Error(`Human review confirmation requires a task in the review queue; current state is ${state}.`);
-  }
   if (!task?.walkthroughPath) {
     throw new Error("Human review confirmation requires a walkthrough linked from Closeout SSoT before review-confirm.");
+  }
+  const queueState = task?.reviewQueueState || "not-in-queue";
+  if (queueState !== "ready-to-confirm") {
+    const state = task?.state || "unknown";
+    throw new Error(`Human review confirmation requires canonical ready-to-confirm review queue; current state is ${state}, review queue is ${queueState}.`);
+  }
+  if (!Array.isArray(task?.taskQueues) || !task.taskQueues.includes("review")) {
+    const queues = Array.isArray(task?.taskQueues) ? task.taskQueues.join(", ") : "none";
+    throw new Error(`Human review confirmation requires the task to be in the Review queue; current queues: ${queues || "none"}.`);
   }
   if (!task?.lessonCandidateDecisionComplete) {
     const status = task?.lessonCandidateStatus || "missing";
@@ -392,6 +396,23 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
   if (normalizedState) content = updateProgressState(content, normalizedState, registry.locale);
   content = appendProgressLog(content, { event, message, evidence });
   fs.writeFileSync(progressPath, content.endsWith("\n") ? content : `${content}\n`);
+  if (event === "task-review") {
+    const reviewPath = path.join(taskDir, "review.md");
+    const reviewContent = readFileSafe(reviewPath);
+    fs.writeFileSync(
+      reviewPath,
+      replaceAgentReviewSubmission(
+        reviewContent,
+        renderAgentReviewSubmission({
+          target,
+          taskDir,
+          canonicalTaskId: taskIdForDirectory(target, taskDir),
+          message,
+          evidence,
+        }),
+      ),
+    );
+  }
   return {
     event,
     task: findTaskByDirectory(target, taskDir) || { id: taskIdForDirectory(target, taskDir), state: normalizedState || "unknown" },
@@ -428,17 +449,26 @@ export function confirmTaskReview(targetInput, taskId, { reviewer = "Human Revie
   }
 
   const timestamp = nowTimestamp();
+  const confirmationId = `HRC-${timestamp.replace(/[^0-9]/g, "").slice(0, 14)}`;
   const safeReviewer = markdownCell(reviewer || "Human Reviewer");
+  const safeReviewerEmail = markdownCell(process.env.GIT_AUTHOR_EMAIL || process.env.GIT_COMMITTER_EMAIL || "reviewer@example.invalid");
   const safeMessage = markdownCell(message || "Human review confirmed");
   const safeEvidence = markdownCell(evidence || `TARGET:docs/09-PLANNING/${canonicalTaskId}/review.md`);
   const confirmationBlock = [
     "## Human Review Confirmation",
     "",
-    `Reviewer: ${safeReviewer}`,
-    "",
-    "| Confirmed At | Reviewer | Message | Evidence |",
-    "| --- | --- | --- | --- |",
-    `| ${timestamp} | ${safeReviewer} | ${safeMessage} | ${safeEvidence} |`,
+    "| Field | Value |",
+    "| --- | --- |",
+    `| Confirmation ID | ${confirmationId} |`,
+    `| Confirmed At | ${timestamp} |`,
+    `| Reviewer | ${safeReviewer} |`,
+    `| Reviewer Email | ${safeReviewerEmail} |`,
+    `| Task Key | ${canonicalTaskId} |`,
+    `| Confirm Text | ${markdownCell(confirmText)} |`,
+    `| Evidence Checked | ${safeEvidence} |`,
+    "| Commit SHA | pending |",
+    "| Audit Status | write-only |",
+    `| Message | ${safeMessage} |`,
     "",
   ].join("\n");
   const nextReview = replaceReviewConfirmation(reviewContent, confirmationBlock);
@@ -458,7 +488,6 @@ export function confirmTaskReview(targetInput, taskId, { reviewer = "Human Revie
     task: findTaskByDirectory(target, taskDir) || { id: canonicalTaskId, reviewStatus: "confirmed" },
   };
 }
-
 function assertTaskDirectoryInsidePlanning(target, taskDir) {
   const realTaskDir = fs.realpathSync(taskDir);
   const allowedRoots = [
@@ -469,20 +498,61 @@ function assertTaskDirectoryInsidePlanning(target, taskDir) {
     throw new Error(`Task directory outside planning root: ${taskIdForDirectory(target, taskDir)}`);
   }
 }
-
 function markdownCell(value) {
   return String(value || "")
     .replace(/\r?\n/g, " ")
     .replaceAll("|", "\\|")
     .trim();
 }
-
 function replaceReviewConfirmation(content, block) {
   const trimmed = String(content || "").trimEnd();
   if (/^##\s*(?:Human Review Confirmation|人工审查确认)\s*$/im.test(trimmed)) {
-    return trimmed.replace(/^##\s*(?:Human Review Confirmation|人工审查确认)\s*$[\s\S]*?(?=^##\s+|\s*$)/im, block.trimEnd());
+    return trimmed.replace(/^##\s*(?:Human Review Confirmation|人工审查确认)\s*$[\s\S]*?(?=^##\s+|(?![\s\S]))/im, block.trimEnd());
   }
   return `${trimmed}\n\n${block}`;
+}
+function renderAgentReviewSubmission({ target, taskDir, canonicalTaskId, message, evidence }) {
+  const timestamp = nowTimestamp();
+  const submissionId = `ARS-${timestamp.replace(/[^0-9]/g, "").slice(0, 14)}`;
+  const materialsHash = hashTaskMaterials(taskDir);
+  const reviewContent = readFileSafe(path.join(taskDir, "review.md"));
+  const openFindings = collectReviewRisks(reviewContent).filter(isBlockingReviewRisk).length;
+  const evidenceSummary = evidence || message || "Agent submitted task for human review.";
+  return [
+    "## Agent Review Submission",
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    `| Submission ID | ${submissionId} |`,
+    `| Submitted At | ${timestamp} |`,
+    "| Submitted By | agent |",
+    `| Task Key | ${canonicalTaskId} |`,
+    `| Materials Checklist Hash | ${materialsHash} |`,
+    `| Evidence Summary | ${markdownCell(evidenceSummary)} |`,
+    `| Open Findings Count | ${openFindings} |`,
+    `| Scanner Version | ${taskScannerVersion} |`,
+    `| Target | TARGET:${toPosix(path.relative(target.projectRoot, taskDir))} |`,
+    "",
+  ].join("\n");
+}
+function replaceAgentReviewSubmission(content, block) {
+  const trimmed = String(content || "").trimEnd();
+  if (/^##\s*(?:Agent Review Submission|Agent 审查提交|Agent 提交审查)\s*$/im.test(trimmed)) {
+    return `${trimmed.replace(/^##\s*(?:Agent Review Submission|Agent 审查提交|Agent 提交审查)\s*$[\s\S]*?(?=^##\s+|(?![\s\S]))/im, block.trimEnd())}\n`;
+  }
+  return `${trimmed}\n\n${block}\n`;
+}
+function hashTaskMaterials(taskDir) {
+  const hash = crypto.createHash("sha256");
+  for (const fileName of ["brief.md", "task_plan.md", visualMapFile, lessonCandidatesFile, "progress.md", "review.md", "findings.md", longRunningTaskContractFile]) {
+    const filePath = path.join(taskDir, fileName);
+    if (!fs.existsSync(filePath)) continue;
+    hash.update(fileName);
+    hash.update("\0");
+    hash.update(readFileSafe(filePath));
+    hash.update("\0");
+  }
+  return hash.digest("hex").slice(0, 16);
 }
 
 export function updateTaskPhase(targetInput, taskId, phaseId, { state = "", completion = "", evidenceStatus = "" } = {}) {

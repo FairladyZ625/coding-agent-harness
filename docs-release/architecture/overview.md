@@ -220,10 +220,13 @@ flowchart TB
 Standard and complex tasks must show progress, evidence, lesson resolution,
 review confirmation, and closeout linkage before they are treated as closed.
 
-The review queue is the human review workbench. It includes active review tasks
-and closed tasks that still lack human confirmation. Agent-authored review notes
-are reported as `agent-reviewed`; only a `Human Review Confirmation` block marks
-the task as `confirmed`.
+The Review queue is only for submitted review packets that are ready for human
+confirmation. Tasks with missing packets, incomplete evidence, lesson-routing
+work, blocking findings, or historical closeout debt are routed to separate
+lifecycle queues: Missing Materials, Blocked, Lessons, Confirmed / Finalized,
+and Soft-deleted / Superseded. Agent-authored submissions can request review,
+but only a strict `Human Review Confirmation` block marks the task as
+`confirmed`.
 
 ## Migration Rails
 

@@ -9,3 +9,5 @@ export * from "./migration-planner.mjs";
 export * from "./preset-registry.mjs";
 export * from "./task-lifecycle.mjs";
 export * from "./lesson-maintenance.mjs";
+export * from "./task-index.mjs";
+export * from "./task-tombstone-commands.mjs";

@@ -114,7 +114,8 @@ function currentRoute() {
 }
 
 function routeLink(hash, text, routeName) {
-  const active = currentRoute().name === routeName;
+  const current = currentRoute().name;
+  const active = current === routeName || (routeName === "review" && current === "reviewTask");
   return `<a class="${active ? "active" : ""}" href="${hash}">${escapeHtml(text)}</a>`;
 }
 
@@ -819,7 +820,23 @@ function taskStateSummary(task) {
       <span>${t("closeoutStatus")}</span>
       ${tag(task.closeoutStatus || "missing")}
     </div>
+    <div>
+      <span>${t("lifecycleQueues")}</span>
+      ${(task.taskQueues || []).map(tag).join("") || tag("active")}
+    </div>
+    ${taskQueueReasonSummary(task)}
   </section>`;
+}
+
+function taskQueueReasonSummary(task) {
+  const reasons = task.queueReasons || [];
+  if (!reasons.length) return "";
+  return `<div class="task-queue-reasons">
+    <span>${t("queueReasons")}</span>
+    <ul>
+      ${reasons.slice(0, 5).map((reason) => `<li><strong>${escapeHtml(reason.code || reason.queue || "")}</strong> ${escapeHtml(reason.message || "")}</li>`).join("")}
+    </ul>
+  </div>`;
 }
 
 function phaseTimeline(task) {
@@ -1051,12 +1068,16 @@ function moduleCard(module) {
 }
 
 function reviewQueue() {
-  const tasks = reviewQueueTasks();
-  const ready = tasks.filter((task) => task.reviewQueueState === "ready-to-confirm").length;
-  const material = tasks.filter((task) => task.reviewQueueState === "needs-material").length;
-  const debt = tasks.filter((task) => task.reviewQueueState === "closed-debt").length;
-  const blocked = tasks.filter((task) => task.reviewQueueState === "blocked").length;
-  const confirmed = tasks.filter((task) => task.reviewQueueState === "confirmed").length;
+  ensureReviewQueueState();
+  const tabs = reviewQueueTabs();
+  const activeTab = tabs.find((tab) => tab.id === state.reviewQueueTab) || tabs[0];
+  const baseTasks = reviewQueueBaseTasks(activeTab);
+  const reasonOptions = reviewReasonOptions(baseTasks);
+  normalizeReviewReasonFilter(reasonOptions);
+  const tasks = reviewFilteredTasks(baseTasks);
+  const pageCount = Math.max(1, Math.ceil(tasks.length / taskPageSize));
+  const page = Math.min(Math.max(1, Number(state.reviewQueuePage) || 1), pageCount);
+  const visibleTasks = tasks.slice((page - 1) * taskPageSize, page * taskPageSize);
   return `<div class="dashboard-grid review-queue-page">
     <main class="dashboard-main stack">
       <section class="flow-panel">
@@ -1066,10 +1087,34 @@ function reviewQueue() {
             <h2>${t("reviewQueue")}</h2>
             <p class="subtle">${t("reviewQueueSubtitle")}</p>
           </div>
-          <span class="subtle">${ready + debt}/${tasks.length} ${t("reviewReady")}</span>
+          <span class="subtle">${t("showing")} ${visibleTasks.length ? (page - 1) * taskPageSize + 1 : 0}-${Math.min(page * taskPageSize, tasks.length)} / ${tasks.length}</span>
         </div>
-        <div class="task-card-grid review-queue-grid">
-          ${tasks.map(reviewQueueCard).join("") || emptyState(t("noReviewTasks"))}
+        <div class="review-queue-tabs" role="tablist" aria-label="${escapeAttr(t("reviewQueueTabs"))}">
+          ${tabs.map((tab) => reviewQueueTab(tab)).join("")}
+        </div>
+        <div class="review-queue-toolbar">
+          <div class="input-group">
+            <input data-search value="${escapeAttr(state.query)}" placeholder="${t("searchPlaceholder")}" aria-label="${t("searchTasks")}">
+          </div>
+          <div class="select-group">
+            <label>${t("reasonFilter")}</label>
+            <select data-review-reason-filter aria-label="${t("reasonFilter")}">
+              <option value="all" ${state.reviewReasonFilter === "all" ? "selected" : ""}>${t("allReasons")}</option>
+              ${reasonOptions.map((code) => `<option value="${escapeAttr(code)}" ${state.reviewReasonFilter === code ? "selected" : ""}>${escapeHtml(code)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="select-group">
+            <label>${t("sortBy")}</label>
+            <select data-review-sort aria-label="${t("sortBy")}">
+              ${reviewSortOptions().map((option) => `<option value="${option.id}" ${state.reviewSort === option.id ? "selected" : ""}>${option.label}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <div class="review-queue-list">
+          ${visibleTasks.map((task) => reviewQueueCard(task, activeTab)).join("") || emptyState(t("noQueueTasks"))}
+        </div>
+        <div class="review-queue-pager">
+          ${pager("review", page, pageCount)}
         </div>
       </section>
     </main>
@@ -1077,54 +1122,168 @@ function reviewQueue() {
       <section class="side-panel review-queue-summary">
         <h3>${t("reviewQueue")}</h3>
         <div class="review-queue-stats">
-          ${metric(t("reviewReady"), ready)}
-          ${metric(t("reviewNeedsMaterial"), material)}
-          ${metric(t("reviewClosedDebt"), debt)}
-          ${metric(t("reviewBlockedQueue"), blocked)}
-          ${metric(t("reviewConfirmedQueue"), confirmed)}
+          ${tabs.map((tab) => metric(tab.label, reviewQueueBaseTasks(tab).length)).join("")}
         </div>
       </section>
       <section class="side-panel">
-        <h3>${t("review")}</h3>
-        <p>${escapeHtml(t("reviewQueueSubtitle"))}</p>
+        <h3>${escapeHtml(activeTab.label)}</h3>
+        <p>${escapeHtml(activeTab.description)}</p>
+        <dl class="review-queue-contract">
+          <div><dt>${t("reviewSubmitted")}</dt><dd>${reviewTruthyCount(baseTasks, "reviewSubmitted")}/${baseTasks.length}</dd></div>
+          <div><dt>${t("materialsReady")}</dt><dd>${reviewTruthyCount(baseTasks, "materialsReady")}/${baseTasks.length}</dd></div>
+        </dl>
       </section>
     </aside>
   </div>`;
 }
 
-function reviewQueueTasks() {
-  return (bundle.status?.tasks || [])
-    .filter(isTaskInReviewQueue)
-    .sort((left, right) => reviewSortKey(left).localeCompare(reviewSortKey(right)));
+function ensureReviewQueueState() {
+  if (!state.reviewQueueTab) state.reviewQueueTab = "review";
+  if (!state.reviewReasonFilter) state.reviewReasonFilter = "all";
+  if (!state.reviewSort) state.reviewSort = "queue";
+  if (!state.reviewQueuePage) state.reviewQueuePage = 1;
 }
 
-function reviewSortKey(task) {
-  const ranks = { blocked: "0", "ready-to-confirm": "1", "closed-debt": "2", "needs-material": "3", confirmed: "4" };
-  const rank = ranks[task.reviewQueueState] || "5";
-  return `${rank}:${task.id}`;
+function reviewQueueTabs() {
+  return [
+    { id: "review", queues: ["review"], label: t("queueReview"), description: t("queueReviewDesc") },
+    { id: "missing-materials", queues: ["missing-materials"], label: t("queueMissingMaterials"), description: t("queueMissingMaterialsDesc"), repair: true },
+    { id: "blocked", queues: ["blocked"], label: t("queueBlocked"), description: t("queueBlockedDesc"), repair: true },
+    { id: "lessons", queues: ["lessons"], label: t("queueLessons"), description: t("queueLessonsDesc") },
+    { id: "confirmed-finalized", queues: ["confirmed", "finalized", "confirmed-finalized", "confirmed-finalization-pending"], label: t("queueConfirmedFinalized"), description: t("queueConfirmedFinalizedDesc") },
+    { id: "soft-deleted-superseded", queues: ["soft-deleted-superseded"], label: t("queueSoftDeletedSuperseded"), description: t("queueSoftDeletedSupersededDesc") },
+  ];
 }
 
-function reviewQueueCard(task) {
+function reviewQueueTab(tab) {
+  const active = tab.id === state.reviewQueueTab;
+  const count = reviewQueueBaseTasks(tab).length;
+  return `<button type="button" class="review-queue-tab ${active ? "active" : ""}" data-review-queue-tab="${escapeAttr(tab.id)}" role="tab" aria-selected="${active ? "true" : "false"}">
+    <span>${escapeHtml(tab.label)}</span>
+    <strong>${count}</strong>
+  </button>`;
+}
+
+function reviewSortOptions() {
+  return [
+    { id: "queue", label: t("sortQueuePriority") },
+    { id: "newest", label: t("sortNewest") },
+    { id: "oldest", label: t("sortOldest") },
+    { id: "id", label: t("sortTaskId") },
+  ];
+}
+
+function reviewQueueBaseTasks(tab) {
+  return (bundle.status?.tasks || []).filter((task) => taskMatchesReviewTab(task, tab));
+}
+
+function taskMatchesReviewTab(task, tab) {
+  const queues = reviewTaskQueues(task);
+  return (tab.queues || []).some((queue) => queues.includes(queue));
+}
+
+function reviewTaskQueues(task) {
+  return Array.isArray(task?.taskQueues) ? task.taskQueues : Array.isArray(task?.queues) ? task.queues : [];
+}
+
+function reviewReasonOptions(tasks) {
+  return [...new Set(tasks.flatMap((task) => (task.queueReasons || []).map((reason) => reason.code || reason.queue || "").filter(Boolean)))].sort();
+}
+
+function normalizeReviewReasonFilter(reasonOptions) {
+  const current = state.reviewReasonFilter || "all";
+  if (current === "all") return;
+  if (!reasonOptions.includes(current)) state.reviewReasonFilter = "all";
+}
+
+function reviewFilteredTasks(tasks) {
+  const query = state.query.trim().toLowerCase();
+  const reasonFilter = state.reviewReasonFilter || "all";
+  return [...tasks]
+    .filter((task) => {
+      if (reasonFilter !== "all" && !(task.queueReasons || []).some((reason) => (reason.code || reason.queue) === reasonFilter)) return false;
+      if (!query) return true;
+      return [
+        task.id,
+        task.shortId,
+        task.title,
+        task.module,
+        task.inferredModule,
+        task.state,
+        task.lifecycleState,
+        task.reviewStatus,
+        task.closeoutStatus,
+        ...(task.taskQueues || []),
+        ...(task.queueReasons || []).flatMap((reason) => [reason.code, reason.message, reason.sourcePath]),
+      ].some((value) => String(value || "").toLowerCase().includes(query));
+    })
+    .sort(reviewTaskSort);
+}
+
+function reviewTaskSort(left, right) {
+  if (state.reviewSort === "newest") return compareTasksByTimeForOrder(left, right, "desc");
+  if (state.reviewSort === "oldest") return compareTasksByTimeForOrder(left, right, "asc");
+  if (state.reviewSort === "id") return stableTaskLabel(left).localeCompare(stableTaskLabel(right));
+  return reviewPriorityRank(left) - reviewPriorityRank(right)
+    || compareTasksByTimeForOrder(left, right, "desc")
+    || stableTaskLabel(left).localeCompare(stableTaskLabel(right));
+}
+
+function compareTasksByTimeForOrder(left, right, order) {
+  const previous = state.taskSortOrder;
+  state.taskSortOrder = order;
+  const result = compareTasksByTime(left, right);
+  state.taskSortOrder = previous;
+  return result;
+}
+
+function reviewPriorityRank(task) {
+  const severityRank = { P0: 0, P1: 1, P2: 2, P3: 3 };
+  const reasonRank = Math.min(...(task.queueReasons || []).map((reason) => severityRank[String(reason.severity || "").toUpperCase()] ?? 8), 8);
+  const queueRank = { blocked: 0, "missing-materials": 1, review: 2, lessons: 3, confirmed: 4, finalized: 5, "soft-deleted-superseded": 6 };
+  const queues = reviewTaskQueues(task);
+  const taskQueueRank = Math.min(...queues.map((queue) => queueRank[queue] ?? 7), 7);
+  return Math.min(reasonRank, taskQueueRank);
+}
+
+function reviewTruthyCount(tasks, key) {
+  return tasks.filter((task) => task[key] === true).length;
+}
+
+function reviewQueueCard(task, tab) {
   const openMaterial = (task.risks || []).filter((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease)).length;
+  const reasons = task.queueReasons || [];
+  const canCopyRepairPrompt = tab?.repair && String(task.repairPrompt || "").trim();
   return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(task.state)})">
     <div class="card-header">
       <span class="card-id">${escapeHtml(task.id)}</span>
       ${tag(task.reviewStatus || "missing")}
-      ${tag(task.reviewQueueState || "not-in-queue")}
+      ${reviewTaskQueues(task).map(tag).join("")}
     </div>
     <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
     <div class="card-meta">
       <span>${tag(task.lifecycleState || "unknown")}</span>
       <span>${tag(task.closeoutStatus || "missing")}</span>
       <span>${openMaterial} ${t("openFindings")}</span>
+      <span>${t("reviewSubmitted")}: ${task.reviewSubmitted === true ? t("yes") : t("no")}</span>
+      <span>${t("materialsReady")}: ${task.materialsReady === true ? t("yes") : t("no")}</span>
     </div>
     <p class="subtle">${escapeHtml(firstUsefulLine(task.summary || task.briefText || ""))}</p>
+    ${reasons.length ? `<div class="review-reasons">${reasons.slice(0, 4).map(reviewReason).join("")}</div>` : ""}
     <div class="review-queue-actions">
       <a href="#/review/${encodeURIComponent(task.id)}">${t("openReviewWorkspace")}</a>
       <a href="#/tasks/${encodeURIComponent(task.id)}">${t("fullView")}</a>
       <button data-open-drawer="${escapeAttr(task.id)}">${t("viewDetails")}</button>
+      ${tab?.repair ? `<button data-copy-repair-prompt="${escapeAttr(task.id)}" data-repair-prompt="${escapeAttr(task.repairPrompt || "")}" ${canCopyRepairPrompt ? "" : "disabled"}>${t("copyRepairPrompt")}</button>` : ""}
     </div>
   </article>`;
+}
+
+function reviewReason(reason) {
+  return `<div class="review-reason">
+    <strong>${escapeHtml(reason.code || reason.queue || t("reason"))}</strong>
+    <span>${escapeHtml(reason.message || reason.sourcePath || "")}</span>
+  </div>`;
 }
 
 function firstUsefulLine(text) {
@@ -1468,11 +1627,27 @@ function bind() {
     state.warningPage = 1;
     app();
   }));
+  document.querySelectorAll("[data-review-queue-tab]").forEach((button) => button.addEventListener("click", () => {
+    state.reviewQueueTab = button.dataset.reviewQueueTab || "review";
+    state.reviewQueuePage = 1;
+    app();
+  }));
+  document.querySelectorAll("[data-review-reason-filter]").forEach((select) => select.addEventListener("change", () => {
+    state.reviewReasonFilter = select.value || "all";
+    state.reviewQueuePage = 1;
+    app();
+  }));
+  document.querySelectorAll("[data-review-sort]").forEach((select) => select.addEventListener("change", () => {
+    state.reviewSort = select.value || "queue";
+    state.reviewQueuePage = 1;
+    app();
+  }));
   document.querySelectorAll("[data-page-kind]").forEach((button) => button.addEventListener("click", () => {
     const page = Math.max(1, Number(button.dataset.page) || 1);
     if (button.dataset.pageKind === "warning") state.warningPage = page;
     if (button.dataset.pageKind === "task-groups") state.taskGroupPage = page;
     if (button.dataset.pageKind === "task") state.taskPageByGroup[button.dataset.pageGroup || ""] = page;
+    if (button.dataset.pageKind === "review") state.reviewQueuePage = page;
     app();
   }));
   document.querySelectorAll("[data-runway-phase]").forEach((link) => link.addEventListener("click", () => {
@@ -1498,6 +1673,7 @@ function bind() {
     openDrawer(taskId);
   }));
   bindCopyTaskNameButtons(document);
+  bindRepairPromptButtons(document);
   document.querySelectorAll("[data-open-lesson-drawer]").forEach((el) => el.addEventListener("click", (e) => {
     e.preventDefault();
     const lessonId = el.dataset.openLessonDrawer;
@@ -1630,6 +1806,7 @@ function openDrawer(taskId) {
     openDrawer(taskId);
   }));
   bindCopyTaskNameButtons(drawer);
+  bindRepairPromptButtons(drawer);
   drawer.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
 }
 
@@ -1642,6 +1819,24 @@ function bindCopyTaskNameButtons(root) {
     try {
       await copyText(taskName);
       button.textContent = t("copyTaskNameSuccess");
+    } catch {
+      button.textContent = t("copyTaskNameFailed");
+    }
+    window.setTimeout(() => {
+      button.textContent = defaultText;
+    }, 1400);
+  }));
+}
+
+function bindRepairPromptButtons(root) {
+  root.querySelectorAll("[data-copy-repair-prompt]").forEach((button) => button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const prompt = button.dataset.repairPrompt || "";
+    const defaultText = t("copyRepairPrompt");
+    try {
+      await copyText(prompt);
+      button.textContent = t("copyRepairPromptSuccess");
     } catch {
       button.textContent = t("copyTaskNameFailed");
     }

@@ -13,7 +13,7 @@ import {
   parseLessonCandidateStatus,
 } from "./task-scanner.mjs";
 
-export function promoteLessonCandidate(targetInput, taskId, candidateId, { dryRun = false } = {}) {
+export function promoteLessonCandidate(targetInput, taskId, candidateId, { dryRun = false, apply = false } = {}) {
   const target = normalizeTarget(targetInput);
   const normalizedRef = slug(taskId);
   const matchesBareSlug = (item) => {
@@ -54,7 +54,19 @@ export function promoteLessonCandidate(targetInput, taskId, candidateId, { dryRu
   if (!ssotContent.includes(lessonId)) changes.push({ action: dryRun ? "would-append" : "append", path: "TARGET:docs/01-GOVERNANCE/Lessons-SSoT.md" });
   if (row.status !== "promoted" || parsed.status !== "promoted") changes.push({ action: dryRun ? "would-update" : "update", path: task.lessonCandidatePath || `TARGET:${toPosix(path.relative(target.projectRoot, candidatePath))}` });
 
-  if (dryRun) return { dryRun: true, taskId: task.id, candidateId: row.id, lessonId, detailDoc: `TARGET:${detailRelative}`, changes };
+  const effectiveDryRun = dryRun || !apply;
+  if (effectiveDryRun) {
+    return {
+      dryRun: true,
+      applyRequired: true,
+      taskId: task.id,
+      candidateId: row.id,
+      lessonId,
+      detailDoc: `TARGET:${detailRelative}`,
+      changes: changes.map((change) => ({ ...change, action: change.action.replace(/^(create|append|update)$/, "would-$1") })),
+      nextCommand: `harness lesson-promote ${task.shortId} ${row.id} --apply`,
+    };
+  }
 
   fs.mkdirSync(path.dirname(detailPath), { recursive: true });
   if (!fs.existsSync(detailPath)) fs.writeFileSync(detailPath, renderLessonDetail({ lessonId, candidate: row, task, detailRelative }));

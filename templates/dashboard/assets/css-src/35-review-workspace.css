@@ -14,6 +14,53 @@
   gap: 14px;
 }
 
+.review-queue-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.review-queue-tab {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper-2);
+  color: var(--ink);
+  padding: 10px 12px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.review-queue-tab strong {
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+.review-queue-tab.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+}
+
+.review-queue-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(180px, 240px) minmax(160px, 220px);
+  gap: 12px;
+  align-items: end;
+  margin-top: 18px;
+}
+
+.review-queue-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
 .review-queue-card {
   gap: 14px;
 }
@@ -47,6 +94,84 @@
 .review-queue-actions a:hover,
 .review-queue-actions button:hover {
   border-color: var(--accent);
+}
+
+.review-queue-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.review-reasons {
+  display: grid;
+  gap: 8px;
+}
+
+.review-reason {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper-2);
+}
+
+.review-reason strong {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.review-reason span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.task-queue-reasons {
+  grid-column: 1 / -1;
+}
+
+.task-queue-reasons ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.task-queue-reasons li + li {
+  margin-top: 4px;
+}
+
+.review-queue-pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.review-queue-contract {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.review-queue-contract div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.review-queue-contract dt,
+.review-queue-contract dd {
+  margin: 0;
+}
+
+.review-queue-contract dt {
+  color: var(--muted);
+}
+
+.review-queue-contract dd {
+  font-family: var(--font-mono);
+  color: var(--ink);
 }
 
 .runtime-banner {
@@ -110,4 +235,10 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .review-queue-toolbar {
+    grid-template-columns: 1fr;
+  }
 }

@@ -47,7 +47,23 @@ function taskStateSummary(task) {
       <span>${t("closeoutStatus")}</span>
       ${tag(task.closeoutStatus || "missing")}
     </div>
+    <div>
+      <span>${t("lifecycleQueues")}</span>
+      ${(task.taskQueues || []).map(tag).join("") || tag("active")}
+    </div>
+    ${taskQueueReasonSummary(task)}
   </section>`;
+}
+
+function taskQueueReasonSummary(task) {
+  const reasons = task.queueReasons || [];
+  if (!reasons.length) return "";
+  return `<div class="task-queue-reasons">
+    <span>${t("queueReasons")}</span>
+    <ul>
+      ${reasons.slice(0, 5).map((reason) => `<li><strong>${escapeHtml(reason.code || reason.queue || "")}</strong> ${escapeHtml(reason.message || "")}</li>`).join("")}
+    </ul>
+  </div>`;
 }
 
 function phaseTimeline(task) {
