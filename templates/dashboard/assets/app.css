@@ -1881,6 +1881,64 @@ button, input, select {
   line-height: 1.45;
 }
 
+.lesson-candidate-actions {
+  display: grid;
+  gap: 8px;
+  max-height: 190px;
+  overflow: auto;
+  min-width: 0;
+}
+
+.lesson-candidate-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper-2);
+}
+
+.lesson-candidate-action strong,
+.lesson-candidate-action span,
+.lesson-candidate-action small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lesson-candidate-action small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.lesson-candidate-action a,
+.lesson-candidate-action button {
+  justify-self: start;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.lesson-candidate-action button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.lesson-candidate-more {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--paper);
+}
+
 .task-queue-reasons {
   grid-column: 1 / -1;
 }
@@ -1971,6 +2029,14 @@ button, input, select {
 .review-doc-panel {
   min-width: 0;
   max-width: 100%;
+}
+
+.review-doc-scroll {
+  max-height: min(58vh, 560px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border-radius: 8px;
 }
 
 @media (min-width: 1280px) {

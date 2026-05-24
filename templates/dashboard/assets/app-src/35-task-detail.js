@@ -44,6 +44,10 @@ function taskStateSummary(task) {
       ${tag(task.reviewStatus || "missing")}
     </div>
     <div>
+      <span>${t("sedimentationStatus")}</span>
+      ${tag(task.lessonCandidateStatus || "missing")}
+    </div>
+    <div>
       <span>${t("closeoutStatus")}</span>
       ${tag(task.closeoutStatus || "missing")}
     </div>

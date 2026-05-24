@@ -187,6 +187,7 @@ function reviewQueueCard(task, tab) {
   const openMaterial = (task.risks || []).filter((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease)).length;
   const reasons = task.queueReasons || [];
   const canCopyRepairPrompt = tab?.repair && String(task.repairPrompt || "").trim();
+  const lessonActions = tab?.id === "lessons" ? lessonCandidateActions(task) : "";
   return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(task.state)})">
     <div class="card-header">
       <span class="card-id">${escapeHtml(task.id)}</span>
@@ -203,6 +204,7 @@ function reviewQueueCard(task, tab) {
     </div>
     <p class="subtle">${escapeHtml(firstUsefulLine(task.summary || task.briefText || ""))}</p>
     ${reasons.length ? `<div class="review-reasons">${reasons.slice(0, 4).map(reviewReason).join("")}</div>` : ""}
+    ${lessonActions}
     <div class="review-queue-actions">
       <a href="#/review/${encodeURIComponent(task.id)}">${t("openReviewWorkspace")}</a>
       <a href="#/tasks/${encodeURIComponent(task.id)}">${t("fullView")}</a>
@@ -210,6 +212,53 @@ function reviewQueueCard(task, tab) {
       ${tab?.repair ? `<button data-copy-repair-prompt="${escapeAttr(task.id)}" data-repair-prompt="${escapeAttr(task.repairPrompt || "")}" ${canCopyRepairPrompt ? "" : "disabled"}>${t("copyRepairPrompt")}</button>` : ""}
     </div>
   </article>`;
+}
+
+function lessonCandidateActions(task) {
+  const candidates = (task.lessonCandidateRows || []).filter((candidate) => ["ready-for-review", "needs-promotion"].includes(candidate.status));
+  if (!candidates.length) return "";
+  const hiddenCount = Math.max(0, candidates.length - 2);
+  return `<div class="lesson-candidate-actions">
+    ${candidates.slice(0, 2).map((candidate) => lessonCandidateAction(task, candidate)).join("")}
+    ${hiddenCount ? `<div class="lesson-candidate-more">${escapeHtml(t("moreLessonCandidates")).replace("{count}", String(hiddenCount))}</div>` : ""}
+  </div>`;
+}
+
+function lessonCandidateAction(task, candidate) {
+  const followUp = String(candidate.followUpTask || "").trim();
+  const hasFollowUp = followUp && !/^pending$/i.test(followUp);
+  const prompt = lessonSedimentationPrompt(task, candidate);
+  return `<div class="lesson-candidate-action">
+    <strong>${escapeHtml(candidate.id)}</strong>
+    <span>${escapeHtml(candidate.title || candidate.promotionTarget || t("lessonCandidates"))}</span>
+    <small>${escapeHtml(candidate.scope || t("none"))} · ${escapeHtml(candidate.promotionTarget || t("none"))}</small>
+    ${hasFollowUp ? `<a href="#/tasks/${encodeURIComponent(followUp)}">${t("openFollowUpTask")}</a>` : ""}
+    <button data-copy-lesson-prompt="${escapeAttr(task.id)}:${escapeAttr(candidate.id)}" data-lesson-prompt="${escapeAttr(prompt)}">${t("copyLessonPrompt")}</button>
+    <button data-create-lesson-sedimentation="${escapeAttr(task.id)}" data-candidate-id="${escapeAttr(candidate.id)}" ${canUseWorkbenchAction("lesson-sedimentation-task") && !hasFollowUp ? "" : "disabled"}>${t("createLessonTask")}</button>
+    <span class="review-result" data-lesson-result="${escapeAttr(task.id)}:${escapeAttr(candidate.id)}"></span>
+  </div>`;
+}
+
+function lessonSedimentationPrompt(task, candidate) {
+  return [
+    "You are executing a lesson sedimentation follow-up task.",
+    "",
+    `Source task: ${task.id}`,
+    `Source candidate: ${candidate.id} - ${candidate.title || ""}`,
+    `Candidate scope: ${candidate.scope || "unspecified"}`,
+    `Boundary reason: ${candidate.boundaryReason || "unspecified"}`,
+    `Why it might matter: ${candidate.whyItMightMatter || "unspecified"}`,
+    `Promotion target: ${candidate.promotionTarget || "unspecified"}`,
+    `Conflict check: ${candidate.conflictCheck || "pending"}`,
+    `Required standard update: ${candidate.requiredStandardUpdate || "pending"}`,
+    "",
+    "Instructions:",
+    "1. Read the source task, review, findings, progress, and lesson_candidates.md.",
+    "2. Classify whether the lesson is task-local, module-local, or global.",
+    "3. Check conflicts against existing lessons and standards.",
+    "4. Propose the smallest diff first.",
+    "5. Do not write Lessons SSoT directly unless the human explicitly approves the target diff.",
+  ].join("\n");
 }
 
 function reviewReason(reason) {
@@ -273,6 +322,6 @@ function reviewDocPanel(key, doc, fallbackPath = "") {
       </div>
       ${doc ? `<button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button>` : ""}
     </div>
-    <div class="markdown">${doc ? window.HarnessMarkdown.render(doc.content, state.renderMode) : emptyState(t("documentMissing"))}</div>
+    <div class="review-doc-scroll"><div class="markdown">${doc ? window.HarnessMarkdown.render(doc.content, state.renderMode) : emptyState(t("documentMissing"))}</div></div>
   </section>`;
 }

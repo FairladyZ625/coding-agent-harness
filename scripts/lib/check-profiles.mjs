@@ -192,6 +192,13 @@ export function validateTaskPresetContracts(target) {
   ]);
   for (const task of collectTasks(target)) {
     if (!task.taskPreset || task.taskPreset === "none") continue;
+    if (task.taskPreset === "lesson-sedimentation") {
+      if (!["standard", "complex"].includes(task.budget)) failures.push(`${task.path} lesson-sedimentation preset requires Selected budget: standard or complex`);
+      if (String(task.presetVersion || "") !== "1") failures.push(`${task.path} lesson-sedimentation preset missing Preset Version 1`);
+      if (task.taskKind !== "lesson-sedimentation") failures.push(`${task.path} lesson-sedimentation preset missing Task Kind`);
+      if (!task.taskPlanPath) failures.push(`${task.path} lesson-sedimentation preset missing task plan`);
+      continue;
+    }
     if (task.taskPreset !== "legacy-migration") {
       failures.push(`${task.path} unsupported Task Preset: ${task.taskPreset}`);
       continue;

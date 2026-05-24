@@ -96,6 +96,7 @@ function bind() {
   }));
   bindCopyTaskNameButtons(document);
   bindRepairPromptButtons(document);
+  bindLessonSedimentationButtons(document);
   document.querySelectorAll("[data-open-lesson-drawer]").forEach((el) => el.addEventListener("click", (e) => {
     e.preventDefault();
     const lessonId = el.dataset.openLessonDrawer;
@@ -229,6 +230,7 @@ function openDrawer(taskId) {
   }));
   bindCopyTaskNameButtons(drawer);
   bindRepairPromptButtons(drawer);
+  bindLessonSedimentationButtons(drawer);
   drawer.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
 }
 
@@ -266,6 +268,52 @@ function bindRepairPromptButtons(root) {
       button.textContent = defaultText;
     }, 1400);
   }));
+}
+
+function bindLessonSedimentationButtons(root) {
+  root.querySelectorAll("[data-copy-lesson-prompt]").forEach((button) => button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const prompt = button.dataset.lessonPrompt || "";
+    const defaultText = t("copyLessonPrompt");
+    try {
+      await copyText(prompt);
+      button.textContent = t("copyRepairPromptSuccess");
+    } catch {
+      button.textContent = t("copyTaskNameFailed");
+    }
+    window.setTimeout(() => {
+      button.textContent = defaultText;
+    }, 1400);
+  }));
+  root.querySelectorAll("[data-create-lesson-sedimentation]").forEach((button) => button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    await createLessonSedimentationFromDashboard(button);
+  }));
+}
+
+async function createLessonSedimentationFromDashboard(button) {
+  const taskId = button.dataset.createLessonSedimentation || "";
+  const candidateId = button.dataset.candidateId || "";
+  const result = document.querySelector(`[data-lesson-result="${CSS.escape(`${taskId}:${candidateId}`)}"]`);
+  if (result) result.textContent = t("lessonTaskCreating");
+  try {
+    const response = await fetch("/api/tasks/lesson-sedimentation", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-harness-csrf": state.runtime?.csrfToken || "",
+      },
+      body: JSON.stringify({ taskId, candidateId }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || t("lessonTaskCreateFailed"));
+    if (result) result.textContent = t("lessonTaskCreated");
+    setTimeout(() => window.location.reload(), 500);
+  } catch (error) {
+    if (result) result.textContent = `${t("lessonTaskCreateFailed")}: ${error.message}`;
+  }
 }
 
 async function copyText(text) {

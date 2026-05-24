@@ -37,7 +37,8 @@ export function parseLessonCandidateStatus(content) {
   const reviewDecision = normalizeCandidateField(fields.get("review decision") || "pending-human-review");
   const promotionState = normalizeCandidateField(fields.get("promotion state") || "not-promoted");
   const closeoutToken = String(fields.get("closeout token") || "pending").trim();
-  const rows = lessonCandidateRows(text);
+  const candidateTable = lessonCandidateRows(text);
+  const rows = candidateTable.rows;
   const issues = [];
 
   if (!allowedLessonCandidateTaskStatuses.has(declaredStatus)) {
@@ -45,6 +46,23 @@ export function parseLessonCandidateStatus(content) {
   }
   for (const row of rows) {
     if (!allowedLessonCandidateRowStatuses.has(row.status)) issues.push(`invalid-row-status:${row.id || "missing-id"}:${row.status}`);
+  }
+  const promotionRows = rows.filter((row) => row.status === "needs-promotion");
+  if (promotionRows.length > 0) {
+    for (const column of candidateTable.missingColumns) issues.push(`missing-column:${column}`);
+    for (const row of promotionRows) {
+      for (const [field, label] of [
+        ["scope", "Scope"],
+        ["boundaryReason", "Boundary Reason"],
+        ["whyItMightMatter", "Why It Might Matter"],
+        ["promotionTarget", "Promotion Target"],
+        ["conflictCheck", "Conflict Check"],
+        ["requiredStandardUpdate", "Required Standard Update"],
+        ["followUpTask", "Follow-up Task"],
+      ]) {
+        if (!String(row[field] || "").trim()) issues.push(`missing-row-field:${row.id || "missing-id"}:${label}`);
+      }
+    }
   }
 
   const aggregateStatus = aggregateLessonCandidateStatus(rows, declaredStatus);
@@ -107,16 +125,42 @@ function lessonCandidateRows(content) {
   const titleIndex = firstColumn(header, ["Title", "标题"]);
   const decisionIndex = firstColumn(header, ["Review Decision", "审查决定"]);
   const targetIndex = firstColumn(header, ["Promotion Target", "沉淀目标"]);
-  if (idIndex < 0 || statusIndex < 0) return [];
-  return rows
+  const scopeIndex = firstColumn(header, ["Scope", "范围"]);
+  const boundaryIndex = firstColumn(header, ["Boundary Reason", "边界原因"]);
+  const whyIndex = firstColumn(header, ["Why It Might Matter", "价值说明", "为什么重要"]);
+  const conflictIndex = firstColumn(header, ["Conflict Check", "冲突检查"]);
+  const requiredUpdateIndex = firstColumn(header, ["Required Standard Update", "必需标准更新"]);
+  const followUpIndex = firstColumn(header, ["Follow-up Task", "Followup Task", "后续任务"]);
+  if (idIndex < 0 || statusIndex < 0) return { rows: [], missingColumns: [] };
+  const requiredColumnSpecs = [
+    ["Scope", scopeIndex],
+    ["Boundary Reason", boundaryIndex],
+    ["Why It Might Matter", whyIndex],
+    ["Promotion Target", targetIndex],
+    ["Conflict Check", conflictIndex],
+    ["Required Standard Update", requiredUpdateIndex],
+    ["Follow-up Task", followUpIndex],
+  ];
+  const missingColumns = requiredColumnSpecs.filter(([, index]) => index < 0).map(([label]) => label);
+  return {
+    missingColumns,
+    rows: rows
     .filter((row) => /^LC-[A-Za-z0-9-]+$/i.test(row[idIndex] || ""))
     .map((row) => ({
       id: row[idIndex] || "",
       status: normalizeLessonCandidateStatus(row[statusIndex] || ""),
       title: row[titleIndex] || "",
+      scope: scopeIndex >= 0 ? row[scopeIndex] || "" : "",
+      boundaryReason: boundaryIndex >= 0 ? row[boundaryIndex] || "" : "",
+      whyItMightMatter: whyIndex >= 0 ? row[whyIndex] || "" : "",
       reviewDecision: row[decisionIndex] || "",
       promotionTarget: row[targetIndex] || "",
-    }));
+      conflictCheck: conflictIndex >= 0 ? row[conflictIndex] || "" : "",
+      requiredStandardUpdate: requiredUpdateIndex >= 0 ? row[requiredUpdateIndex] || "" : "",
+      followUpTask: followUpIndex >= 0 ? row[followUpIndex] || "" : "",
+      originalRow: row.map((cell) => String(cell || "").trim()).join(" | "),
+    })),
+  };
 }
 
 function normalizeLessonCandidateStatus(value) {

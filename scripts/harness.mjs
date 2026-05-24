@@ -101,6 +101,7 @@ Usage:
   harness task-review <task-id> [--message text] [target]
   harness review-confirm <task-id> --confirm task-id [--reviewer name] [--message text] [target]
   harness lesson-promote <task-id> <candidate-id> [--dry-run|--apply] [target]
+  harness lesson-sediment <task-id> <candidate-id> [--dry-run] [--title title] [target]
   harness task-complete <task-id> [--message text] [target]
   harness task-list [--json] [--state state] [--module key] [target]
   harness task-index [--json] [target]
@@ -245,7 +246,7 @@ if (command === "help" || command === "--help" || command === "-h") {
     console.error(error.message);
     process.exit(1);
   }
-} else if (["new-task", "task-phase", "task-start", "task-log", "task-block", "task-review", "task-complete", "review-confirm", "lesson-promote", "task-list", "task-index", "task-supersede", "task-delete", "task-archive", "task-reopen", "module-step"].includes(command)) {
+} else if (["new-task", "task-phase", "task-start", "task-log", "task-block", "task-review", "task-complete", "review-confirm", "lesson-promote", "lesson-sediment", "task-list", "task-index", "task-supersede", "task-delete", "task-archive", "task-reopen", "module-step"].includes(command)) {
   runTaskCommand(command, { args, takeFlag, takeOption, targetArg });
 } else if (command === "install-user") {
   const dryRun = takeFlag("--dry-run");

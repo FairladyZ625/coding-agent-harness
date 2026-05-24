@@ -5,6 +5,7 @@ import http from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
 import { confirmTaskReview } from "./task-lifecycle.mjs";
+import { createLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
 import { normalizeTarget } from "./core-shared.mjs";
 import { collectTasks } from "./task-scanner.mjs";
 import { writeDashboardFolder } from "./dashboard-data.mjs";
@@ -35,7 +36,7 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
         writeJson(response, 200, {
           mode: "workbench",
           csrfToken,
-          writableActions: ["review-complete"],
+          writableActions: ["review-complete", "lesson-sedimentation-task"],
           target: target.projectRoot,
           autoRefresh: autoRefresh === true,
           snapshotVersion,
@@ -65,6 +66,28 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
           message: body.message || "confirmed from dashboard workbench",
           evidence: body.evidence || "",
           confirmText: body.confirmText || "",
+        });
+        regenerate();
+        writeJson(response, 200, result);
+        return;
+      }
+
+      if (requestUrl.pathname === "/api/tasks/lesson-sedimentation" && request.method === "POST") {
+        assertTrustedWorkbenchRequest(request, { origin, csrfToken });
+        const body = await readJsonBody(request);
+        const taskId = String(body.taskId || "");
+        const candidateId = String(body.candidateId || "");
+        const task = collectTasks(target).find((item) => item.id === taskId);
+        if (!task) {
+          writeJson(response, 404, { error: "Task not found" });
+          return;
+        }
+        if (!candidateId) {
+          writeJson(response, 400, { error: "Missing lesson candidate id" });
+          return;
+        }
+        const result = createLessonSedimentationTask(target.projectRoot, taskId, candidateId, {
+          title: body.title || "",
         });
         regenerate();
         writeJson(response, 200, result);

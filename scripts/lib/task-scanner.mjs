@@ -453,6 +453,7 @@ export function collectTasks(target) {
       lessonCandidatePromotionState: lessonCandidates.promotionState,
       lessonCandidateCloseoutToken: lessonCandidates.closeoutToken,
       lessonCandidateRowCount: lessonCandidates.rows.length,
+      lessonCandidateRows: lessonCandidates.rows,
       lessonCandidateOpenCount: lessonCandidates.openCount,
       lessonCandidateIssues: lessonCandidates.issues,
       lessonCandidateDecisionComplete: isLessonCandidateDecisionComplete(lessonCandidates),

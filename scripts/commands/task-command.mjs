@@ -2,6 +2,7 @@ import {
   confirmTaskReview,
   createTask,
   buildTaskIndex,
+  createLessonSedimentationTask,
   archiveTask,
   listLifecycleTasks,
   promoteLessonCandidate,
@@ -111,6 +112,24 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
     }
     try {
       console.log(JSON.stringify(promoteLessonCandidate(targetArg(), taskId, candidateId, { dryRun, apply }), null, 2));
+    } catch (error) {
+      console.error(error.message);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (command === "lesson-sediment") {
+    const dryRun = takeFlag("--dry-run");
+    const title = takeOption("--title", "");
+    const taskId = args.shift();
+    const candidateId = args.shift();
+    if (!taskId || !candidateId) {
+      console.error("Missing task id or candidate id");
+      process.exit(2);
+    }
+    try {
+      console.log(JSON.stringify(createLessonSedimentationTask(targetArg(), taskId, candidateId, { dryRun, title }), null, 2));
     } catch (error) {
       console.error(error.message);
       process.exit(1);

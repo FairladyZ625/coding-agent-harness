@@ -95,7 +95,7 @@ function taskRoot(target, taskId, { moduleKey = "" } = {}) {
   return path.join(target.docsRoot, "09-PLANNING/TASKS", normalizedTaskId);
 }
 
-function resolveTaskDirectory(target, taskRef) {
+export function resolveTaskDirectory(target, taskRef) {
   const raw = String(taskRef || "").replace(/^docs\/09-PLANNING\//, "").replace(/^\/+/, "");
   if (!raw) throw new Error("Missing task id");
   const direct = raw.startsWith("TASKS/") || raw.startsWith("MODULES/") ? path.join(target.docsRoot, "09-PLANNING", raw) : "";

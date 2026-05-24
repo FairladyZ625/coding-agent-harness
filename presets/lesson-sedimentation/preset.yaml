@@ -1,0 +1,23 @@
+id: lesson-sedimentation
+version: 1
+purpose: Create a follow-up task for reviewing and sedimenting an accepted lesson candidate without direct Lessons SSoT writes.
+compatibleBudgets: [standard, complex]
+localeSupport: [en-US, zh-CN]
+task:
+  kind: lesson-sedimentation
+  projectLevelOnly: true
+entrypoints:
+  newTask:
+    type: template
+    writes: [docs/09-PLANNING/TASKS/**]
+    reads: [docs/09-PLANNING/TASKS/**/lesson_candidates.md]
+    audit: true
+    templates:
+      prompt: templates/prompt.md
+writeScopes:
+  taskDocs:
+    path: docs/09-PLANNING/TASKS/**
+    access: write
+audit:
+  manifestRequired: true
+  evidenceFiles: [preset-audit.json]
