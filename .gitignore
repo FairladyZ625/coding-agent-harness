@@ -14,10 +14,6 @@ docs/plans/
 .harness-private/
 .worktrees/
 
-# Local independent GUI sub-repository. Keep it out of the source package until
-# it has its own remote and can be referenced as a real submodule.
-/harness-gui/
-
 # Generated local dashboards and smoke-test output.
 tmp/
 .playwright-mcp/

@@ -1,0 +1,3 @@
+[submodule "harness-gui"]
+	path = harness-gui
+	url = https://github.com/FairladyZ625/coding-agent-harness-gui.git
