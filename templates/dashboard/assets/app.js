@@ -1110,8 +1110,10 @@ function reviewQueue() {
             </select>
           </div>
         </div>
-        <div class="review-queue-list">
-          ${visibleTasks.map((task) => reviewQueueCard(task, activeTab)).join("") || emptyState(t("noQueueTasks"))}
+        <div class="review-queue-list-shell" tabindex="0" aria-label="${escapeAttr(activeTab.label)} ${escapeAttr(t("reviewQueue"))}">
+          <div class="review-queue-list">
+            ${visibleTasks.map((task) => reviewQueueCard(task, activeTab)).join("") || emptyState(t("noQueueTasks"))}
+          </div>
         </div>
         <div class="review-queue-pager">
           ${pager("review", page, pageCount)}

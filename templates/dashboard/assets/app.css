@@ -1774,14 +1774,50 @@ button, input, select {
   margin-top: 18px;
 }
 
+.review-queue-list-shell {
+  margin-top: 18px;
+  max-height: clamp(560px, 72vh, 920px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 2px 8px 2px 2px;
+  border-radius: 10px;
+  scrollbar-gutter: stable;
+}
+
+.review-queue-list-shell:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 3px;
+}
+
 .review-queue-list {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
-  margin-top: 18px;
+  align-items: start;
+}
+
+.review-queue-list > .empty-state {
+  grid-column: 1 / -1;
 }
 
 .review-queue-card {
-  gap: 14px;
+  gap: 12px;
+  min-width: 0;
+}
+
+.review-queue-card .card-id,
+.review-queue-card .card-title,
+.review-queue-card .subtle,
+.review-reason span {
+  overflow-wrap: anywhere;
+}
+
+.review-queue-card .subtle,
+.review-reason span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .review-queue-card .side-panel {
@@ -1959,6 +1995,16 @@ button, input, select {
 @media (max-width: 900px) {
   .review-queue-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .review-queue-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1279px) {
+  .review-queue-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
