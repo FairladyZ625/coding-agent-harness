@@ -16,7 +16,7 @@ Multi-repo projects often run into these failures:
 
 - Frontend, backend, SDK, and services each have their own plans, and no one can tell where the global release is blocked.
 - An agent starts inside a child repository, reads only local `AGENTS.md`, and misses cross-repo architecture constraints.
-- Each repository maintains its own Feature SSoT, and the states conflict.
+- Each repository maintains its own handwritten task lifecycle table, and the states conflict.
 - Review evidence, test evidence, and walkthroughs are scattered across repositories, making it hard to prove that a cross-repo task is complete.
 
 The parent-control pattern solves a control-plane problem. It does not force code back into a monorepo. It moves the harness source of truth into one place.
@@ -62,7 +62,8 @@ It should contain:
 - `docs/03-ARCHITECTURE/repository-topology.md`: repository topology, owners, boundaries, dependency direction.
 - `docs/04-DEVELOPMENT/local-development.md`: cross-repo local startup, integration workflow, dependency setup.
 - `docs/06-INTEGRATIONS/`: cross-service APIs, events, SDKs, databases, permissions, and external contracts.
-- `docs/09-PLANNING/Feature-SSoT.md`: global feature and release state.
+- `docs/Harness-Ledger.md`: generated global task lifecycle index from task files.
+- `docs/09-PLANNING/Delivery-SSoT.md`: cross-repo feature blocks, dependencies, and release orchestration.
 - `docs/09-PLANNING/TASKS/`: cross-repo task contracts.
 - `docs/05-TEST-QA/Regression-SSoT.md`: cross-repo regression gates.
 - `docs/05-TEST-QA/Cadence-Ledger.md`: which changes trigger which checks.
@@ -94,7 +95,7 @@ They should contain:
 - Repository-local reviews or pull requests.
 - Repository-local test evidence.
 
-Child repositories should not independently maintain the global Feature SSoT, and they should not decide whether a cross-repo release is complete.
+Child repositories should not independently maintain global task lifecycle tables, and they should not decide whether a cross-repo release is complete.
 
 A child repository `AGENTS.md` can be short:
 
@@ -228,7 +229,7 @@ The agent does not need to read all docs in 100 repositories at startup. It read
 
 Avoid:
 
-- Each child repository maintaining its own global Feature SSoT.
+- Each child repository maintaining its own global task lifecycle table.
 - A parent repository with only a README and no task, regression, or closeout surface.
 - Child `AGENTS.md` files copying large sections from the parent, causing drift.
 - Starting cross-repo tasks from a child repository and backfilling parent records at the end.
@@ -241,7 +242,8 @@ To adopt the parent-control model, start with:
 
 - Parent `AGENTS.md` states that this is the control repository.
 - `docs/03-ARCHITECTURE/repository-topology.md` lists all child repositories.
-- `docs/09-PLANNING/Feature-SSoT.md` is the global feature source of truth.
+- `docs/Harness-Ledger.md` is generated from task files as the global task lifecycle index.
+- `docs/09-PLANNING/Delivery-SSoT.md` is maintained only when cross-repo release or block orchestration is needed.
 - `docs/05-TEST-QA/Regression-SSoT.md` defines local, contract, integration, and release gates.
 - Each child repository has only a short local `AGENTS.md`.
 - New cross-repo tasks are created only in the parent repository.

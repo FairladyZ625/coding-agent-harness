@@ -118,11 +118,11 @@ docs/10-WALKTHROUGH/Closeout-SSoT.md
 
 ## Harness Ledger 回写
 
-写完 Walkthrough、更新 Feature/Regression SSoT，并完成 Lessons 检查后，Agent 必须更新
-`docs/Harness-Ledger.md` 和 `docs/10-WALKTHROUGH/Closeout-SSoT.md`：
+写完 Walkthrough、更新 Regression SSoT 或其他本轮实际触达的非任务生命周期 SSoT，并完成 Lessons 检查后，Agent 必须更新
+`docs/10-WALKTHROUGH/Closeout-SSoT.md`；任务生命周期总账由 CLI 重新生成 `docs/Harness-Ledger.md`：
 
 1. 为本轮任务追加或更新对应 `HL-*` 条目
-2. 记录 Task Plan、Feature SSoT、Regression SSoT、Review Report、Walkthrough、Lessons Check 的结果
+2. 记录 Task Plan、Regression SSoT、Review Report、Walkthrough、Lessons Check 的结果
 3. 列出本轮触碰的 harness 文档
 4. 如有未完成项，使用 `missing` 或 `skipped-with-reason` 并写明 residual
 

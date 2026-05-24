@@ -99,10 +99,9 @@ File purposes:
 
 ## Links
 
-- Feature SSoT entry: [reference]
 - Related Regression Gate: [reference]
 - Review Report: [path / n/a]
-- Harness Ledger entry: [complete at closeout]
+- Generated Ledger: rebuilt by lifecycle CLI / `harness governance rebuild`
 - Prerequisite tasks: [reference or none]
 
 ## Coordinator Handoff

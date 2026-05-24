@@ -27,7 +27,7 @@ Agent 读的文档定义事实、路径、门禁和下一步动作。
 | `references/` | Agent 和维护者 | 可复用标准，例如 testing、workflow、review、worktree | 某个项目的当前排期 |
 | `templates/` | CLI 和 Agent | 初始化目标项目时生成的文件 | 已经执行过的任务证据 |
 | 目标项目 `AGENTS.md` | Agent | 入口、路由、硬规则、读文件矩阵 | 大段背景叙事 |
-| 目标项目 `docs/09-PLANNING/` | Agent 和项目负责人 | Feature SSoT、任务计划、当前状态 | 通用营销材料 |
+| 目标项目 `docs/09-PLANNING/` 与 `docs/Harness-Ledger.md` | Agent 和项目负责人 | 任务计划、生成的任务生命周期索引、当前状态 | 通用营销材料 |
 | 目标项目 `docs/05-TEST-QA/` | Agent、QA、人审 | Regression SSoT、Cadence Ledger、质量门禁 | 需求讨论草稿 |
 | 目标项目 `docs/10-WALKTHROUGH/` | 人审、接手 Agent | 收口证据、残留项、人工确认 | 未验证的计划 |
 
@@ -62,7 +62,8 @@ Agent 读文档要回答：
 典型文件：
 
 - `AGENTS.md`
-- `docs/09-PLANNING/Feature-SSoT.md`
+- `docs/Harness-Ledger.md`
+- `docs/09-PLANNING/TASKS/<task>/task_plan.md`
 - `docs/09-PLANNING/TASKS/<task>/task_plan.md`
 - `docs/09-PLANNING/TASKS/<task>/progress.md`
 - `docs/05-TEST-QA/Regression-SSoT.md`

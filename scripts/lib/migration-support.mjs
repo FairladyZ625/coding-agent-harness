@@ -22,8 +22,8 @@ export function migrationSampleFiles(target) {
     path.join(target.projectRoot, "AGENTS.md"),
     path.join(target.projectRoot, "CLAUDE.md"),
     path.join(target.docsRoot, "Harness-Ledger.md"),
-    path.join(target.docsRoot, "09-PLANNING/Feature-SSoT.md"),
     path.join(target.docsRoot, "05-TEST-QA/Regression-SSoT.md"),
+    path.join(target.docsRoot, "09-PLANNING/Delivery-SSoT.md"),
   ];
   const taskPlans = listTaskPlanPaths(target).slice(0, 20);
   return [...candidates, ...taskPlans].filter((file) => fs.existsSync(file));

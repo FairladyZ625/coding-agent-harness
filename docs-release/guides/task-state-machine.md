@@ -136,7 +136,7 @@ Review 队列只等人确认。缺材料、阻塞、lesson 沉淀、已确认待
 
 | 层级 | 应该记录什么 | 不应该记录什么 |
 | --- | --- | --- |
-| 全局表：Feature SSoT、Harness Ledger、Closeout SSoT、Regression SSoT、Cadence Ledger | 当前状态、负责人、任务/模块/详情文档链接、回归 gate、收口或审计摘要 | 模块内步骤、未判定 lesson candidate、完整命令输出、长证据段落、review transcript、临时 repair prompt |
+| 全局表：Harness Ledger、Closeout SSoT、Regression SSoT、Cadence Ledger、Delivery SSoT | 当前状态、负责人、任务/模块/详情文档链接、回归 gate、交付顺序、收口或审计摘要 | 模块内步骤、未判定 lesson candidate、完整命令输出、长证据段落、review transcript、临时 repair prompt |
 | 模块层：Module Registry、`module_plan.md` | 模块边界、模块内步骤、handoff、当前阻塞和局部证据索引 | 已 promotion 的全局 lesson 正文、跨模块发布审计总账 |
 | 任务层：`brief.md`、`task_plan.md`、`progress.md`、`review.md`、`lesson_candidates.md`、`lessons/LC-*.md`、`artifacts/INDEX.md` | 执行细节、证据、agent review、候选 lesson、task-local lesson 详情、修复提示和 raw artifact 路由 | 跨任务总账或 promoted lesson 详情正文 |
 

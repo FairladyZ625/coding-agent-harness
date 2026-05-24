@@ -92,7 +92,7 @@ sdk-repo/
 
 多仓独立模式的风险是 Harness 分裂：
 
-- 前端 Feature SSoT 认为任务完成，后端 Regression SSoT 仍是红灯。
+- 前端局部任务状态认为任务完成，后端 Regression SSoT 仍是红灯。
 - SDK 的 breaking change 没有投影到产品 shell。
 - Agent 从子仓库启动后，只看到局部事实，误以为全局任务已经结束。
 
@@ -124,7 +124,8 @@ product-control-repo/
 父仓库是 control plane。它管理：
 
 - 总体架构和 repo topology。
-- 跨仓 Feature SSoT。
+- 跨仓任务生命周期 Ledger。
+- Delivery SSoT（需要 release / block 编排时）。
 - 任务计划、review、walkthrough。
 - Regression SSoT 和跨仓 cadence。
 - Agent 启动入口和读文件矩阵。
@@ -152,7 +153,7 @@ product-control-repo/
 
 这能避免：
 
-- 多个 Feature SSoT 互相冲突。
+- 多个手写任务生命周期表互相冲突。
 - 每个子仓库都声称自己已经完成，但 release 仍不能发。
 - Agent 从错误仓库启动，只看到局部上下文。
 - 跨仓 review 和 regression 证据散落在不同地方。
@@ -179,7 +180,7 @@ product-control-repo/
 迁移顺序：
 
 1. 创建父仓库 `AGENTS.md` 和 repo topology。
-2. 把全局 Feature SSoT、Regression SSoT、walkthrough index 收到父仓库。
+2. 把全局 Harness Ledger、Delivery SSoT、Regression SSoT、walkthrough index 收到父仓库。
 3. 子仓库保留局部 `AGENTS.md`，但把全局计划指向父仓库。
 4. 新跨仓任务只在父仓库创建 task。
 5. 子仓库提交只作为父任务的 evidence。

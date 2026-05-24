@@ -92,7 +92,7 @@ Each repository should document its external boundary in:
 
 The risk is harness fragmentation:
 
-- The frontend Feature SSoT says a task is complete while the backend Regression SSoT is still red.
+- The frontend local task state says a task is complete while the backend Regression SSoT is still red.
 - An SDK breaking change is not projected into the product shell.
 - An agent starts from a child repository, sees only local facts, and incorrectly treats the global task as complete.
 
@@ -124,7 +124,8 @@ product-control-repo/
 The parent repository is the control plane. It owns:
 
 - Overall architecture and repo topology.
-- Cross-repo Feature SSoT.
+- Cross-repo task lifecycle Ledger.
+- Delivery SSoT when release or block orchestration is needed.
 - Task plans, reviews, and walkthroughs.
 - Regression SSoT and cross-repo cadence.
 - Agent entrypoint and reading matrix.
@@ -152,7 +153,7 @@ The parent-control model fixes global truth in one place. Even if there are 100 
 
 This avoids:
 
-- Conflicting Feature SSoTs.
+- Conflicting handwritten task lifecycle tables.
 - Each child repo saying "done" while the release still cannot ship.
 - Agents starting from the wrong repository and seeing only local context.
 - Cross-repo review and regression evidence scattered across many places.
@@ -179,7 +180,7 @@ If cross-repo features remain common, create a parent-control repository.
 Migration order:
 
 1. Create the parent `AGENTS.md` and repo topology.
-2. Move global Feature SSoT, Regression SSoT, and walkthrough index into the parent repository.
+2. Move global Harness Ledger, Delivery SSoT, Regression SSoT, and walkthrough index into the parent repository.
 3. Keep local `AGENTS.md` files in child repositories, but point global planning back to the parent.
 4. Create new cross-repo tasks only in the parent repository.
 5. Treat child repository commits as evidence for parent tasks.

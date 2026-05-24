@@ -212,7 +212,7 @@ standard / complex:
 对 standard / complex 是硬门禁：当前状态不是 `review` 时必须拒绝。`simple`
 可以直接从 `in_progress` 完成。
 
-每次状态变更时，必须同时更新 progress.md 和 Feature SSoT。
+每次状态变更时，必须更新 task-local facts，例如 `progress.md`、`review.md` 或 `lesson_candidates.md`。任务生命周期总表由 lifecycle CLI 或 `harness governance rebuild` 生成，不手工维护 Feature lifecycle 表。
 
 任务完成时，必须在 `docs/Harness-Ledger.md` 中记录本轮 task plan、SSoT、
 walkthrough、Lessons 检查等上下文回写结果。

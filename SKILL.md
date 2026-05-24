@@ -42,7 +42,7 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 2. 扫描目标项目现有 `AGENTS.md`、`CLAUDE.md`、`docs/` 和 SSoT / Ledger 文件。
 3. 输出 delta plan：哪些 harness 骨架、reference、template、SSoT、Ledger 项缺失或过期。
 4. 只补齐新增标准和缺失结构；不得用模板覆盖已有业务事实、历史 walkthrough、
-   task progress、Feature SSoT、Regression SSoT 或 lesson detail docs。
+   task progress、generated ledger、Regression SSoT 或 lesson detail docs。
 5. 对已有文档采用 merge / append / residual-with-reason；只有全新缺失文件才从模板创建。
 6. 如果引入 Harness Ledger、lesson detail docs 或新的 reference/template，同步更新入口索引。
 7. 收口时写 walkthrough，必须包含 Lessons Reflection；新任务先写并审查
@@ -265,7 +265,6 @@ harness bootstrap 完成后，项目中至少应存在以下文件：
 - [ ] 如启用模块并行：每个 active module 有 `docs/09-PLANNING/MODULES/<key>/module_plan.md`
 - [ ] 如启用模块并行：模块 task template / shared lock / dependency readiness 规则已落地
 - [ ] Harness checker 已通过，或 residual 写明 owner/action/status
-- [ ] Feature SSoT 文件（位置由项目决定）
 - [ ] Bootstrap Summary 已输出给用户
 
 ---
@@ -278,7 +277,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 2. **Planning with Files** — 建任务目录，task plan / findings / progress / review 文件
 3. **Long-Running Contract（如适用）** — 明确连续执行权限、review loop、evidence、stop condition
 4. **Delivery Operating Model** — 确认本轮属于 solo / team / split-repo / program / stage-gate / kanban 哪种交付形态
-5. **SSoT 排期** — 回写到 Feature SSoT；模块并行时 worker 回写 module_plan + Coordinator Handoff，coordinator pass 回写 Module Registry / Harness Ledger；多人/多仓时回写 Delivery SSoT
+5. **任务生命周期事实** — 更新任务本地事实文件；任务生命周期总表由 CLI 生成。模块并行时 worker 回写 module_plan + Coordinator Handoff，coordinator pass 回写 Module Registry；多人/多仓时维护 Delivery SSoT
 6. **Repo Governance / CI-CD** — 确认 PR policy、required checks、branch protection、worktree concurrency
 7. **Worktree / Branch 并行开发** — 按 operating model 决定 worktree、feature branch、contract branch 或 release branch
 8. **Subagent Worker Handoff（如适用）** — coordinator 分配独立 worktree / branch / write scope；worker 提交自己的 commit 并 handoff commit SHA / checks / residuals
@@ -288,7 +287,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 12. **Walkthrough 收口** — 写收口记录并引用 review report
 13. **Closeout SSoT 回写** — 每个 closed 任务必须记录 walkthrough 路径或受控 skip reason
 14. **Lessons Reflection** — 写 walkthrough 时主动反思共性/反复问题；新任务用 `lesson_candidates.md` 承载人工判定，`queued-promotion` 进入 Lessons 队列；默认先 dry-run 或创建沉淀任务，不直接写共享 Lessons 表；`checked-created` 必须有 promoted lesson 详情文档，旧任务兼容的 `checked-none` 必须写明原因
-15. **Harness Ledger 回写** — 记录本轮上下文维护是否完成
+15. **Generated Ledger 刷新** — 由 lifecycle CLI 或 `harness governance rebuild` 生成任务生命周期总索引
 16. **Worktree 清理** — 删除已 merge 的 worktree
 
 ---
@@ -311,9 +310,9 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | Long-Running Task | `references/long-running-task-standard.md` | 任务需要连续执行、长上下文或 stop condition 时 |
 | Adversarial Review | `references/adversarial-review-standard.md` | 需要独立审查报告、信心挑战或 material finding 分级时 |
 | Review Routing | `references/review-routing-standard.md` | 决定 self-review、subagent、外部 reviewer 或人工审查时 |
-| SSoT 治理 | `references/ssot-governance.md` | 维护 Feature / Delivery / Regression 等当前事实时 |
+| SSoT 治理 | `references/ssot-governance.md` | 维护 Delivery / Regression 等非任务生命周期事实时 |
 | 经验沉淀 | `references/lessons-governance.md` | walkthrough 收口后判断是否沉淀 lesson 时 |
-| Harness Ledger | `references/harness-ledger.md` | 记录本轮 harness 上下文维护、证据和 residual 时 |
+| Harness Ledger | `references/harness-ledger.md` | 理解 generated task lifecycle ledger 与非任务治理表边界时 |
 | Regression | `references/regression-system.md` | 设计或更新回归面、evidence depth 和 gate 时 |
 | Cadence Ledger | `references/cadence-ledger.md` | 根据改动类型触发回归批次时 |
 | Walkthrough | `references/walkthrough-closeout.md` | 收口、Closeout SSoT 和交付说明时 |
@@ -325,10 +324,9 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 |------|------|------|
 | AGENTS.md | `templates/AGENTS.md.template` | 目标项目 agent 入口：宪章 + 阅读矩阵 |
 | CLAUDE.md | `templates/CLAUDE.md.template` | Claude Code 兼容 shim，指向 AGENTS.md |
-| Feature SSoT | `templates/ssot/Feature-SSoT.md` | 功能、wave、当前实施状态 |
 | Regression SSoT | `templates/ssot/Regression-SSoT.md` | 回归面、证据深度、gate 状态 |
 | Delivery SSoT | `templates/ssot/Delivery-SSoT.md` | 多人、多仓、阶段性交付计划 |
-| Harness Ledger | `templates/ledger/Harness-Ledger.md` | 全局 harness 上下文维护总账 |
+| Harness Ledger | `templates/ledger/Harness-Ledger.md` | CLI 生成的任务生命周期总索引 |
 | Lesson (ref-change) | `templates/lessons/lesson-ref-change.md` | Walkthrough 收口后 |
 | Lesson (new-doc) | `templates/lessons/lesson-new-doc.md` | Walkthrough 收口后 |
 | Lesson (arch/process) | `templates/lessons/lesson-arch-process-change.md` | Walkthrough 收口后 |

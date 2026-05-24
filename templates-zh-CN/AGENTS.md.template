@@ -56,7 +56,7 @@
 8. 运行相关检查，并把证据写入任务记录。
 9. 按需触发 review，关闭阻塞发现。
 10. 写入或更新 walkthrough 与 closeout 记录。
-11. 只更新本任务实际触达的 SSoT / ledger。
+11. 只更新本任务实际触达的 SSoT / ledger；任务生命周期总账优先由 Harness CLI 生成，不手写任务行。
 
 ## 协作规则
 
@@ -70,7 +70,7 @@
 
 ## 单一事实源
 
-- Feature SSoT：`docs/09-PLANNING/Feature-SSoT.md`
+- Harness Ledger：`docs/Harness-Ledger.md`（任务生命周期总账，由 CLI 生成）
 - Delivery SSoT：`docs/09-PLANNING/Delivery-SSoT.md`
 - Module Registry：`docs/09-PLANNING/Module-Registry.md`
 - Regression SSoT：`docs/05-TEST-QA/Regression-SSoT.md`
@@ -78,7 +78,6 @@
 - Lesson Candidates：当前任务 `lesson_candidates.md`
 - Lesson Detail Docs：`docs/01-GOVERNANCE/lessons/`
 - Closeout SSoT：`docs/10-WALKTHROUGH/Closeout-SSoT.md`
-- Harness Ledger：`docs/Harness-Ledger.md`
 
 ## 本地命令
 

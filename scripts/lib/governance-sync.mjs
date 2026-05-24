@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { existsInDocs, readBundledTemplate, readFileSafe, repoRoot, todayDate, toPosix, visualMapFile } from "./core-shared.mjs";
+import { readBundledTemplate, readFileSafe, repoRoot, todayDate, toPosix, visualMapFile } from "./core-shared.mjs";
 import { collectTasks } from "./task-scanner.mjs";
 import { firstColumn, splitMarkdownRow, updateMarkdownTableRow } from "./markdown-utils.mjs";
 import { markdownCell } from "./task-lifecycle/text-utils.mjs";
@@ -107,13 +107,9 @@ export function syncTaskGovernance(target, task, { event = "new-task", state = "
   const changes = [];
   const planPath = stripTargetPrefix(task.path) + "/task_plan.md";
   const reviewPath = stripTargetPrefix(task.path) + "/review.md";
-  if (!task.module) {
-    changes.push(...syncFeatureRows(target, task, { state, message, planPath, dryRun }));
-  }
   const ledger = syncLedgerRow(target, task, { event, state, message, planPath, reviewPath, dryRun });
   if (ledger) changes.push(ledger);
   if (task.module) {
-    changes.push(...syncModuleFeatureAggregateRow(target, task.module, { task, dryRun }));
     const moduleRegistry = syncModuleRegistryRow(target, task, { state, planPath, dryRun });
     if (moduleRegistry) changes.push(moduleRegistry);
     changes.push(...syncModuleGeneratedIndexes(target, task.module, { task, dryRun }).changes);
@@ -130,16 +126,16 @@ export function syncModuleStepGovernance(target, { moduleKey, stepId, state, dry
     const content = readFileSafe(ledgerPath);
     const row = [
       `HL-${todayDate().replaceAll("-", "")}-${Date.now().toString().slice(-6)}`,
+      "module",
+      moduleKey,
       `Module ${moduleKey} step ${stepId}`,
-      "coordinator",
       state === "done" ? "review" : state === "in-progress" ? "active" : state,
-      `docs/09-PLANNING/MODULES/${moduleKey}/module_plan.md`,
-      "module-registry",
-      "n/a",
-      "n/a",
-      "pending",
-      "checked-none:module-step",
       "none",
+      `docs/09-PLANNING/MODULES/${moduleKey}/module_plan.md`,
+      "n/a",
+      "checked-none:module-step",
+      "pending",
+      "module-step",
       todayDate(),
     ];
     fs.writeFileSync(ledgerPath, appendRow(content, /^ID$/i, row));
@@ -152,44 +148,6 @@ export function governanceRelativePaths(changes) {
   return [...new Set((changes || []).map((change) => change.destination).filter(Boolean).map(toPosix))];
 }
 
-function syncFeatureRows(target, task, { state, message, planPath, dryRun }) {
-  return featureRegistryPaths(target).map((featurePath) => syncFeatureRow(target, featurePath, task, { state, message, planPath, dryRun }));
-}
-
-function syncFeatureRow(target, featurePath, task, { state, message, planPath, dryRun }) {
-  const privateTable = path.basename(featurePath) === "Private-Feature-SSoT.md";
-  ensureFileFromTemplate(featurePath, privateTable ? "templates/ssot/Feature-SSoT.md" : "templates/ssot/Feature-SSoT.md", { dryRun });
-  const relative = toPosix(path.relative(target.projectRoot, featurePath));
-  if (!dryRun) {
-    const content = readFileSafe(featurePath);
-    const row = privateTable
-      ? [
-          featureId(task, true),
-          mapPrivateFeatureState(state),
-          task.title || task.shortId || task.id,
-          "coordinator",
-          `\`${planPath}\``,
-          message || `CLI governance sync: ${state}`,
-        ]
-      : [
-          featureId(task, false),
-          task.title || task.shortId || task.id,
-          "CLI-owned task lifecycle update",
-          "coordinator",
-          mapFeatureState(state),
-          "P2",
-          planPath,
-          "pending",
-          "n/a",
-          "pending",
-          "none",
-          todayDate(),
-        ];
-    fs.writeFileSync(featurePath, upsertRow(content, privateTable ? /^ID$/i : /^ID$/i, (header, existing) => rowMatchesPlan(header, existing, planPath), row));
-  }
-  return { destination: relative, action: dryRun ? "would-sync-governance" : "sync-governance", surface: "feature-ssot" };
-}
-
 function syncLedgerRow(target, task, { event, state, message, planPath, reviewPath, dryRun }) {
   const ledgerPath = path.join(target.docsRoot, "Harness-Ledger.md");
   ensureFileFromTemplate(ledgerPath, "templates/ledger/Harness-Ledger.md", { dryRun });
@@ -198,12 +156,12 @@ function syncLedgerRow(target, task, { event, state, message, planPath, reviewPa
     const content = readFileSafe(ledgerPath);
     const row = [
       ledgerId(task),
+      task.module ? "module" : "task",
+      task.module || "none",
       task.title || task.shortId || task.id,
-      "coordinator",
       mapLedgerState(state),
+      "none",
       planPath,
-      task.module ? moduleFeatureId(task.module, false) : featureId(task, false),
-      "pending",
       event === "task-review" || state === "review" ? reviewPath : "pending",
       "pending",
       "pending",
@@ -240,47 +198,6 @@ function syncModuleRegistryRow(target, task, { state, planPath, dryRun }) {
     fs.writeFileSync(registryPath, upsertRow(content, /^ID$/i, (header, existing) => rowMatchesModule(header, existing, moduleKey, modulePlan), row));
   }
   return { destination: relative, action: dryRun ? "would-sync-governance" : "sync-governance", surface: "module-registry" };
-}
-
-function syncModuleFeatureAggregateRow(target, moduleKey, { task = null, dryRun = false } = {}) {
-  return featureRegistryPaths(target).map((featurePath) => syncSingleModuleFeatureAggregateRow(target, featurePath, moduleKey, { task, dryRun }));
-}
-
-function syncSingleModuleFeatureAggregateRow(target, featurePath, moduleKey, { task = null, dryRun = false } = {}) {
-  ensureFileFromTemplate(featurePath, "templates/ssot/Feature-SSoT.md", { dryRun });
-  const relative = toPosix(path.relative(target.projectRoot, featurePath));
-  const privateTable = path.basename(featurePath) === "Private-Feature-SSoT.md";
-  const moduleTasks = collectModuleTasks(target, moduleKey, task);
-  const state = aggregateModuleState(moduleTasks);
-  const planPath = `docs/09-PLANNING/MODULES/${moduleKey}/module_plan.md`;
-  const row = privateTable
-    ? [
-        `PF-MODULE-${moduleKey}`,
-        mapPrivateFeatureState(state),
-        moduleKey,
-        "coordinator",
-        `\`${planPath}\``,
-        `grouped-index; tasks:${moduleTasks.length}; queues:${moduleQueues(moduleTasks).join(",") || "none"}`,
-      ]
-    : [
-        `F-MODULE-${moduleKey}`,
-        moduleKey,
-        "Grouped task index",
-        "coordinator",
-        mapFeatureState(state),
-        "P2",
-        planPath,
-        `task-list --module ${moduleKey}`,
-        "module-index",
-        "pending",
-        moduleTasks.some((candidate) => candidate.materialsReady === false) ? "module-materials-missing" : "none",
-        todayDate(),
-      ];
-  if (!dryRun) {
-    const content = readFileSafe(featurePath);
-    fs.writeFileSync(featurePath, upsertRow(content, /^ID$/i, (header, existing) => rowMatchesPlan(header, existing, planPath), row));
-  }
-  return { destination: relative, action: dryRun ? "would-sync-governance" : "sync-governance", surface: privateTable ? "private-feature-ssot" : "feature-ssot" };
 }
 
 function syncModuleGeneratedIndexes(target, moduleKey, { task = null, dryRun = false } = {}) {
@@ -438,34 +355,6 @@ function mapPhaseState(state) {
   return "planned";
 }
 
-function aggregateModuleState(tasks) {
-  const states = new Set((tasks || []).map((task) => task.state));
-  if (states.has("blocked")) return "blocked";
-  if (states.has("review")) return "review";
-  if (states.has("in_progress")) return "in_progress";
-  if (tasks.length > 0 && tasks.every((task) => task.state === "done")) return "done";
-  return "planned";
-}
-
-function moduleQueues(tasks) {
-  return [...new Set((tasks || []).flatMap((task) => task.taskQueues || []))].sort();
-}
-
-function featureRegistryPath(target) {
-  const privatePath = path.join(target.docsRoot, "09-PLANNING/Private-Feature-SSoT.md");
-  if (fs.existsSync(privatePath)) return privatePath;
-  const publicPath = path.join(target.docsRoot, "09-PLANNING/Feature-SSoT.md");
-  if (existsInDocs(target, "09-PLANNING/Feature-SSoT.md")) return publicPath;
-  return publicPath;
-}
-
-function featureRegistryPaths(target) {
-  const publicPath = path.join(target.docsRoot, "09-PLANNING/Feature-SSoT.md");
-  const privatePath = path.join(target.docsRoot, "09-PLANNING/Private-Feature-SSoT.md");
-  const existing = [publicPath, privatePath].filter((filePath) => fs.existsSync(filePath));
-  return existing.length > 0 ? existing : [publicPath];
-}
-
 function ensureFileFromTemplate(destinationPath, templateSource, { dryRun = false } = {}) {
   if (fs.existsSync(destinationPath) || dryRun) return;
   fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
@@ -509,37 +398,12 @@ function rowMatchesModule(header, row, moduleKey, modulePlan) {
   return String(row[moduleIndex] || "").toLowerCase() === String(moduleKey).toLowerCase() || String(row[taskPlanIndex] || "").includes(modulePlan);
 }
 
-function featureId(task, privateId) {
-  const slug = String(task.shortId || task.id || "task").replace(/^TASKS\//, "").replace(/^MODULES\//, "").replace(/[^A-Za-z0-9-]+/g, "-").slice(0, 72);
-  return `${privateId ? "PF" : "F"}-${slug}`;
-}
-
-function moduleFeatureId(moduleKey, privateId) {
-  return `${privateId ? "PF" : "F"}-MODULE-${moduleKey}`;
-}
-
 function ledgerId(task) {
   return `HL-${String(task.shortId || task.id || "task").replace(/^TASKS\//, "").replace(/^MODULES\//, "").replace(/[^A-Za-z0-9-]+/g, "-").slice(0, 72)}`;
 }
 
 function stripTargetPrefix(value) {
   return String(value || "").replace(/^TARGET:/, "").replace(/\/$/, "");
-}
-
-function mapFeatureState(state) {
-  if (state === "in_progress") return "active";
-  if (state === "review") return "verify";
-  if (state === "done") return "shipped";
-  if (state === "blocked") return "blocked";
-  return "ready";
-}
-
-function mapPrivateFeatureState(state) {
-  if (state === "in_progress") return "active";
-  if (state === "review") return "review";
-  if (state === "done") return "done";
-  if (state === "blocked") return "blocked";
-  return "planned";
 }
 
 function mapLedgerState(state) {

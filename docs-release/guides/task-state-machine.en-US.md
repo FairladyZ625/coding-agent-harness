@@ -135,7 +135,7 @@ Global governance tables only keep index, state, route, and audit summary. They 
 
 | Layer | Should record | Should not record |
 | --- | --- | --- |
-| Global tables: Feature SSoT, Harness Ledger, Closeout SSoT, Regression SSoT, Cadence Ledger | Current state, owner, task/module/detail links, regression gate, closeout or audit summary | Module-internal steps, undecided lesson candidates, full command output, long evidence paragraphs, review transcripts, temporary repair prompts |
+| Global tables: Harness Ledger, Closeout SSoT, Regression SSoT, Cadence Ledger, Delivery SSoT | Current state, owner, task/module/detail links, regression gate, delivery sequence, closeout or audit summary | Module-internal steps, undecided lesson candidates, full command output, long evidence paragraphs, review transcripts, temporary repair prompts |
 | Module layer: Module Registry, `module_plan.md` | Module boundary, module steps, handoff, current blockers, and local evidence indexes | Final promoted lesson body or cross-module release audit ledger |
 | Task layer: `brief.md`, `task_plan.md`, `progress.md`, `review.md`, `lesson_candidates.md`, `lessons/LC-*.md`, `artifacts/INDEX.md` | Execution detail, evidence, agent review, candidate lessons, task-local lesson detail, repair prompts, and raw artifact routing | Cross-task ledgers or promoted lesson detail bodies |
 

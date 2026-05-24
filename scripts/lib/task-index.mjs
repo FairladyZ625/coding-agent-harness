@@ -31,7 +31,19 @@ export function buildTaskIndex(targetInput) {
       lifecycleState: task.lifecycleState,
       reviewStatus: task.reviewStatus,
       reviewSubmitted: task.reviewSubmitted === true,
+      reviewPath: task.reviewPath || "",
+      closeoutStatus: task.closeoutStatus || "",
+      walkthroughPath: task.walkthroughPath || "",
+      module: task.module || "",
+      inferredModule: task.inferredModule || "",
+      completion: task.completion || 0,
+      lessonCandidateStatus: task.lessonCandidateStatus || "",
+      lessonCandidateRows: task.lessonCandidateRows || [],
+      lessonCandidateIssues: task.lessonCandidateIssues || [],
+      risks: task.risks || [],
+      residual: residual(task),
       materialsReady: task.materialsReady === true,
+      materialIssues: task.materialIssues || [],
       queues: task.taskQueues || [],
       queueReasons: task.queueReasons || [],
       supersedes: task.supersedes || [],
@@ -41,6 +53,13 @@ export function buildTaskIndex(targetInput) {
       repairPrompt: task.repairPrompt || "",
     })),
   };
+}
+
+function residual(task) {
+  if (Array.isArray(task.stateConflicts) && task.stateConflicts.length) return `state-conflicts:${task.stateConflicts.length}`;
+  if (Array.isArray(task.materialIssues) && task.materialIssues.length) return `material-issues:${task.materialIssues.length}`;
+  if (Array.isArray(task.lessonCandidateIssues) && task.lessonCandidateIssues.length) return `lesson-issues:${task.lessonCandidateIssues.length}`;
+  return "none";
 }
 
 function assertUniqueTaskKeys(tasks) {

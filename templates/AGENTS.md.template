@@ -71,7 +71,6 @@ Read the smallest context that can answer the task.
 
 ## Single Sources Of Truth
 
-- Feature SSoT: `docs/09-PLANNING/Feature-SSoT.md`
 - Delivery SSoT: `docs/09-PLANNING/Delivery-SSoT.md`
 - Module Registry: `docs/09-PLANNING/Module-Registry.md`
 - Regression SSoT: `docs/05-TEST-QA/Regression-SSoT.md`

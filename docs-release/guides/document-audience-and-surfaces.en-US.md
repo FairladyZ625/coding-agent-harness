@@ -27,7 +27,7 @@ Release docs explain public methodology and product capability. They do not carr
 | `references/` | Agents and maintainers | Reusable standards such as testing, workflow, review, worktree rules | A project's current schedule |
 | `templates/` | CLI and agents | Files generated into target projects | Evidence from completed work |
 | Target `AGENTS.md` | Agents | Entrypoint, routing, hard rules, reading matrix | Long background essays |
-| Target `docs/09-PLANNING/` | Agents and project owners | Feature SSoT, task plans, current state | Generic marketing material |
+| Target `docs/09-PLANNING/` and `docs/Harness-Ledger.md` | Agents and project owners | Task plans, generated task lifecycle index, current state | Generic marketing material |
 | Target `docs/05-TEST-QA/` | Agents, QA, human reviewers | Regression SSoT, Cadence Ledger, quality gates | Requirement brainstorm drafts |
 | Target `docs/10-WALKTHROUGH/` | Reviewers and handoff agents | Closeout evidence, residuals, human confirmation | Unverified plans |
 
@@ -62,7 +62,8 @@ Agent-facing docs answer:
 Typical files:
 
 - `AGENTS.md`
-- `docs/09-PLANNING/Feature-SSoT.md`
+- `docs/Harness-Ledger.md`
+- `docs/09-PLANNING/TASKS/<task>/task_plan.md`
 - `docs/09-PLANNING/TASKS/<task>/task_plan.md`
 - `docs/09-PLANNING/TASKS/<task>/progress.md`
 - `docs/05-TEST-QA/Regression-SSoT.md`

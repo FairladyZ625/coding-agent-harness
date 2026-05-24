@@ -103,7 +103,7 @@ The target repository can be organized in three ways:
 | Parent-control repository | A parent repository owns the global Harness control plane. | Child repositories own implementation code and local checks. |
 
 For products split across frontend, backend, SDKs, services, and upstream references,
-the parent-control model keeps the agent startup point, Feature SSoT, regression
+the parent-control model keeps the agent startup point, generated task lifecycle Ledger, regression
 state, and closeout evidence in one place. See
 `docs-release/guides/repository-operating-models.en-US.md` and
 `docs-release/guides/parent-control-repository-pattern.en-US.md`.

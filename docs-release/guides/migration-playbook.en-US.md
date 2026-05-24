@@ -160,7 +160,7 @@ In baseline mode, only `current-active` tasks or tasks still referenced by SSoT 
 
 In status-aware rewrite mode, an existing `brief.md`, `execution_strategy.md`, or `visual_map.md` is not automatically preserved. If evidence shows it is an old template, parser residue, wrong language, or too weak for a human to judge current state, rewrite it. Historical tasks may become readable index cards or residuals, but that decision must be evidence-backed.
 
-Global table and module index migration is not manual refilling. In current Harness versions, `Feature-SSoT.md`, `Private-Feature-SSoT.md`, `Harness-Ledger.md`, module `module_plan.md` Steps tables, and module `visual_map.md` topology tables are generated indexes for agents. Humans should inspect current state through the Dashboard; agents can use `task-list` queries for fast lookup. Before cutting over an older project, archive the old tables and rebuild them from task files:
+Global table and module index migration is not manual refilling. Current Harness versions generate task lifecycle summaries into `Harness-Ledger.md` only; legacy `Feature-SSoT.md` and `Private-Feature-SSoT.md` files are archived during cutover and are not regenerated. Module `module_plan.md` Steps tables and module `visual_map.md` topology tables are still generated from module task files. Humans should inspect current state through the Dashboard; agents can use `task-list` / `task-index` queries for fast lookup. Before cutting over an older project, archive the legacy lifecycle tables and rebuild current indexes from task files:
 
 ```bash
 harness governance rebuild --dry-run --archive /path/to/project
@@ -168,7 +168,7 @@ harness governance rebuild --archive --apply /path/to/project
 harness task-list --json --search "keyword" /path/to/project
 ```
 
-The archive directory preserves old table snapshots. After the Dashboard, `task-list`, and generated tables all reflect current tasks, the project owner may decide whether to delete the old archive. Migration agents should not delete historical table evidence directly.
+The archive directory preserves old lifecycle table snapshots. After the Dashboard, `task-list` / `task-index`, and generated Ledger all reflect current tasks, the project owner may decide whether to delete the old archive. Migration agents should not delete historical table evidence directly. Delivery, Regression, Cadence, Closeout, and Module Registry governance tables are not deleted by this step unless a later version provides equivalent scanner and generator support.
 
 In full semantic rewrite mode, every task needs a standalone `brief.md`, but the brief must not be an empty template. A historical task brief is a readable index card: task goal, first human read, evidence sources, status judgment, and residuals. `visual_map.md` is a diagram collection, not a roadmap template; include phase flow, sequence, architecture, data-flow, state, topology, or decision maps only when they improve understanding. Do not generate empty diagrams to satisfy a checker.
 

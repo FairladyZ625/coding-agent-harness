@@ -39,7 +39,7 @@ Define who breaks roadmap work into feature blocks:
 | Level | Owner | Artifact | Rule |
 |-------|-------|----------|------|
 | Roadmap | [owner] | [SSoT / issue tracker] | [how priority is chosen] |
-| Feature block | [owner] | `Delivery-SSoT.md` / Feature SSoT | [how blocks are bounded] |
+| Feature block | [owner] | `Delivery-SSoT.md` / generated Harness Ledger | [how blocks are bounded] |
 | Task | [owner] | `docs/09-PLANNING/TASKS/<task>/task_plan.md` | [who can start work] |
 | Review | [owner] | `review.md` / PR review | [required reviewers] |
 | Integration | [owner] | PR / release branch / integration branch | [merge order] |
@@ -50,14 +50,14 @@ Define who breaks roadmap work into feature blocks:
 
 Use when one human directs multiple agents across worktrees.
 
-- One primary Feature SSoT is enough for linear phase work.
+- One generated Harness Ledger is enough for ordinary task lifecycle tracking.
 - Worktree concurrency is central.
 - Merge order is human-decided.
 - Cross-task conflicts are managed by task ownership and shared-file notices.
 
 **模块并行扩展**：当项目有 2+ 个可独立演进的功能域时，启用模块并行开发（见 `references/module-parallel-standard.md`）。此时：
 
-- Module Registry 替代 Feature SSoT 作为进度追踪的主要工具
+- Module Registry 管模块边界；Harness Ledger 生成全局任务生命周期索引
 - 每个模块一个长期 worktree（`codex/<module-key>`）
 - 模块间通过 write scope 声明避免冲突
 - 跨模块修改走独立的基础设施 task

@@ -122,10 +122,9 @@ Task Contract: harness-task/v1
 
 ## 关联
 
-- 功能 SSoT 条目：[引用]
 - 相关 Regression Gate：[引用]
 - 审查报告：[路径 / 不适用]
-- Harness Ledger 条目：[完成时填写 / HL-...]
+- Generated Ledger：由 lifecycle CLI / `harness governance rebuild` 重建
 - 前置任务：[引用；如无写“无”]
 
 ## 模块关联（启用模块并行时填写）

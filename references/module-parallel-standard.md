@@ -13,7 +13,7 @@
 - 各功能域的源文件几乎不重叠
 - 开发者计划多会话 / 多 worktree 并行推进
 
-不满足时继续使用 Feature SSoT + 线性 Phase 模型。
+不满足时继续使用普通任务队列 + CLI 生成 Harness Ledger，不强行拆模块。
 
 ## 核心概念
 
@@ -241,23 +241,22 @@ HARNESS_REQUIRE_GLOBAL_MODULE_SYNC=1 node scripts/check-harness.mjs <repo-path>
 - 建议频率：每周一次，或每次基础设施 task 完成后
 - 目的：避免 divergence 过大导致 merge 困难
 
-## 与 Feature SSoT 的分工
+## 与生成 Ledger 的分工
 
 启用模块并行后：
 
 - **Module Registry + module_plan.md** 追踪模块内步骤进度
-- **Feature SSoT** 只追踪：
-  - 不属于任何模块的独立功能
-  - 发布级汇总（哪个 release 包含了哪些模块步骤）
+- **Harness Ledger** 从任务本地事实生成全局生命周期索引
+- **Delivery SSoT** 只在需要跨模块、跨仓或多人交付编排时追踪 release / block 依赖
 
-**禁止**：同一个工作项同时出现在 module_plan 和 Feature SSoT 中。
+**禁止**：同一个工作项同时作为模块步骤和另一张手写任务生命周期表维护。
 
-切换时必须收缩 Feature SSoT：
+切换时必须归档 legacy 生命周期表：
 
-- Feature SSoT Active 表只保留非模块、未完成、仍需操作的 feature。
-- Phase 历史和 completed 明细移到 `docs/09-PLANNING/_archive/<feature-ssot-name>-phase-<range>.md`。
-- Feature SSoT 主文件保留 freeze notice、当前 active 指针、completed summary、archive index。
-- 不允许把历史大表留在 Feature SSoT 主文件底部作为"文件内归档"；这会让 Active SSoT 继续膨胀。
+- `Feature-SSoT.md` / `Private-Feature-SSoT.md` 移到 `docs/09-PLANNING/_archive/`。
+- Phase 历史和 completed 明细作为历史证据保留，不再作为 active 表继续维护。
+- 使用 `harness governance rebuild --archive --apply` 从 task / module 文件重建 Harness Ledger、module plan 和 visual map 索引。
+- 不允许把历史大表留在 active 生命周期入口底部作为"文件内归档"；这会让 Agent 继续读取旧状态。
 
 ## 归档与过期检测
 
@@ -277,16 +276,17 @@ HARNESS_REQUIRE_GLOBAL_MODULE_SYNC=1 node scripts/check-harness.mjs <repo-path>
 
 对已有线性 Phase 历史的项目：
 
-1. 冻结 Feature SSoT 当前状态，标注"后续工作按模块推进"
-2. 将 Feature SSoT 的历史 completed 明细移入 `docs/09-PLANNING/_archive/`，主文件只保留 active 指针、summary 和 archive index
+1. 冻结 legacy 生命周期表当前状态，标注"后续工作按模块推进"
+2. 将 `Feature-SSoT.md` / `Private-Feature-SSoT.md` 历史明细移入 `docs/09-PLANNING/_archive/`
 3. 将历史 `docs/09-PLANNING/TASKS/` 移入 `docs/09-PLANNING/_archive/`
 4. 将历史 walkthrough 移入 `docs/10-WALKTHROUGH/_archive/`
 5. 从最后一个 Phase 的未完成项中识别模块
 6. 创建 Module Registry 和各模块的 module_plan.md
 7. 创建 Module Session Prompt Pack 或每模块 `session_prompt.md`
 8. 定义切换日期，此后不再创建新 Phase
+9. 运行 `harness governance rebuild --archive --apply` 生成新的 Harness Ledger 和模块索引
 
 不做的事：
 - 不回溯重写历史 Ledger 条目
-- 不删除现有 Feature SSoT
+- 不直接删除 legacy 生命周期表证据；先归档，是否清理归档由 owner 决定
 - 不强制已完成的 Phase 工作重新归类

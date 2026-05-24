@@ -8,7 +8,7 @@
 
 ```
 docs/
-├── Harness-Ledger.md           ← 全局 harness 上下文回写总账
+├── Harness-Ledger.md           ← CLI 生成的任务生命周期总账
 ├── 00-RAW-PRDS/              ← 原始需求文档、PRD、用户故事
 │   └── _archive/              ← 本层历史文档归档（如该层会增长）
 ├── 01-GOVERNANCE/             ← 项目治理规则、决策记录、经验沉淀
@@ -33,9 +33,8 @@ docs/
 │   │   └── _task-template/    ← 任务模板
 │   ├── MODULES/               ← 模块并行开发计划（启用时）
 │   │   └── _archive/          ← 已完成 / 暂停过久模块归档
-│   ├── _archive/              ← 历史任务、旧 Feature SSoT 明细、过期排期归档
+│   ├── _archive/              ← 历史任务、旧生命周期表明细、过期排期归档
 │   ├── Delivery-SSoT.md       ← 多人 / 多仓 / 传统流程下的交付排期和集成顺序
-│   └── [Feature-SSoT].md     ← 实施排期表
 ├── 10-WALKTHROUGH/            ← Walkthrough 收口记录与 Closeout SSoT
 │   └── _archive/              ← 历史 walkthrough 批量归档（迁移 / 年度收束时）
 ├── 11-REFERENCE/              ← 标准文件（agent 按需加载）
@@ -132,7 +131,7 @@ Checker 规则：
 
 | 对象 | 触发条件 | 归档位置 |
 |------|----------|----------|
-| Feature SSoT Active 表 | 模块并行切换、release 完成、或 completed rows 超过 20 条 | `09-PLANNING/_archive/` |
+| Legacy Feature / Private Feature 生命周期表 | 迁移到 ledger-only 版本 | `09-PLANNING/_archive/` |
 | Delivery SSoT | 集成 wave 结束或 completed/superseded blocks 超过 20 条 | `09-PLANNING/_archive/` |
 | Module Registry / module_plan | 模块 completed 或 paused 超过 60 天 | `09-PLANNING/MODULES/_archive/<key>/` |
 | Regression SSoT | gate 废弃或长期不再运行 | `05-TEST-QA/_archive/` |

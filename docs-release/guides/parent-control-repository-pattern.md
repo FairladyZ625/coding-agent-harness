@@ -16,7 +16,7 @@ English mirror: `docs-release/guides/parent-control-repository-pattern.en-US.md`
 
 - 前端、后端、SDK、微服务各有自己的计划，没人知道全局 release 到底卡在哪里。
 - Agent 从某个子仓库启动，只看到局部 `AGENTS.md`，忽略了跨仓架构约束。
-- 每个仓库各自维护 Feature SSoT，状态互相冲突。
+- 每个仓库各自维护手写任务生命周期表，状态互相冲突。
 - Review 证据、测试证据、walkthrough 分散在不同仓库，最后无法证明一个跨仓任务真正完成。
 
 主控仓库模式解决的是控制面问题。它不是要求把代码放回单仓，而是把 Harness 的事实源收回一个地方。
@@ -62,7 +62,8 @@ product-control-repo/
 - `docs/03-ARCHITECTURE/repository-topology.md`：仓库拓扑、owner、边界、依赖方向。
 - `docs/04-DEVELOPMENT/local-development.md`：跨仓本地启动、联调、依赖安装。
 - `docs/06-INTEGRATIONS/`：跨服务 API、事件、SDK、数据库、权限、外部系统契约。
-- `docs/09-PLANNING/Feature-SSoT.md`：全局 feature 和 release 状态。
+- `docs/Harness-Ledger.md`：由任务文件生成的全局任务生命周期索引。
+- `docs/09-PLANNING/Delivery-SSoT.md`：跨仓 feature block、依赖和 release 编排。
 - `docs/09-PLANNING/TASKS/`：跨仓任务合同。
 - `docs/05-TEST-QA/Regression-SSoT.md`：跨仓 regression gates。
 - `docs/05-TEST-QA/Cadence-Ledger.md`：哪些变更触发哪些检查。
@@ -94,7 +95,7 @@ node tools/check-harness.mjs
 - 本仓库局部 review 或 PR。
 - 本仓库局部测试证据。
 
-子仓库不应该单独维护全局 Feature SSoT，也不应该自己决定跨仓 release 是否完成。
+子仓库不应该单独维护全局任务生命周期表，也不应该自己决定跨仓 release 是否完成。
 
 一个子仓库 `AGENTS.md` 可以很短：
 
@@ -228,7 +229,7 @@ Agent 不需要在启动时读 100 个仓库的所有文档。它先读父任务
 
 避免这些做法：
 
-- 每个子仓库各自维护全局 Feature SSoT。
+- 每个子仓库各自维护全局任务生命周期表。
 - 父仓库只有 README，没有任务、回归和 closeout。
 - 子仓库 `AGENTS.md` 复制父仓库大段内容，导致漂移。
 - 跨仓任务从子仓库启动，最后再补父仓库记录。
@@ -241,7 +242,8 @@ Agent 不需要在启动时读 100 个仓库的所有文档。它先读父任务
 
 - 父仓库 `AGENTS.md` 写清楚它是 control repo。
 - `docs/03-ARCHITECTURE/repository-topology.md` 列出所有子仓库。
-- `docs/09-PLANNING/Feature-SSoT.md` 成为全局 feature source of truth。
+- `docs/Harness-Ledger.md` 由任务文件生成全局任务生命周期索引。
+- `docs/09-PLANNING/Delivery-SSoT.md` 只在需要跨仓 release / block 编排时维护。
 - `docs/05-TEST-QA/Regression-SSoT.md` 定义局部、契约、集成、发布 gate。
 - 每个子仓库只有短的局部 `AGENTS.md`。
 - 新跨仓任务只在父仓库创建。

@@ -11,6 +11,21 @@ const sampleOpenFindingPattern = /^\|\s*(?:F|R|SR|V|RR|HL)-\d+\s*\|.*\|\s*(?:ope
 const englishFirstZhHeadingPattern = /^#{1,6}\s+(?:Reviewer Identity|Confidence Challenge|Material Findings|Non-Material Notes|Evidence Checked|Final Confidence Basis|Follow-Up Routing|Phase Graph|Phase Table|Context Packet|Artifact Index|Stop Condition|Pause Conditions|Deliverables|Module Session Prompt|Subagent\s*\/\s*Worker|Coordinator|Worktree|Slice ID|Parent Phase|Inputs|Verifier\b|Harness\b|Closeout\b|Lessons\b)/m;
 const zhMechanicalEnglishWorkflowPattern = /^\s*\d+\.\s*(?:implement|run locally|self-review|rerun evidence)\b/im;
 const zhMechanicalEvidencePhrasePattern = /\b(?:local smoke|browser or UI inspection|live environment smoke|reviewer findings|PR checks\s*\/\s*workflow run)\b/i;
+const manualLifecycleTablePatterns = [
+  /Feature SSoT entry/i,
+  /Feature SSoT:\s*`?docs\/09-PLANNING\/Feature-SSoT\.md`?/i,
+  /Feature SSoT：\s*`?docs\/09-PLANNING\/Feature-SSoT\.md`?/i,
+  /writes? back to Feature SSoT/i,
+  /route it through Feature SSoT/i,
+  /must simultaneously update progress\.md and Feature SSoT/i,
+  /whether to write back to Feature SSoT/i,
+  /回写到 Feature SSoT/i,
+  /回写 Feature SSoT/i,
+  /是否回写 Feature SSoT/i,
+  /必须同时更新 progress\.md 和 Feature SSoT/i,
+  /功能 SSoT 条目/,
+  /功能进度写入 Feature SSoT/,
+];
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -65,6 +80,12 @@ for (const relativeFile of chineseNonDashboardTemplateFiles) {
   assert(!zhMechanicalEnglishWorkflowPattern.test(content), `Chinese template contains unlocalized workflow phrase: ${relativeFile}`);
   assert(!zhMechanicalEvidencePhrasePattern.test(content), `Chinese template contains unlocalized evidence phrase: ${relativeFile}`);
 }
+for (const relativeFile of lifecycleContractFiles()) {
+  const content = fs.readFileSync(path.join(repoRoot, relativeFile), "utf8");
+  for (const pattern of manualLifecycleTablePatterns) {
+    assert(!pattern.test(content), `${relativeFile} still instructs agents to manually maintain Feature SSoT lifecycle tables: ${pattern}`);
+  }
+}
 
 function relativeFiles(root) {
   const results = [];
@@ -85,6 +106,23 @@ function relativeFiles(root) {
 
 function toPosix(value) {
   return value.split(path.sep).join("/");
+}
+
+function lifecycleContractFiles() {
+  return [
+    "SKILL.md",
+    "templates/AGENTS.md.template",
+    "templates-zh-CN/AGENTS.md.template",
+    "templates/planning/task_plan.md",
+    "templates-zh-CN/planning/task_plan.md",
+    "templates/ledger/Harness-Ledger.md",
+    "templates-zh-CN/ledger/Harness-Ledger.md",
+    "references/planning-loop.md",
+    "references/harness-ledger.md",
+    "references/ssot-governance.md",
+    "docs-release/guides/migration-playbook.md",
+    "docs-release/guides/migration-playbook.en-US.md",
+  ];
 }
 
 console.log("Template governance tests passed");
