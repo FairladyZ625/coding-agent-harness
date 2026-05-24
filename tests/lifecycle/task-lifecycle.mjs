@@ -426,6 +426,7 @@ assert(closedReviewTask?.walkthroughPath?.endsWith("docs/10-WALKTHROUGH/workbenc
 assert(closedReviewTask?.lifecycleState === "closed-review-pending", "closed tasks without human confirmation should remain visible as review debt");
 assert(!closedReviewTask?.taskQueues?.includes("review"), "closed tasks without human confirmation should not enter the canonical review queue");
 assert(closedReviewTask?.taskQueues?.includes("missing-materials"), "closed tasks without review submission should enter missing-materials repair routing");
+commitFixtureBaseline(lifecycleTarget, "before workbench lesson action fixture");
 const workbenchLessonTask = expectJson(["new-task", "workbench-lesson-action", "--title", "Workbench lesson action", "--locale", "en-US", lifecycleTarget]);
 const workbenchLessonCandidatePath = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-workbench-lesson-action/lesson_candidates.md`);
 fs.writeFileSync(
@@ -436,6 +437,7 @@ fs.writeFileSync(
       "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| LC-WORKBENCH-001 | ready-for-review | A very long dashboard lesson action title that should stay bounded inside queue cards and drawers | process | Workbench click path needs product feedback beyond CLI dry-run | Users need the created follow-up task, prompt, and recovery action visible in the Dashboard | pending | task lifecycle review checklist with a deliberately long promotion target | pending | possibly checker or template | pending |",
     ),
 );
+commitFixtureBaseline(lifecycleTarget, "before workbench lesson sedimentation fixture");
 const workbenchDir = path.join(tmpRoot, "review-workbench");
 const workbench = spawn(node, [cli, "dashboard", "--workbench", "--out-dir", workbenchDir, "--host", "127.0.0.1", "--port", "0", lifecycleTarget], {
   cwd: repoRoot,
