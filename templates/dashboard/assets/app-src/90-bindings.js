@@ -199,12 +199,16 @@ function renderDrawerContent(taskId) {
 
   const body = `
     <div class="task-drawer-body stack">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--paper-2); padding: 12px 16px; border-radius: 8px;">
-        <div style="font-size: 24px; font-weight: 800; color: var(--accent);">${task.completion}%</div>
-        <a href="#/tasks/${encodeURIComponent(task.id)}" class="btn-drawer-trigger" style="text-decoration: none;">${t("fullView")}</a>
+      <div class="drawer-task-summary">
+        <div>
+          <span>${t("statOverall")}</span>
+          <strong>${task.completion}%</strong>
+        </div>
+        <a href="#/tasks/${encodeURIComponent(task.id)}" class="btn-drawer-trigger">${t("fullView")}</a>
       </div>
       ${taskStateSummary(task)}
       ${reviewActionPanel(task, { mode: "summary" })}
+      ${lessonCandidatePanel(task, { context: "drawer" })}
       ${timeline}
       ${documents}
       ${findings}
@@ -298,6 +302,7 @@ async function createLessonSedimentationFromDashboard(button) {
   const candidateId = button.dataset.candidateId || "";
   const result = document.querySelector(`[data-lesson-result="${CSS.escape(`${taskId}:${candidateId}`)}"]`);
   if (result) result.textContent = t("lessonTaskCreating");
+  button.disabled = true;
   try {
     const response = await fetch("/api/tasks/lesson-sedimentation", {
       method: "POST",
@@ -308,12 +313,41 @@ async function createLessonSedimentationFromDashboard(button) {
       body: JSON.stringify({ taskId, candidateId }),
     });
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || t("lessonTaskCreateFailed"));
-    if (result) result.textContent = t("lessonTaskCreated");
-    setTimeout(() => window.location.reload(), 500);
+    if (!response.ok) throw payload;
+    if (result) {
+      result.innerHTML = lessonSedimentationSuccess(payload);
+      bindLessonSedimentationButtons(result);
+      result.scrollIntoView({ block: "center", inline: "nearest" });
+    }
   } catch (error) {
-    if (result) result.textContent = `${t("lessonTaskCreateFailed")}: ${error.message}`;
+    button.disabled = false;
+    if (result) result.innerHTML = lessonSedimentationFailure(error);
   }
+}
+
+function lessonSedimentationSuccess(payload) {
+  const followUp = payload?.followUpTask || {};
+  const prompt = payload?.prompt || "";
+  const taskId = followUp.id || "";
+  const openHref = taskId ? `#/tasks/${encodeURIComponent(taskId)}` : "#/review";
+  return `<div class="workbench-action-result success">
+    <strong>${escapeHtml(t("lessonTaskCreated"))}</strong>
+    ${taskId ? `<a href="${openHref}">${escapeHtml(t("openFollowUpTask"))}</a>` : ""}
+    ${prompt ? `<button data-copy-lesson-prompt="${escapeAttr(taskId || "follow-up")}" data-lesson-prompt="${escapeAttr(prompt)}">${escapeHtml(t("copyLessonPrompt"))}</button>` : ""}
+  </div>`;
+}
+
+function lessonSedimentationFailure(error) {
+  const message = error?.error || error?.message || t("lessonTaskCreateFailed");
+  const recovery = Array.isArray(error?.recovery) ? error.recovery : [];
+  const details = error?.details || {};
+  const existingTask = details.followUpTask || details.existingTask || "";
+  return `<div class="workbench-action-result failed">
+    <strong>${escapeHtml(t("lessonTaskCreateFailed"))}</strong>
+    <span>${escapeHtml(message)}</span>
+    ${existingTask ? `<a href="#/tasks/${encodeURIComponent(existingTask)}">${escapeHtml(t("openFollowUpTask"))}</a>` : ""}
+    ${recovery.length ? `<ul>${recovery.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+  </div>`;
 }
 
 async function copyText(text) {

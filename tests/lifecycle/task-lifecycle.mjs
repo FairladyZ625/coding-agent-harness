@@ -426,6 +426,16 @@ assert(closedReviewTask?.walkthroughPath?.endsWith("docs/10-WALKTHROUGH/workbenc
 assert(closedReviewTask?.lifecycleState === "closed-review-pending", "closed tasks without human confirmation should remain visible as review debt");
 assert(!closedReviewTask?.taskQueues?.includes("review"), "closed tasks without human confirmation should not enter the canonical review queue");
 assert(closedReviewTask?.taskQueues?.includes("missing-materials"), "closed tasks without review submission should enter missing-materials repair routing");
+const workbenchLessonTask = expectJson(["new-task", "workbench-lesson-action", "--title", "Workbench lesson action", "--locale", "en-US", lifecycleTarget]);
+const workbenchLessonCandidatePath = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-workbench-lesson-action/lesson_candidates.md`);
+fs.writeFileSync(
+  workbenchLessonCandidatePath,
+  fs.readFileSync(workbenchLessonCandidatePath, "utf8")
+    .replace(
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| LC-WORKBENCH-001 | ready-for-review | A very long dashboard lesson action title that should stay bounded inside queue cards and drawers | process | Workbench click path needs product feedback beyond CLI dry-run | Users need the created follow-up task, prompt, and recovery action visible in the Dashboard | pending | task lifecycle review checklist with a deliberately long promotion target | pending | possibly checker or template | pending |",
+    ),
+);
 const workbenchDir = path.join(tmpRoot, "review-workbench");
 const workbench = spawn(node, [cli, "dashboard", "--workbench", "--out-dir", workbenchDir, "--host", "127.0.0.1", "--port", "0", lifecycleTarget], {
   cwd: repoRoot,
@@ -439,6 +449,28 @@ try {
   assert(runtimePayload.mode === "workbench" && runtimePayload.csrfToken === runtime.csrf, "workbench runtime should expose mode and csrf token");
   const dashboardData = fs.readFileSync(path.join(workbenchDir, "assets/dashboard-data.js"), "utf8");
   assert(dashboardData.includes("Walkthrough: Closed review debt"), "dashboard data should include closeout walkthrough documents");
+  assert(dashboardData.includes("LC-WORKBENCH-001"), "dashboard data should include actionable lesson candidates for workbench actions");
+  const lessonCreateResponse = await fetch(new URL("api/tasks/lesson-sedimentation", runtime.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
+    body: JSON.stringify({ taskId: workbenchLessonTask.task.id, candidateId: "LC-WORKBENCH-001" }),
+  });
+  const lessonCreateText = await lessonCreateResponse.text();
+  assert(lessonCreateResponse.status === 200, `workbench lesson sedimentation should create a follow-up task, got ${lessonCreateResponse.status}: ${lessonCreateText}`);
+  const lessonCreatePayload = JSON.parse(lessonCreateText);
+  assert(lessonCreatePayload.followUpTask?.id?.includes("LC-WORKBENCH-001".toLowerCase()), "lesson create response should include follow-up task id");
+  assert(lessonCreatePayload.prompt?.includes("LC-WORKBENCH-001"), "lesson create response should include copyable prompt");
+  assert(fs.existsSync(path.join(lifecycleTarget, lessonCreatePayload.followUpTask.path.replace(/^TARGET:/, ""), "artifacts/lesson-sedimentation-prompt.md")), "lesson create should write the copyable prompt artifact");
+  const duplicateLessonResponse = await fetch(new URL("api/tasks/lesson-sedimentation", runtime.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
+    body: JSON.stringify({ taskId: workbenchLessonTask.task.id, candidateId: "LC-WORKBENCH-001" }),
+  });
+  const duplicateLessonPayload = await duplicateLessonResponse.json();
+  assert(duplicateLessonResponse.status === 409, "duplicate workbench lesson creation should return a conflict");
+  assert(duplicateLessonPayload.code === "lesson-follow-up-exists", "duplicate lesson creation should expose a stable error code");
+  assert(Array.isArray(duplicateLessonPayload.recovery) && duplicateLessonPayload.recovery.length > 0, "duplicate lesson creation should include recovery actions");
+  assert(duplicateLessonPayload.details?.followUpTask === lessonCreatePayload.followUpTask.id, "duplicate lesson creation should identify the existing follow-up task");
   const badOrigin = await fetch(new URL("api/tasks/review-complete", runtime.url), {
     method: "POST",
     headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: "http://127.0.0.1:9" },

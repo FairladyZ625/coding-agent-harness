@@ -184,7 +184,7 @@
   display: inline-flex;
   margin: 6px 6px 0 0;
   padding: 6px 12px;
-  border-radius: 999px; /* Pill */
+  border-radius: 8px;
   background: var(--paper-2);
   border: 1px solid var(--line);
   font-size: 12px;
@@ -196,7 +196,6 @@
   background: var(--accent);
   color: var(--paper);
   border-color: var(--accent);
-  transform: scale(1.03);
 }
 
 .finding {

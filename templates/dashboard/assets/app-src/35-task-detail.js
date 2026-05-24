@@ -21,6 +21,7 @@ function taskDetail(route) {
       </article>
       <aside class="detail-side">
         ${reviewActionPanel(task, { mode: "summary" })}
+        ${lessonCandidatePanel(task, { context: "detail" })}
         ${openFindings(task)}
         ${evidenceList(task)}
         ${documentTabs(task)}
@@ -64,9 +65,9 @@ function taskQueueReasonSummary(task) {
   if (!reasons.length) return "";
   return `<div class="task-queue-reasons">
     <span>${t("queueReasons")}</span>
-    <ul>
-      ${reasons.slice(0, 5).map((reason) => `<li><strong>${escapeHtml(reason.code || reason.queue || "")}</strong> ${escapeHtml(reason.message || "")}</li>`).join("")}
-    </ul>
+    <div class="review-reasons">
+      ${reasons.slice(0, 5).map(reviewReason).join("")}
+    </div>
   </div>`;
 }
 

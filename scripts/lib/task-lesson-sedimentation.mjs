@@ -6,6 +6,7 @@ import {
   readFileSafe,
   toPosix,
   normalizeTaskId,
+  localDate,
 } from "./core-shared.mjs";
 import { parseLessonCandidateStatus } from "./task-lesson-candidates.mjs";
 import { createTask, resolveTaskDirectory } from "./task-lifecycle.mjs";
@@ -21,6 +22,17 @@ import {
 
 const presetId = "lesson-sedimentation";
 
+export class LessonSedimentationError extends Error {
+  constructor(message, { code = "lesson-sedimentation-failed", status = 400, details = {}, recovery = [] } = {}) {
+    super(message);
+    this.name = "LessonSedimentationError";
+    this.code = code;
+    this.status = status;
+    this.details = details;
+    this.recovery = recovery;
+  }
+}
+
 export function createLessonSedimentationTask(targetInput, taskRef, candidateId, { dryRun = false, title = "" } = {}) {
   const target = normalizeTarget(targetInput);
   const sourceTaskDir = resolveTaskDirectory(target, taskRef);
@@ -30,24 +42,67 @@ export function createLessonSedimentationTask(targetInput, taskRef, candidateId,
   const content = readFileSafe(candidatePath);
   const candidateStatus = parseLessonCandidateStatus(content);
   const candidate = candidateStatus.rows.find((row) => row.id === candidateId);
-  if (!candidate) throw new Error(`Lesson candidate not found: ${candidateId}`);
+  if (!candidate) {
+    throw new LessonSedimentationError(`Lesson candidate not found: ${candidateId}`, {
+      code: "lesson-candidate-not-found",
+      status: 404,
+      details: { candidateId, sourceTask: sourceTaskId },
+      recovery: [
+        "Open the source task lesson_candidates.md and confirm the candidate ID.",
+        "Refresh the Dashboard snapshot if the candidate was just added.",
+      ],
+    });
+  }
   if (!["needs-promotion", "ready-for-review"].includes(candidate.status)) {
-    throw new Error(`Lesson candidate must be ready-for-review or needs-promotion; current status is ${candidate.status}`);
+    throw new LessonSedimentationError(`Lesson candidate must be ready-for-review or needs-promotion; current status is ${candidate.status}`, {
+      code: "lesson-candidate-not-actionable",
+      status: 409,
+      details: { candidateId, status: candidate.status, sourceTask: sourceTaskId },
+      recovery: [
+        "Set the candidate status to ready-for-review or needs-promotion after human review.",
+        "Use Copy lesson prompt if you only need the prompt without creating a task.",
+      ],
+    });
   }
   if (candidate.followUpTask && !/^pending$/i.test(candidate.followUpTask)) {
-    throw new Error(`Lesson candidate already has follow-up task: ${candidate.followUpTask}`);
+    throw new LessonSedimentationError(`Lesson candidate already has follow-up task: ${candidate.followUpTask}`, {
+      code: "lesson-follow-up-exists",
+      status: 409,
+      details: { candidateId, followUpTask: candidate.followUpTask, sourceTask: sourceTaskId },
+      recovery: [
+        "Open the existing follow-up task instead of creating a duplicate.",
+        "If the existing task is wrong, edit the Follow-up Task cell back to pending after review.",
+      ],
+    });
   }
 
   const preset = readPresetPackage(presetId);
   const slug = normalizeTaskId(`lesson-${sourceShortId.replace(/^\d{4}-\d{2}-\d{2}-/, "")}-${candidate.id}`);
   const taskTitle = title || `Lesson sedimentation for ${candidate.id}`;
-  const taskResult = createTask(target.projectRoot, slug, {
-    title: taskTitle,
-    locale: "en-US",
-    budget: "standard",
-    longRunning: true,
-    dryRun,
-  });
+  let taskResult;
+  try {
+    taskResult = createTask(target.projectRoot, slug, {
+      title: taskTitle,
+      locale: "en-US",
+      budget: "standard",
+      longRunning: true,
+      dryRun,
+    });
+  } catch (error) {
+    if (/Task already exists:/i.test(error.message)) {
+      const existingTask = `TASKS/${localDate()}-${slug}`;
+      throw new LessonSedimentationError(error.message, {
+        code: "lesson-follow-up-directory-exists",
+        status: 409,
+        details: { candidateId, existingTask, sourceTask: sourceTaskId },
+        recovery: [
+          "Open the existing task directory and confirm whether it is the intended follow-up.",
+          "If it is valid, update the source candidate Follow-up Task cell to that task id.",
+        ],
+      });
+    }
+    throw error;
+  }
   const followUpTaskId = taskResult.task.id;
   const followUpDir = path.join(target.projectRoot, taskResult.task.path.replace(/^TARGET:/, ""));
   const audit = buildPresetAudit(preset, {

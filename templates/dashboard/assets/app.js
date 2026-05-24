@@ -794,6 +794,7 @@ function taskDetail(route) {
       </article>
       <aside class="detail-side">
         ${reviewActionPanel(task, { mode: "summary" })}
+        ${lessonCandidatePanel(task, { context: "detail" })}
         ${openFindings(task)}
         ${evidenceList(task)}
         ${documentTabs(task)}
@@ -837,9 +838,9 @@ function taskQueueReasonSummary(task) {
   if (!reasons.length) return "";
   return `<div class="task-queue-reasons">
     <span>${t("queueReasons")}</span>
-    <ul>
-      ${reasons.slice(0, 5).map((reason) => `<li><strong>${escapeHtml(reason.code || reason.queue || "")}</strong> ${escapeHtml(reason.message || "")}</li>`).join("")}
-    </ul>
+    <div class="review-reasons">
+      ${reasons.slice(0, 5).map(reviewReason).join("")}
+    </div>
   </div>`;
 }
 
@@ -1265,10 +1266,11 @@ function reviewQueueCard(task, tab) {
   const openMaterial = (task.risks || []).filter((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease)).length;
   const reasons = task.queueReasons || [];
   const canCopyRepairPrompt = tab?.repair && String(task.repairPrompt || "").trim();
-  const lessonActions = tab?.id === "lessons" ? lessonCandidateActions(task) : "";
+  const lessonActions = tab?.id === "lessons" ? lessonCandidatePanel(task, { context: "card", limit: 2 }) : "";
+  const displayId = task.shortId || taskFolderName(task) || task.id;
   return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(task.state)})">
     <div class="card-header">
-      <span class="card-id">${escapeHtml(task.id)}</span>
+      <span class="card-id" title="${escapeAttr(task.id)}">${escapeHtml(displayId)}</span>
       ${tag(task.reviewStatus || "missing")}
       ${reviewTaskQueues(task).map(tag).join("")}
     </div>
@@ -1292,14 +1294,26 @@ function reviewQueueCard(task, tab) {
   </article>`;
 }
 
-function lessonCandidateActions(task) {
+function lessonCandidatePanel(task, { context = "detail", limit = 0 } = {}) {
   const candidates = (task.lessonCandidateRows || []).filter((candidate) => ["ready-for-review", "needs-promotion"].includes(candidate.status));
   if (!candidates.length) return "";
-  const hiddenCount = Math.max(0, candidates.length - 2);
-  return `<div class="lesson-candidate-actions">
-    ${candidates.slice(0, 2).map((candidate) => lessonCandidateAction(task, candidate)).join("")}
-    ${hiddenCount ? `<div class="lesson-candidate-more">${escapeHtml(t("moreLessonCandidates")).replace("{count}", String(hiddenCount))}</div>` : ""}
-  </div>`;
+  const visibleCandidates = limit > 0 ? candidates.slice(0, limit) : candidates;
+  const hiddenCount = Math.max(0, candidates.length - visibleCandidates.length);
+  const staticNote = canUseWorkbenchAction("lesson-sedimentation-task") ? "" : `<p class="lesson-action-note">${escapeHtml(t("lessonWorkbenchRequired"))}</p>`;
+  return `<section class="lesson-candidate-panel ${context === "card" ? "compact" : ""}">
+    <div class="lesson-candidate-panel-head">
+      <div>
+        <p class="eyebrow">${t("lessonCandidates")}</p>
+        <h3>${t("lessonSedimentationActions")}</h3>
+      </div>
+      <span class="tag">${visibleCandidates.length}/${candidates.length}</span>
+    </div>
+    ${staticNote}
+    <div class="lesson-candidate-actions">
+      ${visibleCandidates.map((candidate) => lessonCandidateAction(task, candidate)).join("")}
+    </div>
+    ${hiddenCount ? `<a class="lesson-candidate-more" href="#/review/${encodeURIComponent(task.id)}">${escapeHtml(t("moreLessonCandidates")).replace("{count}", String(hiddenCount))}</a>` : ""}
+  </section>`;
 }
 
 function lessonCandidateAction(task, candidate) {
@@ -1307,13 +1321,17 @@ function lessonCandidateAction(task, candidate) {
   const hasFollowUp = followUp && !/^pending$/i.test(followUp);
   const prompt = lessonSedimentationPrompt(task, candidate);
   return `<div class="lesson-candidate-action">
-    <strong>${escapeHtml(candidate.id)}</strong>
-    <span>${escapeHtml(candidate.title || candidate.promotionTarget || t("lessonCandidates"))}</span>
-    <small>${escapeHtml(candidate.scope || t("none"))} · ${escapeHtml(candidate.promotionTarget || t("none"))}</small>
-    ${hasFollowUp ? `<a href="#/tasks/${encodeURIComponent(followUp)}">${t("openFollowUpTask")}</a>` : ""}
-    <button data-copy-lesson-prompt="${escapeAttr(task.id)}:${escapeAttr(candidate.id)}" data-lesson-prompt="${escapeAttr(prompt)}">${t("copyLessonPrompt")}</button>
-    <button data-create-lesson-sedimentation="${escapeAttr(task.id)}" data-candidate-id="${escapeAttr(candidate.id)}" ${canUseWorkbenchAction("lesson-sedimentation-task") && !hasFollowUp ? "" : "disabled"}>${t("createLessonTask")}</button>
+    <div class="lesson-candidate-main">
+      <strong>${escapeHtml(candidate.id)}</strong>
+      <span>${escapeHtml(candidate.title || candidate.promotionTarget || t("lessonCandidates"))}</span>
+      <small>${escapeHtml(candidate.scope || t("none"))} · ${escapeHtml(candidate.promotionTarget || t("none"))}</small>
+    </div>
     <span class="review-result" data-lesson-result="${escapeAttr(task.id)}:${escapeAttr(candidate.id)}"></span>
+    <div class="lesson-candidate-command-row">
+      ${hasFollowUp ? `<a href="#/tasks/${encodeURIComponent(followUp)}">${t("openFollowUpTask")}</a>` : ""}
+      <button data-copy-lesson-prompt="${escapeAttr(task.id)}:${escapeAttr(candidate.id)}" data-lesson-prompt="${escapeAttr(prompt)}">${t("copyLessonPrompt")}</button>
+      <button data-create-lesson-sedimentation="${escapeAttr(task.id)}" data-candidate-id="${escapeAttr(candidate.id)}" ${canUseWorkbenchAction("lesson-sedimentation-task") && !hasFollowUp ? "" : "disabled"}>${t("createLessonTask")}</button>
+    </div>
   </div>`;
 }
 
@@ -1851,12 +1869,16 @@ function renderDrawerContent(taskId) {
 
   const body = `
     <div class="task-drawer-body stack">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--paper-2); padding: 12px 16px; border-radius: 8px;">
-        <div style="font-size: 24px; font-weight: 800; color: var(--accent);">${task.completion}%</div>
-        <a href="#/tasks/${encodeURIComponent(task.id)}" class="btn-drawer-trigger" style="text-decoration: none;">${t("fullView")}</a>
+      <div class="drawer-task-summary">
+        <div>
+          <span>${t("statOverall")}</span>
+          <strong>${task.completion}%</strong>
+        </div>
+        <a href="#/tasks/${encodeURIComponent(task.id)}" class="btn-drawer-trigger">${t("fullView")}</a>
       </div>
       ${taskStateSummary(task)}
       ${reviewActionPanel(task, { mode: "summary" })}
+      ${lessonCandidatePanel(task, { context: "drawer" })}
       ${timeline}
       ${documents}
       ${findings}
@@ -1950,6 +1972,7 @@ async function createLessonSedimentationFromDashboard(button) {
   const candidateId = button.dataset.candidateId || "";
   const result = document.querySelector(`[data-lesson-result="${CSS.escape(`${taskId}:${candidateId}`)}"]`);
   if (result) result.textContent = t("lessonTaskCreating");
+  button.disabled = true;
   try {
     const response = await fetch("/api/tasks/lesson-sedimentation", {
       method: "POST",
@@ -1960,12 +1983,41 @@ async function createLessonSedimentationFromDashboard(button) {
       body: JSON.stringify({ taskId, candidateId }),
     });
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || t("lessonTaskCreateFailed"));
-    if (result) result.textContent = t("lessonTaskCreated");
-    setTimeout(() => window.location.reload(), 500);
+    if (!response.ok) throw payload;
+    if (result) {
+      result.innerHTML = lessonSedimentationSuccess(payload);
+      bindLessonSedimentationButtons(result);
+      result.scrollIntoView({ block: "center", inline: "nearest" });
+    }
   } catch (error) {
-    if (result) result.textContent = `${t("lessonTaskCreateFailed")}: ${error.message}`;
+    button.disabled = false;
+    if (result) result.innerHTML = lessonSedimentationFailure(error);
   }
+}
+
+function lessonSedimentationSuccess(payload) {
+  const followUp = payload?.followUpTask || {};
+  const prompt = payload?.prompt || "";
+  const taskId = followUp.id || "";
+  const openHref = taskId ? `#/tasks/${encodeURIComponent(taskId)}` : "#/review";
+  return `<div class="workbench-action-result success">
+    <strong>${escapeHtml(t("lessonTaskCreated"))}</strong>
+    ${taskId ? `<a href="${openHref}">${escapeHtml(t("openFollowUpTask"))}</a>` : ""}
+    ${prompt ? `<button data-copy-lesson-prompt="${escapeAttr(taskId || "follow-up")}" data-lesson-prompt="${escapeAttr(prompt)}">${escapeHtml(t("copyLessonPrompt"))}</button>` : ""}
+  </div>`;
+}
+
+function lessonSedimentationFailure(error) {
+  const message = error?.error || error?.message || t("lessonTaskCreateFailed");
+  const recovery = Array.isArray(error?.recovery) ? error.recovery : [];
+  const details = error?.details || {};
+  const existingTask = details.followUpTask || details.existingTask || "";
+  return `<div class="workbench-action-result failed">
+    <strong>${escapeHtml(t("lessonTaskCreateFailed"))}</strong>
+    <span>${escapeHtml(message)}</span>
+    ${existingTask ? `<a href="#/tasks/${encodeURIComponent(existingTask)}">${escapeHtml(t("openFollowUpTask"))}</a>` : ""}
+    ${recovery.length ? `<ul>${recovery.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+  </div>`;
 }
 
 async function copyText(text) {

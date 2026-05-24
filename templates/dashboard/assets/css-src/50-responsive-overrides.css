@@ -157,6 +157,35 @@
   padding: 24px;
 }
 
+.drawer-task-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  padding: 12px 14px;
+  border-radius: 8px;
+}
+
+.drawer-task-summary span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.drawer-task-summary strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 850;
+  color: var(--accent);
+  line-height: 1;
+}
+
 /* Compact brief card teaser styles */
 .brief-teaser {
   font-size: 13px;

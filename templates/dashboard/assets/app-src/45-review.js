@@ -187,10 +187,11 @@ function reviewQueueCard(task, tab) {
   const openMaterial = (task.risks || []).filter((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease)).length;
   const reasons = task.queueReasons || [];
   const canCopyRepairPrompt = tab?.repair && String(task.repairPrompt || "").trim();
-  const lessonActions = tab?.id === "lessons" ? lessonCandidateActions(task) : "";
+  const lessonActions = tab?.id === "lessons" ? lessonCandidatePanel(task, { context: "card", limit: 2 }) : "";
+  const displayId = task.shortId || taskFolderName(task) || task.id;
   return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(task.state)})">
     <div class="card-header">
-      <span class="card-id">${escapeHtml(task.id)}</span>
+      <span class="card-id" title="${escapeAttr(task.id)}">${escapeHtml(displayId)}</span>
       ${tag(task.reviewStatus || "missing")}
       ${reviewTaskQueues(task).map(tag).join("")}
     </div>
@@ -214,14 +215,26 @@ function reviewQueueCard(task, tab) {
   </article>`;
 }
 
-function lessonCandidateActions(task) {
+function lessonCandidatePanel(task, { context = "detail", limit = 0 } = {}) {
   const candidates = (task.lessonCandidateRows || []).filter((candidate) => ["ready-for-review", "needs-promotion"].includes(candidate.status));
   if (!candidates.length) return "";
-  const hiddenCount = Math.max(0, candidates.length - 2);
-  return `<div class="lesson-candidate-actions">
-    ${candidates.slice(0, 2).map((candidate) => lessonCandidateAction(task, candidate)).join("")}
-    ${hiddenCount ? `<div class="lesson-candidate-more">${escapeHtml(t("moreLessonCandidates")).replace("{count}", String(hiddenCount))}</div>` : ""}
-  </div>`;
+  const visibleCandidates = limit > 0 ? candidates.slice(0, limit) : candidates;
+  const hiddenCount = Math.max(0, candidates.length - visibleCandidates.length);
+  const staticNote = canUseWorkbenchAction("lesson-sedimentation-task") ? "" : `<p class="lesson-action-note">${escapeHtml(t("lessonWorkbenchRequired"))}</p>`;
+  return `<section class="lesson-candidate-panel ${context === "card" ? "compact" : ""}">
+    <div class="lesson-candidate-panel-head">
+      <div>
+        <p class="eyebrow">${t("lessonCandidates")}</p>
+        <h3>${t("lessonSedimentationActions")}</h3>
+      </div>
+      <span class="tag">${visibleCandidates.length}/${candidates.length}</span>
+    </div>
+    ${staticNote}
+    <div class="lesson-candidate-actions">
+      ${visibleCandidates.map((candidate) => lessonCandidateAction(task, candidate)).join("")}
+    </div>
+    ${hiddenCount ? `<a class="lesson-candidate-more" href="#/review/${encodeURIComponent(task.id)}">${escapeHtml(t("moreLessonCandidates")).replace("{count}", String(hiddenCount))}</a>` : ""}
+  </section>`;
 }
 
 function lessonCandidateAction(task, candidate) {
@@ -229,13 +242,17 @@ function lessonCandidateAction(task, candidate) {
   const hasFollowUp = followUp && !/^pending$/i.test(followUp);
   const prompt = lessonSedimentationPrompt(task, candidate);
   return `<div class="lesson-candidate-action">
-    <strong>${escapeHtml(candidate.id)}</strong>
-    <span>${escapeHtml(candidate.title || candidate.promotionTarget || t("lessonCandidates"))}</span>
-    <small>${escapeHtml(candidate.scope || t("none"))} · ${escapeHtml(candidate.promotionTarget || t("none"))}</small>
-    ${hasFollowUp ? `<a href="#/tasks/${encodeURIComponent(followUp)}">${t("openFollowUpTask")}</a>` : ""}
-    <button data-copy-lesson-prompt="${escapeAttr(task.id)}:${escapeAttr(candidate.id)}" data-lesson-prompt="${escapeAttr(prompt)}">${t("copyLessonPrompt")}</button>
-    <button data-create-lesson-sedimentation="${escapeAttr(task.id)}" data-candidate-id="${escapeAttr(candidate.id)}" ${canUseWorkbenchAction("lesson-sedimentation-task") && !hasFollowUp ? "" : "disabled"}>${t("createLessonTask")}</button>
+    <div class="lesson-candidate-main">
+      <strong>${escapeHtml(candidate.id)}</strong>
+      <span>${escapeHtml(candidate.title || candidate.promotionTarget || t("lessonCandidates"))}</span>
+      <small>${escapeHtml(candidate.scope || t("none"))} · ${escapeHtml(candidate.promotionTarget || t("none"))}</small>
+    </div>
     <span class="review-result" data-lesson-result="${escapeAttr(task.id)}:${escapeAttr(candidate.id)}"></span>
+    <div class="lesson-candidate-command-row">
+      ${hasFollowUp ? `<a href="#/tasks/${encodeURIComponent(followUp)}">${t("openFollowUpTask")}</a>` : ""}
+      <button data-copy-lesson-prompt="${escapeAttr(task.id)}:${escapeAttr(candidate.id)}" data-lesson-prompt="${escapeAttr(prompt)}">${t("copyLessonPrompt")}</button>
+      <button data-create-lesson-sedimentation="${escapeAttr(task.id)}" data-candidate-id="${escapeAttr(candidate.id)}" ${canUseWorkbenchAction("lesson-sedimentation-task") && !hasFollowUp ? "" : "disabled"}>${t("createLessonTask")}</button>
+    </div>
   </div>`;
 }
 

@@ -115,6 +115,10 @@ assert(dashboardApp.includes("reviewQueueState"), "dashboard review queue must u
 assert(dashboardApp.includes("[\"lessonCandidates\", \"lesson_candidates.md\"]"), "dashboard should expose lesson candidate documents");
 assert(dashboardApp.includes("data-copy-lesson-prompt"), "dashboard lessons queue should expose copyable sedimentation prompt");
 assert(dashboardApp.includes("data-create-lesson-sedimentation"), "dashboard lessons queue should expose sedimentation task creation action");
+assert(dashboardApp.includes("lessonCandidatePanel(task, { context: \"detail\" })"), "task detail should expose lesson sedimentation actions");
+assert(dashboardApp.includes("lessonCandidatePanel(task, { context: \"drawer\" })"), "review drawer should expose lesson sedimentation actions");
+assert(dashboardApp.includes("lessonSedimentationSuccess"), "dashboard should render post-create follow-up task and prompt actions");
+assert(dashboardApp.includes("lessonSedimentationFailure"), "dashboard should render actionable sedimentation failure details");
 assert(dashboardApp.includes("lessonCandidateRows"), "dashboard should render parsed lesson candidate row facts");
 assert(dashboardApp.includes("lesson-candidate-more"), "dashboard lessons queue should disclose when more actionable candidates are hidden in the bounded card");
 assert(dashboardApp.includes("review-doc-scroll"), "review workspace documents should render inside bounded scroll containers");
@@ -130,6 +134,11 @@ assert(dashboardMermaid.includes("mermaid-rendered"), "dashboard missing rendere
 assert(dashboardCss.includes(".runtime-banner"), "dashboard missing static read-only banner styling");
 assert(dashboardCss.includes("max-height: min(68vh, 620px)"), "dashboard missing mermaid viewport containment");
 assert(dashboardCss.includes(".review-workspace-grid"), "dashboard missing review workspace layout");
+assert(dashboardCss.includes(".review-queue-toolbar input,"), "review queue controls should use scoped dashboard input styling");
+assert(dashboardCss.includes(".lesson-candidate-panel"), "lesson candidate actions should render inside a bounded panel");
+assert(dashboardCss.includes("max-height: clamp(190px, 32vh, 320px)"), "lesson candidate panels should bound long candidate lists");
+assert(dashboardCss.includes(".workbench-action-result"), "workbench lesson action feedback should be styled as a bounded result panel");
+assert(dashboardCss.includes(".drawer-task-summary"), "task drawer should use a styled summary panel instead of inline styles");
 assert(dashboardCss.includes("repeat(auto-fit, minmax(min(100%, 360px), 1fr))"), "review queue cards should adapt to the available main-column width");
 assert(dashboardCss.includes("max-height: clamp(520px, 68vh, 680px)"), "review queue cards should cap height and scroll internally");
 assert(dashboardCss.includes("@media (min-width: 1280px)"), "dashboard desktop sidebar should wait for wider viewports");
