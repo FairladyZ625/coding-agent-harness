@@ -236,21 +236,24 @@ export function deriveTaskQueues({ id, title, reviewStatus, reviewSubmission, re
   };
 }
 
-export function parseReviewConfirmation(reviewContent) {
+export function parseReviewConfirmation(reviewContent, { taskKey = "" } = {}) {
   const match = String(reviewContent || "").match(/^##\s*(?:Human Review Confirmation|人工审查确认)\s*$([\s\S]*?)(?=^##\s+|(?![\s\S]))/im);
   if (!match) return null;
   const fields = fieldsFromMarkdownBlock(match[1] || "");
   const required = ["Confirmation ID", "Confirmed At", "Reviewer", "Reviewer Email", "Task Key", "Confirm Text", "Evidence Checked", "Audit Status"];
   const missing = required.filter((field) => !isConcreteField(fields.get(field.toLowerCase())));
+  const confirmedTaskKey = fields.get("task key") || "";
+  const taskKeyMismatch = Boolean(taskKey && isConcreteField(confirmedTaskKey) && !taskKeysMatch(confirmedTaskKey, taskKey));
   if (fields.size > 0) {
     return {
-      confirmed: missing.length === 0,
-      missingFields: missing,
+      confirmed: missing.length === 0 && !taskKeyMismatch,
+      missingFields: taskKeyMismatch ? [...missing, "Task Key match"] : missing,
       confirmationId: fields.get("confirmation id") || "",
       confirmedAt: fields.get("confirmed at") || "",
       reviewer: fields.get("reviewer") || "",
       reviewerEmail: fields.get("reviewer email") || "",
-      taskKey: fields.get("task key") || "",
+      taskKey: confirmedTaskKey,
+      taskKeyMismatch,
       confirmText: fields.get("confirm text") || "",
       evidenceChecked: fields.get("evidence checked") || "",
       commitSha: fields.get("commit sha") || "",

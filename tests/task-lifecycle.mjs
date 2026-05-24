@@ -63,6 +63,21 @@ for (const omitted of ["execution_strategy.md", "findings.md", "review.md", "les
 }
 const simpleTaskPlan = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-simple-lifecycle/task_plan.md`), "utf8");
 assert(/Selected budget\s*:\s*simple/i.test(simpleTaskPlan) || /选择预算\s*[:：]\s*simple/i.test(simpleTaskPlan), "simple task should persist selected budget");
+const budgetContractTarget = path.join(tmpRoot, "budget-contract-target");
+fs.mkdirSync(budgetContractTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core", budgetContractTarget]);
+expectJson(["new-task", "budget-simple", "--budget", "simple", "--title", "Budget Simple", budgetContractTarget]);
+expectJson(["new-task", "budget-standard", "--title", "Budget Standard", budgetContractTarget]);
+expectJson(["new-task", "budget-complex", "--budget", "complex", "--title", "Budget Complex", budgetContractTarget]);
+fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-simple/brief.md`));
+fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-standard/review.md`));
+fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-complex/references/INDEX.md`));
+const budgetContractCheck = run(["check", "--profile", "target-project", budgetContractTarget]);
+const budgetContractOutput = `${budgetContractCheck.stdout}\n${budgetContractCheck.stderr}`;
+assert(budgetContractCheck.status !== 0, "check should fail when CLI-generated task budget files are missing");
+assert(budgetContractOutput.includes(`${todayLocal}-budget-simple missing brief.md`), "check should require brief.md for simple tasks");
+assert(budgetContractOutput.includes(`${todayLocal}-budget-standard missing review.md`), "check should require review.md for standard tasks");
+assert(budgetContractOutput.includes(`${todayLocal}-budget-complex missing references/INDEX.md`), "check should require optional indexes for complex tasks");
 const longRunningLifecycle = expectJson(["new-task", "long-running-lifecycle", "--long-running", "--title", "长程任务", "--locale", "zh-CN", lifecycleTarget]);
 assert(longRunningLifecycle.task?.longRunning === true, "new-task --long-running should report longRunning true");
 assert(
@@ -448,8 +463,8 @@ try {
     body: JSON.stringify({ taskId: `TASKS/${todayLocal}-workbench-review`, confirmText: `${todayLocal}-workbench-review`, reviewer: "Human Reviewer", message: "confirmed without walkthrough" }),
   });
   const missingWalkthroughText = await missingWalkthroughResponse.text();
-  assert(missingWalkthroughResponse.status === 400, `workbench review completion should require walkthrough, got ${missingWalkthroughResponse.status}: ${missingWalkthroughText}`);
-  assert(missingWalkthroughText.includes("walkthrough"), "workbench missing walkthrough rejection should explain walkthrough requirement");
+  assert(missingWalkthroughResponse.status === 409, `workbench review completion should reject tasks before canonical Review queue entry, got ${missingWalkthroughResponse.status}: ${missingWalkthroughText}`);
+  assert(missingWalkthroughText.includes("review queue"), "workbench early confirmation rejection should explain Review queue requirement");
   const workbenchReviewWalkthrough = path.join(lifecycleTarget, "docs/10-WALKTHROUGH/workbench-review-walkthrough.md");
   fs.writeFileSync(
     workbenchReviewWalkthrough,

@@ -977,8 +977,9 @@ function reviewActionPanel(task, { mode = "summary" } = {}) {
     </section>`;
   }
   const missingWalkthrough = task.budget !== "simple" && !task.walkthroughPath;
-  const disabled = blocking || missingWalkthrough || candidateBlocked;
-  const message = missingWalkthrough ? t("reviewWalkthroughRequired") : blocking ? t("reviewBlocked") : candidateBlocked ? t("reviewCandidateDecisionRequired") : t("reviewWorkbenchReady");
+  const queueBlocked = !taskCanBeHumanConfirmed(task);
+  const disabled = blocking || missingWalkthrough || candidateBlocked || queueBlocked;
+  const message = missingWalkthrough ? t("reviewWalkthroughRequired") : blocking ? t("reviewBlocked") : candidateBlocked ? t("reviewCandidateDecisionRequired") : queueBlocked ? t("reviewQueueRequired") : t("reviewWorkbenchReady");
   return `<section class="side-panel review-actions">
     <h3>${t("reviewActions")}</h3>
     <p>${escapeHtml(message)}</p>
@@ -998,6 +999,10 @@ function reviewActionPanel(task, { mode = "summary" } = {}) {
 
 function isTaskInReviewQueue(task) {
   return (task?.reviewQueueState || "not-in-queue") !== "not-in-queue";
+}
+
+function taskCanBeHumanConfirmed(task) {
+  return task?.reviewQueueState === "ready-to-confirm" && Array.isArray(task?.taskQueues) && task.taskQueues.includes("review");
 }
 
 function evidenceList(task) {

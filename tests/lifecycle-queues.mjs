@@ -83,6 +83,30 @@ assert(looseConfirmTask.reviewStatus !== "confirmed", "heading-only Human Review
 
 fs.writeFileSync(
   reviewPath,
+  replaceHumanConfirmationSection(afterSubmitReview, [
+    "## Human Review Confirmation",
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    "| Confirmation ID | HRC-20260523000100 |",
+    "| Confirmed At | 2026-05-23T00:01:00+08:00 |",
+    "| Reviewer | Human Reviewer |",
+    "| Reviewer Email | reviewer@example.test |",
+    "| Task Key | TASKS/2026-05-23-other-task |",
+    "| Confirm Text | 2026-05-23-other-task |",
+    "| Evidence Checked | command:TARGET:npm-test:passed |",
+    "| Commit SHA | pending |",
+    "| Audit Status | write-only |",
+    "",
+  ].join("\n")),
+);
+let mismatchedConfirmStatus = expectJson(["status", "--json", target]);
+let mismatchedConfirmTask = mismatchedConfirmStatus.tasks.find((task) => task.id === taskId);
+assert(mismatchedConfirmTask.reviewStatus !== "confirmed", "Human Review Confirmation with another Task Key must not count as confirmed");
+assert(mismatchedConfirmTask.reviewConfirmation?.taskKeyMismatch === true, "Task Key mismatch should be exposed on reviewConfirmation");
+
+fs.writeFileSync(
+  reviewPath,
   afterSubmitReview
     .replace(
       "| ID | Severity | Finding | Evidence Checked | Required Action | Open | Disposition | Blocks Release | Follow-up |",
@@ -225,3 +249,10 @@ const duplicateIndex = run(["task-index", "--json", target]);
 assert(duplicateIndex.status !== 0, "task-index should reject duplicate explicit Task Key values");
 assert(duplicateIndex.stderr.includes("Duplicate task key"), "duplicate task key failure should explain collision");
 console.log("Lifecycle queue tests passed");
+
+function replaceHumanConfirmationSection(content, replacement) {
+  const source = String(content || "").trimEnd();
+  const pattern = /^##\s*(?:Human Review Confirmation|人工审查确认)\s*$[\s\S]*?(?=^##\s+|(?![\s\S]))/im;
+  if (pattern.test(source)) return `${source.replace(pattern, replacement.trimEnd())}\n`;
+  return `${source}\n\n${replacement.trimEnd()}\n`;
+}

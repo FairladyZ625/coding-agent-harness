@@ -6,7 +6,6 @@ import {
   legacyChecker,
   visualMapFile,
   legacyVisualRoadmapFile,
-  lessonCandidatesFile,
   allowedReviewDispositions,
   allowedPhaseStates,
   allowedEvidenceStatus,
@@ -30,8 +29,6 @@ import {
 import {
   collectTasks,
   listTaskPlanPaths,
-  parseTaskBudget,
-  parseTaskContractInfo,
   readVisualMapContractFile,
   parsePhases,
   taskCutoverCounters,
@@ -41,6 +38,7 @@ import {
   reviewFindingColumns,
 } from "./task-review-model.mjs";
 import { validateTaskCompletionConsistency } from "./task-completion-consistency.mjs";
+import { validatePlanContracts } from "./check-task-contracts.mjs";
 export { renderDashboard } from "./status-dashboard-renderer.mjs";
 
 export function runLegacyCheck(target) {
@@ -179,33 +177,6 @@ export function validateVisualMaps(target) {
       warnings.push(`${relative} missing; legacy visual_roadmap.md is rewrite input only`);
     } else if (visualMap.source === "legacy" && phases.length > 0) {
       warnings.push(`${relative} missing; using legacy task_plan.md visual map fallback`);
-    }
-  }
-  return { failures, warnings };
-}
-
-export function validatePlanContracts(target, { strict = true } = {}) {
-  const failures = [];
-  const warnings = [];
-  const report = (message) => {
-    if (strict) failures.push(message);
-    else warnings.push(`adoption-needed: ${message}`);
-  };
-  for (const taskPlanPath of listTaskPlanPaths(target)) {
-    const taskDir = path.dirname(taskPlanPath);
-    const relativeDir = toPosix(path.relative(target.projectRoot, taskDir));
-    const taskPlanContent = readFileSafe(taskPlanPath);
-    const budget = parseTaskBudget(taskPlanContent);
-    const taskContract = parseTaskContractInfo(taskPlanContent);
-    if (!taskContract.generated) {
-      warnings.push(`adoption-needed: ${relativeDir} missing Task Contract: harness-task/v1 marker`);
-    }
-    const requiredFiles = budget === "simple" ? [visualMapFile] : ["execution_strategy.md", visualMapFile, lessonCandidatesFile];
-    for (const fileName of requiredFiles) {
-      if (!fs.existsSync(path.join(taskDir, fileName))) {
-        if (taskContract.generated) failures.push(`${relativeDir} missing ${fileName}`);
-        else report(`${relativeDir} missing ${fileName}`);
-      }
     }
   }
   return { failures, warnings };

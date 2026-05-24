@@ -186,7 +186,10 @@ harness task-complete phase-2-lifecycle \
 
 Rules:
 
-- `new-task` creates `brief.md`, `task_plan.md`, `execution_strategy.md`, `visual_map.md`, `findings.md`, `progress.md`, and `review.md`.
+- Do not manually copy task templates or create partial task folders. `harness check` enforces the file set created by `new-task`.
+- `new-task --budget simple` creates `brief.md`, `task_plan.md`, `visual_map.md`, and `progress.md`.
+- `new-task` defaults to `standard` and creates the simple files plus `execution_strategy.md`, `findings.md`, `lesson_candidates.md`, and `review.md`.
+- `new-task --budget complex` creates the standard files plus `references/INDEX.md` and `artifacts/INDEX.md`.
 - Existing task directories are not overwritten. Renaming or continuing old tasks is a coordinator decision.
 - `task-start`, `task-block`, and `task-complete` only update lifecycle status and logs in `progress.md`.
 - `task-log` only appends execution records. Evidence uses `type:PATH:summary`, for example `command:TARGET:npm-test:passed`.

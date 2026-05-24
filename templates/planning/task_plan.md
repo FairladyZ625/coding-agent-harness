@@ -16,8 +16,8 @@ Task Contract: harness-task/v1
 | Budget | Use When | Required Structure |
 | --- | --- | --- |
 | simple | One owner, no subagent, L0/L1 evidence, no formal review gate | `brief.md`, `task_plan.md`, `visual_map.md`, `progress.md` |
-| standard | Normal feature, fix, or documentation change | Plan, strategy, roadmap, progress, findings, and review as needed |
-| complex | Multi-hour work, L2/L3 evidence, subagent/reviewer, or optional artifact/reference indexes | Standard files plus optional structures as needed |
+| standard | Normal feature, fix, or documentation change | `brief.md`, `task_plan.md`, `execution_strategy.md`, `visual_map.md`, `findings.md`, `lesson_candidates.md`, `progress.md`, `review.md` |
+| complex | Multi-hour work, L2/L3 evidence, subagent/reviewer, or optional artifact/reference indexes | Standard files plus `references/INDEX.md` and `artifacts/INDEX.md` |
 
 Selected budget: {{TASK_BUDGET}}
 
@@ -29,15 +29,32 @@ Selected budget: {{TASK_BUDGET}}
 
 ## Required Files
 
-| Contract File | Required | Purpose |
-| --- | --- | --- |
-| `execution_strategy.md` | yes | Operating model, allocation, conflict control, and evidence strategy |
-| `visual_map.md` | yes | Diagram collection: phase map, optional architecture/sequence/data-flow/state diagrams, completion state, evidence state, and blocking risk |
-| `progress.md` | yes | Execution log, decisions, and handoff |
-| `findings.md` | yes | Findings, research notes, and unresolved risks |
-| `lesson_candidates.md` | yes for standard/complex | Task-local lesson candidate queue. Human review must accept no-candidate, reject candidates, or queue promotion before review confirmation |
-| `review.md` | if needed | Adversarial or specialist review report |
-| `long-running-task-contract.md` | if needed | Continuous execution permission, loop rules, and stop conditions |
+Do not hand-copy this template to create task directories. Use `harness new-task`
+so the selected budget creates the correct file set and `harness check` can
+enforce it.
+
+| Budget | Required Files |
+| --- | --- |
+| simple | `brief.md`, `task_plan.md`, `visual_map.md`, `progress.md` |
+| standard | simple files plus `execution_strategy.md`, `findings.md`, `lesson_candidates.md`, `review.md` |
+| complex | standard files plus `references/INDEX.md`, `artifacts/INDEX.md` |
+| long-running add-on | `long-running-task-contract.md` when `--long-running` is selected |
+
+File purposes:
+
+| Contract File | Purpose |
+| --- | --- |
+| `brief.md` | Human-readable task summary and current context packet |
+| `task_plan.md` | Goal, scope, budget, acceptance, and operating decisions |
+| `execution_strategy.md` | Operating model, allocation, conflict control, and evidence strategy |
+| `visual_map.md` | Diagram collection: phase map, optional architecture/sequence/data-flow/state diagrams, completion state, evidence state, and blocking risk |
+| `progress.md` | Execution log, decisions, and handoff |
+| `findings.md` | Findings, research notes, and unresolved risks |
+| `lesson_candidates.md` | Task-local lesson candidate queue. Human review must accept no-candidate, reject candidates, or queue promotion before review confirmation |
+| `review.md` | Agent review submission, adversarial review, or specialist review report |
+| `references/INDEX.md` | Complex-task source package and reference index |
+| `artifacts/INDEX.md` | Complex-task generated evidence and artifact index |
+| `long-running-task-contract.md` | Continuous execution permission, loop rules, and stop conditions |
 
 ## Steps
 

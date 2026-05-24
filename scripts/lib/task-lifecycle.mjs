@@ -174,7 +174,7 @@ function appendLongRunningContractFile(files, { locale, longRunning }) {
   return [...files, [longRunningTaskContractFile, localizedTemplateSource("templates/planning/long-running-task-contract.md", locale)]];
 }
 
-function validateLifecycleTransition({ event, currentState, budget, reviewContent = "" }) {
+function validateLifecycleTransition({ event, currentState, budget, reviewContent = "", reviewTaskKey = "" }) {
   if (event === "task-review" && currentState !== "in_progress") {
     throw new Error(`task-review requires current state in_progress; current state is ${currentState || "unknown"}`);
   }
@@ -187,7 +187,7 @@ function validateLifecycleTransition({ event, currentState, budget, reviewConten
       const ids = blockingRisks.map((risk) => risk.id || risk.severity).join(", ");
       throw new Error(`Open blocking review findings must be closed before task-complete: ${ids}`);
     }
-    if (!parseReviewConfirmation(reviewContent)?.confirmed) {
+    if (!parseReviewConfirmation(reviewContent, { taskKey: reviewTaskKey })?.confirmed) {
       throw new Error("Human review must be confirmed before task-complete. Run review-confirm first.");
     }
   }
@@ -384,12 +384,14 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
   const normalizedState = state ? String(state).toLowerCase().replaceAll("-", "_") : "";
   if (normalizedState && !allowedTaskStates.has(normalizedState)) throw new Error(`Invalid task state: ${state}`);
   const currentTask = findTaskByDirectory(target, taskDir);
+  const canonicalTaskId = taskIdForDirectory(target, taskDir);
   const budget = parseTaskBudget(readFileSafe(path.join(taskDir, "task_plan.md")));
   validateLifecycleTransition({
     event,
     currentState: currentTask?.state || "unknown",
     budget,
     reviewContent: readFileSafe(path.join(taskDir, "review.md")),
+    reviewTaskKey: canonicalTaskId,
   });
   if (event === "task-review") validateReviewEntryGate(taskDir, budget);
   let content = readFileSafe(progressPath);
@@ -406,7 +408,7 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
         renderAgentReviewSubmission({
           target,
           taskDir,
-          canonicalTaskId: taskIdForDirectory(target, taskDir),
+          canonicalTaskId,
           message,
           evidence,
         }),
@@ -473,7 +475,6 @@ export function confirmTaskReview(targetInput, taskId, { reviewer = "Human Revie
   ].join("\n");
   const nextReview = replaceReviewConfirmation(reviewContent, confirmationBlock);
   fs.writeFileSync(reviewPath, nextReview.endsWith("\n") ? nextReview : `${nextReview}\n`);
-
   let progressContent = readFileSafe(progressPath);
   progressContent = appendProgressLog(progressContent, {
     event: "review-confirm",
@@ -482,7 +483,6 @@ export function confirmTaskReview(targetInput, taskId, { reviewer = "Human Revie
     actor: reviewer || "Human Reviewer",
   });
   fs.writeFileSync(progressPath, progressContent.endsWith("\n") ? progressContent : `${progressContent}\n`);
-
   return {
     event: "review-confirm",
     task: findTaskByDirectory(target, taskDir) || { id: canonicalTaskId, reviewStatus: "confirmed" },
