@@ -169,8 +169,9 @@ if (command === "help" || command === "--help" || command === "-h") {
   const port = takeOption("--port", "0");
   const localeOverride = takeOption("--locale", "");
   const target = targetArg();
+  const usesDefaultOutDir = !outDir;
   const dashboardOutDir = outDir || defaultDevOutDir(target);
-  const opts = localeOverride ? { localeOverride } : {};
+  const opts = { ...(localeOverride ? { localeOverride } : {}), recoverGeneratedDashboard: usesDefaultOutDir };
   try {
     await serveDashboardWorkbench(dashboardOutDir, target, { ...opts, host, port, autoRefresh: true, open, label: "harness dev" });
   } catch (error) {

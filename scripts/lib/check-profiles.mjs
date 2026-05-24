@@ -40,6 +40,7 @@ import {
 import { validateTaskCompletionConsistency } from "./task-completion-consistency.mjs";
 import { validatePlanContracts } from "./check-task-contracts.mjs";
 import { validateGovernanceTableBoundaries } from "./governance-table-boundary.mjs";
+import { validateSubagentAuthorization } from "./subagent-authorization-audit.mjs";
 export { renderDashboard } from "./status-dashboard-renderer.mjs";
 
 export function runLegacyCheck(target) {
@@ -313,8 +314,9 @@ export function buildStatus(targetInput, options = {}) {
   const presetContracts = validateTaskPresetContracts(target);
   const contextDocs = validateContextDocs(target, { strict: contractStrict });
   const governanceBoundaries = validateGovernanceTableBoundaries(target);
-  const failures = [...capabilityState.failures, ...reviews.failures, ...visualMaps.failures, ...planContracts.failures, ...presetContracts.failures, ...contextDocs.failures, ...governanceBoundaries.failures];
-  const warnings = [...capabilityState.warnings, ...reviews.warnings, ...visualMaps.warnings, ...planContracts.warnings, ...presetContracts.warnings, ...contextDocs.warnings, ...governanceBoundaries.warnings];
+  const subagentAuthorization = validateSubagentAuthorization(target, { strict: contractStrict });
+  const failures = [...capabilityState.failures, ...reviews.failures, ...visualMaps.failures, ...planContracts.failures, ...presetContracts.failures, ...contextDocs.failures, ...governanceBoundaries.failures, ...subagentAuthorization.failures];
+  const warnings = [...capabilityState.warnings, ...reviews.warnings, ...visualMaps.warnings, ...planContracts.warnings, ...presetContracts.warnings, ...contextDocs.warnings, ...governanceBoundaries.warnings, ...subagentAuthorization.warnings];
   if (legacy.status === "fail") {
     if (options.strictLegacy) failures.push("legacy check failed");
     else warnings.push(`adoption-needed: legacy check failed: ${(legacy.stderr || legacy.stdout).trim()}`);

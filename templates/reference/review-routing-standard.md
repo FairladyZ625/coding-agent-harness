@@ -13,6 +13,11 @@ Define when work needs review, which reviewer identity is appropriate, and how r
 5. Reviewers must list `Evidence Checked`; unverified claims are questions, not conclusions.
 6. The implementation owner is responsible for reconciling conflicting reviewer feedback.
 7. Closeout must include the final review disposition and `Final Confidence Basis`.
+8. At task start, read the current task `execution_strategy.md` Subagent Authorization and Subagent Delegation Decision sections, then report the state and delegation choice; users do not need to know or ask for subagents.
+9. Reviewer subagents are allowed by default for read-only review within the current task.
+10. If a worker subagent would materially help and is not authorized, proactively ask the user once in plain language for task/scope/worktree authorization; it is fine to say "worker subagent", but do not wait for the user to know or suggest subagents.
+11. If independent slices are obvious but exact file paths are not, identify the file paths first and then immediately ask for independent-execution-helper authorization before implementation.
+12. Worker subagents require one user authorization recorded in `execution_strategy.md`; reuse is limited to the same task, scope, and worktree/branch.
 
 ## Required Checklist
 

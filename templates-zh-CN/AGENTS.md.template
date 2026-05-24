@@ -48,19 +48,23 @@
 
 1. 先确认请求、范围和受影响文件。
 2. 非平凡任务先创建或更新任务计划，再改代码。
-3. 只读取任务阅读矩阵要求的 reference 文档。
-4. 保留已有项目事实；新增上下文使用 merge / append，不覆盖历史。
-5. 需要隔离或并行时，使用独立 worktree 或分支。
-6. 只在确认范围内实现。
-7. 运行相关检查，并把证据写入任务记录。
-8. 按需触发 review，关闭阻塞发现。
-9. 写入或更新 walkthrough 与 closeout 记录。
-10. 只更新本任务实际触达的 SSoT / ledger。
+3. 根据用户目标主动判断是否需要分工；用户不需要知道或主动要求 subagent。
+4. 只读取任务阅读矩阵要求的 reference 文档。
+5. 保留已有项目事实；新增上下文使用 merge / append，不覆盖历史。
+6. 需要隔离或并行时，使用独立 worktree 或分支。
+7. 只在确认范围内实现。
+8. 运行相关检查，并把证据写入任务记录。
+9. 按需触发 review，关闭阻塞发现。
+10. 写入或更新 walkthrough 与 closeout 记录。
+11. 只更新本任务实际触达的 SSoT / ledger。
 
 ## 协作规则
 
-- reviewer 默认只读，除非明确分配写入范围。
-- worker 只能编辑分配给自己的分支、worktree 和文件范围。
+- 任务开始时，先读取当前任务 `execution_strategy.md` 的 Subagent Authorization 和 Subagent Delegation Decision，并说明是否应该使用 reviewer 或 worker subagent；即使用户只说目标，也要主动判断。
+- reviewer subagent 默认允许，只能做当前任务的只读审查。
+- 如果 worker subagent 对任务有明显帮助但尚未授权，用白话主动向用户申请一次 task/scope/worktree 授权；可以直接说 worker subagent，但不要等用户知道或主动提醒你用 subagent。
+- 如果独立切片已经明显但精确文件路径还不清楚，先确认文件路径，然后在 implementation 前立刻申请独立执行助手授权。
+- worker subagent 需要用户授权一次，并记录到 `execution_strategy.md`；之后只可在同一任务、同一范围、同一 worktree/branch 内复用。
 - 共享 ledger、registry 和 SSoT 默认由 coordinator 维护，除非明确登记锁。
 - worker 交接必须包含分支或 worktree、改动文件、检查、证据和残余风险。
 

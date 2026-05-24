@@ -85,6 +85,26 @@ const target = path.join(tmpRoot, "lifecycle-queues-target");
 fs.mkdirSync(target);
 expectJson(["init", "--locale", "zh-CN", "--capabilities", "core,dashboard", target]);
 
+const authAudit = expectJson(["new-task", "subagent-auth-audit", "--title", "Subagent Auth Audit", "--locale", "en-US", target]);
+const authAuditDir = path.join(target, "docs/09-PLANNING/TASKS", `${todayLocal}-subagent-auth-audit`);
+const authStrategyPath = path.join(authAuditDir, "execution_strategy.md");
+let authStrategy = fs.readFileSync(authStrategyPath, "utf8");
+assert(authStrategy.includes("## Subagent Authorization"), "execution strategy should record subagent authorization state");
+assert(authStrategy.includes("reviewer subagent | allowed by default | read-only"), "reviewer subagent should be allowed by default for read-only review");
+assert(authStrategy.includes("worker subagent | not authorized"), "worker subagent should start unauthorized");
+assert(authStrategy.includes("## Subagent Delegation Decision"), "execution strategy should prompt an explicit subagent delegation decision");
+assert(authStrategy.includes("Would a worker subagent materially help?"), "execution strategy should prompt the coordinator to consider worker subagent use");
+assert(authStrategy.includes("even if the user never mentions subagents"), "execution strategy should not depend on the user knowing about subagents");
+assert(authStrategy.includes("This task is suitable for a worker subagent"), "execution strategy should include a direct worker authorization request");
+assert(authStrategy.includes("It is fine to say \"subagent\" or \"worker\" to the user"), "execution strategy should allow user-facing subagent wording");
+assert(authStrategy.includes("immediately ask for the independent execution helper authorization"), "execution strategy should not indefinitely defer worker authorization when slices are clear");
+fs.writeFileSync(authStrategyPath, authStrategy.replace("worker subagent | not authorized", "worker subagent | authorized"));
+const incompleteAuthCheck = run(["check", "--profile", "target-project", target]);
+assert(incompleteAuthCheck.status !== 0, "check should reject authorized worker subagents without authorization details");
+assert(incompleteAuthCheck.stderr.includes("worker subagent authorization is incomplete"), "worker authorization audit should explain missing fields");
+authStrategy = fs.readFileSync(authStrategyPath, "utf8").replace("worker subagent | authorized", "worker subagent | not authorized");
+fs.writeFileSync(authStrategyPath, authStrategy);
+
 const created = expectJson([
   "new-task",
   "queue-ready",

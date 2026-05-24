@@ -1,5 +1,26 @@
 # 执行策略
 
+## Subagent Authorization
+
+任务开始时先读这一段，并向用户说明当前授权状态。这里是授权记录，不是执行沙箱。
+
+| Role | Status | Permission | Authorized By | Authorized At | Scope | Worktree / Branch | Reuse |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| reviewer subagent | allowed by default | read-only | harness task policy | task creation | current task review | n/a | allowed within this task |
+| worker subagent | not authorized | write only after user approval | pending | pending | pending | pending | allowed only within approved task/scope |
+
+## Subagent Delegation Decision
+
+任务开始时，coordinator 必须根据用户目标主动做这个判断，即使用户完全没有提到 subagent。
+不要假设用户知道 subagent 或 worker 是什么。如果分工有帮助，用白话说明收益，并向用户申请一次授权。
+可以直接对用户说 subagent 或 worker subagent；关键规则是 agent 不能等用户主动提出 subagent。
+如果任务已经明显拆成互不重叠的独立切片，implementation 前就应判断为 `ask-user`。如果还不知道精确文件路径，先确认路径，然后立刻申请独立执行助手授权。
+
+| Question | Decision | Reason | Next Action |
+| --- | --- | --- | --- |
+| Should a reviewer subagent be used? | yes / no | [为什么需要或不需要 reviewer] | 如果 yes，直接调用只读 reviewer，不需要额外申请。 |
+| Would a worker subagent materially help? | no / ask-user / already-authorized | [并行切片、独立实现、专项调查，或说明为什么不需要] | 如果 ask-user，直接问：“这个任务适合拆给 worker subagent 并行处理。是否授权我派一个 worker subagent，只修改 [scope]，只在 [worktree/branch] 内执行，我负责协调和最终审查？” |
+
 ## 决策表
 
 | 决策 | 选择 | 说明 |

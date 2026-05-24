@@ -18,10 +18,11 @@ export function writeDashboardDirectory(outDir, bundle, options = {}) {
   const target = path.resolve(outDir);
   assertSafeDashboardTarget(target, options);
   if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true });
+  fs.mkdirSync(target, { recursive: true });
+  fs.writeFileSync(path.join(target, dashboardMarker), "generated dashboard directory\n");
   copyDashboardAssets(target, options);
   fs.writeFileSync(path.join(target, "assets/app.js"), readDashboardApp(dashboardTemplateRootForLocale(options.locale)));
   fs.writeFileSync(path.join(target, "index.html"), renderDashboardIndex(options.locale, options));
-  fs.writeFileSync(path.join(target, dashboardMarker), "generated dashboard directory\n");
   writeJsonFile(path.join(target, "data/status.json"), bundle.status);
   writeJsonFile(path.join(target, "data/tables.json"), bundle.tables);
   writeJsonFile(path.join(target, "data/documents.json"), bundle.documents);
@@ -156,10 +157,21 @@ function assertSafeDashboardTarget(target, options) {
   if (fs.existsSync(target)) {
     const entries = fs.readdirSync(target);
     const hasMarker = fs.existsSync(path.join(target, dashboardMarker));
-    if (entries.length > 0 && !hasMarker) {
+    const canRecoverGeneratedDashboard = options.recoverGeneratedDashboard === true && looksLikeGeneratedDashboardDirectory(target);
+    if (entries.length > 0 && !hasMarker && !canRecoverGeneratedDashboard) {
       throw new Error(`Refusing to overwrite non-dashboard directory: ${target}`);
     }
   }
+}
+
+function looksLikeGeneratedDashboardDirectory(target) {
+  return [
+    "index.html",
+    "README.md",
+    "assets/app.js",
+    "assets/dashboard-data.js",
+    "data/status.json",
+  ].every((relativePath) => fs.existsSync(path.join(target, relativePath)));
 }
 
 function dashboardTemplateRootForLocale(locale = "en-US") {

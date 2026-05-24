@@ -38,16 +38,22 @@
 
 ## Subagent Worker Routing
 
+任务开始时，先读取当前任务 `execution_strategy.md` 的 Subagent Authorization 和 Subagent Delegation Decision，并向用户说明当前授权状态和分工判断。用户不需要知道或主动要求 subagent；coordinator 必须从用户目标主动评估。
+
 本标准默认把 subagent 当 reviewer：只读审查、写 `review.md`、报告 material findings。
+Reviewer subagent 在单个任务内默认允许，可重复用于只读审查。
 
 如果 subagent 被要求直接改代码、测试、产品文档或 harness 文档，它就不是 reviewer，
 而是 worker。Worker 必须按 `worktree-parallel.md` / 项目级 `worktree-standard.md`
-执行：
+执行，并先在 `execution_strategy.md` 记录一次用户授权：
 
 - coordinator 先分配独立 worktree / branch、任务目录和 write scope
 - worker 只在自己的 worktree 内实现、验证并提交
 - handoff 必须包含 worktree path、branch、commit SHA、checks、residual risks
 - coordinator 负责 merge / conflict resolution / final gates
+- 同一任务、同一范围、同一 worktree/branch 内可复用该授权；范围变化时重新请求授权
+- 如果 worker subagent 对任务有明显帮助但尚未授权，coordinator 必须用白话主动向用户申请一次授权；可以直接说 worker subagent，但不要等用户知道或提醒使用 subagent
+- 如果独立切片已经明显但精确文件路径还不清楚，先确认文件路径，然后在 implementation 前立刻申请独立执行助手授权
 
 禁止把多个 worker 的未提交改动混在 coordinator 当前 checkout，再由 coordinator 一次性提交。
 

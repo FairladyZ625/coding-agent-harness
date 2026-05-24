@@ -12,7 +12,7 @@ import { writeDashboardFolder } from "./dashboard-data.mjs";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 
-export async function serveDashboardWorkbench(outDir, targetInput, { host = "127.0.0.1", port = 0, localeOverride = "", autoRefresh = false, open = false, label = "dashboard workbench" } = {}) {
+export async function serveDashboardWorkbench(outDir, targetInput, { host = "127.0.0.1", port = 0, localeOverride = "", autoRefresh = false, open = false, label = "dashboard workbench", recoverGeneratedDashboard = false } = {}) {
   if (host !== "127.0.0.1") throw new Error("dashboard workbench only supports --host 127.0.0.1");
   const target = normalizeTarget(targetInput);
   const outputDir = path.resolve(outDir);
@@ -20,7 +20,7 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
   const options = localeOverride ? { localeOverride } : {};
   let snapshotVersion = Date.now();
   const regenerate = () => {
-    writeDashboardFolder(outputDir, targetInput, { ...options, workbenchRuntime: true });
+    writeDashboardFolder(outputDir, targetInput, { ...options, workbenchRuntime: true, recoverGeneratedDashboard });
     snapshotVersion = Date.now();
   };
   regenerate();

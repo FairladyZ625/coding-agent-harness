@@ -49,19 +49,23 @@ Read the smallest context that can answer the task.
 
 1. Confirm the request, scope, and affected files.
 2. For non-trivial work, create or update the task plan before editing code.
-3. Load only the reference documents required by the Reading Matrix.
-4. Preserve existing project facts; merge new context instead of overwriting history.
-5. Use a worktree or branch when the task requires isolation or parallel work.
-6. Implement only within the approved scope.
-7. Run the relevant checks and capture evidence in the task records.
-8. Route required review and close blocking findings.
-9. Write or update the walkthrough and closeout records.
-10. Update SSoT / ledger files that the task actually touched.
+3. Assess delegation from the user's goal; users do not need to know or ask for subagents.
+4. Load only the reference documents required by the Reading Matrix.
+5. Preserve existing project facts; merge new context instead of overwriting history.
+6. Use a worktree or branch when the task requires isolation or parallel work.
+7. Implement only within the approved scope.
+8. Run the relevant checks and capture evidence in the task records.
+9. Route required review and close blocking findings.
+10. Write or update the walkthrough and closeout records.
+11. Update SSoT / ledger files that the task actually touched.
 
 ## Coordination Rules
 
-- Reviewers are read-only unless explicitly assigned a write scope.
-- Workers may edit only their assigned branch, worktree, and file scope.
+- At task start, read the current task `execution_strategy.md` Subagent Authorization and Subagent Delegation Decision sections, then state whether reviewer or worker subagents should be used; do this even when the user only states the desired outcome.
+- Reviewer subagents are allowed by default for read-only review within the current task.
+- If a worker subagent would materially help and is not authorized, proactively ask the user once in plain language for task/scope/worktree authorization; it is fine to say "worker subagent", but do not wait for the user to know or suggest subagents.
+- If independent slices are obvious but exact file paths are not, identify the file paths first and then immediately ask for independent-execution-helper authorization before implementation.
+- Worker subagents require one user authorization recorded in `execution_strategy.md`; after that, reuse is allowed only within the same task, scope, and worktree/branch.
 - Shared ledgers, registries, and SSoT files are coordinator-owned unless a lock is explicitly assigned.
 - Worker handoff must include branch or worktree, changed files, checks, evidence, and residual risks.
 
