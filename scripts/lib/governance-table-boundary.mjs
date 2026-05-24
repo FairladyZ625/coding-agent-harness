@@ -48,7 +48,7 @@ function evaluateFeatureRow(row) {
   const taskPlan = getCell(cells, ["Task Plan", "Task", "任务计划", "路径"], "");
   const evidence = getCell(cells, ["Acceptance Evidence", "Evidence", "验收证据"], "");
   const findings = [];
-  if (/09-PLANNING\/MODULES\//i.test(taskPlan) && localDetailPattern().test(text)) {
+  if (/09-PLANNING\/MODULES\//i.test(taskPlan) && !isModuleAggregateRow(row) && localDetailPattern().test(text)) {
     findings.push({
       reason: "module-local detail belongs in module_plan.md or task files, not Feature SSoT",
       route: "module-plan-or-task-detail",
@@ -61,6 +61,13 @@ function evaluateFeatureRow(row) {
     });
   }
   return findings;
+}
+
+function isModuleAggregateRow(row) {
+  const cells = row.cells || {};
+  const id = getCell(cells, ["ID"], "");
+  const taskPlan = getCell(cells, ["Task Plan", "Task", "任务计划", "路径"], "");
+  return /^F-MODULE-/i.test(id) && /09-PLANNING\/MODULES\/[^/]+\/module_plan\.md/i.test(taskPlan);
 }
 
 function evaluateLedgerRow(row) {

@@ -13,6 +13,7 @@ import {
   inspectPresetPackage,
   listPresetPackages,
   normalizeLocale,
+  rebuildGovernanceIndexes,
   serveDashboardWorkbench,
   validateSourcePackageBoundary,
   writeInitFiles,
@@ -90,6 +91,7 @@ Usage:
   harness migrate-plan [--json] [--limit n] [target]
   harness migrate-run [--locale zh-CN|en-US] [--assume-locale] [--allow-dirty] [--plan-only] [--out-dir folder] [--session-dir folder] [target]
   harness migrate-verify [--json] [--full-cutover] <session.json>
+  harness governance rebuild [--dry-run] [--archive] [--apply] [target]
   harness preset list [--json]
   harness preset inspect <id> [--json]
   harness preset check <id> [--json]
@@ -103,7 +105,7 @@ Usage:
   harness lesson-promote <task-id> <candidate-id> [--dry-run|--apply] [target]
   harness lesson-sediment <task-id> <candidate-id> [--dry-run] [--title title] [target]
   harness task-complete <task-id> [--message text] [target]
-  harness task-list [--json] [--state state] [--module key] [target]
+  harness task-list [--json] [--state state] [--module key] [--queue queue] [--preset id] [--review status] [--lesson status] [--missing-materials] [--search text] [target]
   harness task-index [--json] [target]
   harness task-supersede <old-task-id> --by <new-task-id> [--reason text] [target]
   harness task-delete <task-id> --soft [--reason text] [target]
@@ -209,6 +211,21 @@ if (command === "help" || command === "--help" || command === "-h") {
   }
 } else if (["migrate-plan", "migrate-run", "migrate-verify"].includes(command)) {
   runMigrationCommand(command, { args, takeFlag, takeOption, targetArg });
+} else if (command === "governance") {
+  const subcommand = args.shift() || "";
+  if (subcommand !== "rebuild") {
+    console.error(`Unknown governance subcommand: ${subcommand || "(missing)"}`);
+    process.exit(2);
+  }
+  const dryRun = takeFlag("--dry-run");
+  const archive = takeFlag("--archive");
+  const apply = takeFlag("--apply");
+  try {
+    console.log(JSON.stringify(rebuildGovernanceIndexes(targetArg(), { dryRun, archive, apply }), null, 2));
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
 } else if (command === "preset") {
   const subcommand = args.shift() || "list";
   const json = takeFlag("--json");

@@ -549,10 +549,38 @@ export function updateModuleStep(targetInput, moduleKey, stepId, { state = "" } 
   }
 }
 
-export function listLifecycleTasks(targetInput, { state = "", moduleKey = "" } = {}) {
+export function listLifecycleTasks(targetInput, { state = "", moduleKey = "", queue = "", preset = "", review = "", lesson = "", search = "", missingMaterials = false } = {}) {
   const target = normalizeTarget(targetInput);
   let tasks = collectTasks(target);
   if (state) tasks = tasks.filter((task) => task.state === String(state).toLowerCase().replaceAll("-", "_"));
   if (moduleKey) tasks = tasks.filter((task) => task.module === normalizeTaskId(moduleKey));
+  if (queue) {
+    const normalizedQueue = queryToken(queue);
+    tasks = tasks.filter((task) => (task.taskQueues || []).map(queryToken).includes(normalizedQueue));
+  }
+  if (preset) tasks = tasks.filter((task) => queryToken(task.taskPreset || "none") === queryToken(preset));
+  if (review) tasks = tasks.filter((task) => queryToken(task.reviewStatus || "") === queryToken(review));
+  if (lesson) {
+    const needle = queryToken(lesson);
+    tasks = tasks.filter((task) => [task.lessonCandidateStatus, task.lessonCandidateReviewDecision, task.lessonCandidatePromotionState].some((value) => queryToken(value) === needle));
+  }
+  if (missingMaterials) tasks = tasks.filter((task) => !task.materialsReady);
+  if (search) {
+    const needle = String(search).toLowerCase();
+    tasks = tasks.filter((task) => [
+      task.id,
+      task.taskKey,
+      task.shortId,
+      task.title,
+      task.currentPath,
+      task.taskPlanPath,
+      task.module,
+      task.inferredModule,
+    ].some((value) => String(value || "").toLowerCase().includes(needle)));
+  }
   return { tasks };
+}
+
+function queryToken(value) {
+  return String(value || "").trim().toLowerCase().replaceAll("_", "-");
 }

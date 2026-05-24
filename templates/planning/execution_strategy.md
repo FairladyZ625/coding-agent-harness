@@ -26,6 +26,15 @@ If the task is clearly split into independent slices, decide `ask-user` before i
 | Should a reviewer subagent be used? | yes / no | [why reviewer review helps or is unnecessary] | If yes, call a read-only reviewer without asking for extra permission. |
 | Would a worker subagent materially help? | no / ask-user / already-authorized | [parallel slice, independent implementation, focused investigation, or not useful] | If ask-user, ask directly: "This task is suitable for a worker subagent. Do you authorize me to assign one worker subagent to modify only [scope] in [worktree/branch] while I coordinate and review the result?" |
 
+## User Authorization Decision
+
+If the worker decision above is `ask-user`, implementation is blocked until this table records the user's answer.
+Allowed resolved states are `authorized`, `denied`, or `not-needed`. Do not leave this as `pending` after choosing `ask-user`.
+
+| Gate | State | Decided By | Decided At | Scope | Worktree / Branch | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| worker subagent | pending | pending | pending | pending | pending | Fill only after directly asking the user. |
+
 ## Operating Model
 
 - Model: solo / team / split-repo / program / waterfall / kanban / module-parallel

@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { existsInDocs, readBundledTemplate, readFileSafe, repoRoot, todayDate, toPosix } from "./core-shared.mjs";
+import { existsInDocs, readBundledTemplate, readFileSafe, repoRoot, todayDate, toPosix, visualMapFile } from "./core-shared.mjs";
+import { collectTasks } from "./task-scanner.mjs";
 import { firstColumn, splitMarkdownRow, updateMarkdownTableRow } from "./markdown-utils.mjs";
 import { markdownCell } from "./task-lifecycle/text-utils.mjs";
 
@@ -106,13 +107,16 @@ export function syncTaskGovernance(target, task, { event = "new-task", state = "
   const changes = [];
   const planPath = stripTargetPrefix(task.path) + "/task_plan.md";
   const reviewPath = stripTargetPrefix(task.path) + "/review.md";
-  const feature = syncFeatureRow(target, task, { state, message, planPath, dryRun });
-  if (feature) changes.push(feature);
+  if (!task.module) {
+    changes.push(...syncFeatureRows(target, task, { state, message, planPath, dryRun }));
+  }
   const ledger = syncLedgerRow(target, task, { event, state, message, planPath, reviewPath, dryRun });
   if (ledger) changes.push(ledger);
   if (task.module) {
+    changes.push(...syncModuleFeatureAggregateRow(target, task.module, { task, dryRun }));
     const moduleRegistry = syncModuleRegistryRow(target, task, { state, planPath, dryRun });
     if (moduleRegistry) changes.push(moduleRegistry);
+    changes.push(...syncModuleGeneratedIndexes(target, task.module, { task, dryRun }).changes);
   }
   return { changes };
 }
@@ -148,25 +152,28 @@ export function governanceRelativePaths(changes) {
   return [...new Set((changes || []).map((change) => change.destination).filter(Boolean).map(toPosix))];
 }
 
-function syncFeatureRow(target, task, { state, message, planPath, dryRun }) {
-  const featurePath = featureRegistryPath(target);
-  ensureFileFromTemplate(featurePath, "templates/ssot/Feature-SSoT.md", { dryRun });
+function syncFeatureRows(target, task, { state, message, planPath, dryRun }) {
+  return featureRegistryPaths(target).map((featurePath) => syncFeatureRow(target, featurePath, task, { state, message, planPath, dryRun }));
+}
+
+function syncFeatureRow(target, featurePath, task, { state, message, planPath, dryRun }) {
+  const privateTable = path.basename(featurePath) === "Private-Feature-SSoT.md";
+  ensureFileFromTemplate(featurePath, privateTable ? "templates/ssot/Feature-SSoT.md" : "templates/ssot/Feature-SSoT.md", { dryRun });
   const relative = toPosix(path.relative(target.projectRoot, featurePath));
   if (!dryRun) {
     const content = readFileSafe(featurePath);
-    const privateTable = path.basename(featurePath) === "Private-Feature-SSoT.md";
     const row = privateTable
       ? [
           featureId(task, true),
           mapPrivateFeatureState(state),
-          markdownCell(task.title || task.shortId || task.id),
+          task.title || task.shortId || task.id,
           "coordinator",
           `\`${planPath}\``,
-          markdownCell(message || `CLI governance sync: ${state}`),
+          message || `CLI governance sync: ${state}`,
         ]
       : [
           featureId(task, false),
-          markdownCell(task.title || task.shortId || task.id),
+          task.title || task.shortId || task.id,
           "CLI-owned task lifecycle update",
           "coordinator",
           mapFeatureState(state),
@@ -191,16 +198,16 @@ function syncLedgerRow(target, task, { event, state, message, planPath, reviewPa
     const content = readFileSafe(ledgerPath);
     const row = [
       ledgerId(task),
-      markdownCell(task.title || task.shortId || task.id),
+      task.title || task.shortId || task.id,
       "coordinator",
       mapLedgerState(state),
       planPath,
-      featureId(task, path.basename(featureRegistryPath(target)) === "Private-Feature-SSoT.md"),
+      task.module ? moduleFeatureId(task.module, false) : featureId(task, false),
       "pending",
       event === "task-review" || state === "review" ? reviewPath : "pending",
       "pending",
       "pending",
-      markdownCell(message || "none"),
+      message || "none",
       todayDate(),
     ];
     fs.writeFileSync(ledgerPath, upsertRow(content, /^ID$/i, (header, existing) => rowMatchesPlan(header, existing, planPath), row));
@@ -235,12 +242,228 @@ function syncModuleRegistryRow(target, task, { state, planPath, dryRun }) {
   return { destination: relative, action: dryRun ? "would-sync-governance" : "sync-governance", surface: "module-registry" };
 }
 
+function syncModuleFeatureAggregateRow(target, moduleKey, { task = null, dryRun = false } = {}) {
+  return featureRegistryPaths(target).map((featurePath) => syncSingleModuleFeatureAggregateRow(target, featurePath, moduleKey, { task, dryRun }));
+}
+
+function syncSingleModuleFeatureAggregateRow(target, featurePath, moduleKey, { task = null, dryRun = false } = {}) {
+  ensureFileFromTemplate(featurePath, "templates/ssot/Feature-SSoT.md", { dryRun });
+  const relative = toPosix(path.relative(target.projectRoot, featurePath));
+  const privateTable = path.basename(featurePath) === "Private-Feature-SSoT.md";
+  const moduleTasks = collectModuleTasks(target, moduleKey, task);
+  const state = aggregateModuleState(moduleTasks);
+  const planPath = `docs/09-PLANNING/MODULES/${moduleKey}/module_plan.md`;
+  const row = privateTable
+    ? [
+        `PF-MODULE-${moduleKey}`,
+        mapPrivateFeatureState(state),
+        moduleKey,
+        "coordinator",
+        `\`${planPath}\``,
+        `grouped-index; tasks:${moduleTasks.length}; queues:${moduleQueues(moduleTasks).join(",") || "none"}`,
+      ]
+    : [
+        `F-MODULE-${moduleKey}`,
+        moduleKey,
+        "Grouped task index",
+        "coordinator",
+        mapFeatureState(state),
+        "P2",
+        planPath,
+        `task-list --module ${moduleKey}`,
+        "module-index",
+        "pending",
+        moduleTasks.some((candidate) => candidate.materialsReady === false) ? "module-materials-missing" : "none",
+        todayDate(),
+      ];
+  if (!dryRun) {
+    const content = readFileSafe(featurePath);
+    fs.writeFileSync(featurePath, upsertRow(content, /^ID$/i, (header, existing) => rowMatchesPlan(header, existing, planPath), row));
+  }
+  return { destination: relative, action: dryRun ? "would-sync-governance" : "sync-governance", surface: privateTable ? "private-feature-ssot" : "feature-ssot" };
+}
+
+function syncModuleGeneratedIndexes(target, moduleKey, { task = null, dryRun = false } = {}) {
+  const moduleTasks = collectModuleTasks(target, moduleKey, task);
+  const surfaces = moduleGeneratedIndexSurfaces(target, moduleTasks);
+  if (!dryRun) {
+    for (const surface of surfaces) {
+      fs.mkdirSync(path.dirname(surface.absolute), { recursive: true });
+      fs.writeFileSync(surface.absolute, surface.content);
+    }
+  }
+  return {
+    changes: surfaces.map((surface) => ({
+      destination: surface.relative,
+      action: dryRun ? "would-sync-governance" : "sync-governance",
+      surface: surface.surface,
+    })),
+  };
+}
+
+export function moduleGeneratedIndexSurfaces(target, tasks = collectTasks(target)) {
+  const modules = [...new Set((tasks || []).map((task) => task.module).filter(Boolean))].sort();
+  const surfaces = [];
+  for (const moduleKey of modules) {
+    const moduleTasks = (tasks || [])
+      .filter((task) => task.module === moduleKey)
+      .sort((a, b) => String(stripDatePrefix(a.shortId || a.id)).localeCompare(String(stripDatePrefix(b.shortId || b.id))));
+    const moduleDir = path.join(target.docsRoot, "09-PLANNING/MODULES", moduleKey);
+    const modulePlanPath = path.join(moduleDir, "module_plan.md");
+    const moduleVisualPath = path.join(moduleDir, visualMapFile);
+    const stepRows = moduleTasks.map((task, index) => {
+      const stepId = moduleStepId(task);
+      const previous = index === 0 ? "none" : moduleStepId(moduleTasks[index - 1]);
+      return [stepId, task.title || task.shortId || task.id, mapModuleState(task.state), stripTargetPrefix(task.taskPlanPath || `${stripTargetPrefix(task.path)}/task_plan.md`), previous];
+    });
+    surfaces.push({
+      surface: "module-plan-index",
+      absolute: modulePlanPath,
+      relative: toPosix(path.relative(target.projectRoot, modulePlanPath)),
+      rows: stepRows,
+      content: replaceTableRows(existingOrTemplate(modulePlanPath, "templates/planning/module_plan.md"), /^Step ID$/i, stepRows),
+    });
+    surfaces.push({
+      surface: "module-visual-index",
+      absolute: moduleVisualPath,
+      relative: toPosix(path.relative(target.projectRoot, moduleVisualPath)),
+      rows: stepRows,
+      content: renderModuleVisualMap(moduleKey, moduleTasks),
+    });
+  }
+  return surfaces;
+}
+
+function collectModuleTasks(target, moduleKey, task) {
+  const tasks = collectTasks(target).filter((candidate) => candidate.module === moduleKey);
+  if (task && !tasks.some((candidate) => stripTargetPrefix(candidate.taskPlanPath) === `${stripTargetPrefix(task.path)}/task_plan.md`)) {
+    tasks.push({
+      ...task,
+      module: moduleKey,
+      state: task.state || "planned",
+      taskPlanPath: `${stripTargetPrefix(task.path)}/task_plan.md`,
+      completion: 0,
+    });
+  }
+  return tasks;
+}
+
+function renderModuleVisualMap(moduleKey, tasks) {
+  const rows = tasks.map((task, index) => {
+    const stepId = moduleStepId(task);
+    const previous = index === 0 ? "none" : moduleStepId(tasks[index - 1]);
+    const state = mapPhaseState(task.state);
+    const completion = Number.isInteger(task.completion) ? task.completion : state === "done" ? 100 : 0;
+    return [
+      stepId,
+      previous,
+      state,
+      completion,
+      task.title || task.shortId || task.id,
+      stripTargetPrefix(task.taskPlanPath || `${stripTargetPrefix(task.path)}/task_plan.md`),
+      task.materialsReady ? "present" : "missing",
+      previous === "none" ? "none" : `depends on ${previous}`,
+      "coordinator",
+    ];
+  });
+  const graphLines = tasks.map((task, index) => {
+    const stepId = moduleStepId(task);
+    const label = markdownCell(task.title || task.shortId || task.id).replace(/"/g, "'");
+    if (index === 0) return `  ${stepId}["${label}"]`;
+    const previous = moduleStepId(tasks[index - 1]);
+    return `  ${previous} --> ${stepId}["${label}"]`;
+  });
+  return `# ${moduleKey} - Visual Map
+
+Visual Map Contract: v1.0
+
+Generated by \`harness new-task --module\` and \`harness governance rebuild\`.
+
+## Map Index
+
+| ID | Type | Purpose | Required For Understanding | Source Evidence | Promotion Candidate |
+| --- | --- | --- | --- | --- | --- |
+| MAP-01 | topology | Show module task sequence generated from task files | yes | task scan | no |
+
+## Phase Graph
+
+\`\`\`mermaid
+flowchart LR
+${graphLines.length ? graphLines.join("\n") : "  EMPTY[\"No module tasks\"]"}
+\`\`\`
+
+## Phase Table
+
+| Phase ID | Depends On | State | Completion | Output | Required Evidence | Evidence Status | Blocking Risk | Owner / Handoff |
+| --- | --- | --- | ---: | --- | --- | --- | --- | --- |
+${rows.map((row) => `| ${fitRow(row, 9).join(" | ")} |`).join("\n")}
+
+Allowed Evidence Status: missing, partial, present, waived.
+`;
+}
+
+function replaceTableRows(content, headerPattern, rows) {
+  const lines = String(content || "").split(/\r?\n/);
+  for (let index = 0; index < lines.length - 1; index += 1) {
+    if (!lines[index].trim().startsWith("|")) continue;
+    const header = splitMarkdownRow(lines[index]);
+    if (!header.some((cell) => headerPattern.test(cell))) continue;
+    const separator = splitMarkdownRow(lines[index + 1]);
+    if (!separator.every((cell) => /^:?-{3,}:?$/.test(cell))) continue;
+    let end = index + 2;
+    while (end < lines.length && lines[end].trim().startsWith("|")) end += 1;
+    lines.splice(index + 2, end - index - 2, ...rows.map((row) => `| ${fitRow(row, header.length).join(" | ")} |`));
+    return `${lines.join("\n").trimEnd()}\n`;
+  }
+  return `${String(content || "").trimEnd()}\n\n${rows.map((row) => `| ${fitRow(row, row.length).join(" | ")} |`).join("\n")}\n`;
+}
+
+function existingOrTemplate(filePath, templateSource) {
+  return fs.existsSync(filePath) ? readFileSafe(filePath) : readBundledTemplate(templateSource);
+}
+
+function moduleStepId(task) {
+  return `T-${stripDatePrefix(task.shortId || task.id || "task").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toUpperCase().slice(0, 48)}`;
+}
+
+function stripDatePrefix(value) {
+  return String(value || "").replace(/^(?:TASKS\/|MODULES\/[^/]+\/)?\d{4}-\d{2}-\d{2}-/, "");
+}
+
+function mapPhaseState(state) {
+  if (state === "in_progress") return "in_progress";
+  if (state === "review") return "review";
+  if (state === "done") return "done";
+  if (state === "blocked") return "blocked";
+  return "planned";
+}
+
+function aggregateModuleState(tasks) {
+  const states = new Set((tasks || []).map((task) => task.state));
+  if (states.has("blocked")) return "blocked";
+  if (states.has("review")) return "review";
+  if (states.has("in_progress")) return "in_progress";
+  if (tasks.length > 0 && tasks.every((task) => task.state === "done")) return "done";
+  return "planned";
+}
+
+function moduleQueues(tasks) {
+  return [...new Set((tasks || []).flatMap((task) => task.taskQueues || []))].sort();
+}
+
 function featureRegistryPath(target) {
   const privatePath = path.join(target.docsRoot, "09-PLANNING/Private-Feature-SSoT.md");
   if (fs.existsSync(privatePath)) return privatePath;
   const publicPath = path.join(target.docsRoot, "09-PLANNING/Feature-SSoT.md");
   if (existsInDocs(target, "09-PLANNING/Feature-SSoT.md")) return publicPath;
   return publicPath;
+}
+
+function featureRegistryPaths(target) {
+  const publicPath = path.join(target.docsRoot, "09-PLANNING/Feature-SSoT.md");
+  const privatePath = path.join(target.docsRoot, "09-PLANNING/Private-Feature-SSoT.md");
+  const existing = [publicPath, privatePath].filter((filePath) => fs.existsSync(filePath));
+  return existing.length > 0 ? existing : [publicPath];
 }
 
 function ensureFileFromTemplate(destinationPath, templateSource, { dryRun = false } = {}) {
@@ -289,6 +512,10 @@ function rowMatchesModule(header, row, moduleKey, modulePlan) {
 function featureId(task, privateId) {
   const slug = String(task.shortId || task.id || "task").replace(/^TASKS\//, "").replace(/^MODULES\//, "").replace(/[^A-Za-z0-9-]+/g, "-").slice(0, 72);
   return `${privateId ? "PF" : "F"}-${slug}`;
+}
+
+function moduleFeatureId(moduleKey, privateId) {
+  return `${privateId ? "PF" : "F"}-MODULE-${moduleKey}`;
 }
 
 function ledgerId(task) {

@@ -150,6 +150,7 @@ Rules:
 - Existing project facts may be merged, appended, or recorded as residuals. They must not be replaced with generic templates.
 - Historical contract gaps become `adoption-needed` warnings in normal mode.
 - `--strict` must still fail on legacy checker failures or unresolved historical contract gaps.
+- Archive old global tables and module indexes first, then regenerate them with `harness governance rebuild --archive --apply`; those tables are agent indexes, while humans should use the Dashboard for status.
 - `migrate-verify` must pass before the migration output is reported as usable, and the dashboard path must be HTML.
 - For detailed migration strategy, read `docs-release/guides/migration-playbook.md` or `docs-release/guides/migration-playbook.en-US.md`. If the user requires proof that the old project is fully migrated, also read `docs-release/guides/full-legacy-migration-subagent-strategy.md` or `docs-release/guides/full-legacy-migration-subagent-strategy.zh-CN.md`.
 

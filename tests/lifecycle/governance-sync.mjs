@@ -28,9 +28,17 @@ assert(git(target, ["log", "-1", "--format=%s"]).stdout.trim() === `chore(harnes
 const featurePath = path.join(target, "docs/09-PLANNING/Feature-SSoT.md");
 const ledgerPath = path.join(target, "docs/Harness-Ledger.md");
 const registryPath = path.join(target, "docs/09-PLANNING/Module-Registry.md");
-assert(fs.readFileSync(featurePath, "utf8").includes(`docs/09-PLANNING/MODULES/sync/${todayLocal}-governance-owned/task_plan.md`), "new-task should register task in Feature SSoT");
-assert(fs.readFileSync(ledgerPath, "utf8").includes(`docs/09-PLANNING/MODULES/sync/${todayLocal}-governance-owned/task_plan.md`), "new-task should register task in Harness Ledger");
+const modulePlanPath = path.join(target, "docs/09-PLANNING/MODULES/sync/module_plan.md");
+const moduleVisualPath = path.join(target, "docs/09-PLANNING/MODULES/sync/visual_map.md");
+const featureContent = fs.readFileSync(featurePath, "utf8");
+assert(!featureContent.includes(`docs/09-PLANNING/MODULES/sync/${todayLocal}-governance-owned/task_plan.md`), "new-task --module should not register module-local task row in Feature SSoT");
+assert(featureContent.includes("docs/09-PLANNING/MODULES/sync/module_plan.md"), "new-task --module should register a module aggregate row in Feature SSoT");
+const ledgerContent = fs.readFileSync(ledgerPath, "utf8");
+assert(ledgerContent.includes(`docs/09-PLANNING/MODULES/sync/${todayLocal}-governance-owned/task_plan.md`), "new-task should register task in Harness Ledger");
+assert(ledgerContent.includes("| F-MODULE-sync |"), "new-task --module should route Harness Ledger rows to the module aggregate Feature row");
 assert(fs.readFileSync(registryPath, "utf8").includes("docs/09-PLANNING/MODULES/sync/module_plan.md"), "new-task --module should register module registry row");
+assert(fs.readFileSync(modulePlanPath, "utf8").includes(`docs/09-PLANNING/MODULES/sync/${todayLocal}-governance-owned/task_plan.md`), "new-task --module should regenerate module plan index");
+assert(fs.readFileSync(moduleVisualPath, "utf8").includes(`docs/09-PLANNING/MODULES/sync/${todayLocal}-governance-owned/task_plan.md`), "new-task --module should regenerate module visual map index");
 
 fs.writeFileSync(path.join(target, "UNRELATED.txt"), "dirty\n");
 const dirtyResult = run(["new-task", "dirty-refused", "--title", "Dirty Refused", target]);

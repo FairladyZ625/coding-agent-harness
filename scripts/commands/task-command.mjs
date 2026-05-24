@@ -141,7 +141,13 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
     const json = takeFlag("--json");
     const state = takeOption("--state", "");
     const moduleKey = takeOption("--module", "");
-    const result = listLifecycleTasks(targetArg(), { state, moduleKey });
+    const queue = takeOption("--queue", "");
+    const preset = takeOption("--preset", "");
+    const review = takeOption("--review", "");
+    const lesson = takeOption("--lesson", "");
+    const search = takeOption("--search", "");
+    const missingMaterials = takeFlag("--missing-materials");
+    const result = listLifecycleTasks(targetArg(), { state, moduleKey, queue, preset, review, lesson, search, missingMaterials });
     if (json) {
       console.log(JSON.stringify(result, null, 2));
     } else {

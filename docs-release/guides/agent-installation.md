@@ -167,6 +167,7 @@ harness migrate-verify \
 - 已有项目事实只能 merge、append 或记录 residual；不能用泛化模板替换。
 - 历史合同缺口在普通模式下进入 `adoption-needed` warning。
 - `--strict` 必须仍然能因为旧 checker 失败或历史合同缺口而失败。
+- 旧全局表和模块索引先归档，再用 `harness governance rebuild --archive --apply` 重新生成；这些表是 Agent 索引，人看状态优先用 Dashboard。
 - `migrate-verify` 必须通过，才能报告迁移输出可用；dashboard 路径必须是 HTML。
 - 详细迁移策略见 `docs-release/guides/migration-playbook.md` 或英文镜像
   `docs-release/guides/migration-playbook.en-US.md`。如果用户要求证明旧项目已经完整迁移，

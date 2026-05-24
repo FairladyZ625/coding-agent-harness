@@ -21,6 +21,15 @@
 | Should a reviewer subagent be used? | yes / no | [为什么需要或不需要 reviewer] | 如果 yes，直接调用只读 reviewer，不需要额外申请。 |
 | Would a worker subagent materially help? | no / ask-user / already-authorized | [并行切片、独立实现、专项调查，或说明为什么不需要] | 如果 ask-user，直接问：“这个任务适合拆给 worker subagent 并行处理。是否授权我派一个 worker subagent，只修改 [scope]，只在 [worktree/branch] 内执行，我负责协调和最终审查？” |
 
+## User Authorization Decision
+
+如果上方 worker 决策是 `ask-user`，implementation 必须暂停，直到这里记录用户答案。
+已解决状态只能是 `authorized`、`denied` 或 `not-needed`。选择 `ask-user` 后不得继续保持 `pending`。
+
+| Gate | State | Decided By | Decided At | Scope | Worktree / Branch | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| worker subagent | pending | pending | pending | pending | pending | 只有直接问过用户后才能填写。 |
+
 ## 决策表
 
 | 决策 | 选择 | 说明 |
