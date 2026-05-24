@@ -56,7 +56,14 @@ export function createLessonSedimentationTask(targetInput, taskRef, candidateId,
     candidate,
     followUpTaskId,
   });
-  const contextPacket = renderContextPacket({ sourceTaskId, candidate, followUpTaskId, audit });
+  const contextPacket = renderContextPacket({
+    target,
+    sourceTaskDir,
+    sourceTaskId,
+    candidate,
+    followUpTaskId,
+    audit,
+  });
   const changes = [...taskResult.changes];
 
   if (!dryRun) {
@@ -102,7 +109,11 @@ function renderLessonSedimentationPrompt(preset, values) {
   return prompt.trim();
 }
 
-function renderContextPacket({ sourceTaskId, candidate, followUpTaskId, audit }) {
+function renderContextPacket({ target, sourceTaskDir, sourceTaskId, candidate, followUpTaskId, audit }) {
+  const sourceLessonPath = `TARGET:${toPosix(path.relative(target.projectRoot, path.join(sourceTaskDir, lessonCandidatesFile)))}`;
+  const sourceReview = summarizeMarkdown(readFileSafe(path.join(sourceTaskDir, "review.md")));
+  const sourceFindings = summarizeMarkdown(readFileSafe(path.join(sourceTaskDir, "findings.md")));
+  const sourceProgress = summarizeMarkdown(readFileSafe(path.join(sourceTaskDir, "progress.md")));
   return [
     "## Lesson Sedimentation Context Packet",
     "",
@@ -111,14 +122,19 @@ function renderContextPacket({ sourceTaskId, candidate, followUpTaskId, audit })
     `| Preset | ${presetId} |`,
     `| Follow-up Task | ${followUpTaskId} |`,
     `| Source Task | ${sourceTaskId} |`,
+    `| Source Lesson Candidates | ${sourceLessonPath} |`,
     `| Candidate ID | ${candidate.id} |`,
     `| Candidate Title | ${markdownCell(candidate.title)} |`,
+    `| Original Candidate Row | ${markdownCell(candidate.originalRow || "")} |`,
     `| Scope | ${markdownCell(candidate.scope || "unspecified")} |`,
     `| Boundary Reason | ${markdownCell(candidate.boundaryReason || "unspecified")} |`,
     `| Why It Might Matter | ${markdownCell(candidate.whyItMightMatter || "unspecified")} |`,
     `| Promotion Target | ${markdownCell(candidate.promotionTarget || "unspecified")} |`,
     `| Conflict Check | ${markdownCell(candidate.conflictCheck || "pending")} |`,
     `| Required Standard Update | ${markdownCell(candidate.requiredStandardUpdate || "pending")} |`,
+    `| Review Summary | ${markdownCell(sourceReview)} |`,
+    `| Findings Summary | ${markdownCell(sourceFindings)} |`,
+    `| Evidence Summary | ${markdownCell(sourceProgress)} |`,
     `| Preset Manifest | ${audit.manifestPath} |`,
     "",
   ].join("\n");
@@ -181,4 +197,12 @@ function updateSourceFollowUpTask(candidatePath, candidateId, followUpTaskId) {
 
 function markdownCell(value) {
   return String(value || "").replace(/\r?\n/g, " ").replaceAll("|", "\\|").trim();
+}
+
+function summarizeMarkdown(content) {
+  const lines = String(content || "")
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^#+\s*/, "").trim())
+    .filter((line) => line && !/^\|?\s*-{3,}/.test(line));
+  return lines.slice(0, 4).join(" / ") || "not recorded";
 }

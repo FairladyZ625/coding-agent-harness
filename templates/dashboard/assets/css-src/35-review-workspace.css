@@ -210,6 +210,16 @@
   opacity: 0.55;
 }
 
+.lesson-candidate-more {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--paper);
+}
+
 .task-queue-reasons {
   grid-column: 1 / -1;
 }
@@ -300,6 +310,14 @@
 .review-doc-panel {
   min-width: 0;
   max-width: 100%;
+}
+
+.review-doc-scroll {
+  max-height: min(58vh, 560px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border-radius: 8px;
 }
 
 @media (min-width: 1280px) {

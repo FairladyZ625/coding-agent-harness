@@ -166,6 +166,35 @@ fs.writeFileSync(
     "",
     "## Candidates",
     "",
+    "| ID | Row Status | Title | Review Decision | Promotion Target | Follow-up Task |",
+    "| --- | --- | --- | --- | --- | --- |",
+    "| LC-QUEUE-LESSON | needs-promotion | Preserve queue lifecycle lesson | approved | Lessons SSoT | pending |",
+    "",
+  ].join("\n"),
+);
+const invalidLessonStatus = expectJson(["status", "--json", target]);
+const invalidLessonTask = invalidLessonStatus.tasks.find((task) => task.id === lessonTask.task.id);
+assert(invalidLessonTask.lessonCandidateIssues.includes("missing-column:Scope"), "needs-promotion lesson rows should require Scope column");
+assert(invalidLessonTask.lessonCandidateIssues.includes("missing-column:Boundary Reason"), "needs-promotion lesson rows should require Boundary Reason column");
+assert(invalidLessonTask.lessonCandidateIssues.some((issue) => issue.includes("missing-row-field:LC-QUEUE-LESSON:Conflict Check")), "needs-promotion lesson rows should require conflict check value");
+
+fs.writeFileSync(
+  path.join(lessonDir, "lesson_candidates.md"),
+  [
+    "# Queue Lesson - Lesson Candidates",
+    "",
+    "## Candidate Status",
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    "| Schema version | lesson-candidate-v1 |",
+    "| Task-level status | needs-promotion |",
+    "| Review decision | approved-for-sedimentation |",
+    "| Promotion state | queued |",
+    "| Closeout token | pending |",
+    "",
+    "## Candidates",
+    "",
     "| ID | Row Status | Title | Scope | Boundary Reason | Why It Might Matter | Review Decision | Promotion Target | Conflict Check | Required Standard Update | Follow-up Task |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     "| LC-QUEUE-LESSON | needs-promotion | Preserve queue lifecycle lesson | global | Queue model affects all harness users | Prevents Review queue from absorbing lesson work | approved | Lessons SSoT | no matching lesson found | task-state-machine docs | pending |",
@@ -196,6 +225,11 @@ const lessonSediment = expectJson(["lesson-sediment", lessonTask.task.id, "LC-QU
 assert(lessonSediment.preset === "lesson-sedimentation", "lesson-sediment should report preset");
 assert(lessonSediment.followUpTask.id.startsWith("TASKS/"), "lesson-sediment should create a follow-up task");
 assert(fs.existsSync(path.join(target, lessonSediment.followUpTask.path.replace(/^TARGET:/, ""), "artifacts/lesson-sedimentation-prompt.md")), "lesson-sediment should write prompt artifact");
+const followUpTaskPlan = fs.readFileSync(path.join(target, lessonSediment.followUpTask.path.replace(/^TARGET:/, ""), "task_plan.md"), "utf8");
+assert(followUpTaskPlan.includes(`| Source Lesson Candidates | TARGET:docs/09-PLANNING/${lessonTask.task.id}/lesson_candidates.md |`), "lesson-sediment context should link the source lesson_candidates.md file");
+assert(followUpTaskPlan.includes("| Original Candidate Row |"), "lesson-sediment context should preserve the original candidate row");
+assert(followUpTaskPlan.includes("Review Summary"), "lesson-sediment context should include source review summary");
+assert(followUpTaskPlan.includes("Findings Summary"), "lesson-sediment context should include source findings summary");
 const lessonCandidatesAfterSediment = fs.readFileSync(path.join(lessonDir, "lesson_candidates.md"), "utf8");
 assert(lessonCandidatesAfterSediment.includes(lessonSediment.followUpTask.id), "lesson-sediment should record follow-up task id on source candidate");
 const lessonConfirm = run(["review-confirm", lessonTask.task.id, "--reviewer", "Human Reviewer", "--confirm", `${todayLocal}-queue-lesson`, target]);

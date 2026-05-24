@@ -217,8 +217,10 @@ function reviewQueueCard(task, tab) {
 function lessonCandidateActions(task) {
   const candidates = (task.lessonCandidateRows || []).filter((candidate) => ["ready-for-review", "needs-promotion"].includes(candidate.status));
   if (!candidates.length) return "";
+  const hiddenCount = Math.max(0, candidates.length - 2);
   return `<div class="lesson-candidate-actions">
     ${candidates.slice(0, 2).map((candidate) => lessonCandidateAction(task, candidate)).join("")}
+    ${hiddenCount ? `<div class="lesson-candidate-more">${escapeHtml(t("moreLessonCandidates")).replace("{count}", String(hiddenCount))}</div>` : ""}
   </div>`;
 }
 
@@ -320,6 +322,6 @@ function reviewDocPanel(key, doc, fallbackPath = "") {
       </div>
       ${doc ? `<button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button>` : ""}
     </div>
-    <div class="markdown">${doc ? window.HarnessMarkdown.render(doc.content, state.renderMode) : emptyState(t("documentMissing"))}</div>
+    <div class="review-doc-scroll"><div class="markdown">${doc ? window.HarnessMarkdown.render(doc.content, state.renderMode) : emptyState(t("documentMissing"))}</div></div>
   </section>`;
 }
