@@ -32,7 +32,7 @@ Read the smallest context that can answer the task.
 | Local development, mocks, stubs, or cross-repo debugging | `docs/04-DEVELOPMENT/README.md`, `docs/04-DEVELOPMENT/codebase-map.md` |
 | API, event, webhook, SDK, or third-party contract | `docs/06-INTEGRATIONS/README.md` and the related contract file |
 | Tests, smoke, or regression | `docs/11-REFERENCE/testing-standard.md`, `docs/05-TEST-QA/Regression-SSoT.md` |
-| Execution, commit, PR, or release work | `docs/11-REFERENCE/execution-workflow-standard.md`, `docs/11-REFERENCE/repo-governance-standard.md`, `docs/11-REFERENCE/ci-cd-standard.md` |
+| Execution, commit, PR, or release work | `docs/11-REFERENCE/execution-workflow-standard.md`, `docs/11-REFERENCE/repo-governance-standard.md`, `docs/11-REFERENCE/pull-request-standard.md`, `docs/11-REFERENCE/ci-cd-standard.md` |
 | Creating or advancing a task | Current task directory under `docs/09-PLANNING/TASKS/`; use the Harness CLI if this project has it configured |
 | Brief, Execution Strategy, or Visual Map | Current task `brief.md`, `execution_strategy.md`, and `visual_map.md` |
 | Long-running task | `docs/11-REFERENCE/long-running-task-standard.md` |

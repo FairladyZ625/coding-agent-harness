@@ -31,7 +31,7 @@
 | 本地开发、mock、stub、跨仓调试 | `docs/04-DEVELOPMENT/README.md`、`docs/04-DEVELOPMENT/codebase-map.md` |
 | API、event、webhook、SDK、第三方契约 | `docs/06-INTEGRATIONS/README.md` 和相关契约文件 |
 | 测试、冒烟、回归 | `docs/11-REFERENCE/testing-standard.md`、`docs/05-TEST-QA/Regression-SSoT.md` |
-| 开发执行、提交、PR、发布 | `docs/11-REFERENCE/execution-workflow-standard.md`、`docs/11-REFERENCE/repo-governance-standard.md`、`docs/11-REFERENCE/ci-cd-standard.md` |
+| 开发执行、提交、PR、发布 | `docs/11-REFERENCE/execution-workflow-standard.md`、`docs/11-REFERENCE/repo-governance-standard.md`、`docs/11-REFERENCE/pull-request-standard.md`、`docs/11-REFERENCE/ci-cd-standard.md` |
 | 创建或推进任务 | `docs/09-PLANNING/TASKS/` 下的当前任务目录；如果本项目已配置 Harness CLI，优先用 CLI |
 | Brief、Execution Strategy、Visual Map | 当前任务的 `brief.md`、`execution_strategy.md`、`visual_map.md` |
 | 长程任务 | `docs/11-REFERENCE/long-running-task-standard.md` |

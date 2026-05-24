@@ -11,7 +11,7 @@ Define repository-level rules for branches, commits, pull requests, ownership, g
 3. Keep commits focused on the requested scope and avoid mixing unrelated cleanup with feature work.
 4. Generated files, caches, build output, local runtime state, and secrets must be ignored or stored in the approved location.
 5. Commit verified, meaningful slices proactively. Deferred commits require an explicit reason and owner.
-6. Pull requests must describe intent, changed surfaces, checks run, checks not run, review status, and residual risk.
+6. Pull requests must follow `docs/11-REFERENCE/pull-request-standard.md` and describe intent, changed surfaces, version impact, checks run, checks not run, review status, references, and residual risk.
 7. Required checks and material review findings block merge unless an approved exception is recorded.
 8. Merge or release ownership must be explicit when several branches or workers contribute to the same outcome.
 
@@ -22,7 +22,7 @@ Define repository-level rules for branches, commits, pull requests, ownership, g
 - Dirty worktree state was checked before edits.
 - Generated and private files are not accidentally staged.
 - Verified slices have commit SHAs, or deferred commit rationale is recorded.
-- PR summary includes evidence and residuals.
+- PR summary follows `pull-request-standard.md` and includes evidence, version impact, references, and residuals.
 - Review findings are resolved or explicitly accepted.
 - Merge strategy and rollback or revert path are understood.
 

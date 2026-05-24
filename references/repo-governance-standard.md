@@ -46,7 +46,9 @@ docs/11-REFERENCE/ci-cd-standard.md
 
 - PR required before merge: [yes / no]
 - PR title format
-- PR body requirements
+- PR body requirements. Use `docs/11-REFERENCE/pull-request-standard.md` for
+  the required bilingual structure, version impact, verification, review
+  evidence, residual risk, and references.
 - Required reviewers
 - Required review type: [self / subagent / external / human]
 - Merge method: [squash / merge commit / rebase]
@@ -131,3 +133,9 @@ Bootstrap is not complete unless repository governance is at least:
 - Worktree concurrency: `implemented`
 - Harness checker: passing or blocked-with-owner with explicit residual
 - Checkpoint commit rule: `implemented`
+
+## Related Standards
+
+- `docs/11-REFERENCE/pull-request-standard.md` — PR body structure, bilingual
+  requirements, version impact, verification, review evidence, residual risk,
+  and references.

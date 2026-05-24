@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.3
+
+- Added lesson sedimentation follow-up task creation through CLI, preset, and
+  Dashboard actions, without writing directly to Lessons SSoT by default.
+- Added git-backed review confirmation audit validation so forged committed
+  Markdown blocks cannot satisfy human review confirmation.
+- Added governance table entropy checks for Lessons SSoT and Harness Ledger
+  boundaries.
+- Bounded lifecycle queue cards and review document panels for long task and
+  review content.
+- Split lifecycle review gates, review-confirm writer, and lifecycle test
+  suites into dedicated module folders.
+- Added a bilingual pull request standard and PR template, and routed generated
+  `AGENTS.md` files to the PR standard.
+
 ## 1.0.2
 
 - Added the dashboard workbench, review queue, migration rails, lifecycle gates,

@@ -33,7 +33,7 @@
 | --- | --- |
 | 是否必须 PR | yes / no / local-only |
 | PR 标题格式 | 通常与 commit 规范一致 |
-| PR 描述要求 | 改动、原因、验证、residual、关联 task / SSoT / review |
+| PR 描述要求 | 遵守 `docs/11-REFERENCE/pull-request-standard.md`；写清改动、原因、版本影响、验证、residual、关联 task / SSoT / review |
 | 必需审查者 | reviewer、外部 agent、人类 owner 或代码 owner |
 | 必需审查类型 | self-review、subagent review、human review、security review |
 | merge method | merge commit、squash、rebase、fast-forward |

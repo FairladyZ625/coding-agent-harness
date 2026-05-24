@@ -151,6 +151,7 @@ Checker 规则：
 | execution-workflow-standard.md | 开发执行流程、commit 规范、PR 流程 | 是 |
 | delivery-operating-model-standard.md | 工程组织形态、feature block 拆分、跨仓/团队协作模型 | 是 |
 | repo-governance-standard.md | repo platform、branch protection、PR policy、required checks、worktree concurrency | 是 |
+| pull-request-standard.md | PR 描述结构、中英双语要求、版本影响、验证、审查证据、残余风险和引用 | 是 |
 | ci-cd-standard.md | CI/CD profile、workflow、required checks、release/CD residual | 是 |
 | long-running-task-standard.md | 长程任务合同、连续执行权限、review loop、停止条件 | 是 |
 | adversarial-review-standard.md | 对抗性 review 报告、finding 分级、no-finding 结论、residual 路由 | 是 |

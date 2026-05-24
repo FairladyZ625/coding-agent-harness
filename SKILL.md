@@ -347,6 +347,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | Execution Workflow | `templates/reference/execution-workflow-standard.md` | 执行、提交、PR 和证据记录 |
 | Delivery Operating Model Standard | `templates/reference/delivery-operating-model-standard.md` | 交付组织模型选择 |
 | Repository Governance Standard | `templates/reference/repo-governance-standard.md` | repo、分支、PR、worktree 规则 |
+| Pull Request Standard | `templates/reference/pull-request-standard.md` | PR 描述、中英双语、版本影响、验证和引用 |
 | CI/CD Standard | `templates/reference/ci-cd-standard.md` | CI/CD、required checks、release residual |
 | Long-Running Task Standard | `templates/reference/long-running-task-standard.md` | 长程任务协议 |
 | Adversarial Review Standard | `templates/reference/adversarial-review-standard.md` | 对抗性审查协议 |
