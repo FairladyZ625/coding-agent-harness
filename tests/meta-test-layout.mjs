@@ -18,6 +18,9 @@ assert(fs.existsSync(path.join(repoRoot, "tests/source-package-boundary.mjs")), 
 assert(fs.existsSync(path.join(repoRoot, "tests/dashboard-generation.mjs")), "dashboard generation tests should live in a dedicated suite");
 assert(fs.existsSync(path.join(repoRoot, "tests/template-governance.mjs")), "template governance tests should live in a dedicated suite");
 assert(fs.existsSync(path.join(repoRoot, "tests/task-lifecycle.mjs")), "task lifecycle tests should live in a dedicated suite");
+assert(fs.existsSync(path.join(repoRoot, "tests/lifecycle/task-lifecycle.mjs")), "task lifecycle domain tests should live under tests/lifecycle/");
+assert(fs.existsSync(path.join(repoRoot, "tests/lifecycle/lifecycle-queues.mjs")), "lifecycle queue tests should live under tests/lifecycle/");
+assert(fs.existsSync(path.join(repoRoot, "tests/lifecycle/review-confirm-git-gate.mjs")), "review-confirm git gate tests should live under tests/lifecycle/");
 assert(fs.existsSync(path.join(repoRoot, "tests/migration-adoption.mjs")), "migration/adoption tests should live in a dedicated suite");
 assert(fs.existsSync(path.join(repoRoot, "tests/helpers/harness-test-utils.mjs")), "shared test utilities should live outside individual suites");
 
@@ -30,6 +33,9 @@ assert(fs.existsSync(path.join(repoRoot, "scripts/commands/task-command.mjs")), 
 const taskLifecycleModule = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-lifecycle.mjs"), "utf8");
 assert(taskLifecycleModule.split(/\r?\n/).length <= 650, "task lifecycle core should stay below 650 lines by routing preset-specific evidence helpers out");
 assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-migration-preset.mjs")), "legacy migration preset task helpers should live outside task-lifecycle.mjs");
+assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-lifecycle/review-gates.mjs")), "review gates should live under scripts/lib/task-lifecycle/");
+assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-lifecycle/review-confirm.mjs")), "review-confirm lifecycle writer should live under scripts/lib/task-lifecycle/");
+assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-lifecycle/text-utils.mjs")), "task lifecycle text helpers should live under scripts/lib/task-lifecycle/");
 
 const taskScannerModule = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-scanner.mjs"), "utf8");
 assert(taskScannerModule.split(/\r?\n/).length <= 600, "task scanner should stay below 600 lines by routing lesson candidate parsing out");

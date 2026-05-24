@@ -12,6 +12,7 @@ import {
   splitMarkdownRow,
   tableAfterHeading,
 } from "./markdown-utils.mjs";
+import { validateReviewConfirmationGitAudit } from "./review-confirm-git-gate.mjs";
 import { isLessonCandidateDecisionComplete } from "./task-lesson-candidates.mjs";
 
 export const taskScannerVersion = "task-scanner/2026-05-23-lifecycle-queues";
@@ -236,7 +237,7 @@ export function deriveTaskQueues({ id, title, reviewStatus, reviewSubmission, re
   };
 }
 
-export function parseReviewConfirmation(reviewContent, { taskKey = "" } = {}) {
+export function parseReviewConfirmation(reviewContent, { taskKey = "", projectRoot = "", taskDir = "", reviewPath = "", progressPath = "" } = {}) {
   const match = String(reviewContent || "").match(/^##\s*(?:Human Review Confirmation|人工审查确认)\s*$([\s\S]*?)(?=^##\s+|(?![\s\S]))/im);
   if (!match) return null;
   const fields = fieldsFromMarkdownBlock(match[1] || "");
@@ -250,11 +251,23 @@ export function parseReviewConfirmation(reviewContent, { taskKey = "" } = {}) {
   const confirmTextMismatch = Boolean(taskKey && isConcreteField(confirmText) && !taskKeysMatch(confirmText, taskKey));
   const commitShaInvalid = Boolean(isConcreteField(commitSha) && !/^[0-9a-f]{7,40}$/i.test(commitSha));
   const auditStatusInvalid = Boolean(isConcreteField(auditStatus) && auditStatus.trim().toLowerCase() !== "committed");
+  let gitAudit = null;
+  if (missing.length === 0 && !taskKeyMismatch && !confirmTextMismatch && !commitShaInvalid && !auditStatusInvalid) {
+    gitAudit = validateReviewConfirmationGitAudit({
+      projectRoot,
+      taskId: taskKey,
+      reviewPath: reviewPath || (taskDir ? path.join(taskDir, "review.md") : ""),
+      progressPath: progressPath || (taskDir ? path.join(taskDir, "progress.md") : ""),
+      commitSha,
+    });
+  }
+  const gitAuditInvalid = Boolean(gitAudit && !gitAudit.valid);
   const invalidFields = [
     ...(taskKeyMismatch ? ["Task Key match"] : []),
     ...(confirmTextMismatch ? ["Confirm Text match"] : []),
     ...(commitShaInvalid ? ["Commit SHA valid"] : []),
     ...(auditStatusInvalid ? ["Audit Status committed"] : []),
+    ...(gitAuditInvalid ? ["Commit SHA git audit"] : []),
   ];
   if (fields.size > 0) {
     return {
@@ -273,6 +286,8 @@ export function parseReviewConfirmation(reviewContent, { taskKey = "" } = {}) {
       commitShaInvalid,
       auditStatus,
       auditStatusInvalid,
+      gitAudit,
+      gitAuditInvalid,
     };
   }
   return { confirmed: false, missingFields: required };

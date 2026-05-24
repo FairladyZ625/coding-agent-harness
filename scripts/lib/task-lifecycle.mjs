@@ -35,12 +35,7 @@ import {
   collectReviewRisks,
   isBlockingReviewRisk,
   listTaskPlanPaths,
-  parsePhases,
   parseTaskBudget,
-  parseLessonCandidateStatus,
-  isLessonCandidateDecisionComplete,
-  parseReviewConfirmation,
-  readVisualMapContractFile,
   taskIdForDirectory,
   taskScannerVersion,
 } from "./task-scanner.mjs";
@@ -49,7 +44,12 @@ import {
   firstColumn,
   updateMarkdownTableRow,
 } from "./markdown-utils.mjs";
-import { commitReviewConfirmationGate, prepareReviewConfirmGitGate } from "./review-confirm-git-gate.mjs";
+import {
+  validateLifecycleTransition,
+  validateReviewEntryGate,
+} from "./task-lifecycle/review-gates.mjs";
+import { confirmTaskReview as confirmTaskReviewWithContext } from "./task-lifecycle/review-confirm.mjs";
+import { appendProgressLog, markdownCell } from "./task-lifecycle/text-utils.mjs";
 
 function taskTemplateFiles({ locale = "en-US" } = {}) {
   return [
@@ -175,64 +175,6 @@ function appendLongRunningContractFile(files, { locale, longRunning }) {
   return [...files, [longRunningTaskContractFile, localizedTemplateSource("templates/planning/long-running-task-contract.md", locale)]];
 }
 
-function validateLifecycleTransition({ event, currentState, budget, reviewContent = "", reviewTaskKey = "" }) {
-  if (event === "task-review" && currentState !== "in_progress") {
-    throw new Error(`task-review requires current state in_progress; current state is ${currentState || "unknown"}`);
-  }
-  if (event === "task-complete" && budget !== "simple" && currentState !== "review") {
-    throw new Error(`task-complete for ${budget} tasks requires current state review. Run task-review first.`);
-  }
-  if (event === "task-complete" && budget !== "simple") {
-    const blockingRisks = collectReviewRisks(reviewContent).filter(isBlockingReviewRisk);
-    if (blockingRisks.length > 0) {
-      const ids = blockingRisks.map((risk) => risk.id || risk.severity).join(", ");
-      throw new Error(`Open blocking review findings must be closed before task-complete: ${ids}`);
-    }
-    if (!parseReviewConfirmation(reviewContent, { taskKey: reviewTaskKey })?.confirmed) {
-      throw new Error("Human review must be confirmed before task-complete. Run review-confirm first.");
-    }
-  }
-}
-
-function validateReviewEntryGate(taskDir, budget) {
-  if (budget === "simple") return;
-  const candidatePath = path.join(taskDir, lessonCandidatesFile);
-  if (!fs.existsSync(candidatePath)) {
-    throw new Error(`task-review requires ${lessonCandidatesFile} before entering human review.`);
-  }
-  const phases = parsePhases(readVisualMapContractFile(taskDir).content);
-  const actionablePhases = phases.filter((phase) => phase.state !== "skipped");
-  const hasRecordedPhaseProgress = actionablePhases.some(
-    (phase) =>
-      phase.completion > 0 ||
-      ["in_progress", "review", "blocked", "done"].includes(phase.state) ||
-      ["partial", "present", "waived"].includes(phase.evidenceStatus),
-  );
-  if (actionablePhases.length > 0 && !hasRecordedPhaseProgress) {
-    throw new Error("task-review requires at least one Visual Map phase progress update. Run task-phase before entering human review.");
-  }
-}
-
-function validateHumanReviewConfirmation({ task, budget }) {
-  if (budget === "simple") return;
-  if (!task?.walkthroughPath) {
-    throw new Error("Human review confirmation requires a walkthrough linked from Closeout SSoT before review-confirm.");
-  }
-  const queueState = task?.reviewQueueState || "not-in-queue";
-  if (queueState !== "ready-to-confirm") {
-    const state = task?.state || "unknown";
-    throw new Error(`Human review confirmation requires canonical ready-to-confirm review queue; current state is ${state}, review queue is ${queueState}.`);
-  }
-  if (!Array.isArray(task?.taskQueues) || !task.taskQueues.includes("review")) {
-    const queues = Array.isArray(task?.taskQueues) ? task.taskQueues.join(", ") : "none";
-    throw new Error(`Human review confirmation requires the task to be in the Review queue; current queues: ${queues || "none"}.`);
-  }
-  if (!task?.lessonCandidateDecisionComplete) {
-    const status = task?.lessonCandidateStatus || "missing";
-    throw new Error(`Human review confirmation requires lesson candidate decision complete; current status is ${status}.`);
-  }
-}
-
 function updateProgressState(content, state, locale) {
   const label = stateLabel(state, locale);
   if (/^##\s*状态[:：][^\n]*/im.test(content)) {
@@ -242,22 +184,6 @@ function updateProgressState(content, state, locale) {
     return content.replace(/^##\s*(Current Status|Status)\s*\n+\s*[^\n]+/im, `## $1\n\n${label}`);
   }
   return `${content.trimEnd()}\n\n## Status\n\n${label}\n`;
-}
-
-function appendProgressLog(content, { event, message, evidence, actor = "coordinator" }) {
-  const timestamp = nowTimestamp();
-  const safeMessage = String(message || event).replace(/\r?\n/g, " ").trim();
-  const safeEvidence = String(evidence || "n/a").replace(/\r?\n/g, " ").trim();
-  if (/^##\s*Log\s*$/im.test(content)) {
-    return content.replace(
-      /(^##\s*Log\s*$[\s\S]*?\| --- \| --- \| --- \| --- \| --- \|\n)/im,
-      `$1| ${timestamp} | ${actor} | ${event}: ${safeMessage} | ${safeEvidence} | ${event === "task-complete" ? "done" : "continue"} |\n`,
-    );
-  }
-  if (/^##\s*进度记录\s*$/im.test(content)) {
-    return `${content.trimEnd()}\n\n### [${timestamp}] - ${event}\n\n- 做了什么：${safeMessage}\n- 验证结果：已记录\n- 下一步：${event === "task-complete" ? "完成" : "继续执行"}\n- 证据：${safeEvidence}\n`;
-  }
-  return `${content.trimEnd()}\n\n## Log\n\n| Time | Actor | Action | Evidence | Next |\n| --- | --- | --- | --- | --- |\n| ${timestamp} | ${actor} | ${event}: ${safeMessage} | ${safeEvidence} | ${event === "task-complete" ? "done" : "continue"} |\n`;
 }
 
 function ensureDatePrefix(slug) {
@@ -393,6 +319,8 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
     budget,
     reviewContent: readFileSafe(path.join(taskDir, "review.md")),
     reviewTaskKey: canonicalTaskId,
+    projectRoot: target.projectRoot,
+    taskDir,
   });
   if (event === "task-review") validateReviewEntryGate(taskDir, budget);
   let content = readFileSafe(progressPath);
@@ -425,90 +353,7 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
 export function confirmTaskReview(targetInput, taskId, { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "" } = {}) {
   const target = normalizeTarget(targetInput);
   const taskDir = resolveTaskDirectory(target, taskId);
-  assertTaskDirectoryInsidePlanning(target, taskDir);
-  const canonicalTaskId = taskIdForDirectory(target, taskDir);
-  const shortId = path.basename(taskDir);
-  if (confirmText && ![shortId, canonicalTaskId].includes(confirmText)) {
-    throw new Error(`Review confirmation text must match task id: ${shortId}`);
-  }
-  if (!confirmText) throw new Error(`Missing review confirmation text: ${shortId}`);
-
-  const reviewPath = path.join(taskDir, "review.md");
-  const progressPath = path.join(taskDir, "progress.md");
-  const reviewContent = readFileSafe(reviewPath);
-  const budget = parseTaskBudget(readFileSafe(path.join(taskDir, "task_plan.md")));
-  const candidateStatus = parseLessonCandidateStatus(readFileSafe(path.join(taskDir, lessonCandidatesFile)));
-  const blockingRisks = collectReviewRisks(reviewContent).filter(isBlockingReviewRisk);
-  if (blockingRisks.length > 0) {
-    const ids = blockingRisks.map((risk) => risk.id || risk.severity).join(", ");
-    throw new Error(`Open blocking review findings must be closed before confirmation: ${ids}`);
-  }
-  validateHumanReviewConfirmation({
-    task: findTaskByDirectory(target, taskDir),
-    budget,
-  });
-  if (budget !== "simple" && !isLessonCandidateDecisionComplete(candidateStatus)) {
-    throw new Error(`Human review confirmation requires lesson candidate decision complete; current status is ${candidateStatus.status}.`);
-  }
-  const gitGate = prepareReviewConfirmGitGate(target.projectRoot, [reviewPath, progressPath]);
-
-  const timestamp = nowTimestamp();
-  const confirmationId = `HRC-${timestamp.replace(/[^0-9]/g, "").slice(0, 14)}`;
-  const safeReviewer = markdownCell(reviewer || "Human Reviewer");
-  const safeReviewerEmail = markdownCell(process.env.GIT_AUTHOR_EMAIL || process.env.GIT_COMMITTER_EMAIL || "reviewer@example.invalid");
-  const safeMessage = markdownCell(message || "Human review confirmed");
-  const safeEvidence = markdownCell(evidence || `TARGET:docs/09-PLANNING/${canonicalTaskId}/review.md`);
-  const renderConfirmationBlock = ({ commitSha = "pending", auditStatus = "commit-pending" } = {}) =>
-    `## Human Review Confirmation\n\n| Field | Value |\n| --- | --- |\n| Confirmation ID | ${confirmationId} |\n| Confirmed At | ${timestamp} |\n| Reviewer | ${safeReviewer} |\n| Reviewer Email | ${safeReviewerEmail} |\n| Task Key | ${canonicalTaskId} |\n| Confirm Text | ${markdownCell(confirmText)} |\n| Evidence Checked | ${safeEvidence} |\n| Commit SHA | ${markdownCell(commitSha)} |\n| Audit Status | ${markdownCell(auditStatus)} |\n| Message | ${safeMessage} |\n`;
-  const confirmationBlock = renderConfirmationBlock();
-  const nextReview = replaceReviewConfirmation(reviewContent, confirmationBlock);
-  fs.writeFileSync(reviewPath, nextReview.endsWith("\n") ? nextReview : `${nextReview}\n`);
-  let progressContent = readFileSafe(progressPath);
-  progressContent = appendProgressLog(progressContent, {
-    event: "review-confirm",
-    message: message || `Human review confirmed by ${reviewer}`,
-    evidence: evidence || `TARGET:docs/09-PLANNING/${canonicalTaskId}/review.md`,
-    actor: reviewer || "Human Reviewer",
-  });
-  fs.writeFileSync(progressPath, progressContent.endsWith("\n") ? progressContent : `${progressContent}\n`);
-  const audit = commitReviewConfirmationGate(gitGate, {
-    taskId: canonicalTaskId,
-    reviewPath,
-    message: message || `Human review confirmed by ${reviewer}`,
-    writeFinalAudit(commitSha) {
-      const currentReview = readFileSafe(reviewPath);
-      const finalReview = replaceReviewConfirmation(currentReview, renderConfirmationBlock({ commitSha, auditStatus: "committed" }));
-      fs.writeFileSync(reviewPath, finalReview.endsWith("\n") ? finalReview : `${finalReview}\n`);
-    },
-  });
-  return {
-    event: "review-confirm",
-    task: findTaskByDirectory(target, taskDir) || { id: canonicalTaskId, reviewStatus: "confirmed" },
-    audit,
-  };
-}
-function assertTaskDirectoryInsidePlanning(target, taskDir) {
-  const realTaskDir = fs.realpathSync(taskDir);
-  const allowedRoots = [
-    path.join(target.docsRoot, "09-PLANNING/TASKS"),
-    path.join(target.docsRoot, "09-PLANNING/MODULES"),
-  ].filter(fs.existsSync).map((root) => fs.realpathSync(root));
-  if (!allowedRoots.some((root) => realTaskDir === root || realTaskDir.startsWith(`${root}${path.sep}`))) {
-    throw new Error(`Task directory outside planning root: ${taskIdForDirectory(target, taskDir)}`);
-  }
-}
-function markdownCell(value) {
-  return String(value || "")
-    .replace(/\r?\n/g, " ")
-    .replaceAll("|", "\\|")
-    .trim();
-}
-function replaceReviewConfirmation(content, block) {
-  const trimmed = String(content || "").trimEnd();
-  if (/^##\s*(?:Human Review Confirmation|人工审查确认)\s*$/im.test(trimmed)) {
-    return trimmed.replace(/^##\s*(?:Human Review Confirmation|人工审查确认)\s*$[\s\S]*?(?=^##\s+|(?![\s\S]))/im, `${block.trimEnd()}\n\n`);
-  }
-  return `${trimmed}\n\n${block.trimEnd()}\n`;
+  return confirmTaskReviewWithContext({ target, taskDir, findTaskByDirectory }, { reviewer, message, confirmText, evidence });
 }
 function renderAgentReviewSubmission({ target, taskDir, canonicalTaskId, message, evidence }) {
   const timestamp = nowTimestamp();

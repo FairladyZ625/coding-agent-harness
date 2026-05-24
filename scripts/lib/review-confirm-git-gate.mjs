@@ -69,6 +69,54 @@ export function commitReviewConfirmationGate(gate, { taskId, reviewPath, writeFi
   };
 }
 
+export function validateReviewConfirmationGitAudit({ projectRoot, taskId, reviewPath, progressPath, commitSha }) {
+  const issues = [];
+  const addIssue = (code) => issues.push(code);
+  const root = projectRoot ? path.resolve(projectRoot) : "";
+  const reviewRelativePath = root && reviewPath ? toPosix(path.relative(root, path.resolve(reviewPath))) : "";
+  const progressRelativePath = root && progressPath ? toPosix(path.relative(root, path.resolve(progressPath))) : "";
+  const expectedPaths = [reviewRelativePath, progressRelativePath].filter(Boolean).sort();
+  if (!root) addIssue("git-audit-context-missing");
+  if (!commitSha) addIssue("git-audit-commit-missing");
+  if (issues.length > 0) return { valid: false, issues };
+
+  const gitRootResult = git(root, ["rev-parse", "--show-toplevel"], { allowFailure: true });
+  if (gitRootResult.status !== 0) {
+    return { valid: false, issues: ["git-audit-repository-missing"] };
+  }
+  const gitRoot = path.resolve(gitRootResult.stdout.trim());
+  if (real(gitRoot) !== real(root)) addIssue("git-audit-root-mismatch");
+
+  const commitResult = git(root, ["rev-parse", "--verify", `${commitSha}^{commit}`], { allowFailure: true });
+  if (commitResult.status !== 0) {
+    return { valid: false, issues: [...issues, "git-audit-commit-missing"] };
+  }
+  const fullCommitSha = commitResult.stdout.trim();
+  const reachable = git(root, ["merge-base", "--is-ancestor", fullCommitSha, "HEAD"], { allowFailure: true });
+  if (reachable.status !== 0) addIssue("git-audit-commit-not-reachable");
+
+  const subject = git(root, ["show", "-s", "--format=%s", fullCommitSha], { allowFailure: true }).stdout.trim();
+  const expectedSubject = `chore: confirm review ${String(taskId || "").replace(/[^A-Za-z0-9._/-]+/g, "-")}`;
+  if (subject !== expectedSubject) addIssue("git-audit-subject-mismatch");
+
+  const changedPaths = git(root, ["diff-tree", "--no-commit-id", "--name-only", "-r", fullCommitSha], { allowFailure: true }).stdout
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map(toPosix)
+    .sort();
+  if (expectedPaths.length === 0) addIssue("git-audit-allowlist-missing");
+  if (changedPaths.join("\n") !== expectedPaths.join("\n")) addIssue("git-audit-allowlist-mismatch");
+
+  return {
+    valid: issues.length === 0,
+    issues,
+    commitSha: fullCommitSha,
+    changedPaths,
+    expectedPaths,
+    subject,
+  };
+}
+
 function requireGitRoot(root) {
   const result = git(root, ["rev-parse", "--show-toplevel"], { allowFailure: true });
   if (result.status !== 0) {
