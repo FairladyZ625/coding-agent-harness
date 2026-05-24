@@ -1,14 +1,17 @@
-# Task State Machine And Review Queue
+# Task State Machine And Lifecycle Queues
 
 Chinese mirror: `docs-release/guides/task-state-machine.md`
 
-Coding Agent Harness does not model task state as a single field. The Dashboard derives the visible state from multiple files:
+Coding Agent Harness does not model task state as a single field. The Dashboard derives the visible lifecycle from multiple files:
 
-- `progress.md` stores the raw `task.state`.
-- `review.md` stores agent review notes, P0-P2 findings, and human confirmation.
-- `lesson_candidates.md` records whether lesson candidate review is complete.
+- `progress.md` stores raw `task.state` and execution evidence.
+- `review.md` stores Agent Review Submission, material findings, and Human Review Confirmation.
+- `lesson_candidates.md` records lesson candidate decisions and sedimentation routing.
 - `10-WALKTHROUGH/Closeout-SSoT.md` records closeout status and links walkthrough evidence.
-- The scanner derives `lifecycleState`, `reviewStatus`, `closeoutStatus`, and `reviewQueueState` from those files.
+- Tombstone / supersede metadata records whether a task was soft-deleted, merged, archived, or replaced.
+- The scanner derives `lifecycleState`, `reviewStatus`, `closeoutStatus`, `taskQueues[]`, `queueReasons[]`, and `repairPrompt` from those files.
+
+The older `reviewQueueState` model was enough for a single review page. After PF-024, the public model is a set of lifecycle queues: Review, Missing Materials, Blocked, Lessons, Confirmed / Finalized, and Soft-deleted / Superseded.
 
 ## Raw Task Command Flow
 
@@ -19,107 +22,119 @@ stateDiagram-v2
   planned --> in_progress: task-start
   in_progress --> in_progress: task-log / task-phase
   in_progress --> blocked: task-block
-  blocked --> in_progress: task-start
-  in_progress --> review: task-review
-  review --> done: review-confirm + task-complete
-  done --> [*]
+  blocked --> in_progress: blocker fixed
+  in_progress --> review_submitted: task-review
+  review_submitted --> missing_materials: returned for materials
+  missing_materials --> in_progress: repair materials
+  review_submitted --> blocked: blocking finding
+  review_submitted --> human_confirmed: review-confirm
+  human_confirmed --> finalized: task-complete + closeout
+  finalized --> [*]
 ```
 
-`done` is only the raw task state. It does not mean human review and closeout are complete.
+`task-review` means the agent submitted a review packet. It does not mean human approval. `review-confirm` is the Human Review Confirmation gate. `task-complete` / closeout is not a substitute for review confirmation.
 
 ## Derived State
 
 ```mermaid
 flowchart TB
-  Progress["progress.md<br/>task.state"]
-  Review["review.md<br/>findings + Human Review Confirmation"]
-  Lessons["lesson_candidates.md<br/>decision complete"]
+  Progress["progress.md<br/>task.state + evidence"]
+  Review["review.md<br/>Agent Review Submission + findings + Human Review Confirmation"]
+  Lessons["lesson_candidates.md<br/>decision + sedimentation route"]
   Closeout["Closeout-SSoT.md<br/>closeout row + walkthrough"]
+  Tombstone["tombstone / supersede metadata"]
   Scanner["scanner"]
 
   Progress --> Scanner
   Review --> Scanner
   Lessons --> Scanner
   Closeout --> Scanner
+  Tombstone --> Scanner
 
   Scanner --> Lifecycle["lifecycleState"]
   Scanner --> ReviewStatus["reviewStatus"]
   Scanner --> CloseoutStatus["closeoutStatus"]
-  Scanner --> Queue["reviewQueueState"]
+  Scanner --> Queues["taskQueues[]"]
+  Scanner --> Reasons["queueReasons[]"]
+  Scanner --> Prompt["repairPrompt"]
 ```
 
 | Field | Source | Purpose |
 | --- | --- | --- |
-| `task.state` | `progress.md` | Execution stage. |
-| `reviewStatus` | `review.md` + findings + human confirmation | Separates missing review, agent review, blocking findings, and human confirmation. |
+| `task.state` | `progress.md` | Raw execution stage. |
+| `reviewStatus` | `review.md` + findings + Human Review Confirmation | Separates missing review, agent-submitted review, blockers, and human confirmation. |
 | `closeoutStatus` | `Closeout-SSoT.md` | Separates missing, pending, and closed closeout. |
-| `lifecycleState` | scanner-derived | Dashboard lifecycle meaning. |
-| `reviewQueueState` | scanner-derived | Whether `#/review` includes the task and which bucket it belongs to. |
+| `lifecycleState` | scanner-derived | Main Dashboard lifecycle meaning. |
+| `taskQueues[]` | scanner-derived | Which lifecycle queues include the task. A task can be visible in more than one governance queue. |
+| `queueReasons[]` | scanner-derived | Why the task entered a queue, including source file, field, and repair action. |
+| `repairPrompt` | scanner-derived | A copyable, scoped repair prompt for a Coding Agent. |
 
 ## Lifecycle Matrix
 
 | Condition | `lifecycleState` | Meaning |
 | --- | --- | --- |
-| `reviewStatus = blocked-open-findings` | `review-blocked` | An open P0-P2 finding blocks human confirmation. |
-| `closeoutStatus = closed` and `reviewStatus != confirmed` | `closed-review-pending` | Closed but missing human confirmation. It must enter the review queue. |
-| `closeoutStatus = closed` and `reviewStatus = confirmed` | `closed` | Truly closed. |
-| `task.state = done` and closeout is not closed | `closing` | Raw task work is done, but closeout is not complete. |
-| `task.state = review` | `in_review` | Execution review stage. |
-| `task.state = blocked` | `blocked` | Execution is blocked. |
+| Tombstone, superseded-by, archive, or abandoned marker exists | `soft-deleted-superseded` | Hidden by default, but preserved for audit and replacement tracing. |
+| Open P0-P2 finding, invalid transition, audit failure, or failed human-review gate | `blocked` | Cannot enter human confirmation until the blocker is fixed or waived. |
+| Standard / complex task is missing required files, sections, evidence, lesson decision, or review submission | `missing-materials` | Needs agent repair; not part of the human review queue. |
+| `task-review` was submitted, materials are ready, and Human Review Confirmation is missing | `review-submitted` | Truly waiting for human review. |
+| Human Review Confirmation exists, but closeout / ledger / lessons are not fully closed | `confirmed-finalization-pending` | Accountability moved to the reviewer, but governance closeout remains. |
+| Human Review Confirmation exists, and closeout / ledger / lesson routing are complete | `finalized` | Truly complete and traceable. |
+| `task.state = blocked` without a review blocker | `active-blocked` | Execution is blocked. |
 | `task.state = in_progress` | `active` | Work is active. |
-| `task.state = planned/not_started` | `ready` | Work has not started. |
+| `task.state = planned/not_started` | `ready` | Work has not started; not in human review by default. |
 
 ## Review Status
 
 | `reviewStatus` | Meaning |
 | --- | --- |
-| `missing` | No review document is available. |
-| `required` | Review document exists, but has no clear agent review verdict or human confirmation. |
-| `agent-reviewed` | An agent or coordinator wrote a review verdict. This is not human confirmation. |
-| `blocked-open-findings` | There is an open P0-P2 finding or a finding that blocks release. |
+| `missing` | No usable review document or Agent Review Submission exists. |
+| `required` | Review document exists, but the packet is not ready for human review. |
+| `submitted` | An agent submitted a review packet. This is not human confirmation. |
+| `blocked-open-findings` | There is an open P0-P2 finding or a finding that blocks release / confirmation. |
 | `confirmed` | `Human Review Confirmation` exists. |
 
-Agent review is not human confirmation. Only `review-confirm` or a Dashboard Workbench confirmation writes the `Human Review Confirmation` block.
+Agent self-review, subagent review, and coordinator review can only move a task toward `submitted`. Only `review-confirm` or an explicit Dashboard Workbench human confirmation writes `Human Review Confirmation`.
 
-## Review Queue
+## Lifecycle Queues
 
-`#/review` is the human review workbench. It is not limited to tasks currently in the raw `review` stage. It also shows closed tasks that still need human confirmation.
+The Dashboard lifecycle workbench is a set of queues, not one mixed review list.
 
 ```mermaid
 flowchart TD
-  Task["task"]
-  Task --> Blocked{"reviewStatus = blocked-open-findings?"}
-  Blocked -->|yes| QBlocked["reviewQueueState = blocked"]
-  Blocked -->|no| Early{"state in planned / not_started / in_progress?"}
-  Early -->|yes| Out["not-in-queue"]
-  Early -->|no| Surface{"state/lifecycle/closeout needs review surface?"}
-  Surface -->|no| Out
-  Surface -->|yes| Confirmed{"reviewStatus = confirmed?"}
-  Confirmed -->|yes + closeout closed| Out
-  Confirmed -->|yes + closeout pending| QConfirmed["reviewQueueState = confirmed"]
-  Confirmed -->|no| Simple{"simple + review missing?"}
-  Simple -->|yes| Out
-  Simple -->|no| Material{"missing walkthrough / lesson decision / review conclusion?"}
-  Material -->|yes| Needs["reviewQueueState = needs-material"]
-  Material -->|no| Closed{"closeoutStatus = closed?"}
-  Closed -->|yes| Debt["reviewQueueState = closed-debt"]
-  Closed -->|no| Ready["reviewQueueState = ready-to-confirm"]
+  Task["task facts"]
+  Task --> Deleted{"tombstone / superseded / archived?"}
+  Deleted -->|yes| QDeleted["Soft-deleted / Superseded"]
+  Deleted -->|no| Blocker{"blocking finding or invalid transition?"}
+  Blocker -->|yes| QBlocked["Blocked"]
+  Blocker -->|no| Missing{"required materials missing?"}
+  Missing -->|yes| QMissing["Missing Materials"]
+  Missing -->|no| Submitted{"Agent Review Submission exists?"}
+  Submitted -->|yes + not human confirmed| QReview["Review"]
+  Submitted -->|no| Out["not in human review queue"]
+  Submitted -->|yes + human confirmed| Confirmed{"finalization complete?"}
+  Confirmed -->|no| QConfirmed["Confirmed / Finalized"]
+  Confirmed -->|yes| QFinal["Confirmed / Finalized"]
+  Task --> Lessons{"lesson candidate needs decision or sedimentation?"}
+  Lessons -->|yes| QLessons["Lessons"]
 ```
 
-| `reviewQueueState` | Dashboard meaning |
-| --- | --- |
-| `not-in-queue` | Do not show in the review queue. |
-| `needs-material` | Needs walkthrough, lesson decision, or review conclusion. |
-| `ready-to-confirm` | Material is ready for human confirmation. |
-| `closed-debt` | Already closed, but missing human confirmation. |
-| `blocked` | Has blocking review findings. |
-| `confirmed` | Human-confirmed, but may still be waiting for task completion or closeout. |
+| Queue | Entry condition | Primary owner | Exit condition |
+| --- | --- | --- | --- |
+| Review | Review packet submitted, materials ready, and no human confirmation yet. | human | Human confirms or returns it. |
+| Missing Materials | Missing file, section, evidence, lesson decision, review submission, or incomplete phase. | agent | Agent repairs materials and resubmits review. |
+| Blocked | Blocking finding, state conflict, Git audit failure, completion gate failure, or human waiver required. | agent + human | Fixed, closed, or explicitly waived. |
+| Lessons | Lesson candidate needs decision, task-local retention, rejection, dry-run promotion, or a sedimentation task. | human + agent | Decision is complete, or a traceable sedimentation task exists. |
+| Confirmed / Finalized | Human-confirmed, or finalized and ready for read-only tracing. | coordinator | Closeout, ledger, and lesson routing are complete; then read-only. |
+| Soft-deleted / Superseded | Task was soft-deleted, replaced, merged, archived, or abandoned. | coordinator | Read-only tracing; reopen only when needed. |
+
+The Review queue only waits for human confirmation. Missing materials, blockers, lesson sedimentation, confirmed-but-not-finalized work, and historical superseded tasks must not masquerade as Review queue items.
 
 ## Human Confirmation Loop
 
 ```mermaid
 sequenceDiagram
   autonumber
+  participant Agent as Agent / coordinator
   participant Human as Human reviewer
   participant UI as Dashboard Workbench
   participant API as workbench API
@@ -127,14 +142,16 @@ sequenceDiagram
   participant Docs as markdown files
   participant Scanner as scanner
 
-  Human->>UI: open #/review/:taskId
+  Agent->>Docs: write Agent Review Submission + evidence
+  Agent->>UI: submit task-review
+  Human->>UI: open Review queue item
   UI->>API: POST /api/tasks/review-complete
   API->>Scanner: read current task facts
-  Scanner-->>API: reviewQueueState and reviewStatus
-  alt not in review queue
-    API-->>UI: reject
-  else blocking finding or missing material
-    Lifecycle-->>API: reject with reason
+  Scanner-->>API: taskQueues, queueReasons, reviewStatus
+  alt not in Review queue
+    API-->>UI: reject with target queue
+  else missing material or blocker
+    API-->>UI: reject with repairPrompt
   else accepted
     API->>Lifecycle: confirmTaskReview()
     Lifecycle->>Docs: write Human Review Confirmation
@@ -144,4 +161,29 @@ sequenceDiagram
   end
 ```
 
-The rule is intentionally strict: an agent can prepare review evidence, but a task is not human-confirmed until the human confirmation block exists.
+Strict rule: an agent can prepare review evidence and submit the task for review, but the task is not human-confirmed until the Human Review Confirmation block exists.
+
+## Lesson Sedimentation
+
+Lesson promotion does not write Lessons SSoT by default. The Dashboard or CLI should prefer a dry-run or follow-up sedimentation task so the assignee first:
+
+- Classifies scope and boundary reason.
+- Checks conflicts against existing Lessons SSoT, reference standards, templates, and checkers.
+- Proposes a target diff or no-action reason.
+- Writes the SSoT or standard update only after human approval.
+
+`needs-promotion` should not block human review confirmation by itself, but it must enter the Lessons queue and remain traceable in closeout / ledger records.
+
+## Soft Delete And Supersede
+
+The document library does not hard-delete task directories by default.
+
+| State | Meaning | Requirement |
+| --- | --- | --- |
+| `active` | Normal task. | Dashboard shows it by default. |
+| `soft-deleted` | Task was abandoned but the directory stays. | Write a tombstone with operator, timestamp, reason, and reopen eligibility. |
+| `superseded` | Task was replaced or merged into a newer task. | Old task records `Superseded By`; new task records `Supersedes`. |
+| `archived` | Task moved to archive. | Reference checks must pass first, and a redirect stub or generated index entry must remain. |
+| `hard-deleted` | Physically deleted. | Forbidden by default; allowed only for mistaken tasks with no references, ledger, progress, or review evidence. |
+
+The Soft-deleted / Superseded queue is read-only tracing. It tells users why a task is not active and which task replaced it.

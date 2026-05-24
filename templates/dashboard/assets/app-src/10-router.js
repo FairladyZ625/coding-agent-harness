@@ -71,6 +71,7 @@ function currentRoute() {
 }
 
 function routeLink(hash, text, routeName) {
-  const active = currentRoute().name === routeName;
+  const current = currentRoute().name;
+  const active = current === routeName || (routeName === "review" && current === "reviewTask");
   return `<a class="${active ? "active" : ""}" href="${hash}">${escapeHtml(text)}</a>`;
 }

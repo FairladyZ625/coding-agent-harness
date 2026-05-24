@@ -18,12 +18,38 @@ import {
   firstColumn,
   splitList,
   splitDependencies,
-  getColumn,
 } from "./markdown-utils.mjs";
 import {
   isLessonCandidateDecisionComplete,
   parseLessonCandidateStatus,
 } from "./task-lesson-candidates.mjs";
+import {
+  assessMaterialsReadiness,
+  collectReviewRisks,
+  collectStateConflicts,
+  deriveLifecycleState,
+  deriveReviewQueueState,
+  deriveTaskQueues,
+  isBlockingReviewRisk,
+  parseAgentReviewSubmission,
+  parseReviewConfirmation,
+  parseTaskIdentity,
+  parseTaskTombstone,
+  taskReviewStatus,
+  taskScannerVersion,
+} from "./task-review-model.mjs";
+export {
+  collectReviewRisks,
+  deriveLifecycleState,
+  deriveReviewQueueState,
+  isBlockingReviewRisk,
+  parseAgentReviewSubmission,
+  parseReviewConfirmation,
+  parseTaskIdentity,
+  parseTaskTombstone,
+  taskReviewStatus,
+  taskScannerVersion,
+} from "./task-review-model.mjs";
 export {
   allowedLessonCandidateRowStatuses,
   allowedLessonCandidateTaskStatuses,
@@ -306,6 +332,8 @@ export function collectTasks(target) {
         : 0;
     const relative = toPosix(path.relative(target.projectRoot, taskDir));
     const id = taskIdForDirectory(target, taskDir);
+    const identity = parseTaskIdentity(taskPlan, id);
+    const tombstone = parseTaskTombstone(taskPlan);
     const title = titleFromMarkdown(brief.content || taskPlan, path.basename(taskDir));
     const stateInfo = parseTaskStateInfo(progress);
     const budget = parseTaskBudget(taskPlan);
@@ -317,10 +345,22 @@ export function collectTasks(target) {
     const briefVisualStatus = explicitVisualMapStatus(brief.content);
     const visualMapStatus = briefVisualStatus === "not-needed" && visualMap.status === "missing" ? "not-needed" : visualMap.status;
     const risks = collectReviewRisks(review);
-    const reviewConfirmation = parseReviewConfirmation(review);
-    const reviewStatus = taskReviewStatus({ reviewContent: review, risks, confirmation: reviewConfirmation });
+    const reviewSubmission = parseAgentReviewSubmission(review, { taskKey: identity.taskKey });
+    const reviewConfirmation = parseReviewConfirmation(review, { taskKey: identity.taskKey });
+    const reviewStatus = taskReviewStatus({ reviewContent: review, risks, confirmation: reviewConfirmation, submission: reviewSubmission });
     const closeoutInfo = taskCloseoutInfo(target, taskPlanPath);
     const lifecycleState = deriveLifecycleState({ state: stateInfo.state, reviewStatus, closeoutStatus: closeoutInfo.status });
+    const materialReadiness = assessMaterialsReadiness({
+      budget,
+      taskDir,
+      taskPlan,
+      brief,
+      visualMap,
+      reviewSubmission,
+      lessonCandidates,
+      phases,
+      longRunningContractPath,
+    });
     const stateConflicts = collectStateConflicts({ state: stateInfo.state, reviewStatus, closeoutStatus: closeoutInfo.status, lifecycleState });
     const reviewQueueState = deriveReviewQueueState({
       state: stateInfo.state,
@@ -330,9 +370,34 @@ export function collectTasks(target) {
       budget,
       walkthroughPath: closeoutInfo.walkthroughPath,
       lessonCandidateDecisionComplete: isLessonCandidateDecisionComplete(lessonCandidates),
+      materialsReady: materialReadiness.ready,
+      deletionState: tombstone.deletionState,
+    });
+    const queueModel = deriveTaskQueues({
+      id,
+      title,
+      state: stateInfo.state,
+      budget,
+      reviewStatus,
+      reviewSubmission,
+      reviewConfirmation,
+      reviewQueueState,
+      materialIssues: materialReadiness.issues,
+      risks,
+      stateConflicts,
+      lessonCandidates,
+      closeoutStatus: closeoutInfo.status,
+      tombstone,
+      taskDir,
+      target,
     });
     return {
       id,
+      taskKey: identity.taskKey,
+      currentPath: `TARGET:${relative}`,
+      originalPath: `TARGET:${relative}`,
+      aliases: [],
+      identitySource: identity.identitySource,
       shortId: path.basename(taskDir),
       title,
       path: `TARGET:${relative}`,
@@ -369,8 +434,15 @@ export function collectTasks(target) {
       migrationSnapshot: collectMigrationSnapshot(target, metadata),
       lifecycleState,
       reviewStatus,
+      reviewSubmitted: Boolean(reviewSubmission?.submitted),
+      reviewSubmission,
       reviewQueueState,
       reviewConfirmation,
+      materialsReady: materialReadiness.ready,
+      materialIssues: materialReadiness.issues,
+      taskQueues: queueModel.taskQueues,
+      queueReasons: queueModel.queueReasons,
+      repairPrompt: queueModel.repairPrompt,
       closeoutStatus: closeoutInfo.status,
       walkthroughPath: closeoutInfo.walkthroughPath ? `TARGET:${closeoutInfo.walkthroughPath}` : "",
       lessonCandidatePath: fs.existsSync(lessonCandidatesPath)
@@ -388,6 +460,16 @@ export function collectTasks(target) {
         ? `TARGET:${toPosix(path.relative(target.projectRoot, longRunningContractPath))}`
         : "",
       longRunningContractStatus: fs.existsSync(longRunningContractPath) ? "present" : "missing",
+      deletionState: tombstone.deletionState,
+      supersededBy: tombstone.supersededBy,
+      supersedes: tombstone.supersedes,
+      deleteReason: tombstone.deleteReason,
+      hiddenByDefault: tombstone.hiddenByDefault,
+      reopenEligible: tombstone.reopenEligible,
+      archiveEligible: tombstone.archiveEligible,
+      tombstoneSourcePath: tombstone.tombstoneSourcePath
+        ? `TARGET:${toPosix(path.relative(target.projectRoot, path.join(taskDir, "task_plan.md")))}#Task Tombstone`
+        : "",
       stateConflicts,
       completion,
       phases,
@@ -453,133 +535,9 @@ function extractWalkthroughPath(target, closeoutLine) {
   return projectRelative;
 }
 
-export function parseReviewConfirmation(reviewContent) {
-  const match = String(reviewContent || "").match(/^##\s*(?:Human Review Confirmation|人工审查确认)\s*$([\s\S]*?)(?=^##\s+|\s*$)/im);
-  if (!match) return null;
-  const block = match[1] || "";
-  const timeMatch = block.match(/\|\s*(\d{4}-\d{2}-\d{2}[^|]*)\|/);
-  const reviewerMatch = block.match(/Reviewer\s*[:：]\s*([^\n]+)/i) || block.match(/审查人\s*[:：]\s*([^\n]+)/);
-  return {
-    confirmed: true,
-    confirmedAt: timeMatch ? timeMatch[1].trim() : "",
-    reviewer: reviewerMatch ? reviewerMatch[1].trim() : "",
-  };
-}
-
-export function taskReviewStatus({ reviewContent = "", risks = [], confirmation = null } = {}) {
-  if (risks.some(isBlockingReviewRisk)) return "blocked-open-findings";
-  if (confirmation?.confirmed) return "confirmed";
-  if (!String(reviewContent || "").trim()) return "missing";
-  if (hasAgentReviewSignal(reviewContent)) return "agent-reviewed";
-  return "required";
-}
-
-function hasAgentReviewSignal(reviewContent) {
-  const content = String(reviewContent || "");
-  const verdict = content.match(/^\s*[-*]?\s*Verdict\s*[:：]\s*([^\n]+)/im);
-  if (verdict) {
-    const value = verdict[1].trim().toLowerCase();
-    if (/^yes(?:$|[-_\s])/i.test(value) && !/^yes\s*\/\s*no\b/i.test(value)) return true;
-  }
-  return /本轮已检查|未发现阻塞目标的重要发现/.test(content);
-}
-
-export function isBlockingReviewRisk(risk) {
-  return /^P[0-2]$/i.test(risk?.severity || "") && (risk.open || risk.blocksRelease);
-}
-
-export function deriveLifecycleState({ state = "unknown", reviewStatus = "missing", closeoutStatus = "missing" } = {}) {
-  if (reviewStatus === "blocked-open-findings") return "review-blocked";
-  if (closeoutStatus === "closed" && reviewStatus !== "confirmed") return "closed-review-pending";
-  if (closeoutStatus === "closed") return "closed";
-  if (state === "blocked") return "blocked";
-  if (state === "done") return "closing";
-  if (state === "review") return "in_review";
-  if (state === "in_progress") return "active";
-  if (["planned", "not_started"].includes(state)) return "ready";
-  return "unknown";
-}
-
-export function deriveReviewQueueState({
-  state = "unknown",
-  lifecycleState = "unknown",
-  reviewStatus = "missing",
-  closeoutStatus = "missing",
-  budget = "standard",
-  walkthroughPath = "",
-  lessonCandidateDecisionComplete = false,
-} = {}) {
-  if (reviewStatus === "blocked-open-findings") return "blocked";
-  if (["not_started", "planned", "in_progress"].includes(state)) return "not-in-queue";
-  const reviewSurface =
-    state === "review" ||
-    state === "done" ||
-    ["in_review", "review-blocked", "closing", "closed-review-pending"].includes(lifecycleState) ||
-    closeoutStatus === "closed";
-  if (!reviewSurface) return "not-in-queue";
-  if (reviewStatus === "confirmed") return closeoutStatus === "closed" ? "not-in-queue" : "confirmed";
-  if (budget === "simple" && reviewStatus === "missing") return "not-in-queue";
-  const missingWalkthrough = budget !== "simple" && !walkthroughPath;
-  const missingCandidateDecision = budget !== "simple" && !lessonCandidateDecisionComplete;
-  if (missingWalkthrough || missingCandidateDecision || ["missing", "required"].includes(reviewStatus)) return "needs-material";
-  if (closeoutStatus === "closed") return "closed-debt";
-  return "ready-to-confirm";
-}
-
-function collectStateConflicts({ state, reviewStatus, closeoutStatus, lifecycleState }) {
-  const conflicts = [];
-  if (state === "done" && closeoutStatus !== "closed") {
-    conflicts.push({
-      code: "done-without-closeout",
-      severity: "warn",
-      message: "Task state is done, but closeout is still missing or pending.",
-    });
-  }
-  if (closeoutStatus === "closed" && reviewStatus !== "confirmed") {
-    conflicts.push({
-      code: "closed-without-human-review",
-      severity: "warn",
-      message: "Task is closed, but human review confirmation is still missing.",
-    });
-  }
-  if (reviewStatus === "blocked-open-findings") {
-    conflicts.push({
-      code: "review-blocked-open-findings",
-      severity: "block",
-      message: "Open P0-P2 review findings block human review confirmation.",
-    });
-  }
-  if (lifecycleState === "closed" && reviewStatus === "blocked-open-findings") {
-    conflicts.push({
-      code: "closed-with-blocking-review",
-      severity: "block",
-      message: "Closeout is closed while review findings still block release.",
-    });
-  }
-  return conflicts;
-}
-
 function collectHandoffs(progressContent, taskId) {
   if (!/Coordinator Handoff/i.test(progressContent) || !/pending-coordinator-pass/i.test(progressContent)) return [];
   return [{ id: `H-${taskId}`, from: "worker", to: "coordinator", state: "pending", summary: "Coordinator handoff pending" }];
-}
-
-export function collectReviewRisks(reviewContent) {
-  const { header, rows } = tableAfterHeading(reviewContent, /^ID$/i);
-  const severityIndex = getColumn(header, "Severity");
-  const findingIndex = getColumn(header, "Finding");
-  const openIndex = getColumn(header, "Open");
-  const blocksIndex = getColumn(header, "Blocks Release");
-  if (severityIndex < 0 || findingIndex < 0) return [];
-  return rows
-    .filter((row) => /^P[0-3]$/i.test(row[severityIndex] || ""))
-    .map((row) => ({
-      id: row[0],
-      severity: row[severityIndex],
-      open: /^yes$/i.test(row[openIndex] || "no"),
-      blocksRelease: /^yes$/i.test(row[blocksIndex] || "no"),
-      summary: row[findingIndex],
-    }));
 }
 
 function collectEvidence(progressContent) {

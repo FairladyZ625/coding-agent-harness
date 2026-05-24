@@ -17,8 +17,8 @@ Task Contract: harness-task/v1
 | 预算 | 适用场景 | 必需结构 |
 | --- | --- | --- |
 | simple | 单 owner、无 subagent、证据深度为 L0/L1、不需要正式 review gate | `brief.md`、`task_plan.md`、`visual_map.md`、`progress.md` |
-| standard | 常规功能、修复或文档改动 | 完整任务文件：计划、策略、图谱、进度、发现和按需审查 |
-| complex | 需要 L2/L3 证据、subagent/reviewer、外部参考、生成产物，或超过 5 个切片 | 完整任务文件，并只启用实际需要的可选索引 |
+| standard | 常规功能、修复或文档改动 | `brief.md`、`task_plan.md`、`execution_strategy.md`、`visual_map.md`、`findings.md`、`lesson_candidates.md`、`progress.md`、`review.md` |
+| complex | 需要 L2/L3 证据、subagent/reviewer、外部参考、生成产物，或超过 5 个切片 | standard 文件，并额外创建 `references/INDEX.md` 与 `artifacts/INDEX.md` |
 
 选择预算：{{TASK_BUDGET}}
 
@@ -45,14 +45,33 @@ Task Contract: harness-task/v1
 
 ## 执行与可视化文件
 
+不要手工复制本模板来创建任务目录。必须使用 `harness new-task`，让所选预算自动
+创建正确文件集，并让 `harness check` 能按同一契约校验。
+
 `execution_strategy.md` 和 `visual_map.md` 是本任务的同级合同文件，不嵌入 `task_plan.md`。这样 dashboard 和 checker 可以稳定读取。
 
-| 合同文件 | 是否必需 | 用途 |
-| --- | --- | --- |
-| `execution_strategy.md` | yes | 执行模式、subagent 使用、冲突控制、证据深度、交接规则 |
-| `visual_map.md` | yes | 图表集合：阶段图、可选架构/时序/数据流/状态图、完成度、证据状态、阻塞风险 |
-| `lesson_candidates.md` | standard/complex 必需 | 任务本地教训候选队列。人工审查确认前必须接受无候选、拒绝候选，或排队 promotion |
-| `review.md` | 按需 | 对抗性审查、release review、外部 reviewer 结论 |
+| 预算 | 必需文件 |
+| --- | --- |
+| simple | `brief.md`、`task_plan.md`、`visual_map.md`、`progress.md` |
+| standard | simple 文件，加 `execution_strategy.md`、`findings.md`、`lesson_candidates.md`、`review.md` |
+| complex | standard 文件，加 `references/INDEX.md`、`artifacts/INDEX.md` |
+| long-running 附加项 | 选择 `--long-running` 时额外创建 `long-running-task-contract.md` |
+
+文件职责：
+
+| 合同文件 | 用途 |
+| --- | --- |
+| `brief.md` | 面向人和下一轮 agent 的任务摘要与上下文包 |
+| `task_plan.md` | 目标、范围、预算、验收与执行决策 |
+| `execution_strategy.md` | 执行模式、subagent 使用、冲突控制、证据深度、交接规则 |
+| `visual_map.md` | 图表集合：阶段图、可选架构/时序/数据流/状态图、完成度、证据状态、阻塞风险 |
+| `progress.md` | 执行日志、决策和交接 |
+| `findings.md` | 发现、研究记录和未解决风险 |
+| `lesson_candidates.md` | 任务本地教训候选队列。人工审查确认前必须接受无候选、拒绝候选，或排队 promotion |
+| `review.md` | Agent Review Submission、对抗性审查、release review、外部 reviewer 结论 |
+| `references/INDEX.md` | complex 任务的资料包和参考索引 |
+| `artifacts/INDEX.md` | complex 任务的生成证据和产物索引 |
+| `long-running-task-contract.md` | 连续执行权限、循环规则和停止条件 |
 
 旧任务可以保留历史嵌入式段落作为 fallback；新任务必须使用独立文件。
 

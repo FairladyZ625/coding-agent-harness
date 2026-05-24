@@ -10,6 +10,7 @@ const suites = [
   "tests/dashboard-generation.mjs",
   "tests/template-governance.mjs",
   "tests/task-lifecycle.mjs",
+  "tests/lifecycle-queues.mjs",
   "tests/migration-adoption.mjs",
   "tests/test-harness.mjs",
 ];

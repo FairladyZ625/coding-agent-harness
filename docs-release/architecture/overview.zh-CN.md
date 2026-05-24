@@ -202,7 +202,7 @@ flowchart TB
 
 standard 和 complex 任务必须具备进度、证据、lesson 决议、人工确认和收口链接，才会被视为真正关闭。
 
-审查队列是人工审查工作台。它包含执行中的审查任务，也包含已经收口但缺少人工确认的审查债务。Agent 写入的审查记录会显示为 `agent-reviewed`；只有 `Human Review Confirmation` 存在时，任务才是 `confirmed`。
+Review 队列只展示已经提交审查材料包、并且可以等待人工确认的任务。缺少审查提交、证据不完整、仍有 Lesson 路由、存在阻塞发现，或历史收口债务的任务，会进入独立的生命周期队列：Missing Materials、Blocked、Lessons、Confirmed / Finalized、Soft-deleted / Superseded。Agent 写入的提交只能请求审查；只有严格的 `Human Review Confirmation` 块存在时，任务才是 `confirmed`。
 
 ## 迁移轨道
 

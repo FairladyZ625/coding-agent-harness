@@ -49,11 +49,27 @@ function bind() {
     state.warningPage = 1;
     app();
   }));
+  document.querySelectorAll("[data-review-queue-tab]").forEach((button) => button.addEventListener("click", () => {
+    state.reviewQueueTab = button.dataset.reviewQueueTab || "review";
+    state.reviewQueuePage = 1;
+    app();
+  }));
+  document.querySelectorAll("[data-review-reason-filter]").forEach((select) => select.addEventListener("change", () => {
+    state.reviewReasonFilter = select.value || "all";
+    state.reviewQueuePage = 1;
+    app();
+  }));
+  document.querySelectorAll("[data-review-sort]").forEach((select) => select.addEventListener("change", () => {
+    state.reviewSort = select.value || "queue";
+    state.reviewQueuePage = 1;
+    app();
+  }));
   document.querySelectorAll("[data-page-kind]").forEach((button) => button.addEventListener("click", () => {
     const page = Math.max(1, Number(button.dataset.page) || 1);
     if (button.dataset.pageKind === "warning") state.warningPage = page;
     if (button.dataset.pageKind === "task-groups") state.taskGroupPage = page;
     if (button.dataset.pageKind === "task") state.taskPageByGroup[button.dataset.pageGroup || ""] = page;
+    if (button.dataset.pageKind === "review") state.reviewQueuePage = page;
     app();
   }));
   document.querySelectorAll("[data-runway-phase]").forEach((link) => link.addEventListener("click", () => {
@@ -79,6 +95,7 @@ function bind() {
     openDrawer(taskId);
   }));
   bindCopyTaskNameButtons(document);
+  bindRepairPromptButtons(document);
   document.querySelectorAll("[data-open-lesson-drawer]").forEach((el) => el.addEventListener("click", (e) => {
     e.preventDefault();
     const lessonId = el.dataset.openLessonDrawer;
@@ -211,6 +228,7 @@ function openDrawer(taskId) {
     openDrawer(taskId);
   }));
   bindCopyTaskNameButtons(drawer);
+  bindRepairPromptButtons(drawer);
   drawer.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
 }
 
@@ -223,6 +241,24 @@ function bindCopyTaskNameButtons(root) {
     try {
       await copyText(taskName);
       button.textContent = t("copyTaskNameSuccess");
+    } catch {
+      button.textContent = t("copyTaskNameFailed");
+    }
+    window.setTimeout(() => {
+      button.textContent = defaultText;
+    }, 1400);
+  }));
+}
+
+function bindRepairPromptButtons(root) {
+  root.querySelectorAll("[data-copy-repair-prompt]").forEach((button) => button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const prompt = button.dataset.repairPrompt || "";
+    const defaultText = t("copyRepairPrompt");
+    try {
+      await copyText(prompt);
+      button.textContent = t("copyRepairPromptSuccess");
     } catch {
       button.textContent = t("copyTaskNameFailed");
     }

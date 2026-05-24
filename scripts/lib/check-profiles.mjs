@@ -6,7 +6,6 @@ import {
   legacyChecker,
   visualMapFile,
   legacyVisualRoadmapFile,
-  lessonCandidatesFile,
   allowedReviewDispositions,
   allowedPhaseStates,
   allowedEvidenceStatus,
@@ -30,13 +29,16 @@ import {
 import {
   collectTasks,
   listTaskPlanPaths,
-  parseTaskBudget,
-  parseTaskContractInfo,
   readVisualMapContractFile,
   parsePhases,
   taskCutoverCounters,
 } from "./task-scanner.mjs";
+import {
+  normalizeReviewBoolean,
+  reviewFindingColumns,
+} from "./task-review-model.mjs";
 import { validateTaskCompletionConsistency } from "./task-completion-consistency.mjs";
+import { validatePlanContracts } from "./check-task-contracts.mjs";
 export { renderDashboard } from "./status-dashboard-renderer.mjs";
 
 export function runLegacyCheck(target) {
@@ -96,10 +98,10 @@ export function validateReviewSchema(target, { strict = true } = {}) {
     }
     const { header, rows } = tableAfterHeading(content, /^ID$/i);
     if (rows.length === 0) continue;
-    const severityIndex = getColumnAny(header, ["Severity", "严重级别"]);
-    const openIndex = getColumnAny(header, ["Open", "是否开放"]);
-    const dispositionIndex = getColumnAny(header, ["Disposition", "处置"]);
-    const blocksIndex = getColumnAny(header, ["Blocks Release", "是否阻塞发布"]);
+    const severityIndex = getColumnAny(header, reviewFindingColumns.severity);
+    const openIndex = getColumnAny(header, reviewFindingColumns.open);
+    const dispositionIndex = getColumnAny(header, reviewFindingColumns.disposition);
+    const blocksIndex = getColumnAny(header, reviewFindingColumns.blocksRelease);
     const followUpIndex = getColumnAny(header, ["Follow-up", "跟进"]);
     const evidenceCheckedIndex = getColumnAny(header, ["Evidence Checked", "已检查证据"]);
     if ([severityIndex, openIndex, dispositionIndex, blocksIndex].some((index) => index < 0)) {
@@ -110,9 +112,9 @@ export function validateReviewSchema(target, { strict = true } = {}) {
       const id = row[0] || "";
       const severity = row[severityIndex] || "";
       if (!/^P[0-3]$/.test(severity) && !/^(R|SR)-\d+/i.test(id)) continue;
-      const open = (row[openIndex] || "").toLowerCase();
+      const open = normalizeReviewBoolean(row[openIndex] || "");
       const disposition = (row[dispositionIndex] || "").toLowerCase();
-      const blocks = (row[blocksIndex] || "").toLowerCase();
+      const blocks = normalizeReviewBoolean(row[blocksIndex] || "");
       const followUp = row[followUpIndex] || "";
       if (!/^P[0-3]$/.test(severity)) report(`${relative} ${id} invalid severity: ${severity}`);
       if (!["yes", "no"].includes(open)) report(`${relative} ${id} invalid Open value: ${open}`);
@@ -130,10 +132,11 @@ export function validateReviewSchema(target, { strict = true } = {}) {
         for (const ref of refs) {
           if (ref !== "none" && /^E-\d+/i.test(ref) && !evidenceIds.has(ref)) {
             failures.push(`${relative} ${id} references missing evidence id: ${ref}`);
-          }
-        }
       }
     }
+  }
+}
+
   }
   return { failures, warnings };
 }
@@ -174,33 +177,6 @@ export function validateVisualMaps(target) {
       warnings.push(`${relative} missing; legacy visual_roadmap.md is rewrite input only`);
     } else if (visualMap.source === "legacy" && phases.length > 0) {
       warnings.push(`${relative} missing; using legacy task_plan.md visual map fallback`);
-    }
-  }
-  return { failures, warnings };
-}
-
-export function validatePlanContracts(target, { strict = true } = {}) {
-  const failures = [];
-  const warnings = [];
-  const report = (message) => {
-    if (strict) failures.push(message);
-    else warnings.push(`adoption-needed: ${message}`);
-  };
-  for (const taskPlanPath of listTaskPlanPaths(target)) {
-    const taskDir = path.dirname(taskPlanPath);
-    const relativeDir = toPosix(path.relative(target.projectRoot, taskDir));
-    const taskPlanContent = readFileSafe(taskPlanPath);
-    const budget = parseTaskBudget(taskPlanContent);
-    const taskContract = parseTaskContractInfo(taskPlanContent);
-    if (!taskContract.generated) {
-      warnings.push(`adoption-needed: ${relativeDir} missing Task Contract: harness-task/v1 marker`);
-    }
-    const requiredFiles = budget === "simple" ? [visualMapFile] : ["execution_strategy.md", visualMapFile, lessonCandidatesFile];
-    for (const fileName of requiredFiles) {
-      if (!fs.existsSync(path.join(taskDir, fileName))) {
-        if (taskContract.generated) failures.push(`${relativeDir} missing ${fileName}`);
-        else report(`${relativeDir} missing ${fileName}`);
-      }
     }
   }
   return { failures, warnings };

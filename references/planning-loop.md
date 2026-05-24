@@ -76,10 +76,15 @@ slices/<slice-id>/review.md
 | --- | --- | --- | --- | --- |
 
 ## Execution & Visualization Files
-| Contract File | Required | Purpose |
-| --- | --- | --- |
-| `execution_strategy.md` | yes | Execution mode, subagent use, conflict control, evidence depth, handoff rules |
-| `visual_map.md` | yes | Mermaid maps, phase table, architecture/sequence/data-flow/state diagrams when useful, completion, evidence status, blocking risk |
+Do not manually copy task templates. Create task folders through `harness new-task`
+so the selected budget creates the correct files and `harness check` can enforce
+the same contract.
+
+| Budget | Required Files |
+| --- | --- |
+| simple | `brief.md`, `task_plan.md`, `visual_map.md`, `progress.md` |
+| standard | simple files plus `execution_strategy.md`, `findings.md`, `lesson_candidates.md`, `review.md` |
+| complex | standard files plus `references/INDEX.md`, `artifacts/INDEX.md` |
 
 ## 步骤
 1. [步骤1]

@@ -63,6 +63,21 @@ for (const omitted of ["execution_strategy.md", "findings.md", "review.md", "les
 }
 const simpleTaskPlan = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-simple-lifecycle/task_plan.md`), "utf8");
 assert(/Selected budget\s*:\s*simple/i.test(simpleTaskPlan) || /选择预算\s*[:：]\s*simple/i.test(simpleTaskPlan), "simple task should persist selected budget");
+const budgetContractTarget = path.join(tmpRoot, "budget-contract-target");
+fs.mkdirSync(budgetContractTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core", budgetContractTarget]);
+expectJson(["new-task", "budget-simple", "--budget", "simple", "--title", "Budget Simple", budgetContractTarget]);
+expectJson(["new-task", "budget-standard", "--title", "Budget Standard", budgetContractTarget]);
+expectJson(["new-task", "budget-complex", "--budget", "complex", "--title", "Budget Complex", budgetContractTarget]);
+fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-simple/brief.md`));
+fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-standard/review.md`));
+fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-complex/references/INDEX.md`));
+const budgetContractCheck = run(["check", "--profile", "target-project", budgetContractTarget]);
+const budgetContractOutput = `${budgetContractCheck.stdout}\n${budgetContractCheck.stderr}`;
+assert(budgetContractCheck.status !== 0, "check should fail when CLI-generated task budget files are missing");
+assert(budgetContractOutput.includes(`${todayLocal}-budget-simple missing brief.md`), "check should require brief.md for simple tasks");
+assert(budgetContractOutput.includes(`${todayLocal}-budget-standard missing review.md`), "check should require review.md for standard tasks");
+assert(budgetContractOutput.includes(`${todayLocal}-budget-complex missing references/INDEX.md`), "check should require optional indexes for complex tasks");
 const longRunningLifecycle = expectJson(["new-task", "long-running-lifecycle", "--long-running", "--title", "长程任务", "--locale", "zh-CN", lifecycleTarget]);
 assert(longRunningLifecycle.task?.longRunning === true, "new-task --long-running should report longRunning true");
 assert(
@@ -201,7 +216,10 @@ fs.writeFileSync(
 );
 const promoteDryRun = expectJson(["lesson-promote", "long-running-lifecycle", "LC-20260521-001", "--dry-run", lifecycleTarget]);
 assert(promoteDryRun.dryRun === true && promoteDryRun.lessonId === "L-2026-05-21-001", "lesson-promote --dry-run should derive the lesson id");
-const promoteRun = expectJson(["lesson-promote", "long-running-lifecycle", "LC-20260521-001", lifecycleTarget]);
+const promoteDefault = expectJson(["lesson-promote", "long-running-lifecycle", "LC-20260521-001", lifecycleTarget]);
+assert(promoteDefault.dryRun === true && promoteDefault.applyRequired === true, "lesson-promote without --apply should not write Lessons SSoT");
+assert(!fs.existsSync(path.join(lifecycleTarget, "docs/01-GOVERNANCE/lessons/L-2026-05-21-001-commit-contract-must-be-explicit.md")), "lesson-promote default should not create a detail document");
+const promoteRun = expectJson(["lesson-promote", "long-running-lifecycle", "LC-20260521-001", "--apply", lifecycleTarget]);
 assert(promoteRun.lessonId === "L-2026-05-21-001", "lesson-promote should return the created lesson id");
 assert(
   fs.existsSync(path.join(lifecycleTarget, "docs/01-GOVERNANCE/lessons/L-2026-05-21-001-commit-contract-must-be-explicit.md")),
@@ -212,7 +230,7 @@ assert(
   "lesson-promote should append Lessons SSoT",
 );
 assert(fs.readFileSync(promotableCandidatePath, "utf8").includes("| LC-20260521-001 | promoted |"), "lesson-promote should mark the candidate row promoted");
-const promoteAgain = expectJson(["lesson-promote", "long-running-lifecycle", "LC-20260521-001", lifecycleTarget]);
+const promoteAgain = expectJson(["lesson-promote", "long-running-lifecycle", "LC-20260521-001", "--apply", lifecycleTarget]);
 assert(promoteAgain.changes.length === 0, "lesson-promote should be idempotent after promotion");
 expectPass(["check", "--profile", "target-project", lifecycleTarget]);
 expectJson(["task-start", "simple-lifecycle", "--message", "开始简单任务", lifecycleTarget]);
@@ -402,7 +420,8 @@ const closedReviewStatus = expectJson(["status", "--json", lifecycleTarget]);
 const closedReviewTask = closedReviewStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-workbench-closed-review`);
 assert(closedReviewTask?.walkthroughPath?.endsWith("docs/10-WALKTHROUGH/workbench-closed-walkthrough.md"), "status should expose task walkthrough path from Closeout SSoT");
 assert(closedReviewTask?.lifecycleState === "closed-review-pending", "closed tasks without human confirmation should remain visible as review debt");
-assert(closedReviewTask?.reviewQueueState === "closed-debt", "closed tasks without human confirmation should enter the review queue as closed debt");
+assert(!closedReviewTask?.taskQueues?.includes("review"), "closed tasks without human confirmation should not enter the canonical review queue");
+assert(closedReviewTask?.taskQueues?.includes("missing-materials"), "closed tasks without review submission should enter missing-materials repair routing");
 const workbenchDir = path.join(tmpRoot, "review-workbench");
 const workbench = spawn(node, [cli, "dashboard", "--workbench", "--out-dir", workbenchDir, "--host", "127.0.0.1", "--port", "0", lifecycleTarget], {
   cwd: repoRoot,
@@ -444,8 +463,8 @@ try {
     body: JSON.stringify({ taskId: `TASKS/${todayLocal}-workbench-review`, confirmText: `${todayLocal}-workbench-review`, reviewer: "Human Reviewer", message: "confirmed without walkthrough" }),
   });
   const missingWalkthroughText = await missingWalkthroughResponse.text();
-  assert(missingWalkthroughResponse.status === 400, `workbench review completion should require walkthrough, got ${missingWalkthroughResponse.status}: ${missingWalkthroughText}`);
-  assert(missingWalkthroughText.includes("walkthrough"), "workbench missing walkthrough rejection should explain walkthrough requirement");
+  assert(missingWalkthroughResponse.status === 409, `workbench review completion should reject tasks before canonical Review queue entry, got ${missingWalkthroughResponse.status}: ${missingWalkthroughText}`);
+  assert(missingWalkthroughText.includes("review queue"), "workbench early confirmation rejection should explain Review queue requirement");
   const workbenchReviewWalkthrough = path.join(lifecycleTarget, "docs/10-WALKTHROUGH/workbench-review-walkthrough.md");
   fs.writeFileSync(
     workbenchReviewWalkthrough,
@@ -456,6 +475,9 @@ try {
     `\n| CL-WORKBENCH-REVIEW | 2026-05-21 | Workbench review gate | \`docs/09-PLANNING/TASKS/${todayLocal}-workbench-review/task_plan.md\` | \`docs/09-PLANNING/TASKS/${todayLocal}-workbench-review/review.md\` | \`docs/10-WALKTHROUGH/workbench-review-walkthrough.md\` | pending human review | none | checked-none | pending |\n`,
   );
   acceptNoLessonCandidate(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-workbench-review`));
+  expectJson(["task-start", "workbench-review", "--message", "readying workbench review fixture", lifecycleTarget]);
+  expectJson(["task-phase", "workbench-review", "PH-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
+  expectJson(["task-review", "workbench-review", "--message", "submitted for workbench confirmation", "--evidence", "command:TARGET:workbench-smoke:passed", lifecycleTarget]);
   const okResponse = await fetch(new URL("api/tasks/review-complete", runtime.url), {
     method: "POST",
     headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
@@ -471,9 +493,7 @@ try {
     body: JSON.stringify({ taskId: `TASKS/${todayLocal}-workbench-closed-review`, confirmText: `${todayLocal}-workbench-closed-review`, reviewer: "Human Reviewer", message: "closed debt confirmed from workbench" }),
   });
   const closedReviewText = await closedReviewResponse.text();
-  assert(closedReviewResponse.status === 200, `workbench review completion should allow closed review debt confirmation, got ${closedReviewResponse.status}: ${closedReviewText}`);
-  const closedReviewPayload = JSON.parse(closedReviewText);
-  assert(closedReviewPayload.task?.reviewStatus === "confirmed", "closed review debt confirmation should return confirmed review status");
+  assert([400, 409].includes(closedReviewResponse.status), `workbench review completion should reject closed review debt, got ${closedReviewResponse.status}: ${closedReviewText}`);
 } finally {
   workbench.kill("SIGTERM");
 }

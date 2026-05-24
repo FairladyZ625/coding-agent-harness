@@ -46,8 +46,9 @@ coding-agent-harness"，不要重新 bootstrap 覆盖整个项目。先执行增
 5. 对已有文档采用 merge / append / residual-with-reason；只有全新缺失文件才从模板创建。
 6. 如果引入 Lessons SSoT、Harness Ledger 或新的 reference/template，同步更新入口索引。
 7. 收口时写 walkthrough，必须包含 Lessons Reflection；新任务先写并审查
-   `lesson_candidates.md`。如人工标记值得沉淀，维护命令再写
-   `docs/01-GOVERNANCE/lessons/` 详情文档和 Lessons SSoT；最后在
+   `lesson_candidates.md`。如人工标记值得沉淀，默认先用 dry-run 或后续
+   lesson sedimentation 任务完成分类、冲突检查和建议 diff；只有人工明确批准后，
+   维护命令才写 `docs/01-GOVERNANCE/lessons/` 详情文档和 Lessons SSoT；最后在
    `docs/Harness-Ledger.md` 与 `docs/10-WALKTHROUGH/Closeout-SSoT.md` 记录本次 harness update 的 delta 和 Lessons Check。
 
 一句话：harness update 是 delta merge，不是重新搭一遍。
@@ -156,7 +157,9 @@ harness task-start <task-id> --message "<what started>" /path/to/project
 harness task-log <task-id> --message "<what changed>" --evidence "command:TARGET:path:summary" /path/to/project
 harness task-block <task-id> --message "<blocker>" /path/to/project
 harness task-review <task-id> --message "<ready for review>" /path/to/project
+harness review-confirm <task-id> --message "<human confirmation>" /path/to/project
 harness task-complete <task-id> --message "<closeout>" /path/to/project
+harness lesson-promote <task-id> <candidate-id> --dry-run /path/to/project
 harness task-list --json /path/to/project
 ```
 
@@ -166,7 +169,14 @@ harness task-list --json /path/to/project
 - 已存在任务不会被覆盖；旧项目迁移时先 `task-list --json`，再决定复用旧任务还是开新任务。
 - 状态推进只写 `progress.md`，不得重写历史 `task_plan.md`。
 - `simple` 任务可以直接 `in_progress -> done`；`standard` / `complex` 必须 `in_progress -> review -> done`，不能跳过 `task-review`。
-- `review-confirm` 只确认人工 review evidence / findings，不代表 closeout；closeout 仍走 walkthrough / Closeout SSoT。
+- `task-review` 只表示 Agent Review Submission：agent/coordinator 认为材料包已准备好并提交待审。它不是人工确认。
+- `review-confirm` 是唯一的 Human Review Confirmation 门禁。它只确认人工 review evidence / findings，不代表 closeout；closeout 仍走 walkthrough / Closeout SSoT。
+- Review queue 只收录已提交 review packet、材料齐全、无 blocker、等待人工确认的任务。
+- 缺文件、缺章节、缺证据、缺 lesson decision 或未执行 `task-review` 的任务进入 Missing Materials 队列，不进入 Review queue。
+- open blocking finding、状态矛盾、审计失败或需要 human waiver 的任务进入 Blocked 队列，不进入 Review queue。
+- 已 Human Review Confirmation 但 closeout / ledger / lesson routing 未完成的任务属于 Confirmed / Finalized 队列，不应显示成“仍在审查”。
+- lesson candidate 进入 Lessons 队列后，默认先 dry-run 或创建后续沉淀任务；不要在 Dashboard 或普通 closeout 中直接写 Lessons SSoT，除非人工明确批准目标 diff。
+- soft delete / supersede / archive 是只读可追溯生命周期，默认不 hard delete 任务目录；保留 tombstone、替代任务、原因和审计记录。
 - 证据必须进入 `task-log` 或 `progress.md`，并继续遵守 `type:PATH:summary` 格式。
 
 ### Phase 5: Verify / 验证
@@ -273,12 +283,12 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 6. **Repo Governance / CI-CD** — 确认 PR policy、required checks、branch protection、worktree concurrency
 7. **Worktree / Branch 并行开发** — 按 operating model 决定 worktree、feature branch、contract branch 或 release branch
 8. **Subagent Worker Handoff（如适用）** — coordinator 分配独立 worktree / branch / write scope；worker 提交自己的 commit 并 handoff commit SHA / checks / residuals
-9. **Adversarial Review Report（如适用）** — 在任务目录写 `review.md`，记录 material findings / no-finding / residual risk
-10. **Review Routing** — planned task 收口前自动触发 subagent / reviewer 审查，或记录 skip reason
+9. **Adversarial Review Report（如适用）** — 在任务目录写 `review.md`，记录 Agent Review Submission、material findings / no-finding / residual risk；这一步只表示提交待审，不等于人工批准
+10. **Review Routing** — planned task 收口前自动触发 subagent / reviewer 审查，或记录 skip reason；Review queue 只等待 Human Review Confirmation，缺材料和 blocker 分别进入 Missing Materials / Blocked 队列
 11. **Merge + 自动回归** — Cadence Ledger 触发对应回归面；coordinator 只集成 worker commit，不混合多个 worker 的未提交改动
 12. **Walkthrough 收口** — 写收口记录并引用 review report
 13. **Closeout SSoT 回写** — 每个 closed 任务必须记录 walkthrough 路径或受控 skip reason
-14. **Lessons Reflection** — 写 walkthrough 时主动反思共性/反复问题；新任务用 `lesson_candidates.md` 承载人工判定，`queued-promotion` 进入维护队列，`checked-created` 必须有详情文档和 SSoT 表行，旧任务兼容的 `checked-none` 必须写明原因
+14. **Lessons Reflection** — 写 walkthrough 时主动反思共性/反复问题；新任务用 `lesson_candidates.md` 承载人工判定，`queued-promotion` 进入 Lessons 队列；默认先 dry-run 或创建沉淀任务，不直接写 Lessons SSoT；`checked-created` 必须有详情文档和 SSoT 表行，旧任务兼容的 `checked-none` 必须写明原因
 15. **Harness Ledger 回写** — 记录本轮上下文维护是否完成
 16. **Worktree 清理** — 删除已 merge 的 worktree
 

@@ -104,7 +104,7 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
 }
 
 function isTaskInReviewQueue(task) {
-  return (task?.reviewQueueState || "not-in-queue") !== "not-in-queue";
+  return task?.reviewQueueState === "ready-to-confirm" && Array.isArray(task?.taskQueues) && task.taskQueues.includes("review");
 }
 
 function startPollingWatch(root, regenerate) {

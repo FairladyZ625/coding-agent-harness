@@ -206,8 +206,14 @@ harness task-complete phase-2-lifecycle \
 
 规则：
 
-- `new-task` 创建 `brief.md`、`task_plan.md`、`execution_strategy.md`、
-  `visual_map.md`、`findings.md`、`progress.md` 和 `review.md`。
+- 不要手工复制任务模板，也不要创建不完整任务目录。`harness check` 会按
+  `new-task` 创建的预算文件集校验。
+- `new-task --budget simple` 创建 `brief.md`、`task_plan.md`、`visual_map.md`
+  和 `progress.md`。
+- `new-task` 默认 `standard`，创建 simple 文件，并额外创建
+  `execution_strategy.md`、`findings.md`、`lesson_candidates.md` 和 `review.md`。
+- `new-task --budget complex` 创建 standard 文件，并额外创建
+  `references/INDEX.md` 和 `artifacts/INDEX.md`。
 - 已存在的任务目录不会被覆盖；需要改名或继续旧任务时，由 coordinator 决定。
 - `task-start`、`task-block`、`task-complete` 只更新 `progress.md` 的生命周期状态和日志。
 - `task-log` 只追加执行记录；证据使用 `type:PATH:summary`，例如
