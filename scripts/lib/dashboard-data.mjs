@@ -400,7 +400,7 @@ export function writeDashboardFolder(outDir, targetInput, options = {}) {
   const registry = readCapabilityRegistry(target);
   const locale = options.localeOverride || registry.locale;
   const bundle = buildDashboardBundle(targetInput, options);
-  return writeDashboardDirectory(outDir, bundle, { repoRoot, projectRoot: target.projectRoot, docsRoot: target.docsRoot, locale, workbenchRuntime: options.workbenchRuntime === true });
+  return writeDashboardDirectory(outDir, bundle, { repoRoot, projectRoot: target.projectRoot, docsRoot: target.docsRoot, locale, workbenchRuntime: options.workbenchRuntime === true, recoverGeneratedDashboard: options.recoverGeneratedDashboard === true });
 }
 
 export function writeDashboardSingleFile(outFile, targetInput, options = {}) {

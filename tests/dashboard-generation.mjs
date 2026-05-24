@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const node = process.execPath;
@@ -178,6 +178,20 @@ assert(
 const helpOutput = expectPass(["help"]).stdout;
 assert(helpOutput.includes("harness dev"), "help should advertise harness dev as the daily dynamic workbench entry");
 
+const devRecoveryTarget = path.join(tmpRoot, "dev-recovery-target");
+fs.cpSync(path.join(repoRoot, "examples/minimal-project"), devRecoveryTarget, { recursive: true });
+const devRecoveryOutDir = defaultDevOutDir(devRecoveryTarget);
+fs.rmSync(devRecoveryOutDir, { recursive: true, force: true });
+writeStaleDashboardLikeDirectory(devRecoveryOutDir);
+await expectDevStarts(["dev", "--no-open", "--port", "0", devRecoveryTarget]);
+assert(fs.existsSync(path.join(devRecoveryOutDir, ".harness-dashboard")), "harness dev should recover stale generated dashboard temp dirs by rewriting the marker");
+
+const explicitStaleOutDir = path.join(tmpRoot, "explicit-stale-dashboard");
+writeStaleDashboardLikeDirectory(explicitStaleOutDir);
+const explicitStaleDev = run(["dev", "--no-open", "--out-dir", explicitStaleOutDir, devRecoveryTarget], { timeout: 4000 });
+assert(explicitStaleDev.status !== 0, "harness dev --out-dir should not recover unmarked directories implicitly");
+assert(explicitStaleDev.stderr.includes("Refusing to overwrite non-dashboard directory"), "explicit stale dev output should explain the refusal");
+
 const rootDashboardPath = path.join(repoRoot, "harness-dashboard.html");
 assert(!fs.existsSync(rootDashboardPath), "source package root must not contain tracked generated harness-dashboard.html");
 const defaultDashboard = expectPass(["dashboard", "examples/minimal-project"]).stdout.trim();
@@ -202,6 +216,50 @@ assert(!hasLocalAbsolutePath(redactionData), "dashboard data leaked generic loca
 
 function hasLocalAbsolutePath(content) {
   return /(?:^|[\s"'(])(?:\/Users\/|\/Volumes\/|\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/home\/|[A-Za-z]:\\)/.test(content);
+}
+
+function defaultDevOutDir(targetInput) {
+  const target = path.resolve(targetInput || ".");
+  const name = path.basename(target) || "project";
+  const hash = Buffer.from(target).toString("hex").slice(0, 16);
+  return path.join(os.tmpdir(), "coding-agent-harness-dev", `${name}-${hash}`);
+}
+
+function writeStaleDashboardLikeDirectory(outDir) {
+  fs.mkdirSync(path.join(outDir, "assets"), { recursive: true });
+  fs.mkdirSync(path.join(outDir, "data"), { recursive: true });
+  fs.writeFileSync(path.join(outDir, "index.html"), "<!doctype html><title>stale</title>\n");
+  fs.writeFileSync(path.join(outDir, "README.md"), "# stale dashboard\n");
+  fs.writeFileSync(path.join(outDir, "assets/app.js"), "window.__STALE__ = true;\n");
+  fs.writeFileSync(path.join(outDir, "assets/dashboard-data.js"), "window.__HARNESS_DASHBOARD__ = {};\n");
+  fs.writeFileSync(path.join(outDir, "data/status.json"), "{}\n");
+}
+
+function expectDevStarts(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(node, [cli, ...args], { cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error(`${args.join(" ")} did not start\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`));
+    }, 8000);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+      if (!stdout.includes("harness dev:")) return;
+      clearTimeout(timer);
+      child.kill("SIGTERM");
+      resolve({ stdout, stderr });
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("exit", (code, signal) => {
+      if (signal === "SIGTERM") return;
+      clearTimeout(timer);
+      reject(new Error(`${args.join(" ")} exited before starting (${code})\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`));
+    });
+  });
 }
 
 function assertGraphIntegrity(graph, label) {
