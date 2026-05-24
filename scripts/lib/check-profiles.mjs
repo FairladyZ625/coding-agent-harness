@@ -26,6 +26,7 @@ import {
   capabilityDefinitions,
   validateCapabilities,
 } from "./capability-registry.mjs";
+import { readPresetPackage } from "./preset-registry.mjs";
 import {
   collectTasks,
   listTaskPlanPaths,
@@ -195,20 +196,34 @@ export function validateTaskPresetContracts(target) {
   ]);
   for (const task of collectTasks(target)) {
     if (!task.taskPreset || task.taskPreset === "none") continue;
+    let presetPackage = null;
+    try {
+      presetPackage = readPresetPackage(task.taskPreset);
+    } catch (error) {
+      failures.push(`${task.path} unsupported Task Preset: ${task.taskPreset} (${error.message})`);
+      continue;
+    }
+    if (presetPackage?.task?.kind && task.taskKind !== presetPackage.task.kind) {
+      failures.push(`${task.path} ${task.taskPreset} preset Task Kind mismatch: expected ${presetPackage.task.kind}, got ${task.taskKind || "(missing)"}`);
+    }
+    if (String(task.presetVersion || "") !== String(presetPackage.version)) {
+      failures.push(`${task.path} ${task.taskPreset} preset missing Preset Version ${presetPackage.version}`);
+    }
+    if (task.taskPreset !== "lesson-sedimentation" && (presetPackage.evidence?.bundleDir || presetPackage.audit?.evidenceFiles?.length || Object.keys(presetPackage.evidence?.files || {}).length)) {
+      if (!task.evidenceBundle) failures.push(`${task.path} ${task.taskPreset} preset missing Evidence Bundle`);
+      else if (!fs.existsSync(path.join(target.projectRoot, String(task.evidenceBundle).replace(/^TARGET:/, "").replace(/^\/+/, "")))) {
+        failures.push(`${task.path} ${task.taskPreset} preset Evidence Bundle missing: ${task.evidenceBundle}`);
+      }
+    }
     if (task.taskPreset === "lesson-sedimentation") {
       if (!["standard", "complex"].includes(task.budget)) failures.push(`${task.path} lesson-sedimentation preset requires Selected budget: standard or complex`);
-      if (String(task.presetVersion || "") !== "1") failures.push(`${task.path} lesson-sedimentation preset missing Preset Version 1`);
-      if (task.taskKind !== "lesson-sedimentation") failures.push(`${task.path} lesson-sedimentation preset missing Task Kind`);
       if (!task.taskPlanPath) failures.push(`${task.path} lesson-sedimentation preset missing task plan`);
       continue;
     }
     if (task.taskPreset !== "legacy-migration") {
-      failures.push(`${task.path} unsupported Task Preset: ${task.taskPreset}`);
       continue;
     }
     if (task.budget !== "complex") failures.push(`${task.path} legacy-migration preset requires Selected budget: complex`);
-    if (!task.presetVersion) failures.push(`${task.path} legacy-migration preset missing Preset Version`);
-    if (!task.taskKind || task.taskKind === "general") failures.push(`${task.path} legacy-migration preset missing Task Kind`);
     if (!allowedMigrationLevels.has(task.migrationTargetLevel)) {
       failures.push(`${task.path} legacy-migration preset invalid Migration Target Level: ${task.migrationTargetLevel || "(missing)"}`);
     }
@@ -216,9 +231,7 @@ export function validateTaskPresetContracts(target) {
     if (achievedLevel !== "pending" && !allowedMigrationLevels.has(achievedLevel)) {
       failures.push(`${task.path} legacy-migration preset invalid Migration Achieved Level: ${achievedLevel || "(missing)"}`);
     }
-    if (!task.evidenceBundle) {
-      failures.push(`${task.path} legacy-migration preset missing Evidence Bundle`);
-    } else if (!task.migrationSnapshot?.evidencePresent) {
+    if (task.evidenceBundle && !task.migrationSnapshot?.evidencePresent) {
       failures.push(`${task.path} legacy-migration preset Evidence Bundle missing: ${task.evidenceBundle}`);
     } else if (!task.migrationSnapshot?.sessionPresent) {
       failures.push(`${task.path} legacy-migration preset Evidence Bundle missing session.json`);

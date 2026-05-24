@@ -28,14 +28,14 @@ export function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-export function expectPass(args) {
-  const result = run(args);
+export function expectPass(args, options = {}) {
+  const result = run(args, options);
   assert(result.status === 0, `${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;
 }
 
-export function expectJson(args) {
-  return JSON.parse(expectPass(args).stdout);
+export function expectJson(args, options = {}) {
+  return JSON.parse(expectPass(args, options).stdout);
 }
 
 export function waitForWorkbench(child) {

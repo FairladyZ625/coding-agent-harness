@@ -448,7 +448,7 @@ export function collectTasks(target) {
       presetVersion: metadata.presetVersion,
       migrationTargetLevel: metadata.migrationTargetLevel,
       migrationAchievedLevel: metadata.migrationAchievedLevel,
-      evidenceBundle: metadata.evidenceBundle,
+      evidenceBundle: formatEvidenceBundle(metadata.evidenceBundle),
       migrationSnapshot: collectMigrationSnapshot(target, metadata),
       lifecycleState,
       reviewStatus,
@@ -529,6 +529,11 @@ function collectMigrationSnapshot(target, metadata) {
     legacyResiduals: Number(summary.legacyResiduals || 0),
     fullCutoverEligible: summary.fullCutoverEligible === true,
   };
+}
+
+function formatEvidenceBundle(value) {
+  const normalized = String(value || "").replace(/^TARGET:/, "").replace(/^\/+/, "");
+  return normalized ? `TARGET:${normalized}` : "";
 }
 
 function taskCloseoutInfo(target, taskPlanPath) {

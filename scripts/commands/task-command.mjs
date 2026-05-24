@@ -1,6 +1,8 @@
+import fs from "node:fs";
 import {
   confirmTaskReview,
   createTask,
+  readPresetPackage,
   buildTaskIndex,
   createLessonSedimentationTask,
   archiveTask,
@@ -24,14 +26,14 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
     const preset = takeOption("--preset", "");
     const fromSession = takeOption("--from-session", "");
     const longRunning = takeFlag("--long-running");
-    const shouldDeriveTaskId = fromSession && args.length === 0;
-    const taskId = shouldDeriveTaskId ? "harness-v1-migration" : args.shift();
-    if (!taskId) {
-      console.error("Missing task id");
-      process.exit(2);
-    }
     try {
-      console.log(JSON.stringify(createTask(targetArg(), taskId, { title, locale, dryRun, moduleKey, budget, longRunning, preset, fromSession }), null, 2));
+      const parsed = parseNewTaskArgs(args, { preset, fromSession });
+      const taskId = parsed.taskId;
+      if (!taskId) {
+        console.error("Missing task id");
+        process.exit(2);
+      }
+      console.log(JSON.stringify(createTask(parsed.target, taskId, { title, locale, dryRun, moduleKey, budget, longRunning, preset, fromSession, presetArgs: parsed.presetArgs }), null, 2));
     } catch (error) {
       console.error(error.message);
       process.exit(1);
@@ -225,6 +227,57 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
   }
 
   throw new Error(`Unsupported task command: ${command}`);
+}
+
+function parseNewTaskArgs(args, { preset = "", fromSession = "" } = {}) {
+  const values = [...args];
+  const presetPackage = preset ? readPresetPackage(preset) : null;
+  let taskId = "";
+  if (!fromSession) {
+    taskId = values.shift() || "";
+  } else if (values.length > 0 && !values[0].startsWith("-") && !(values.length === 1 && fs.existsSync(values[0]))) {
+    taskId = values.shift();
+  } else {
+    taskId = presetPackage?.task?.defaultTaskId || "harness-v1-migration";
+  }
+  const parsed = splitPresetArgsAndTarget(values, presetPackage);
+  return {
+    taskId,
+    target: parsed.target || ".",
+    presetArgs: parsed.presetArgs,
+  };
+}
+
+function splitPresetArgsAndTarget(values, presetPackage) {
+  const presetArgs = [];
+  const targetCandidates = [];
+  const declaredFlags = new Map(Object.values(presetPackage?.inputs || {}).filter((input) => input.flag).map((input) => [input.flag, input]));
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
+    const declared = declaredFlags.get(value);
+    if (declared) {
+      presetArgs.push(value);
+      if (declared.type !== "flag" && index + 1 < values.length) {
+        presetArgs.push(values[index + 1]);
+        index += 1;
+      }
+    } else if (value.startsWith("-")) {
+      presetArgs.push(value);
+      if (index + 1 < values.length && !values[index + 1].startsWith("-")) {
+        presetArgs.push(values[index + 1]);
+        index += 1;
+      }
+    } else {
+      targetCandidates.push(value);
+    }
+  }
+  if (targetCandidates.length > 1) {
+    throw new Error(`Too many positional arguments for new-task: ${targetCandidates.join(", ")}`);
+  }
+  return {
+    target: targetCandidates[0] || "",
+    presetArgs,
+  };
 }
 
 function formatTaskCommandError(error) {

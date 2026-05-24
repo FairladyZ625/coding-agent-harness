@@ -9,9 +9,6 @@ import {
   buildStatus,
   doctorUserSkill,
   installUserSkill,
-  checkPresetPackage,
-  inspectPresetPackage,
-  listPresetPackages,
   normalizeLocale,
   rebuildGovernanceIndexes,
   serveDashboardWorkbench,
@@ -20,6 +17,7 @@ import {
 } from "./lib/harness-core.mjs";
 import { runDashboardCommand } from "./commands/dashboard-command.mjs";
 import { runMigrationCommand } from "./commands/migration-command.mjs";
+import { runPresetCommand } from "./commands/preset-command.mjs";
 import { runTaskCommand } from "./commands/task-command.mjs";
 
 const args = process.argv.slice(2);
@@ -95,7 +93,9 @@ Usage:
   harness preset list [--json]
   harness preset inspect <id> [--json]
   harness preset check <id> [--json]
-  harness new-task <task-id> [--module key] [--budget simple|standard|complex] [--preset legacy-migration] [--from-session session.json] [--long-running] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
+  harness preset install <path-or-builtin-id> [--force] [--json]
+  harness preset uninstall <id> [--json]
+  harness new-task <task-id> [--module key] [--budget simple|standard|complex] [--preset id] [--from-session session.json] [--long-running] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
   harness task-start <task-id> [--message text] [target]
   harness task-phase <task-id> <phase-id> [--state done] [--completion 100] [--evidence present] [target]
   harness task-log <task-id> --message text [--evidence type:PATH:summary] [target]
@@ -227,43 +227,7 @@ if (command === "help" || command === "--help" || command === "-h") {
     process.exit(1);
   }
 } else if (command === "preset") {
-  const subcommand = args.shift() || "list";
-  const json = takeFlag("--json");
-  try {
-    if (subcommand === "list") {
-      const presets = listPresetPackages().map((preset) => ({
-        id: preset.id,
-        version: preset.version,
-        purpose: preset.purpose,
-        compatibleBudgets: preset.compatibleBudgets,
-        manifestPath: preset.manifestRelativePath,
-      }));
-      if (json) console.log(JSON.stringify({ presets }, null, 2));
-      else for (const preset of presets) console.log(`${preset.id}@${preset.version} ${preset.compatibleBudgets.join(",")}`);
-    } else if (subcommand === "inspect") {
-      const id = args.shift();
-      if (!id) throw new Error("Missing preset id");
-      const preset = inspectPresetPackage(id);
-      if (json) console.log(JSON.stringify(preset, null, 2));
-      else console.log(`${preset.id}@${preset.version}\n${preset.purpose}`);
-    } else if (subcommand === "check") {
-      const id = args.shift();
-      if (!id) throw new Error("Missing preset id");
-      const report = checkPresetPackage(id);
-      if (json) console.log(JSON.stringify(report, null, 2));
-      else {
-        for (const failure of report.failures) console.error(`Failure: ${failure}`);
-        for (const warning of report.warnings) console.log(`Warning: ${warning}`);
-        console.log(`Preset check ${report.status}: ${report.id}@${report.version}`);
-      }
-      process.exit(report.status === "pass" ? 0 : 1);
-    } else {
-      throw new Error(`Unknown preset subcommand: ${subcommand}`);
-    }
-  } catch (error) {
-    console.error(error.message);
-    process.exit(1);
-  }
+  runPresetCommand({ args, takeFlag });
 } else if (["new-task", "task-phase", "task-start", "task-log", "task-block", "task-review", "task-complete", "review-confirm", "lesson-promote", "lesson-sediment", "task-list", "task-index", "task-supersede", "task-delete", "task-archive", "task-reopen", "module-step"].includes(command)) {
   runTaskCommand(command, { args, takeFlag, takeOption, targetArg });
 } else if (command === "install-user") {

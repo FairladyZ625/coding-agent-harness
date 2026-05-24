@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,6 +11,8 @@ export const legacyVisualRoadmapFile = "visual_roadmap.md";
 export const lessonCandidatesFile = "lesson_candidates.md";
 export const longRunningTaskContractFile = "long-running-task-contract.md";
 export const taskContractMarker = "Task Contract: harness-task/v1";
+export const builtinPresetRoot = path.join(repoRoot, "presets");
+export const userPresetRoot = path.join(os.homedir(), ".coding-agent-harness/presets");
 
 
 export const supportedLocales = new Set(["zh-CN", "en-US"]);

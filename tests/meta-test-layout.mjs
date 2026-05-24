@@ -28,11 +28,12 @@ const cliEntrypoint = fs.readFileSync(path.join(repoRoot, "scripts/harness.mjs")
 assert(cliEntrypoint.split(/\r?\n/).length <= 320, "scripts/harness.mjs should stay below 320 lines by routing command handlers out");
 assert(fs.existsSync(path.join(repoRoot, "scripts/commands/dashboard-command.mjs")), "dashboard command handler should live outside scripts/harness.mjs");
 assert(fs.existsSync(path.join(repoRoot, "scripts/commands/migration-command.mjs")), "migration command handler should live outside scripts/harness.mjs");
+assert(fs.existsSync(path.join(repoRoot, "scripts/commands/preset-command.mjs")), "preset command handler should live outside scripts/harness.mjs");
 assert(fs.existsSync(path.join(repoRoot, "scripts/commands/task-command.mjs")), "task command handler should live outside scripts/harness.mjs");
 
 const taskLifecycleModule = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-lifecycle.mjs"), "utf8");
 assert(taskLifecycleModule.split(/\r?\n/).length <= 650, "task lifecycle core should stay below 650 lines by routing preset-specific evidence helpers out");
-assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-migration-preset.mjs")), "legacy migration preset task helpers should live outside task-lifecycle.mjs");
+assert(fs.existsSync(path.join(repoRoot, "scripts/lib/preset-engine.mjs")), "generic preset engine should live outside task-lifecycle.mjs");
 assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-lifecycle/review-gates.mjs")), "review gates should live under scripts/lib/task-lifecycle/");
 assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-lifecycle/review-confirm.mjs")), "review-confirm lifecycle writer should live under scripts/lib/task-lifecycle/");
 assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-lifecycle/text-utils.mjs")), "task lifecycle text helpers should live under scripts/lib/task-lifecycle/");

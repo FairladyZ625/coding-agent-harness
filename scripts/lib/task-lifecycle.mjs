@@ -26,10 +26,12 @@ import {
 import { readCapabilityRegistry } from "./capability-registry.mjs";
 import { readPresetPackage } from "./preset-registry.mjs";
 import {
-  legacyMigrationPresetContext,
-  readMigrationSession,
+  assertPresetWriteScope,
+  buildPresetContext,
+  evaluateTemplateValues,
+  resolvePresetInputs,
   renderPresetTaskTemplate,
-} from "./task-migration-preset.mjs";
+} from "./preset-engine.mjs";
 import {
   collectTasks,
   collectReviewRisks,
@@ -204,18 +206,18 @@ function bareSlug(datedId) {
   return datedId;
 }
 
-export function createTask(targetInput, taskId, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard", longRunning = false, preset = "", fromSession = "" } = {}) {
+export function createTask(targetInput, taskId, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard", longRunning = false, preset = "", fromSession = "", presetArgs = [] } = {}) {
   const normalizedPreset = normalizeTaskPresetInput(preset);
   const presetPackage = normalizedPreset === "none" ? null : readPresetPackage(normalizedPreset);
-  const migrationSession = fromSession ? readMigrationSession(fromSession) : null;
-  const target = migrationSession ? normalizeTarget(migrationSession.target) : normalizeTarget(targetInput);
-  if (migrationSession && targetInput && targetInput !== "." && path.resolve(targetInput) !== path.resolve(migrationSession.target)) {
-    throw new Error(`--from-session target mismatch: session target is ${migrationSession.target}`);
+  const presetInputs = presetPackage ? resolvePresetInputs(presetPackage, { cliArgs: presetArgs, fromSession, targetInput }) : null;
+  const target = normalizeTarget(presetInputs?.targetInput || targetInput);
+  if (presetInputs?.targetInput && targetInput && targetInput !== "." && path.resolve(targetInput) !== path.resolve(presetInputs.targetInput)) {
+    throw new Error(`--from-session target mismatch: session target is ${presetInputs.targetInput}`);
   }
   const normalizedBudget = normalizeTaskBudgetInput(budget);
   if (presetPackage && !presetPackage.compatibleBudgets.includes(normalizedBudget)) throw new Error(`${normalizedPreset} preset requires --budget ${presetPackage.compatibleBudgets.join("|")}`);
   if (presetPackage?.task?.projectLevelOnly === true && moduleKey) throw new Error(`${normalizedPreset} preset is project-level and cannot be combined with --module`);
-  if (presetPackage?.task?.requiresFromSession === true && !migrationSession) throw new Error(`${normalizedPreset} preset requires --from-session`);
+  if (presetPackage?.task?.requiresFromSession === true && !fromSession) throw new Error(`${normalizedPreset} preset requires --from-session`);
   const rawNormalized = normalizeTaskId(taskId || (presetPackage?.task?.defaultTaskId || ""));
   const normalizedTaskId = ensureDatePrefix(rawNormalized);
   if (!normalizedTaskId) throw new Error("Missing task id");
@@ -225,8 +227,16 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
   const taskTitle = title || (normalizedPreset === "legacy-migration" ? "Harness v1 legacy migration" : semanticSlug);
   const directory = taskRoot(target, normalizedTaskId, { moduleKey: normalizedModuleKey });
   if (fs.existsSync(directory)) throw new Error(`Task already exists: ${normalizedTaskId}`);
+  const evaluatedPresetValues = presetPackage ? evaluateTemplateValues(presetPackage, presetInputs.inputs, { taskId: normalizedTaskId, taskTitle }) : null;
   const presetContext = presetPackage
-    ? legacyMigrationPresetContext({ presetPackage, target, taskDir: directory, taskId: normalizedTaskId, session: migrationSession })
+    ? buildPresetContext({ ...presetPackage, task: { ...(presetPackage.task || {}), kind: presetPackage.task?.kind || "general" } }, {
+        target,
+        taskDir: directory,
+        taskId: normalizedTaskId,
+        taskTitle,
+        resolvedInputs: presetInputs.inputs,
+        evaluatedValues: evaluatedPresetValues,
+      })
     : null;
   const changes = [];
   const governanceContext = beginGovernanceSync(target, { operation: `new-task ${normalizedTaskId}`, dryRun });
@@ -241,6 +251,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
         source,
         action: dryRun ? "would-create" : "create",
       });
+      if (presetPackage) assertPresetWriteScope(presetPackage, toPosix(path.relative(target.projectRoot, destinationPath)));
       if (dryRun) continue;
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
       fs.writeFileSync(
@@ -265,6 +276,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
       source,
       action: dryRun ? "would-create" : "create",
     });
+    if (presetPackage) assertPresetWriteScope(presetPackage, toPosix(path.relative(target.projectRoot, destinationPath)));
     if (dryRun) continue;
     fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
     fs.writeFileSync(
@@ -285,6 +297,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
         source: evidence.source,
         action: dryRun ? "would-create" : "create",
       });
+      assertPresetWriteScope(presetPackage, toPosix(evidence.relativePath));
       if (dryRun) continue;
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
       fs.writeFileSync(destinationPath, evidence.content);

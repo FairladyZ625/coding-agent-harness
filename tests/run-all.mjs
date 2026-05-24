@@ -13,6 +13,7 @@ const suites = [
   "tests/governance-table-boundary.mjs",
   "tests/governance-sync.mjs",
   "tests/governance-generated-indexes.mjs",
+  "tests/preset-engine.mjs",
   "tests/task-lifecycle.mjs",
   "tests/lifecycle-queues.mjs",
   "tests/migration-adoption.mjs",

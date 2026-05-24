@@ -142,6 +142,10 @@ fs.writeFileSync(
 const legacyPresetDryRun = expectJson(["new-task", "--budget", "complex", "--preset", "legacy-migration", "--from-session", legacyPresetSessionPath, "--dry-run"]);
 assert(legacyPresetDryRun.task?.preset === "legacy-migration", "new-task legacy-migration dry-run should report preset");
 assert(!fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-harness-v1-migration`)), "legacy-migration dry-run should not mutate target");
+const legacyPresetDryRunWithTarget = expectJson(["new-task", "--budget", "complex", "--preset", "legacy-migration", "--from-session", legacyPresetSessionPath, "--dry-run", lifecycleTarget]);
+assert(legacyPresetDryRunWithTarget.task?.id === `TASKS/${todayLocal}-harness-v1-migration`, "new-task --from-session with explicit target should still derive the preset task id");
+const legacyPresetDryRunWithExplicitId = expectJson(["new-task", "explicit-harness-migration", "--budget", "complex", "--preset", "legacy-migration", "--from-session", legacyPresetSessionPath, "--dry-run"]);
+assert(legacyPresetDryRunWithExplicitId.task?.id === `TASKS/${todayLocal}-explicit-harness-migration`, "new-task --from-session with an explicit task id should keep that id and derive the target from the session");
 const legacyPresetInspect = expectJson(["preset", "inspect", "legacy-migration", "--json"]);
 assert(legacyPresetInspect.id === "legacy-migration", "preset inspect should load legacy-migration from presets/<id>/preset.yaml");
 assert(legacyPresetInspect.version === 2, "legacy-migration preset package should report version 2");
