@@ -135,11 +135,11 @@ Global governance tables only keep index, state, route, and audit summary. They 
 
 | Layer | Should record | Should not record |
 | --- | --- | --- |
-| Global tables: Feature SSoT, Lessons SSoT, Harness Ledger, Closeout SSoT, Regression SSoT, Cadence Ledger | Current state, owner, task/module/detail links, regression gate, closeout or audit summary | Module-internal steps, undecided lesson candidates, full command output, long evidence paragraphs, review transcripts, temporary repair prompts |
+| Global tables: Feature SSoT, Lessons SSoT, Harness Ledger, Closeout SSoT, Regression SSoT, Cadence Ledger | Current state, owner, task/module/detail links, regression gate, closeout or audit summary | Module-internal steps, undecided lesson candidates, Lessons SSoT rows with `Status=candidate`, full command output, long evidence paragraphs, review transcripts, temporary repair prompts |
 | Module layer: Module Registry, `module_plan.md` | Module boundary, module steps, handoff, current blockers, and local evidence indexes | Final promoted lesson body or cross-module release audit ledger |
 | Task layer: `brief.md`, `task_plan.md`, `progress.md`, `review.md`, `lesson_candidates.md`, `artifacts/INDEX.md` | Execution detail, evidence, agent review, candidate lessons, repair prompts, and raw artifact routing | Final SSoT rows for reusable standards, or cross-task ledgers |
 
-The checker enforces this boundary for new global table rows. Overloaded rows that already existed before 2026-05-24 are surfaced in Dashboard migration advice as `legacy-report-only`; they are not automatically deleted or bulk-rewritten. New rows that continue placing task/module-local detail in global tables are reported as `governance-table-entropy` failures. The fix is to keep the global summary row and move detail into module/task/detail documents linked from that row.
+The checker enforces this boundary for new global table rows. Overloaded rows that already existed before 2026-05-24 are surfaced in Dashboard migration advice as `legacy-report-only`; they are not automatically deleted or bulk-rewritten. New rows that continue placing task/module-local detail in global tables are reported as `governance-table-entropy` failures. New Lessons SSoT rows must be promoted / approved / merged / superseded governance entries with a real detail document; candidates stay in `lesson_candidates.md`. The fix is to keep the global summary row and move detail into module/task/detail documents linked from that row.
 
 ## Human Confirmation Loop
 

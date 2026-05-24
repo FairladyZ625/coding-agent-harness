@@ -73,13 +73,11 @@ function evaluateLessonRow(row) {
   const status = getCell(cells, ["Status", "状态", "Review Decision"], "");
   const detailDoc = getCell(cells, ["Detail Doc", "Detail", "详情文档"], "");
   const findings = [];
-  if (/^LC[-_]/i.test(rowKey) || /lesson_candidates\.md/i.test(text) || /\bpending-human-review\b/i.test(status)) {
-    if (!/^(promoted|approved|merged|superseded)$/i.test(status) || /^(none|n\/a|-)?$/i.test(detailDoc)) {
-      findings.push({
-        reason: "unpromoted lesson candidate belongs in task-local lesson_candidates.md before Lessons SSoT",
-        route: "task-local-lesson-candidates",
-      });
-    }
+  if (!isPromotedLessonStatus(status) || !isRealDetailDoc(detailDoc)) {
+    findings.push({
+      reason: "unpromoted lesson candidate belongs in task-local lesson_candidates.md before Lessons SSoT",
+      route: "task-local-lesson-candidates",
+    });
   }
   if (longEvidencePattern().test(text) || temporaryPromptPattern().test(text)) {
     findings.push({
@@ -92,7 +90,7 @@ function evaluateLessonRow(row) {
 
 function evaluateLedgerRow(row) {
   const text = rowText(row);
-  const evidence = getCell(row.cells || {}, ["Evidence Summary", "Evidence", "证据摘要", "证据"], "");
+  const evidence = ledgerEvidenceText(row);
   if (executionLogPattern().test(evidence) || temporaryPromptPattern().test(text) || rawTranscriptPattern().test(evidence)) {
     return [{
       reason: "execution logs, long evidence, and temporary repair prompts belong in task progress/review/artifacts",
@@ -100,6 +98,31 @@ function evaluateLedgerRow(row) {
     }];
   }
   return [];
+}
+
+function isPromotedLessonStatus(status) {
+  return /^(promoted|approved|merged|superseded)$/i.test(String(status || "").trim());
+}
+
+function isRealDetailDoc(detailDoc) {
+  const value = String(detailDoc || "").replace(/`/g, "").trim();
+  return Boolean(value) && !/^(none|n\/a|na|-|—|–|无|pending)$/i.test(value) && /\.md(?:\b|$)/i.test(value);
+}
+
+function ledgerEvidenceText(row) {
+  const cells = row.cells || {};
+  return [
+    "Evidence Summary",
+    "Evidence",
+    "Regression Evidence",
+    "Review Evidence",
+    "Regression",
+    "Review",
+    "证据摘要",
+    "证据",
+    "回归",
+    "审查",
+  ].map((column) => getCell(cells, [column], "")).filter(Boolean).join(" ");
 }
 
 function evaluateCloseoutRow(row) {

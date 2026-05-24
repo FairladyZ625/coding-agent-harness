@@ -49,6 +49,7 @@ fs.writeFileSync(
     "| --- | --- | --- | --- | --- | --- |",
     "| L-OK-001 | Promoted review routing lesson | approved | `docs/01-GOVERNANCE/lessons/L-OK-001.md` | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker` | 2026-05-24 |",
     "| LC-BAD-001 | Candidate: maybe the dashboard should show a repair prompt transcript before human decision | pending-human-review | none | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker/lesson_candidates.md` | 2026-05-24 |",
+    "| L-BAD-CANDIDATE | Canonical candidate row with links | candidate | `docs/01-GOVERNANCE/lessons/L-BAD-CANDIDATE.md` | `docs/10-WALKTHROUGH/candidate-walkthrough.md` | 2026-05-24 |",
     "",
   ].join("\n"),
 );
@@ -58,11 +59,13 @@ fs.writeFileSync(
   [
     "# Harness Ledger",
     "",
-    "| ID | Date | Task | Owner | Task Plan | Review | Regression | Walkthrough | Lessons Check | Evidence Summary | Residual | Status |",
+    "| ID | Task or Change | Owner | Status | Plan | Feature or Delivery SSoT | Regression Evidence | Review Evidence | Walkthrough | Lessons Check | Residual | Updated |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-    "| HL-OK-001 | 2026-05-24 | Boundary checker | Worker C | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker/task_plan.md` | `review.md` | `npm test` | pending | checked-none: no reusable lesson | commands passed; no residual | none | open |",
-    "| HL-LEGACY-001 | 2026-05-20 | Legacy overloaded row | Worker A | `docs/09-PLANNING/TASKS/legacy/task_plan.md` | `review.md` | `npm test` | old | checked-none: old row | Legacy execution log: step one copied all output, step two pasted reviewer transcript, step three included temporary repair prompt for a previous task. This predates the checker cutoff and should be reported only. | none | closed |",
-    "| HL-BAD-001 | 2026-05-24 | New overloaded row | Worker C | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker/task_plan.md` | `review.md` | `npm test` | pending | checked-none: no reusable lesson | Execution log: first command failed, second command printed a long stack trace, copied raw evidence paragraph, and temporary repair prompt for the agent to paste back into the task. | none | open |",
+    "| HL-OK-001 | Boundary checker | Worker C | active | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | `npm test` | `review.md` | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
+    "| HL-LEGACY-001 | Legacy overloaded row | Worker A | closed | `docs/09-PLANNING/TASKS/legacy/task_plan.md` | F-old | Legacy execution log: step one copied all output, step two pasted reviewer transcript, step three included temporary repair prompt for a previous task. This predates the checker cutoff and should be reported only. | `review.md` | old | checked-none: old row | none | 2026-05-20 |",
+    "| HL-BAD-001 | New overloaded row | Worker C | active | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | Execution log: first command failed, second command printed a long stack trace, copied raw evidence paragraph, and temporary repair prompt for the agent to paste back into the task. | `review.md` | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
+    "| HL-BAD-REGRESSION-EVIDENCE | Real regression column overload | Worker C | active | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | command failed with raw output and stack trace copied into the ledger row | `review.md` | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
+    "| HL-BAD-REVIEW-EVIDENCE | Real review column overload | Worker C | active | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | `npm test` | reviewer transcript copied into the ledger row instead of linking review.md | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
     "",
   ].join("\n"),
 );
@@ -71,7 +74,10 @@ const check = run(["check", "--profile", "target-project", target]);
 assert(check.status !== 0, "new overloaded global table rows should fail target-project check");
 assert(check.stderr.includes("PF-BAD-001"), "Feature SSoT local detail row should be reported as a failure");
 assert(check.stderr.includes("LC-BAD-001"), "Lessons SSoT candidate row should be reported as a failure");
+assert(check.stderr.includes("L-BAD-CANDIDATE"), "canonical Lessons SSoT candidate rows should be reported as failures");
 assert(check.stderr.includes("HL-BAD-001"), "Harness Ledger execution log row should be reported as a failure");
+assert(check.stderr.includes("HL-BAD-REGRESSION-EVIDENCE"), "Harness Ledger Regression Evidence overload should be reported as a failure");
+assert(check.stderr.includes("HL-BAD-REVIEW-EVIDENCE"), "Harness Ledger Review Evidence overload should be reported as a failure");
 assert(!check.stderr.includes("PF-OK-001"), "allowed summary row should not be reported as a failure");
 assert(!check.stderr.includes("L-OK-001"), "promoted lesson summary row should not be reported as a failure");
 assert(check.stdout.includes("HL-LEGACY-001"), "legacy overloaded row should be reported as a warning");

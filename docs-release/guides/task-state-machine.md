@@ -136,14 +136,16 @@ Review 队列只等人确认。缺材料、阻塞、lesson 沉淀、已确认待
 
 | 层级 | 应该记录什么 | 不应该记录什么 |
 | --- | --- | --- |
-| 全局表：Feature SSoT、Lessons SSoT、Harness Ledger、Closeout SSoT、Regression SSoT、Cadence Ledger | 当前状态、负责人、任务/模块/详情文档链接、回归 gate、收口或审计摘要 | 模块内步骤、未判定 lesson candidate、完整命令输出、长证据段落、review transcript、临时 repair prompt |
+| 全局表：Feature SSoT、Lessons SSoT、Harness Ledger、Closeout SSoT、Regression SSoT、Cadence Ledger | 当前状态、负责人、任务/模块/详情文档链接、回归 gate、收口或审计摘要 | 模块内步骤、未判定 lesson candidate、`Status=candidate` 的 Lessons SSoT 行、完整命令输出、长证据段落、review transcript、临时 repair prompt |
 | 模块层：Module Registry、`module_plan.md` | 模块边界、模块内步骤、handoff、当前阻塞和局部证据索引 | 已 promotion 的全局 lesson 正文、跨模块发布审计总账 |
 | 任务层：`brief.md`、`task_plan.md`、`progress.md`、`review.md`、`lesson_candidates.md`、`artifacts/INDEX.md` | 执行细节、证据、agent review、候选 lesson、修复提示和 raw artifact 路由 | 可复用规范的最终 SSoT 行，或跨任务总账 |
 
 Checker 对新增全局表行执行该边界。2026-05-24 之前已经存在的过载行默认作为
 `legacy-report-only` 出现在 Dashboard 迁移建议里，不会被自动删除或批量改写。
 新增行如果把 task/module 局部细节继续塞进全局表，会作为 `governance-table-entropy`
-失败项报告。修复方式是保留全局摘要行，把细节移动到 module/task/detail 文档并在全局表中链接过去。
+失败项报告。Lessons SSoT 新行必须是已 promotion / approved / merged / superseded 的治理条目，
+且必须有真实详情文档；候选仍留在 `lesson_candidates.md`。修复方式是保留全局摘要行，
+把细节移动到 module/task/detail 文档并在全局表中链接过去。
 
 ## 人工确认闭环
 
