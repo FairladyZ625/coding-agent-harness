@@ -250,6 +250,20 @@ When the migration is complete, report the dynamic workbench URL or static dashb
 
 External contributors should start with [`CONTRIBUTING.md`](CONTRIBUTING.md). It covers repository layout, pull request expectations, root package checks, Dashboard smoke tests, npm package dry runs, and GUI submodule validation. The detailed public workflow also lives in [`docs-release/guides/contributing.md`](docs-release/guides/contributing.md).
 
+If you want your coding agent to make a contribution, send it this prompt:
+
+```text
+I want to contribute a focused change to FairladyZ625/coding-agent-harness.
+
+Start from the latest main branch and create a new feature branch. Read README.md and CONTRIBUTING.md first. Before editing files, inspect the relevant code/docs and give me a short plan.
+
+Keep the change scoped. Use only public repository files and do not rely on maintainer-local state, hidden workflows, credentials, generated dashboards, temporary files, or ignored local-only files.
+
+Run the checks that match the change. For docs-only changes, run git diff --check. For root package changes, run npm install, npm test, npm run smoke:dashboard, npm run check, node scripts/harness.mjs check --profile target-project examples/minimal-project, npm run pack:dry-run, and git diff --check as relevant. If the change touches harness-gui, also run cd harness-gui && npm ci && npm run typecheck && npm test && npm run build.
+
+When done, summarize what changed, list verification results, call out any skipped checks with reasons, and prepare the PR using the repository template.
+```
+
 ## Learn More
 
 - Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
