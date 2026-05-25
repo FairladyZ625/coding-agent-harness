@@ -362,6 +362,12 @@ assert(
 
 const moduleLifecycle = expectJson(["new-task", "module-lifecycle", "--module", "auth", "--budget", "complex", "--title", "模块生命周期", "--locale", "zh-CN", lifecycleTarget]);
 assert(moduleLifecycle.task?.id === `MODULES/auth/${todayLocal}-module-lifecycle`, "new-task --module should create a module task id");
+assert(moduleLifecycle.task?.preset === "module", "new-task --module should apply the module preset by default");
+assert(moduleLifecycle.task?.kind === "module-task", "new-task --module should use module preset task kind");
+assert(moduleLifecycle.task?.presetAudit?.commandWriteScopes?.includes("docs/Harness-Ledger.md"), "module preset audit should distinguish full command writes from preset-owned write scopes");
+const modulePresetAuditFile = JSON.parse(fs.readFileSync(path.join(lifecycleTarget, moduleLifecycle.task.evidenceBundle, "preset-audit.json"), "utf8"));
+assert(modulePresetAuditFile.commandWriteScopes?.includes("docs/Harness-Ledger.md"), "persisted module preset audit should include command-level governance writes");
+assert(modulePresetAuditFile.presetWriteScopes?.includes("docs/09-PLANNING/**"), "persisted module preset audit should retain preset-owned write scopes");
 assert(fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/MODULES/auth/${todayLocal}-module-lifecycle/references/INDEX.md`)), "complex module task should create references index");
 assert(fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/MODULES/auth/${todayLocal}-module-lifecycle/artifacts/INDEX.md`)), "complex module task should create artifacts index");
 assert(fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/brief.md")), "new-task --module should create a module brief when missing");
@@ -369,6 +375,10 @@ assert(fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/m
 assert(fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/execution_strategy.md")), "new-task --module should create module-level execution strategy when missing");
 assert(fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/visual_map.md")), "new-task --module should create module-level visual map when missing");
 assert(fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/session_prompt.md")), "new-task --module should create a module session prompt when missing");
+const moduleLifecyclePlan = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/MODULES/auth/${todayLocal}-module-lifecycle/task_plan.md`), "utf8");
+assert(moduleLifecyclePlan.includes("Task Preset: module"), "module task plan should persist module preset metadata");
+assert(moduleLifecyclePlan.includes("Module Context Entry Points"), "module preset should append module context entry points");
+assert(moduleLifecyclePlan.includes("docs/09-PLANNING/MODULES/auth/module_plan.md"), "module preset should point agents to the module plan");
 fs.writeFileSync(
   path.join(lifecycleTarget, "docs/09-PLANNING/Module-Registry.md"),
   "# Module Registry\n\n## Active Modules\n\n| ID | Module | Path Scope | Owner | Status | Branch or Worktree | Task Plan | Shared Files | Depends On | Handoff Evidence | Residual | Updated |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| M-AUTH | Auth | src/auth/** | coordinator | reserved | n/a | docs/09-PLANNING/MODULES/auth/module_plan.md | none | none | pending | none | 2026-05-19 |\n",

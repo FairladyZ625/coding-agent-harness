@@ -48,7 +48,7 @@ export function resolvePresetInputs(preset, { cliArgs = [], fromSession = "", ta
   };
 }
 
-export function evaluateTemplateValues(preset, resolvedInputs, { taskId = "", taskTitle = "" } = {}) {
+export function evaluateTemplateValues(preset, resolvedInputs, { taskId = "", taskTitle = "", moduleKey = "" } = {}) {
   const computed = computedValues(preset, resolvedInputs);
   const base = {
     inputs: resolvedInputs,
@@ -61,6 +61,7 @@ export function evaluateTemplateValues(preset, resolvedInputs, { taskId = "", ta
     task: {
       id: taskId,
       title: taskTitle,
+      moduleKey,
       kind: preset.task?.kind || "general",
     },
   };

@@ -90,11 +90,11 @@ Usage:
   harness migrate-run [--locale zh-CN|en-US] [--assume-locale] [--allow-dirty] [--plan-only] [--out-dir folder] [--session-dir folder] [target]
   harness migrate-verify [--json] [--full-cutover] <session.json>
   harness governance rebuild [--dry-run] [--archive] [--apply] [target]
-  harness preset list [--json]
-  harness preset inspect <id> [--json]
-  harness preset check <id> [--json]
-  harness preset install <path-or-builtin-id> [--force] [--json]
-  harness preset uninstall <id> [--json]
+  harness preset list [--json] [target]
+  harness preset inspect <id> [--json] [target]
+  harness preset check <id> [--json] [target]
+  harness preset install <path-or-builtin-id> [--project] [--force] [--json] [target]
+  harness preset uninstall <id> [--project] [--json] [target]
   harness new-task <task-id> [--module key] [--budget simple|standard|complex] [--preset id] [--from-session session.json] [--long-running] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
   harness task-start <task-id> [--message text] [target]
   harness task-phase <task-id> <phase-id> [--state done] [--completion 100] [--evidence present] [target]
@@ -117,6 +117,15 @@ Usage:
 
 If init runs in an interactive terminal and --locale is omitted, it asks for a
 language. Non-interactive init defaults to en-US.
+
+Preset discovery:
+  Project presets live in <target>/.coding-agent-harness/presets/<preset-id>/.
+  User presets live in ~/.coding-agent-harness/presets/<preset-id>/.
+  Harness discovers project presets first when a target is supplied, then user
+  presets, then bundled package presets under presets/<preset-id>/.
+  Use "harness preset list --json" to see available presets, their source,
+  purpose, compatible budgets, and manifest path. Use "harness preset inspect
+  <id> --json" for the full preset manifest summary.
 `);
 }
 
@@ -128,7 +137,7 @@ function exitWithReport(report) {
 
 if (command === "help" || command === "--help" || command === "-h") {
   printHelp();
-} else if (args.includes("--help") || args.includes("-h")) {
+} else if (args[0] === "help" || args.includes("--help") || args.includes("-h")) {
   printHelp();
 } else if (command === "check") {
   const profile = takeOption("--profile", "target-project");
@@ -229,7 +238,7 @@ if (command === "help" || command === "--help" || command === "-h") {
     process.exit(1);
   }
 } else if (command === "preset") {
-  runPresetCommand({ args, takeFlag });
+  runPresetCommand({ args, takeFlag, targetArg });
 } else if (["new-task", "task-phase", "task-start", "task-log", "task-block", "task-review", "task-complete", "review-confirm", "lesson-promote", "lesson-sediment", "task-list", "task-index", "task-supersede", "task-delete", "task-archive", "task-reopen", "module-step"].includes(command)) {
   runTaskCommand(command, { args, takeFlag, takeOption, targetArg });
 } else if (command === "install-user") {

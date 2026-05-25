@@ -169,10 +169,10 @@ function normalizeTaskBudgetInput(budget) {
   throw new Error(`Invalid task budget: ${budget}. Expected one of: simple, standard, complex`);
 }
 
-function normalizeTaskPresetInput(preset) {
+function normalizeTaskPresetInput(preset, { targetInput = "" } = {}) {
   const normalized = String(preset || "none").trim().toLowerCase().replaceAll("_", "-");
   if (!normalized || normalized === "none") return "none";
-  return readPresetPackage(normalized).id;
+  return readPresetPackage(normalized, { targetInput }).id;
 }
 
 function taskFilesForBudget({ budget, locale }) {
@@ -208,8 +208,9 @@ function bareSlug(datedId) {
 }
 
 export function createTask(targetInput, taskId, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard", longRunning = false, preset = "", fromSession = "", presetArgs = [] } = {}) {
-  const normalizedPreset = normalizeTaskPresetInput(preset);
-  const presetPackage = normalizedPreset === "none" ? null : readPresetPackage(normalizedPreset);
+  const requestedPreset = preset || (moduleKey ? "module" : "");
+  const normalizedPreset = normalizeTaskPresetInput(requestedPreset, { targetInput });
+  const presetPackage = normalizedPreset === "none" ? null : readPresetPackage(normalizedPreset, { targetInput });
   const presetInputs = presetPackage ? resolvePresetInputs(presetPackage, { cliArgs: presetArgs, fromSession, targetInput }) : null;
   const target = normalizeTarget(presetInputs?.targetInput || targetInput);
   if (presetInputs?.targetInput && targetInput && targetInput !== "." && path.resolve(targetInput) !== path.resolve(presetInputs.targetInput)) {
@@ -228,7 +229,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
   const taskTitle = title || (normalizedPreset === "legacy-migration" ? "Harness v1 legacy migration" : semanticSlug);
   const directory = taskRoot(target, normalizedTaskId, { moduleKey: normalizedModuleKey });
   if (fs.existsSync(directory)) throw new Error(`Task already exists: ${normalizedTaskId}`);
-  const evaluatedPresetValues = presetPackage ? evaluateTemplateValues(presetPackage, presetInputs.inputs, { taskId: normalizedTaskId, taskTitle }) : null;
+  const evaluatedPresetValues = presetPackage ? evaluateTemplateValues(presetPackage, presetInputs.inputs, { taskId: normalizedTaskId, taskTitle, moduleKey: normalizedModuleKey }) : null;
   const presetContext = presetPackage
     ? buildPresetContext({ ...presetPackage, task: { ...(presetPackage.task || {}), kind: presetPackage.task?.kind || "general" } }, {
         target,
@@ -351,7 +352,12 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
   };
   const governance = syncTaskGovernance(target, task, { event: "new-task", state: "planned", message: "task registered by CLI", dryRun });
   changes.push(...governance.changes);
-  const commit = commitGovernanceSync(governanceContext, governanceRelativePaths(changes), {
+  const commandWriteScopes = governanceRelativePaths(changes);
+  if (presetContext) {
+    refreshPresetCommandAudit(target, presetContext, { commandWriteScopes, dryRun });
+    task.presetAudit = presetContext.audit;
+  }
+  const commit = commitGovernanceSync(governanceContext, commandWriteScopes, {
     message: `chore(harness): register task ${task.id}`,
   });
   return {
@@ -362,6 +368,21 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
   };
   } finally {
     releaseGovernanceSync(governanceContext);
+  }
+}
+
+function refreshPresetCommandAudit(target, presetContext, { commandWriteScopes = [], dryRun = false } = {}) {
+  const scopes = [...new Set(commandWriteScopes.filter(Boolean))];
+  presetContext.audit = {
+    ...presetContext.audit,
+    presetWriteScopes: presetContext.audit.writeScopes || [],
+    commandWriteScopes: scopes,
+  };
+  for (const evidence of presetContext.evidenceFiles || []) {
+    if (evidence.source !== "preset-audit") continue;
+    evidence.content = `${JSON.stringify(presetContext.audit, null, 2)}\n`;
+    if (dryRun) continue;
+    fs.writeFileSync(path.join(target.projectRoot, evidence.relativePath), evidence.content);
   }
 }
 

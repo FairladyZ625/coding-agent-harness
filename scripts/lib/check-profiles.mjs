@@ -22,11 +22,9 @@ import {
   firstColumn,
   contentHasAny,
 } from "./markdown-utils.mjs";
-import {
-  capabilityDefinitions,
-  validateCapabilities,
-} from "./capability-registry.mjs";
+import { capabilityDefinitions, validateCapabilities } from "./capability-registry.mjs";
 import { readPresetPackage } from "./preset-registry.mjs";
+import { validateTaskPresetAuditSnapshot } from "./preset-audit-contracts.mjs";
 import { validatePresetResourcesForTask } from "./preset-resource-contracts.mjs";
 import {
   collectTasks,
@@ -199,7 +197,7 @@ export function validateTaskPresetContracts(target) {
     if (!task.taskPreset || task.taskPreset === "none") continue;
     let presetPackage = null;
     try {
-      presetPackage = readPresetPackage(task.taskPreset);
+      presetPackage = readPresetPackage(task.taskPreset, { targetInput: target.projectRoot });
     } catch (error) {
       failures.push(`${task.path} unsupported Task Preset: ${task.taskPreset} (${error.message})`);
       continue;
@@ -215,6 +213,9 @@ export function validateTaskPresetContracts(target) {
       else if (!fs.existsSync(path.join(target.projectRoot, String(task.evidenceBundle).replace(/^TARGET:/, "").replace(/^\/+/, "")))) {
         failures.push(`${task.path} ${task.taskPreset} preset Evidence Bundle missing: ${task.evidenceBundle}`);
       }
+    }
+    if (task.taskPreset !== "lesson-sedimentation") {
+      failures.push(...validateTaskPresetAuditSnapshot(target, task, presetPackage));
     }
     failures.push(...validatePresetResourcesForTask(target, task, presetPackage));
     if (task.taskPreset === "lesson-sedimentation") {

@@ -8,13 +8,19 @@ Use a preset when multiple tasks should start from the same method, evidence con
 
 ## Install Location
 
+Project presets live in:
+
+```text
+<target>/.coding-agent-harness/presets/<preset-id>/
+```
+
 User-installed presets live in:
 
 ```text
 ~/.coding-agent-harness/presets/<preset-id>/
 ```
 
-Harness discovers user presets first, then falls back to bundled presets under the package `presets/` directory.
+When a target is supplied, Harness discovers project presets first, then user presets, then bundled presets under the package `presets/` directory. Use project presets when a repository needs to override or pin a task method. Use user presets for personal reusable methods across repositories.
 
 ## Package Layout
 
@@ -172,9 +178,10 @@ Supported evidence types:
 ```bash
 harness preset check ./my-preset
 harness preset install ./my-preset
+harness preset install ./my-preset --project /path/to/project
 harness preset install legacy-migration --force
-harness preset list --json
-harness preset inspect custom-review --json
+harness preset list --json /path/to/project
+harness preset inspect custom-review --json /path/to/project
 harness new-task custom-review-task --preset custom-review --subject "API contracts" /path/to/project
 harness preset uninstall custom-review
 ```

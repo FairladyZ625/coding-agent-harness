@@ -43,6 +43,10 @@ export function normalizeTarget(input = ".") {
   };
 }
 
+export function projectPresetRoot(targetInput = ".") {
+  return path.join(normalizeTarget(targetInput).projectRoot, ".coding-agent-harness/presets");
+}
+
 export function toPosix(value) {
   return value.split(path.sep).join("/");
 }

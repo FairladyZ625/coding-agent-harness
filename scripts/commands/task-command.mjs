@@ -231,21 +231,48 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
 
 function parseNewTaskArgs(args, { preset = "", fromSession = "" } = {}) {
   const values = [...args];
-  const presetPackage = preset ? readPresetPackage(preset) : null;
   let taskId = "";
   if (!fromSession) {
     taskId = values.shift() || "";
   } else if (values.length > 0 && !values[0].startsWith("-") && !(values.length === 1 && fs.existsSync(values[0]))) {
     taskId = values.shift();
-  } else {
-    taskId = presetPackage?.task?.defaultTaskId || "harness-v1-migration";
   }
+  const presetPackage = preset ? readPresetPackageForNewTask(preset, values) : null;
+  if (!taskId && fromSession) taskId = presetPackage?.task?.defaultTaskId || "harness-v1-migration";
   const parsed = splitPresetArgsAndTarget(values, presetPackage);
   return {
     taskId,
     target: parsed.target || ".",
     presetArgs: parsed.presetArgs,
   };
+}
+
+function readPresetPackageForNewTask(preset, values) {
+  const candidates = presetDiscoveryTargetCandidates(values);
+  let fallbackPackage = null;
+  let lastError = null;
+  for (const targetInput of candidates) {
+    try {
+      const presetPackage = readPresetPackage(preset, { targetInput });
+      if (presetPackage.source === "project") return presetPackage;
+      if (!fallbackPackage) fallbackPackage = presetPackage;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (fallbackPackage) return fallbackPackage;
+  throw lastError;
+}
+
+function presetDiscoveryTargetCandidates(values) {
+  const candidates = [];
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    const value = values[index];
+    if (!value || value.startsWith("-")) continue;
+    if (!candidates.includes(value)) candidates.push(value);
+  }
+  if (!candidates.includes(".")) candidates.push(".");
+  return candidates;
 }
 
 function splitPresetArgsAndTarget(values, presetPackage) {

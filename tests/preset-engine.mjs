@@ -59,6 +59,7 @@ const legacyBefore = listBefore.presets.find((preset) => preset.id === "legacy-m
 assert(legacyBefore?.source === "builtin", "builtin presets should report source=builtin");
 const listTextBefore = expectPass(["preset", "list"], { env }).stdout;
 assert(listTextBefore.includes("legacy-migration@") && listTextBefore.includes("[builtin]"), "text preset list should show source labels");
+assert(listTextBefore.includes(" - "), "text preset list should include preset purpose");
 
 const customSource = path.join(tmpRoot, "custom-review-preset");
 fs.mkdirSync(path.join(customSource, "templates"), { recursive: true });
@@ -120,7 +121,101 @@ assert(inspect.inputs.subject.flag === "--subject", "preset inspect should expos
 assert(inspect.templateValues.subject.from === "inputs.subject", "preset inspect should expose templateValues");
 assert(inspect.metadata.ReviewSubject.from === "inputs.subject", "preset inspect should expose declarative metadata");
 assert(inspect.source === "user", "user-installed preset should override builtin discovery source");
+assert(path.isAbsolute(inspect.manifestPath), "user preset manifest path should be absolute for agent discovery");
 assert(expectJson(["preset", "check", "custom-review", "--json"], { env }).status === "pass", "installed preset should pass preset check");
+
+const projectSource = path.join(tmpRoot, "project-review-preset");
+fs.mkdirSync(path.join(projectSource, "templates"), { recursive: true });
+fs.writeFileSync(
+  path.join(projectSource, "preset.yaml"),
+  `id: project-review
+version: 1
+purpose: Project-level review task preset
+compatibleBudgets: [standard]
+localeSupport: [en-US]
+task:
+  kind: project-review-task
+  defaultTaskId: project-review-task
+entrypoints:
+  newTask:
+    type: template
+    writes: [docs/09-PLANNING/TASKS/**]
+    audit: true
+    templates:
+      taskPlanAppend: templates/task_plan.append.md
+inputs:
+  topic:
+    type: text
+    flag: --topic
+    required: true
+templateValues:
+  topic:
+    from: inputs.topic
+audit:
+  manifestRequired: true
+  evidenceFiles: [preset-audit.json]
+writeScopes:
+  taskDocs:
+    path: docs/09-PLANNING/TASKS/**
+    access: write
+`,
+);
+fs.writeFileSync(path.join(projectSource, "templates/task_plan.append.md"), "## Project Review\n\nTopic: {{topic}}\n");
+const projectInstall = expectJson(["preset", "install", projectSource, "--project", "--force", "--json", target], { env });
+assert(projectInstall.destination.includes(".coding-agent-harness/presets/project-review"), "project preset install should copy into the project preset directory");
+const projectList = expectJson(["preset", "list", "--json", target], { env });
+assert(projectList.presets.some((preset) => preset.id === "project-review" && preset.source === "project"), "project preset should be listed with source=project when target is supplied");
+const projectInspect = expectJson(["preset", "inspect", "project-review", "--json", target], { env });
+assert(projectInspect.source === "project", "preset inspect should prefer project presets when target is supplied");
+assert(projectInspect.purpose === "Project-level review task preset", "preset inspect should expose project preset purpose");
+assert(path.isAbsolute(projectInspect.manifestPath), "project preset manifest path should be absolute for agent discovery");
+const projectCreated = expectJson(["new-task", "project-review-task", "--budget", "standard", "--preset", "project-review", "--topic", "Module context", target], { env });
+assert(projectCreated.task.kind === "project-review-task", "new-task should resolve project-level preset manifests");
+const projectTaskPlan = fs.readFileSync(path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-project-review-task/task_plan.md`), "utf8");
+assert(projectTaskPlan.includes("Topic: Module context"), "project-level preset should render declared project preset templates");
+
+const projectFlagSource = path.join(tmpRoot, "project-flag-preset");
+fs.mkdirSync(path.join(projectFlagSource, "templates"), { recursive: true });
+fs.writeFileSync(
+  path.join(projectFlagSource, "preset.yaml"),
+  `id: project-flag
+version: 1
+purpose: Project-level flag preset
+compatibleBudgets: [standard]
+localeSupport: [en-US]
+task:
+  kind: project-flag-task
+  defaultTaskId: project-flag-task
+entrypoints:
+  newTask:
+    type: template
+    writes: [docs/09-PLANNING/TASKS/**]
+    audit: true
+    templates:
+      taskPlanAppend: templates/task_plan.append.md
+inputs:
+  quick:
+    type: flag
+    flag: --quick
+    required: false
+templateValues:
+  quick:
+    from: inputs.quick
+audit:
+  manifestRequired: true
+  evidenceFiles: [preset-audit.json]
+writeScopes:
+  taskDocs:
+    path: docs/09-PLANNING/TASKS/**
+    access: write
+`,
+);
+fs.writeFileSync(path.join(projectFlagSource, "templates/task_plan.append.md"), "## Project Flag\n\nQuick: {{quick}}\n");
+expectJson(["preset", "install", projectFlagSource, "--project", "--force", "--json", target], { env });
+const projectFlagCreated = expectJson(["new-task", "project-flag-task", "--budget", "standard", "--preset", "project-flag", "--quick", target], { env });
+assert(projectFlagCreated.task.kind === "project-flag-task", "new-task should resolve project-level presets when the preset input is a boolean flag");
+const projectFlagTaskPlan = fs.readFileSync(path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-project-flag-task/task_plan.md`), "utf8");
+assert(projectFlagTaskPlan.includes("Quick: true"), "project-level boolean flag preset input should render without consuming the target path");
 
 const missingInput = run(["new-task", "custom-review-task", "--budget", "standard", "--preset", "custom-review", target], { env });
 assert(missingInput.status !== 0, "new-task should fail when required preset input is missing");
@@ -295,6 +390,37 @@ assert(missingRequiredReadPath.status !== 0, "target check should fail when a pr
 assert(`${missingRequiredReadPath.stdout}\n${missingRequiredReadPath.stderr}`.includes("context-bundle preset required read missing from task plan: REF-001"), "missing required-read path failure should name the resource id");
 fs.writeFileSync(generatedTaskPlanPath, generatedTaskPlanContent);
 
+const contextShadowSource = path.join(tmpRoot, "context-bundle-shadow-preset");
+fs.mkdirSync(contextShadowSource, { recursive: true });
+fs.writeFileSync(
+  path.join(contextShadowSource, "preset.yaml"),
+  `id: context-bundle
+version: 1
+purpose: Shadowed context bundle without the original resources
+compatibleBudgets: [complex]
+task:
+  kind: service-integration
+entrypoints:
+  newTask:
+    type: template
+    writes: [docs/09-PLANNING/TASKS/**]
+    audit: true
+audit:
+  manifestRequired: true
+  evidenceFiles: [preset-audit.json]
+writeScopes:
+  taskDocs:
+    path: docs/09-PLANNING/TASKS/**
+    access: write
+`,
+);
+expectJson(["preset", "install", contextShadowSource, "--force", "--json"], { env });
+const shadowedPresetCheck = run(["check", "--profile", "target-project", target], { env });
+assert(shadowedPresetCheck.status !== 0, "target check should fail when the currently discovered preset manifest no longer matches the task audit");
+assert(`${shadowedPresetCheck.stdout}\n${shadowedPresetCheck.stderr}`.includes("preset manifest hash mismatch"), "manifest mismatch failure should name the preset audit hash drift");
+expectJson(["preset", "install", contextSource, "--force", "--json"], { env });
+expectPass(["check", "--profile", "target-project", target], { env });
+
 const currentTarget = path.join(tmpRoot, "preset-engine-current-target");
 fs.mkdirSync(currentTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", currentTarget], { env });
@@ -357,6 +483,32 @@ writeScopes:
 const invalidOverwrite = run(["preset", "install", invalidOverwriteSource, "--force", "--json"], { env });
 assert(invalidOverwrite.status !== 0, "failed forced overwrite should exit non-zero");
 assert(expectJson(["preset", "check", "custom-review", "--json"], { env }).status === "pass", "failed forced overwrite should preserve the previous installed preset");
+
+const badAuditEvidenceSource = path.join(tmpRoot, "bad-audit-evidence-preset");
+fs.mkdirSync(badAuditEvidenceSource, { recursive: true });
+fs.writeFileSync(
+  path.join(badAuditEvidenceSource, "preset.yaml"),
+  `id: bad-audit-evidence
+version: 1
+purpose: Bad audit evidence fixture
+compatibleBudgets: [standard]
+entrypoints:
+  newTask:
+    type: template
+    writes: [docs/09-PLANNING/TASKS/**]
+    audit: true
+audit:
+  manifestRequired: true
+  evidenceFiles: [../../victim-review.md]
+writeScopes:
+  taskDocs:
+    path: docs/09-PLANNING/TASKS/**
+    access: write
+`,
+);
+const badAuditEvidenceCheck = run(["preset", "check", badAuditEvidenceSource, "--json"], { env });
+assert(badAuditEvidenceCheck.status !== 0, "preset check should reject audit evidence paths that escape the evidence bundle");
+assert(`${badAuditEvidenceCheck.stdout}\n${badAuditEvidenceCheck.stderr}`.includes("audit evidence file must be a basename"), "bad audit evidence path rejection should explain the basename requirement");
 
 const blockedSource = path.join(tmpRoot, "bad-scope-preset");
 fs.mkdirSync(path.join(blockedSource, "templates"), { recursive: true });
@@ -465,6 +617,108 @@ assert(badResourceCheck.status !== 0, "preset check should reject invalid resour
 const badResourceOutput = `${badResourceCheck.stdout}\n${badResourceCheck.stderr}`;
 assert(badResourceOutput.includes("resource escaped path escapes task directory"), "bad resource path should be reported");
 assert(badResourceOutput.includes("required read REF-999 does not match a declared reference"), "bad required read should be reported");
+
+const symlinkResourceSource = path.join(tmpRoot, "symlink-resource-preset");
+const symlinkOutside = path.join(tmpRoot, "outside-resource.md");
+fs.mkdirSync(path.join(symlinkResourceSource, "resources"), { recursive: true });
+fs.writeFileSync(symlinkOutside, "# Outside Resource\n");
+fs.symlinkSync(symlinkOutside, path.join(symlinkResourceSource, "resources/secret.md"));
+fs.writeFileSync(
+  path.join(symlinkResourceSource, "preset.yaml"),
+  `id: symlink-resource
+version: 1
+purpose: Symlink resource fixture
+compatibleBudgets: [complex]
+entrypoints:
+  newTask:
+    type: template
+    writes: [docs/09-PLANNING/TASKS/**]
+    audit: true
+resources:
+  references:
+    secret:
+      path: references/secret.md
+      source: resources/secret.md
+      index:
+        id: REF-001
+        type: code
+        summary: This source must not follow a symlink.
+        usedBy: worker
+audit:
+  manifestRequired: true
+writeScopes:
+  taskDocs:
+    path: docs/09-PLANNING/TASKS/**
+    access: write
+`,
+);
+const symlinkResourceCheck = run(["preset", "check", symlinkResourceSource, "--json"], { env });
+assert(symlinkResourceCheck.status !== 0, "preset check should reject symlinked preset resource sources");
+assert(`${symlinkResourceCheck.stdout}\n${symlinkResourceCheck.stderr}`.includes("must not be a symlink"), "symlink resource rejection should explain that symlinks are not accepted");
+
+const symlinkManifestSource = path.join(tmpRoot, "symlink-manifest-preset");
+const symlinkManifestOutside = path.join(tmpRoot, "outside-manifest.yaml");
+fs.mkdirSync(symlinkManifestSource, { recursive: true });
+fs.writeFileSync(
+  symlinkManifestOutside,
+  `id: symlink-manifest
+version: 1
+purpose: Symlink manifest fixture
+compatibleBudgets: [standard]
+entrypoints:
+  newTask:
+    type: template
+    writes: [docs/09-PLANNING/TASKS/**]
+    audit: true
+audit:
+  manifestRequired: true
+writeScopes:
+  taskDocs:
+    path: docs/09-PLANNING/TASKS/**
+    access: write
+`,
+);
+fs.symlinkSync(symlinkManifestOutside, path.join(symlinkManifestSource, "preset.yaml"));
+const symlinkLocalManifestCheck = run(["preset", "check", symlinkManifestSource, "--json"], { env });
+assert(symlinkLocalManifestCheck.status !== 0, "preset check should reject local preset packages whose manifest is a symlink");
+assert(`${symlinkLocalManifestCheck.stdout}\n${symlinkLocalManifestCheck.stderr}`.includes("Preset manifest must not be a symlink"), "local symlink manifest rejection should explain the manifest boundary");
+const projectSymlinkManifestDir = path.join(target, ".coding-agent-harness/presets/symlink-manifest");
+fs.mkdirSync(projectSymlinkManifestDir, { recursive: true });
+fs.symlinkSync(symlinkManifestOutside, path.join(projectSymlinkManifestDir, "preset.yaml"));
+const symlinkProjectManifestCheck = run(["preset", "check", "symlink-manifest", "--json", target], { env });
+assert(symlinkProjectManifestCheck.status !== 0, "preset check should reject discovered project presets whose manifest is a symlink");
+assert(`${symlinkProjectManifestCheck.stdout}\n${symlinkProjectManifestCheck.stderr}`.includes("Preset manifest must not be a symlink"), "project symlink manifest rejection should explain the manifest boundary");
+
+const symlinkDirectoryOutside = path.join(tmpRoot, "outside-preset-directory");
+fs.mkdirSync(symlinkDirectoryOutside, { recursive: true });
+fs.writeFileSync(
+  path.join(symlinkDirectoryOutside, "preset.yaml"),
+  `id: dir-link
+version: 1
+purpose: Symlink package directory fixture
+compatibleBudgets: [standard]
+entrypoints:
+  newTask:
+    type: template
+    writes: [docs/09-PLANNING/TASKS/**]
+    audit: true
+audit:
+  manifestRequired: true
+writeScopes:
+  taskDocs:
+    path: docs/09-PLANNING/TASKS/**
+    access: write
+`,
+);
+const symlinkLocalDirectory = path.join(tmpRoot, "local-dir-link-preset");
+fs.symlinkSync(symlinkDirectoryOutside, symlinkLocalDirectory);
+const symlinkLocalDirectoryCheck = run(["preset", "check", symlinkLocalDirectory, "--json"], { env });
+assert(symlinkLocalDirectoryCheck.status !== 0, "preset check should reject local preset package directories that are symlinks");
+assert(`${symlinkLocalDirectoryCheck.stdout}\n${symlinkLocalDirectoryCheck.stderr}`.includes("Preset package directory must not be a symlink"), "local symlink directory rejection should explain the package boundary");
+fs.symlinkSync(symlinkDirectoryOutside, path.join(target, ".coding-agent-harness/presets/dir-link"));
+const symlinkProjectDirectoryCheck = run(["preset", "check", "dir-link", "--json", target], { env });
+assert(symlinkProjectDirectoryCheck.status !== 0, "preset check should reject discovered project preset package directories that are symlinks");
+assert(`${symlinkProjectDirectoryCheck.stdout}\n${symlinkProjectDirectoryCheck.stderr}`.includes("Preset package directory must not be a symlink"), "project symlink directory rejection should explain the package boundary");
 
 const overwriteResourceSource = path.join(tmpRoot, "overwrite-resource-preset");
 fs.mkdirSync(path.join(overwriteResourceSource, "resources"), { recursive: true });
