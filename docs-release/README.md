@@ -1,7 +1,7 @@
 # Coding Agent Harness Docs Release
 
 This directory is the public-facing documentation library for Coding Agent Harness.
-It is separate from this source repository's private self-hosted harness.
+It is separate from maintainer-only operating records for this source repository.
 
 简体中文说明：这个目录只放可公开发布的方法论、架构和使用指南。它不记录本仓库自己的私有任务计划、审查草稿、ledger 或本地运行状态。
 
@@ -27,8 +27,8 @@ Public docs in this directory explain the product architecture, concepts, and re
 roadmap. They must not contain private task ledgers, local review drafts, internal
 handoffs, or user/project-specific operating state.
 
-Private operating state for this repository lives in `.harness-private/`, which is
-ignored by the open-source repository and versioned separately.
+Maintainer-only operating state for this repository is kept outside the public
+documentation tree and outside the public release package.
 
 ## How To Read This Library / 如何阅读
 
@@ -41,6 +41,7 @@ Not every document is written for the same reader.
 | Product / engineering leaders 产品和工程负责人 | `guides/repository-operating-models.md` / `guides/repository-operating-models.en-US.md` | Choose single-repo, independent multi-repo, or parent-control repository mode. 选择单仓、多仓独立或主控仓库模式。 |
 | Architects / tech leads 架构负责人 | `architecture/overview.md` / `architecture/overview.zh-CN.md` | Understand the product architecture and task lifecycle. 理解产品架构和任务生命周期。 |
 | Review owners / maintainers 审查负责人和维护者 | `guides/task-state-machine.md` / `guides/task-state-machine.en-US.md` | Understand task state, review status, closeout, and review queue semantics. 理解任务状态、审查状态、收口和审查队列语义。 |
+| External contributors 外部贡献者 | `../CONTRIBUTING.md`, `guides/contributing.md` / `guides/contributing.zh-CN.md` | Prepare a focused PR with the right local checks and CI expectations. 按正确的本地检查和 CI 预期提交聚焦 PR。 |
 | Teams adopting Harness 项目接入团队 | `guides/agent-installation.md` / `guides/agent-installation.en-US.md` | Install and operate the agent entrypoint in a target project. 在目标项目中安装和运行 Agent 入口。 |
 | Agents running a migration 执行迁移的 Agent | `guides/legacy-migration-agent-prompt.md` / `guides/legacy-migration-agent-prompt.zh-CN.md` | Follow an executable migration contract. 按可执行迁移合同工作。 |
 | Maintainers deciding what to publish 维护者 | `guides/document-audience-and-surfaces.md` / `guides/document-audience-and-surfaces.en-US.md` | Separate human docs, agent docs, and private operating state. 区分人读文档、Agent 执行文档和私有运行状态。 |
@@ -58,6 +59,7 @@ Not every document is written for the same reader.
 
 ### Methodology / 方法论
 
+- `guides/contributing.md` / `guides/contributing.zh-CN.md` — public contributor workflow, local checks, PR expectations, and GUI submodule validation. 公开贡献者流程、本地检查、PR 要求和 GUI 子模块验证。
 - `guides/document-audience-and-surfaces.md` / `guides/document-audience-and-surfaces.en-US.md` — explains which docs are for humans, which docs are for agents, and which state must stay out of public release docs. 说明哪些文档给人看，哪些给 Agent 执行，以及哪些状态不能进入公开发布文档。
 - `guides/repository-operating-models.md` / `guides/repository-operating-models.en-US.md` — compares single-repo, independent multi-repo, and parent-control repository operating models. 对比单仓、多仓独立、主控仓库三种运行模式。
 - `guides/parent-control-repository-pattern.md` / `guides/parent-control-repository-pattern.en-US.md` — describes the control-plane pattern for products with many child repositories, services, SDKs, or upstream references. 解释多子仓库、多服务、SDK、上游参考仓库场景下的控制面模式。
@@ -88,7 +90,7 @@ The parent-control pattern is the recommended default when one product spans man
 
 Release roadmaps, staged plans, task execution strategy, final-check walkthroughs,
 and maintainer publishing notes are project operating state. Keep them in
-`.harness-private/`, not in this public documentation tree.
+maintainer-only operating records, not in this public documentation tree.
 
 ## Release Rule
 
@@ -96,4 +98,4 @@ If a document tells users how the harness works, it belongs here or under
 `references/`.
 
 If a document records how this repository is being operated, reviewed, migrated, or
-closed out, it belongs in `.harness-private/`.
+closed out, keep it outside the public documentation tree.

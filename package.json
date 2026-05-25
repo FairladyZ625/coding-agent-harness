@@ -31,6 +31,7 @@
     "status": "node scripts/harness.mjs status --json .",
     "dashboard": "node scripts/harness.mjs dashboard --out tmp/harness-dashboard.html examples/minimal-project",
     "dashboard:folder": "node scripts/harness.mjs dashboard --out-dir tmp/harness-dashboard examples/minimal-project",
+    "pack:dry-run": "npm pack --dry-run --json",
     "smoke:dashboard": "node tests/smoke-dashboard.mjs",
     "test": "node tests/run-all.mjs"
   },
@@ -38,6 +39,7 @@
     "README.md",
     "README.en-US.md",
     "README.zh-CN.md",
+    "CONTRIBUTING.md",
     "CHANGELOG.md",
     "SKILL.md",
     "LICENSE",

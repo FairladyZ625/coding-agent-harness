@@ -246,8 +246,14 @@ npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 When the migration is complete, report the dynamic workbench URL or static dashboard HTML, session.json, normal/strict checks, migrate-plan summary, and whether full-cutover verification passes. If human review confirmation is required, expose that action in the local web workbench; static dashboards are read-only evidence snapshots.
 ```
 
+## Contributing
+
+External contributors should start with [`CONTRIBUTING.md`](CONTRIBUTING.md). It covers repository layout, pull request expectations, root package checks, Dashboard smoke tests, npm package dry runs, and GUI submodule validation. The detailed public workflow also lives in [`docs-release/guides/contributing.md`](docs-release/guides/contributing.md).
+
 ## Learn More
 
+- Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Detailed contributor guide: [`docs-release/guides/contributing.md`](docs-release/guides/contributing.md)
 - Agent installation guide: [`docs-release/guides/agent-installation.en-US.md`](docs-release/guides/agent-installation.en-US.md)
 - Minimal project example: [`examples/minimal-project/`](examples/minimal-project/)
 - Legacy migration playbook: [`docs-release/guides/migration-playbook.en-US.md`](docs-release/guides/migration-playbook.en-US.md)

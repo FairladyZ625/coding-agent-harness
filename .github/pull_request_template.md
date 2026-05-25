@@ -11,8 +11,14 @@
 
 ## Verification
 
-- `[command or evidence]`: pass
-- Not run: [reason]
+- [ ] `npm test`
+- [ ] `npm run smoke:dashboard`
+- [ ] `npm run check`
+- [ ] `node scripts/harness.mjs check --profile target-project examples/minimal-project`
+- [ ] `npm run pack:dry-run`
+- [ ] `git diff --check`
+- [ ] GUI only: `cd harness-gui && npm ci && npm run typecheck && npm test && npm run build`
+- Not run: [command and reason]
 
 ## Review Evidence
 
@@ -44,8 +50,14 @@
 
 ## 验证
 
-- `[命令或证据]`：通过
-- 未运行：[原因]
+- [ ] `npm test`
+- [ ] `npm run smoke:dashboard`
+- [ ] `npm run check`
+- [ ] `node scripts/harness.mjs check --profile target-project examples/minimal-project`
+- [ ] `npm run pack:dry-run`
+- [ ] `git diff --check`
+- [ ] 仅 GUI：`cd harness-gui && npm ci && npm run typecheck && npm test && npm run build`
+- 未运行：[命令和原因]
 
 ## 审查证据
 

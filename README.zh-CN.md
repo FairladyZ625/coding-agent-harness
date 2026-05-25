@@ -245,8 +245,14 @@ npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 最终迁移完成时，必须给出动态 workbench 入口或静态 dashboard HTML、session.json、normal/strict check、migrate-plan summary，以及 full-cutover 验证是否通过。需要人工确认审查时，必须通过本地网页 workbench 暴露确认操作；静态 dashboard 只作为只读证据快照。
 ```
 
+## 参与贡献
+
+外部贡献者请先阅读 [`CONTRIBUTING.md`](CONTRIBUTING.md)。它说明仓库结构、PR 要求、根包检查、Dashboard smoke test、npm package dry run 和 GUI 子模块验证。中文详细流程见 [`docs-release/guides/contributing.zh-CN.md`](docs-release/guides/contributing.zh-CN.md)。
+
 ## 了解更多
 
+- 贡献者指南：[`CONTRIBUTING.md`](CONTRIBUTING.md)
+- 中文贡献者详细指南：[`docs-release/guides/contributing.zh-CN.md`](docs-release/guides/contributing.zh-CN.md)
 - Agent 安装指南：[`docs-release/guides/agent-installation.md`](docs-release/guides/agent-installation.md)
 - 新项目安装冒烟：[`examples/minimal-project/`](examples/minimal-project/)
 - 旧项目迁移指南：[`docs-release/guides/migration-playbook.md`](docs-release/guides/migration-playbook.md)
