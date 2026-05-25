@@ -56,12 +56,17 @@ function bind() {
   document.querySelectorAll("[data-preset-source-filter]").forEach((button) => button.addEventListener("click", () => {
     state.presetSourceFilter = button.dataset.presetSourceFilter || "all";
     state.selectedPresetKey = "";
+    state.presetUninstallConfirm = "";
     app();
   }));
   document.querySelectorAll("[data-preset-select]").forEach((button) => button.addEventListener("click", () => {
     state.selectedPresetKey = button.dataset.presetSelect || "";
     state.selectedPresetId = "";
     const selectedPreset = (bundle.presetCatalog?.presets || []).find((preset) => presetKey(preset) === state.selectedPresetKey);
+    if (selectedPreset && state.presetSourceFilter !== "all" && selectedPreset.source !== state.presetSourceFilter) {
+      state.presetSourceFilter = selectedPreset.source;
+    }
+    if (selectedPreset && !presetMatchesQuery(selectedPreset)) state.presetQuery = "";
     if (selectedPreset && ["project", "user"].includes(selectedPreset.source)) state.presetUninstallScope = selectedPreset.source;
     state.presetUninstallConfirm = "";
     app();
@@ -86,6 +91,10 @@ function bind() {
   }));
   document.querySelectorAll("[data-preset-uninstall-confirm]").forEach((input) => input.addEventListener("input", () => {
     state.presetUninstallConfirm = input.value;
+  }));
+  document.querySelectorAll("[data-preset-fill-confirm]").forEach((button) => button.addEventListener("click", () => {
+    state.presetUninstallConfirm = button.dataset.presetFillConfirm || "";
+    app();
   }));
   document.querySelectorAll("[data-preset-check]").forEach((button) => button.addEventListener("click", () => runPresetAction("check", { id: button.dataset.presetCheck || "" })));
   document.querySelectorAll("[data-preset-install]").forEach((button) => button.addEventListener("click", () => runPresetAction("install", {
@@ -148,6 +157,7 @@ function bind() {
     openDrawer(taskId);
   }));
   bindCopyTaskNameButtons(document);
+  bindPresetCopyButtons(document);
   bindRepairPromptButtons(document);
   bindLessonSedimentationButtons(document);
   document.querySelectorAll("[data-open-lesson-drawer]").forEach((el) => el.addEventListener("click", (e) => {
@@ -345,6 +355,35 @@ function bindCopyTaskNameButtons(root) {
     window.setTimeout(() => {
       button.textContent = defaultText;
     }, 1400);
+  }));
+}
+
+function bindPresetCopyButtons(root) {
+  root.querySelectorAll("[data-copy-preset-id]").forEach((button) => button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const presetId = button.dataset.copyPresetId || "";
+    const defaultText = button.textContent;
+    try {
+      await copyText(presetId);
+      button.textContent = t("copyTaskNameSuccess");
+    } catch {
+      button.textContent = t("copyTaskNameFailed");
+    }
+    setTimeout(() => { button.textContent = defaultText; }, 1200);
+  }));
+  root.querySelectorAll("[data-copy-preset-command]").forEach((button) => button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const command = button.dataset.copyPresetCommand || "";
+    const defaultText = button.textContent;
+    try {
+      await copyText(command);
+      button.textContent = t("copyTaskNameSuccess");
+    } catch {
+      button.textContent = t("copyTaskNameFailed");
+    }
+    setTimeout(() => { button.textContent = defaultText; }, 1200);
   }));
 }
 

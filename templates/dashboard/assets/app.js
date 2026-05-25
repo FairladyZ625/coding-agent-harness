@@ -1667,38 +1667,58 @@ function healthPanel() {
 function presetsView() {
   ensurePresetState();
   const catalog = bundle.presetCatalog || { summary: {}, roots: [], presets: [] };
-  const presets = filteredPresets();
+  let presets = filteredPresets();
+  syncVisiblePresetSelection(presets);
+  presets = filteredPresets();
   const selected = selectedPreset(presets);
   syncPresetUninstallScope(selected);
-  return `<div class="dashboard-grid presets-page">
-    <main class="dashboard-main stack">
-      <section class="flow-panel preset-catalog-panel">
-        <div class="section-head">
+  return `<div class="presets-page stack">
+    <section class="flow-panel preset-command-center">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">${t("presetCatalog")}</p>
+          <h2>${t("presetCatalog")}</h2>
+          <p class="subtle">${t("presetCatalogSubtitle")}</p>
+        </div>
+        <span class="preset-count-pill">${presets.length}/${catalog.summary?.total || 0}</span>
+      </div>
+      <div class="preset-priority-strip" aria-label="${escapeAttr(t("presetPriorityTitle"))}">
+        ${presetPriorityStep("project", 1)}
+        ${presetPriorityStep("user", 2)}
+        ${presetPriorityStep("builtin", 3)}
+      </div>
+      <div class="preset-toolbar">
+        <div class="input-group">
+          <input data-preset-search value="${escapeAttr(state.presetQuery)}" placeholder="${escapeAttr(t("presetSearchPlaceholder"))}" aria-label="${escapeAttr(t("presetSearch"))}">
+        </div>
+        <div class="preset-source-tabs" role="tablist" aria-label="${escapeAttr(t("presetSourceFilter"))}">
+          ${presetSourceOptions().map((source) => presetSourceButton(source)).join("")}
+        </div>
+      </div>
+    </section>
+    <section class="preset-workspace">
+      <div class="flow-panel preset-collection-panel">
+        <div class="preset-panel-heading">
           <div>
-            <p class="eyebrow">${t("presetCatalog")}</p>
-            <h2>${t("presetCatalog")}</h2>
-            <p class="subtle">${t("presetCatalogSubtitle")}</p>
-          </div>
-          <span class="subtle">${presets.length}/${catalog.summary?.total || 0}</span>
-        </div>
-        <div class="preset-toolbar">
-          <div class="input-group">
-            <input data-preset-search value="${escapeAttr(state.presetQuery)}" placeholder="${t("presetSearchPlaceholder")}" aria-label="${t("presetSearch")}">
-          </div>
-          <div class="preset-source-tabs" role="tablist" aria-label="${escapeAttr(t("presetSourceFilter"))}">
-            ${presetSourceOptions().map((source) => presetSourceButton(source)).join("")}
+            <h3>${t("presetCollection")}</h3>
+            <p>${t("presetCollectionHint")}</p>
           </div>
         </div>
-        <div class="preset-catalog-grid">
+        <div class="preset-catalog-list">
           ${presets.map((preset) => presetCard(preset, selected ? presetKey(selected) : "")).join("") || emptyState(t("noPresets"))}
         </div>
-      </section>
-    </main>
-    <aside class="dashboard-sidebar stack">
-      ${presetSummaryPanel(catalog)}
-      ${presetDetailPanel(selected)}
-      ${presetActionPanel(selected)}
-    </aside>
+      </div>
+      <div class="preset-detail-workspace stack">
+        ${presetDetailPanel(selected)}
+        ${presetLayerStackPanel(selected)}
+      </div>
+      <aside class="preset-context-actions stack">
+        ${presetActionPanel(selected)}
+        ${presetImportPanel()}
+        ${presetRestorePanel()}
+        ${presetSummaryPanel(catalog)}
+      </aside>
+    </section>
   </div>`;
 }
 
@@ -1708,9 +1728,13 @@ function ensurePresetState() {
     const legacySelection = presets.find((preset) => preset.id === state.selectedPresetId);
     if (legacySelection) state.selectedPresetKey = presetKey(legacySelection);
   }
-  if (!state.selectedPresetKey && presets[0]) state.selectedPresetKey = presetKey(presets[0]);
+  if (!state.selectedPresetKey && presets[0]) {
+    state.selectedPresetKey = presetKey(presets[0]);
+    state.presetUninstallConfirm = "";
+  }
   if (state.selectedPresetKey && !presets.some((preset) => presetKey(preset) === state.selectedPresetKey) && presets[0]) {
     state.selectedPresetKey = presetKey(presets[0]);
+    state.presetUninstallConfirm = "";
   }
 }
 
@@ -1736,16 +1760,34 @@ function filteredPresets() {
   const query = String(state.presetQuery || "").trim().toLowerCase();
   return (bundle.presetCatalog?.presets || []).filter((preset) => {
     if (state.presetSourceFilter !== "all" && preset.source !== state.presetSourceFilter) return false;
-    if (!query) return true;
-    return [
-      preset.id,
-      preset.source,
-      preset.purpose,
-      preset.taskKind,
-      preset.manifestPath,
-      ...(preset.compatibleBudgets || []),
-    ].some((value) => String(value || "").toLowerCase().includes(query));
+    return presetMatchesQuery(preset, query);
   });
+}
+
+function presetMatchesQuery(preset, query = state.presetQuery) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  if (!normalizedQuery) return true;
+  return [
+    preset.id,
+    preset.source,
+    preset.purpose,
+    preset.taskKind,
+    preset.manifestPath,
+    preset.version,
+    ...(preset.compatibleBudgets || []),
+  ].some((value) => String(value || "").toLowerCase().includes(normalizedQuery));
+}
+
+function syncVisiblePresetSelection(visiblePresets) {
+  if (!visiblePresets.length) {
+    state.selectedPresetKey = "";
+    state.presetUninstallConfirm = "";
+    return;
+  }
+  if (!visiblePresets.some((preset) => presetKey(preset) === state.selectedPresetKey)) {
+    state.selectedPresetKey = presetKey(visiblePresets[0]);
+    state.presetUninstallConfirm = "";
+  }
 }
 
 function selectedPreset(visiblePresets = filteredPresets()) {
@@ -1755,17 +1797,24 @@ function selectedPreset(visiblePresets = filteredPresets()) {
 function presetCard(preset, selectedId) {
   const key = presetKey(preset);
   const selected = key === selectedId;
-  return `<article class="preset-card ${selected ? "active" : ""}">
-    <button type="button" class="preset-card-select" data-preset-select="${escapeAttr(key)}" aria-pressed="${selected ? "true" : "false"}">
-      <span class="card-id">${escapeHtml(preset.id)}</span>
-      ${presetSourceBadge(preset.source)}
+  return `<article class="preset-card ${selected ? "active" : ""} ${preset.effective ? "effective" : "shadowed"}">
+    <div class="preset-card-topline">
+      <button type="button" class="preset-card-select" data-preset-select="${escapeAttr(key)}" aria-pressed="${selected ? "true" : "false"}">
+        <span class="card-id">${escapeHtml(preset.id)}</span>
+      </button>
+      <div class="preset-card-tools">
+        ${presetSourceBadge(preset.source)}
+        ${presetStatusBadge(preset)}
+        <button type="button" class="copy-inline" data-copy-preset-id="${escapeAttr(preset.id)}" title="${escapeAttr(t("copyPresetId"))}">${t("copyIdShort")}</button>
+      </div>
+    </div>
+    <button type="button" class="preset-card-body" data-preset-select="${escapeAttr(key)}">
+      <span>${escapeHtml(preset.purpose || t("none"))}</span>
     </button>
-    <p>${escapeHtml(preset.purpose || t("none"))}</p>
     <div class="preset-card-meta">
-      <span>${t("version")}: ${escapeHtml(preset.version)}</span>
+      <span>${t("manifestVersion")}: ${escapeHtml(formatPresetVersion(preset))}</span>
       <span>${t("taskKind")}: ${escapeHtml(preset.taskKind || t("none"))}</span>
       <span>${t("budgets")}: ${escapeHtml((preset.compatibleBudgets || []).join(", ") || t("none"))}</span>
-      <span>${escapeHtml(preset.effective ? t("presetEffective") : t("presetShadowed"))}</span>
     </div>
     <code class="preset-manifest-path">${escapeHtml(preset.manifestPath || "")}</code>
   </article>`;
@@ -1775,19 +1824,45 @@ function presetKey(preset) {
   return preset?.key || `${preset?.source || "unknown"}:${preset?.id || ""}`;
 }
 
+function presetSourceRank(source) {
+  return { project: 1, user: 2, builtin: 3 }[source] || 9;
+}
+
+function presetLayersForId(id) {
+  return (bundle.presetCatalog?.presets || [])
+    .filter((preset) => preset.id === id)
+    .sort((a, b) => presetSourceRank(a.source) - presetSourceRank(b.source));
+}
+
 function syncPresetUninstallScope(preset) {
   if (preset && ["project", "user"].includes(preset.source)) state.presetUninstallScope = preset.source;
 }
 
+function presetPriorityStep(source, index) {
+  return `<div class="preset-priority-step">
+    <span>${index}</span>
+    <strong>${escapeHtml(t(`presetSource_${source}`) || source)}</strong>
+  </div>`;
+}
+
 function presetSourceBadge(source) {
   const normalized = String(source || "unknown");
-  return `<span class="tag">${escapeHtml(t(`presetSource_${normalized}`) || normalized)}</span>`;
+  return `<span class="tag preset-source-badge ${escapeAttr(normalized)}">${escapeHtml(t(`presetSource_${normalized}`) || normalized)}</span>`;
+}
+
+function presetStatusBadge(preset) {
+  return `<span class="tag ${preset.effective ? "pass" : "warn"}">${escapeHtml(preset.effective ? t("presetEffective") : t("presetShadowed"))}</span>`;
+}
+
+function formatPresetVersion(preset) {
+  return preset?.version ?? t("none");
 }
 
 function presetSummaryPanel(catalog) {
   const roots = catalog.roots || [];
   return `<section class="side-panel preset-summary-panel">
     <h3>${t("presetSources")}</h3>
+    <p class="preset-helper">${t("presetSourcesHint")}</p>
     <div class="metrics-grid compact">
       ${metric(t("presetSourceProject"), catalog.summary?.project || 0)}
       ${metric(t("presetSourceUser"), catalog.summary?.user || 0)}
@@ -1800,25 +1875,78 @@ function presetSummaryPanel(catalog) {
 }
 
 function presetDetailPanel(preset) {
-  if (!preset) return `<section class="side-panel">${emptyState(t("noPresets"))}</section>`;
-  return `<section class="side-panel preset-detail-panel">
-    <h3>${escapeHtml(preset.id)}</h3>
-    <p>${escapeHtml(preset.purpose || "")}</p>
+  if (!preset) return `<section class="flow-panel preset-detail-panel">${emptyState(t("noPresets"))}</section>`;
+  const inspectCommand = `harness preset inspect ${preset.id} --json .`;
+  const checkCommand = `harness preset check ${preset.id} --json .`;
+  const commandRows = preset.effective
+    ? `${presetCommandRow(inspectCommand)}${presetCommandRow(checkCommand)}`
+    : `<div class="preset-command-warning">${escapeHtml(t("presetCommandsEffectiveOnly"))}</div>`;
+  return `<section class="flow-panel preset-detail-panel">
+    <div class="preset-detail-hero">
+      <div>
+        <div class="preset-detail-title-row">
+          <h3>${escapeHtml(preset.id)}</h3>
+          <button type="button" class="copy-inline" data-copy-preset-id="${escapeAttr(preset.id)}">${t("copyPresetId")}</button>
+        </div>
+        <p>${escapeHtml(preset.purpose || "")}</p>
+      </div>
+      <div class="preset-detail-badges">
+        ${presetSourceBadge(preset.source)}
+        ${presetStatusBadge(preset)}
+      </div>
+    </div>
     <dl class="preset-detail-list">
-      <div><dt>${t("version")}</dt><dd>${escapeHtml(preset.version)}</dd></div>
-      <div><dt>${t("source")}</dt><dd>${escapeHtml(preset.source)}</dd></div>
-      <div><dt>${t("status")}</dt><dd>${escapeHtml(preset.effective ? t("presetEffective") : t("presetShadowed"))}</dd></div>
-      <div><dt>${t("taskKind")}</dt><dd>${escapeHtml(preset.taskKind || t("none"))}</dd></div>
-      <div><dt>${t("inputs")}</dt><dd>${preset.inputCount || 0}</dd></div>
-      <div><dt>${t("references")}</dt><dd>${preset.referenceCount || 0}</dd></div>
-      <div><dt>${t("artifacts")}</dt><dd>${preset.artifactCount || 0}</dd></div>
-      <div><dt>${t("writeScopes")}</dt><dd>${preset.writeScopeCount || 0}</dd></div>
-      <div><dt>${t("requiredReads")}</dt><dd>${preset.requiredReadCount || 0}</dd></div>
+      ${presetDetailRow(t("manifestVersion"), formatPresetVersion(preset))}
+      ${presetDetailRow(t("source"), t(`presetSource_${preset.source}`) || preset.source)}
+      ${presetDetailRow(t("status"), preset.effective ? t("presetEffective") : t("presetShadowed"))}
+      ${presetDetailRow(t("taskKind"), preset.taskKind || t("none"))}
+      ${presetDetailRow(t("budgets"), (preset.compatibleBudgets || []).join(", ") || t("none"))}
+      ${presetDetailRow(t("inputs"), preset.inputCount || 0)}
+      ${presetDetailRow(t("references"), preset.referenceCount || 0)}
+      ${presetDetailRow(t("artifacts"), preset.artifactCount || 0)}
+      ${presetDetailRow(t("writeScopes"), preset.writeScopeCount || 0)}
+      ${presetDetailRow(t("requiredReads"), preset.requiredReadCount || 0)}
     </dl>
-    <code class="preset-manifest-path">${escapeHtml(preset.manifestPath || "")}</code>
+    <div class="preset-path-block">
+      <span>${t("manifestPath")}</span>
+      <code class="preset-manifest-path">${escapeHtml(preset.manifestPath || "")}</code>
+    </div>
     <div class="preset-command-list">
-      <code>harness preset inspect ${escapeHtml(preset.id)} --json .</code>
-      <code>harness preset check ${escapeHtml(preset.id)} --json .</code>
+      ${commandRows}
+    </div>
+  </section>`;
+}
+
+function presetDetailRow(labelText, value) {
+  return `<div><dt>${escapeHtml(labelText)}</dt><dd>${escapeHtml(String(value ?? ""))}</dd></div>`;
+}
+
+function presetCommandRow(command) {
+  return `<div class="preset-command-row">
+    <code>${escapeHtml(command)}</code>
+    <button type="button" class="copy-inline" data-copy-preset-command="${escapeAttr(command)}">${t("copyCommand")}</button>
+  </div>`;
+}
+
+function presetLayerStackPanel(preset) {
+  if (!preset) return "";
+  const layers = presetLayersForId(preset.id);
+  return `<section class="flow-panel preset-layer-panel">
+    <div class="preset-panel-heading">
+      <div>
+        <h3>${t("presetLayerStack")}</h3>
+        <p>${t("presetLayerStackHint")}</p>
+      </div>
+    </div>
+    <div class="preset-layer-list">
+      ${layers.map((layer) => `<button type="button" class="preset-layer-row ${presetKey(layer) === presetKey(preset) ? "active" : ""}" data-preset-select="${escapeAttr(presetKey(layer))}">
+        <span class="preset-layer-rank">${presetSourceRank(layer.source)}</span>
+        <span>
+          <strong>${escapeHtml(t(`presetSource_${layer.source}`) || layer.source)}</strong>
+          <small>${t("manifestVersion")}: ${escapeHtml(formatPresetVersion(layer))}</small>
+        </span>
+        ${presetStatusBadge(layer)}
+      </button>`).join("")}
     </div>
   </section>`;
 }
@@ -1826,38 +1954,72 @@ function presetDetailPanel(preset) {
 function presetActionPanel(preset) {
   const staticNote = canUseWorkbenchAction("preset-install") ? "" : `<p class="lesson-action-note">${escapeHtml(t("presetWorkbenchRequired"))}</p>`;
   const lockedUninstallScope = preset && ["project", "user"].includes(preset.source) ? preset.source : "";
+  const confirmMatches = Boolean(preset && state.presetUninstallConfirm.trim() === preset.id);
+  const canCheck = canUseWorkbenchAction("preset-check") && preset && preset.effective;
+  const canUninstall = canUseWorkbenchAction("preset-uninstall") && preset && preset.source !== "builtin" && confirmMatches;
   return `<section class="side-panel preset-action-panel">
-    <h3>${t("presetActions")}</h3>
+    <div class="preset-panel-heading">
+      <div>
+        <h3>${t("presetContextActions")}</h3>
+        <p>${preset ? escapeHtml(preset.id) : t("noPresets")}</p>
+      </div>
+    </div>
     ${staticNote}
     ${presetActionResult()}
     <div class="preset-action-group">
       <h4>${t("presetCheck")}</h4>
-      <button data-preset-check="${escapeAttr(preset?.id || "")}" ${canUseWorkbenchAction("preset-check") && preset ? "" : "disabled"}>${t("presetCheck")}</button>
+      <p>${preset?.effective ? t("presetCheckHint") : t("presetShadowedActionHint")}</p>
+      <button data-preset-check="${escapeAttr(preset?.id || "")}" ${canCheck ? "" : "disabled"}>${t("presetCheckSelected")}</button>
+    </div>
+    <div class="preset-action-group danger">
+      <h4>${t("presetUninstallSelected")}</h4>
+      <p>${preset?.source === "builtin" ? t("presetBuiltinImmutable") : t("presetUninstallHint")}</p>
+      <label>${t("scope")}<select data-preset-uninstall-scope ${lockedUninstallScope ? "disabled" : ""}>
+        ${presetScopeOptions(lockedUninstallScope || state.presetUninstallScope)}
+      </select></label>
+      <div class="preset-confirm-row">
+        <label>${t("confirmPresetId")}<input data-preset-uninstall-confirm value="${escapeAttr(state.presetUninstallConfirm)}" placeholder="${escapeAttr(preset?.id || "")}"></label>
+        <button type="button" data-preset-fill-confirm="${escapeAttr(preset?.id || "")}" ${preset && preset.source !== "builtin" ? "" : "disabled"}>${t("useSelectedId")}</button>
+      </div>
+      ${preset && preset.source !== "builtin" && !confirmMatches ? `<p class="preset-confirm-warning">${escapeHtml(t("presetConfirmRequired"))}</p>` : ""}
+      <button data-preset-uninstall="${escapeAttr(preset?.id || "")}" ${canUninstall ? "" : "disabled"}>${t("presetUninstallSelected")}</button>
+    </div>
+  </section>`;
+}
+
+function presetImportPanel() {
+  return `<section class="side-panel preset-action-panel">
+    <div class="preset-panel-heading">
+      <div>
+        <h3>${t("presetImportTitle")}</h3>
+        <p>${t("presetImportHint")}</p>
+      </div>
     </div>
     <div class="preset-action-group">
-      <h4>${t("presetInstall")}</h4>
-      <label>${t("source")}<input data-preset-install-source value="${escapeAttr(state.presetInstallSource)}" placeholder="${t("presetInstallSourcePlaceholder")}"></label>
+      <label>${t("source")}<input data-preset-install-source value="${escapeAttr(state.presetInstallSource)}" placeholder="${escapeAttr(t("presetInstallSourcePlaceholder"))}"></label>
       <label>${t("scope")}<select data-preset-install-scope>
         ${presetScopeOptions(state.presetInstallScope)}
       </select></label>
       <label class="check-row"><input type="checkbox" data-preset-install-force ${state.presetInstallForce ? "checked" : ""}> ${t("forceOverwrite")}</label>
       <button data-preset-install ${canUseWorkbenchAction("preset-install") ? "" : "disabled"}>${t("presetInstall")}</button>
     </div>
+  </section>`;
+}
+
+function presetRestorePanel() {
+  return `<section class="side-panel preset-action-panel">
+    <div class="preset-panel-heading">
+      <div>
+        <h3>${t("presetRestoreBundled")}</h3>
+        <p>${t("presetRestoreBundledHint")}</p>
+      </div>
+    </div>
     <div class="preset-action-group">
-      <h4>${t("presetSeed")}</h4>
       <label>${t("scope")}<select data-preset-seed-scope>
         ${presetScopeOptions(state.presetSeedScope)}
       </select></label>
       <label class="check-row"><input type="checkbox" data-preset-seed-force ${state.presetSeedForce ? "checked" : ""}> ${t("forceOverwrite")}</label>
-      <button data-preset-seed ${canUseWorkbenchAction("preset-seed") ? "" : "disabled"}>${t("presetSeed")}</button>
-    </div>
-    <div class="preset-action-group danger">
-      <h4>${t("presetUninstall")}</h4>
-      <label>${t("scope")}<select data-preset-uninstall-scope ${lockedUninstallScope ? "disabled" : ""}>
-        ${presetScopeOptions(lockedUninstallScope || state.presetUninstallScope)}
-      </select></label>
-      <label>${t("confirmPresetId")}<input data-preset-uninstall-confirm value="${escapeAttr(state.presetUninstallConfirm)}" placeholder="${escapeAttr(preset?.id || "")}"></label>
-      <button data-preset-uninstall="${escapeAttr(preset?.id || "")}" ${canUseWorkbenchAction("preset-uninstall") && preset && preset.source !== "builtin" ? "" : "disabled"}>${t("presetUninstall")}</button>
+      <button data-preset-seed ${canUseWorkbenchAction("preset-seed") ? "" : "disabled"}>${t("presetRestoreBundled")}</button>
     </div>
   </section>`;
 }
@@ -2000,12 +2162,17 @@ function bind() {
   document.querySelectorAll("[data-preset-source-filter]").forEach((button) => button.addEventListener("click", () => {
     state.presetSourceFilter = button.dataset.presetSourceFilter || "all";
     state.selectedPresetKey = "";
+    state.presetUninstallConfirm = "";
     app();
   }));
   document.querySelectorAll("[data-preset-select]").forEach((button) => button.addEventListener("click", () => {
     state.selectedPresetKey = button.dataset.presetSelect || "";
     state.selectedPresetId = "";
     const selectedPreset = (bundle.presetCatalog?.presets || []).find((preset) => presetKey(preset) === state.selectedPresetKey);
+    if (selectedPreset && state.presetSourceFilter !== "all" && selectedPreset.source !== state.presetSourceFilter) {
+      state.presetSourceFilter = selectedPreset.source;
+    }
+    if (selectedPreset && !presetMatchesQuery(selectedPreset)) state.presetQuery = "";
     if (selectedPreset && ["project", "user"].includes(selectedPreset.source)) state.presetUninstallScope = selectedPreset.source;
     state.presetUninstallConfirm = "";
     app();
@@ -2030,6 +2197,10 @@ function bind() {
   }));
   document.querySelectorAll("[data-preset-uninstall-confirm]").forEach((input) => input.addEventListener("input", () => {
     state.presetUninstallConfirm = input.value;
+  }));
+  document.querySelectorAll("[data-preset-fill-confirm]").forEach((button) => button.addEventListener("click", () => {
+    state.presetUninstallConfirm = button.dataset.presetFillConfirm || "";
+    app();
   }));
   document.querySelectorAll("[data-preset-check]").forEach((button) => button.addEventListener("click", () => runPresetAction("check", { id: button.dataset.presetCheck || "" })));
   document.querySelectorAll("[data-preset-install]").forEach((button) => button.addEventListener("click", () => runPresetAction("install", {
@@ -2092,6 +2263,7 @@ function bind() {
     openDrawer(taskId);
   }));
   bindCopyTaskNameButtons(document);
+  bindPresetCopyButtons(document);
   bindRepairPromptButtons(document);
   bindLessonSedimentationButtons(document);
   document.querySelectorAll("[data-open-lesson-drawer]").forEach((el) => el.addEventListener("click", (e) => {
@@ -2289,6 +2461,35 @@ function bindCopyTaskNameButtons(root) {
     window.setTimeout(() => {
       button.textContent = defaultText;
     }, 1400);
+  }));
+}
+
+function bindPresetCopyButtons(root) {
+  root.querySelectorAll("[data-copy-preset-id]").forEach((button) => button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const presetId = button.dataset.copyPresetId || "";
+    const defaultText = button.textContent;
+    try {
+      await copyText(presetId);
+      button.textContent = t("copyTaskNameSuccess");
+    } catch {
+      button.textContent = t("copyTaskNameFailed");
+    }
+    setTimeout(() => { button.textContent = defaultText; }, 1200);
+  }));
+  root.querySelectorAll("[data-copy-preset-command]").forEach((button) => button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const command = button.dataset.copyPresetCommand || "";
+    const defaultText = button.textContent;
+    try {
+      await copyText(command);
+      button.textContent = t("copyTaskNameSuccess");
+    } catch {
+      button.textContent = t("copyTaskNameFailed");
+    }
+    setTimeout(() => { button.textContent = defaultText; }, 1200);
   }));
 }
 
