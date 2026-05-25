@@ -13,14 +13,14 @@ import {
   parseScaffoldProvenance,
 } from "./task-scanner.mjs";
 
-export function validatePlanContracts(target, { strict = true } = {}) {
+export function validatePlanContracts(target, { strict = true, taskPlanPaths } = {}) {
   const failures = [];
   const warnings = [];
   const report = (message) => {
     if (strict) failures.push(message);
     else warnings.push(`adoption-needed: ${message}`);
   };
-  for (const taskPlanPath of listTaskPlanPaths(target)) {
+  for (const taskPlanPath of taskPlanPaths || listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
     const relativeDir = toPosix(path.relative(target.projectRoot, taskDir));
     const relativeBriefPath = `${relativeDir}/brief.md`;

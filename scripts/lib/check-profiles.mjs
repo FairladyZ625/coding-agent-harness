@@ -22,11 +22,11 @@ import {
   firstColumn,
   contentHasAny,
 } from "./markdown-utils.mjs";
-import { capabilityDefinitions, validateCapabilities } from "./capability-registry.mjs";
+import { validateCapabilities } from "./capability-registry.mjs";
 import { readPresetPackage } from "./preset-registry.mjs";
 import { validateTaskPresetAuditSnapshot } from "./preset-audit-contracts.mjs";
 import { validatePresetResourcesForTask } from "./preset-resource-contracts.mjs";
-import { collectTasks, listTaskPlanPaths, parseTaskBudget, readVisualMapContractFile, parsePhases, taskCutoverCounters } from "./task-scanner.mjs";
+import { collectTasks, listTaskPlanPaths, parseTaskBudget, readVisualMapContractFile, parsePhases } from "./task-scanner.mjs";
 import { normalizeReviewBoolean, reviewFindingColumns } from "./task-review-model.mjs";
 import { allowedPhaseActors, allowedPhaseKinds } from "./phase-kind.mjs";
 import { validateTaskCompletionConsistency } from "./task-completion-consistency.mjs";
@@ -34,6 +34,7 @@ import { validatePlanContracts } from "./check-task-contracts.mjs";
 import { validateGovernanceTableBoundaries } from "./governance-table-boundary.mjs";
 import { validateSubagentAuthorization } from "./subagent-authorization-audit.mjs";
 import { summarizeGitState } from "./git-status-summary.mjs";
+import { buildStatusData } from "./status-builder.mjs";
 export { renderDashboard } from "./status-dashboard-renderer.mjs";
 
 export function runLegacyCheck(target) {
@@ -136,10 +137,10 @@ export function validateReviewSchema(target, { strict = true } = {}) {
   return { failures, warnings };
 }
 
-export function validateVisualMaps(target) {
+export function validateVisualMaps(target, { taskPlanPaths } = {}) {
   const failures = [];
   const warnings = [];
-  for (const taskPlanPath of listTaskPlanPaths(target)) {
+  for (const taskPlanPath of taskPlanPaths || listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
     const visualMapPath = path.join(taskDir, visualMapFile);
     const legacyPath = path.join(taskDir, legacyVisualRoadmapFile);
@@ -183,7 +184,7 @@ export function validateVisualMaps(target) {
   return { failures, warnings };
 }
 
-export function validateTaskPresetContracts(target) {
+export function validateTaskPresetContracts(target, { tasks } = {}) {
   const failures = [];
   const allowedMigrationLevels = new Set([
     "migration-baseline",
@@ -191,7 +192,7 @@ export function validateTaskPresetContracts(target) {
     "migration-full-cutover",
     "migration-deferred",
   ]);
-  for (const task of collectTasks(target)) {
+  for (const task of tasks || collectTasks(target)) {
     if (!task.taskPreset || task.taskPreset === "none") continue;
     let presetPackage = null;
     try {
@@ -324,10 +325,13 @@ export function buildStatus(targetInput, options = {}) {
   const shouldRunLegacy = !options.skipLegacyCheck && (capabilityState.registry.mode === "legacy-compat" || safeAdoptionMode);
   const legacy = shouldRunLegacy ? runLegacyCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
   const contractStrict = Boolean(options.strict) || (capabilityState.registry.mode !== "legacy-compat" && !safeAdoptionMode);
+  const taskPlanPaths = listTaskPlanPaths(target);
+  const closeoutContent = readFileSafe(path.join(target.docsRoot, "10-WALKTHROUGH/Closeout-SSoT.md"));
+  const tasks = collectTasks(target, { requireGeneratedScaffoldProvenance: contractStrict, taskPlanPaths, closeoutContent });
   const reviews = validateReviewSchema(target, { strict: contractStrict });
-  const visualMaps = validateVisualMaps(target);
-  const planContracts = validatePlanContracts(target, { strict: contractStrict });
-  const presetContracts = validateTaskPresetContracts(target);
+  const visualMaps = validateVisualMaps(target, { taskPlanPaths });
+  const planContracts = validatePlanContracts(target, { strict: contractStrict, taskPlanPaths });
+  const presetContracts = validateTaskPresetContracts(target, { tasks });
   const contextDocs = validateContextDocs(target, { strict: contractStrict });
   const governanceBoundaries = validateGovernanceTableBoundaries(target);
   const subagentAuthorization = validateSubagentAuthorization(target, { strict: contractStrict });
@@ -338,7 +342,6 @@ export function buildStatus(targetInput, options = {}) {
     else warnings.push(`adoption-needed: legacy check failed: ${(legacy.stderr || legacy.stdout).trim()}`);
   }
 
-  const tasks = collectTasks(target, { requireGeneratedScaffoldProvenance: contractStrict });
   const taskCompletionConsistency = validateTaskCompletionConsistency(tasks);
   failures.push(...taskCompletionConsistency.failures);
   warnings.push(...taskCompletionConsistency.warnings);
@@ -351,66 +354,13 @@ export function buildStatus(targetInput, options = {}) {
       else warnings.push(`adoption-needed: ${message}`);
     }
   }
-  const capabilityNames = new Map(capabilityState.registry.capabilities.map((capability) => [capability.name, capability]));
-  for (const detected of capabilityState.detected) {
-    if (!capabilityNames.has(detected)) capabilityNames.set(detected, { name: detected, state: "configured" });
-  }
-  const cutoverCounters = taskCutoverCounters(tasks);
-  const fullCutoverEligible =
-    failures.length === 0 &&
-    warnings.length === 0 &&
-    cutoverCounters.legacyVisualOnlyCount === 0 &&
-    cutoverCounters.unknownClassificationCount === 0 &&
-    cutoverCounters.weakBriefCount === 0 &&
-    cutoverCounters.missingCanonicalVisualMapCount === 0;
-
-  return {
-    project: {
-      name: path.basename(target.projectRoot),
-      root: `TARGET:${target.docsOnly ? toPosix(path.relative(target.projectRoot, target.docsRoot)) : "."}`,
-      docsOnly: target.docsOnly,
-    },
-    schemaVersion: 2,
-    generatedAt: new Date().toISOString(),
-    mode: capabilityState.registry.mode,
-    checkState: {
-      status: failures.length > 0 ? "fail" : warnings.length > 0 ? "warn" : "pass",
-      failures: failures.length,
-      warnings: warnings.length,
-      details: { failures, warnings },
-      legacy,
-    },
-    git: gitState.summary,
-    summary: {
-      tasks: tasks.length,
-      briefCoverage: {
-        ready: briefReady,
-        missing: briefMissing,
-        total: tasks.length,
-      },
-      visualMapCoverage: {
-        canonical: tasks.filter((task) => task.visualMapSource === "canonical").length,
-        legacyOnly: cutoverCounters.legacyVisualOnlyCount,
-        missing: tasks.filter((task) => task.visualMapStatus === "missing").length,
-        total: tasks.length,
-      },
-      fullCutoverEligible,
-      legacyVisualOnlyCount: cutoverCounters.legacyVisualOnlyCount,
-      unknownClassificationCount: cutoverCounters.unknownClassificationCount,
-      weakBriefCount: cutoverCounters.weakBriefCount,
-      visualMapRequiredCount: cutoverCounters.visualMapRequiredCount,
-      missingCanonicalVisualMapCount: cutoverCounters.missingCanonicalVisualMapCount,
-    },
-    capabilities: [...capabilityNames.values()].map((capability) => ({
-      name: capability.name,
-      state: capability.state || "configured",
-      dependencyStatus: capabilityDefinitions[capability.name]?.dependencies.every((dependency) => capabilityNames.has(dependency))
-        ? "valid"
-        : "invalid",
-      warnings: capabilityState.warnings.filter((warning) => warning.includes(capability.name)),
-    })),
+  return buildStatusData(target, {
+    capabilityState,
+    gitState,
+    legacy,
+    failures,
+    warnings,
     tasks,
-    handoffs: tasks.flatMap((task) => task.handoffs || []),
-    recentActivity: tasks.slice(0, 8).map((task) => ({ at: new Date().toISOString(), type: "task", summary: task.title })),
-  };
+    validationMode: "validated",
+  });
 }

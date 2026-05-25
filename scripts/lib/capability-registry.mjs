@@ -10,6 +10,7 @@ import {
   exists,
   existsInDocs,
   readFileSafe,
+  readJsonSafe,
   readBundledTemplate,
   walkFiles,
   normalizeLocale,
@@ -96,8 +97,9 @@ export function readCapabilityRegistry(target) {
     };
   }
 
-  try {
-    const raw = JSON.parse(fs.readFileSync(registryPath, "utf8"));
+  let readError = null;
+  const raw = readJsonSafe(registryPath, null, { onError: (error) => { readError = error; } });
+  if (raw) {
     const locale = normalizeLocale(raw.locale);
     const capabilities = Array.isArray(raw.capabilities)
       ? raw.capabilities.map((entry) =>
@@ -107,9 +109,8 @@ export function readCapabilityRegistry(target) {
         )
       : [];
     return { mode: "declared-capability", path: registryPath, capabilities, raw, locale, errors: [] };
-  } catch (error) {
-    return { mode: "declared-capability", path: registryPath, capabilities: [], raw: null, errors: [error.message] };
   }
+  return { mode: "declared-capability", path: registryPath, capabilities: [], raw: null, errors: [readError?.message || "invalid .harness-capabilities.json"] };
 }
 
 export function normalizeCapabilityName(name) {
@@ -157,7 +158,7 @@ function validateDashboardAssetAssembly(root, manifestName, assetName, driftMess
   const assetPath = path.join(assetsDir, assetName);
   if (!fs.existsSync(manifestPath) || !fs.existsSync(assetPath)) return [];
   try {
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    const manifest = readJsonSafe(manifestPath, null);
     if (!Array.isArray(manifest) || manifest.length === 0) {
       return [`dashboard asset manifest must list source files: ${manifestName}`];
     }
@@ -221,7 +222,7 @@ export function buildInstallReport({ target, locale, capabilities, changes, dryR
 
 function packageVersion() {
   try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+    const pkg = readJsonSafe(path.join(repoRoot, "package.json"), {});
     return pkg.version || "";
   } catch {
     return "";
@@ -261,19 +262,14 @@ function skillPackageEntries() {
 }
 
 function listPackageFiles() {
-  const files = [];
-  function walk(relativePath) {
-    const full = path.join(repoRoot, relativePath);
-    if (!fs.existsSync(full)) return;
-    const stat = fs.statSync(full);
-    if (stat.isDirectory()) {
-      for (const entry of fs.readdirSync(full)) walk(path.join(relativePath, entry));
-      return;
-    }
-    if (stat.isFile()) files.push(toPosix(relativePath));
-  }
-  for (const entry of skillPackageEntries()) walk(entry);
-  return files.sort();
+  return skillPackageEntries()
+    .flatMap((entry) => {
+      const fullPath = path.join(repoRoot, entry);
+      if (!fs.existsSync(fullPath)) return [];
+      if (fs.statSync(fullPath).isFile()) return [toPosix(path.relative(repoRoot, fullPath))];
+      return walkFiles(fullPath).map((file) => toPosix(path.relative(repoRoot, file)));
+    })
+    .sort();
 }
 
 function copySkillPackage(targetRoot, { dryRun = false, force = false } = {}) {
@@ -324,7 +320,7 @@ export function installUserSkill({ agent = "codex", home = "", dryRun = false, f
 
 function readInstalledVersion(targetRoot) {
   try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(targetRoot, "package.json"), "utf8"));
+    const pkg = readJsonSafe(path.join(targetRoot, "package.json"), {});
     return pkg.version || "";
   } catch {
     return "";
@@ -536,7 +532,7 @@ function initNextCommands() {
 function writeNpmScripts(target, { dryRun = true } = {}) {
   const packagePath = path.join(target.projectRoot, "package.json");
   if (!fs.existsSync(packagePath)) throw new Error("init --add-npm-scripts requires an existing package.json");
-  const pkg = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+  const pkg = readJsonSafe(packagePath, {});
   const scripts = { ...(pkg.scripts || {}) };
   const additions = {
     "harness:dev": "coding-agent-harness dev .",

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { walkFiles } from "./core-shared.mjs";
 
 function stripMarkdownCode(value) {
   return String(value || "").replace(/`/g, "").trim();
@@ -17,22 +18,14 @@ function modulePromptBlock(content, key) {
 function listModuleTaskPlans({ targetRoot, rel, filePath }) {
   const modulesRoot = filePath("docs/09-PLANNING/MODULES");
   if (!fs.existsSync(modulesRoot)) return [];
-  const results = [];
-  function walk(dir) {
-    for (const entry of fs.readdirSync(dir)) {
-      const full = path.join(dir, entry);
-      const relativePath = rel(path.relative(targetRoot, full));
-      const stat = fs.statSync(full);
-      if (stat.isDirectory()) {
-        if (relativePath.includes("/_archive/") || relativePath.endsWith("/_task-template")) continue;
-        walk(full);
-      } else if (/\/TASKS\/[^/]+\/task_plan\.md$/.test(relativePath)) {
-        results.push(relativePath);
-      }
-    }
-  }
-  walk(modulesRoot);
-  return results;
+  return walkFiles(modulesRoot, {
+    dirFilter: (_dirName, fullPath) => {
+      const relativePath = rel(path.relative(targetRoot, fullPath));
+      return !relativePath.includes("/_archive/") && !relativePath.endsWith("/_task-template");
+    },
+  })
+    .map((file) => rel(path.relative(targetRoot, file)))
+    .filter((relativePath) => /\/TASKS\/[^/]+\/task_plan\.md$/.test(relativePath));
 }
 
 function parseModuleTaskPath(taskPlanPath) {

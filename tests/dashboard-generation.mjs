@@ -63,11 +63,13 @@ for (const required of [
 const folderIndex = fs.readFileSync(path.join(dashboardDir, "index.html"), "utf8");
 assert(folderIndex.includes("dashboard-data.js"), "dashboard folder index missing embedded data script");
 assert(folderIndex.includes("rel=\"icon\""), "dashboard index should suppress favicon request");
+const folderApp = fs.readFileSync(path.join(dashboardDir, "assets/app.js"), "utf8");
+assert(folderApp.includes("snapshotNotValidated"), "dashboard data-only UI should label status as snapshot-only");
 const folderStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8"));
 assert(folderStatus.tasks[0].visualMapSource === "canonical", "folder status should use canonical visual_map.md");
 assert(folderStatus.tasks[0].roadmapSource === "canonical", "folder status should preserve roadmapSource compatibility as canonical");
 assert(folderStatus.schemaVersion === 2, "dashboard folder status should expose schemaVersion 2");
-assert(folderStatus.summary.fullCutoverEligible === true, "minimal project should expose fullCutoverEligible=true");
+assert(folderStatus.summary.fullCutoverEligible === false, "dashboard data-only status should not claim validated fullCutoverEligible=true");
 assert(folderStatus.summary.legacyVisualOnlyCount === 0, "minimal project should expose zero legacy visual-only tasks");
 assert(folderStatus.summary.weakBriefCount === 0, "minimal project should expose zero weak briefs");
 assert(folderStatus.summary.unknownClassificationCount === 0, "minimal project should expose zero unknown migration classifications");

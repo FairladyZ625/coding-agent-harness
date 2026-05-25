@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { readJsonSafe } from "./core-shared.mjs";
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const dashboardTemplateRoot = path.join(repoRoot, "templates/dashboard");
@@ -115,7 +116,7 @@ function renderDashboardIndex(locale = "en-US", options = {}) {
 function readDashboardApp(templateRoot) {
   const manifestPath = path.join(templateRoot, "assets/app.manifest.json");
   if (!fs.existsSync(manifestPath)) return fs.readFileSync(path.join(templateRoot, "assets/app.js"), "utf8");
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const manifest = readJsonSafe(manifestPath, null);
   if (!Array.isArray(manifest) || manifest.length === 0) throw new Error(`Invalid dashboard app manifest: ${manifestPath}`);
   return `${manifest.map((relativePath) => {
     const source = path.join(templateRoot, "assets", relativePath);

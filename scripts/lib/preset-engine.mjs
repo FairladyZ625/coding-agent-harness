@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { repoRoot, taskContractMarker, toPosix, visualMapFile } from "./core-shared.mjs";
+import { readJsonSafe, repoRoot, taskContractMarker, toPosix, visualMapFile } from "./core-shared.mjs";
 import { verifyMigrationSession } from "./migration-planner.mjs";
 import { buildPresetAudit, renderPresetTemplate } from "./preset-registry.mjs";
 
@@ -25,12 +25,9 @@ export function resolvePresetInputs(preset, { cliArgs = [], fromSession = "", ta
       }
       const filePath = path.resolve(String(rawValue));
       if (!fs.existsSync(filePath)) throw new Error(`Preset input file not found for ${declaration.flag || name}: ${rawValue}`);
-      let value;
-      try {
-        value = JSON.parse(fs.readFileSync(filePath, "utf8"));
-      } catch (error) {
-        throw new Error(`Invalid preset JSON input ${declaration.flag || name}: ${error.message}`);
-      }
+      let readError = null;
+      const value = readJsonSafe(filePath, null, { onError: (error) => { readError = error; } });
+      if (value === null) throw new Error(`Invalid preset JSON input ${declaration.flag || name}: ${readError?.message || "unknown parse error"}`);
       if (declaration.validateOperation && value.operation !== declaration.validateOperation) {
         throw new Error(`${preset.id} preset requires ${declaration.flag || name} operation ${declaration.validateOperation}`);
       }
@@ -463,7 +460,7 @@ function targetCommit(projectRoot) {
 
 function packageVersion() {
   try {
-    return JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")).version || "unknown";
+    return readJsonSafe(path.join(repoRoot, "package.json"), {}).version || "unknown";
   } catch {
     return "unknown";
   }

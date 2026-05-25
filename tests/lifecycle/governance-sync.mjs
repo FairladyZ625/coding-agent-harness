@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import {
@@ -203,11 +204,18 @@ assert(lockResult.status !== 0, "governance sync should refuse concurrent lock")
 assert(lockResult.stderr.includes("lock already exists"), "lock refusal should explain concurrent registry write");
 fs.rmSync(path.join(lockDir, "governance-sync.lock"));
 
-fs.writeFileSync(path.join(lockDir, "governance-sync.lock"), JSON.stringify({ pid: 99999999, operation: "stale-test" }, null, 2));
+fs.writeFileSync(path.join(lockDir, "governance-sync.lock"), JSON.stringify({ pid: 99999999, operation: "stale-test", host: currentHost() }, null, 2));
 const staleLockCreated = expectJson(["new-task", "stale-lock-cleaned", "--title", "Stale Lock Cleaned", "--locale", "en-US", target]);
 assert(staleLockCreated.governance?.commit?.committed === true, "dead-pid governance lock should be cleaned and allow sync to begin");
 assert(!fs.existsSync(path.join(lockDir, "governance-sync.lock")), "dead-pid governance lock should be removed after successful sync release");
 assert(git(target, ["status", "--short"]).stdout.trim() === "", "dead-pid lock retry should leave git clean");
+
+const foreignLockContent = `${JSON.stringify({ pid: 99999999, operation: "foreign-stale-test", host: "other-host.example.invalid" }, null, 2)}\n`;
+fs.writeFileSync(path.join(lockDir, "governance-sync.lock"), foreignLockContent);
+const foreignLockResult = run(["new-task", "foreign-lock-refused", "--title", "Foreign Lock Refused", target]);
+assert(foreignLockResult.status !== 0, "governance sync should refuse dead-pid locks from another host");
+assert(fs.readFileSync(path.join(lockDir, "governance-sync.lock"), "utf8") === foreignLockContent, "governance sync must not remove foreign-host locks");
+fs.rmSync(path.join(lockDir, "governance-sync.lock"));
 
 const liveLockPath = path.join(lockDir, "governance-sync.lock");
 const liveLockContent = `${JSON.stringify({ pid: process.pid, operation: "live-test" }, null, 2)}\n`;
@@ -256,6 +264,10 @@ function git(cwd, args) {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   assert(result.status === 0, `git ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;
+}
+
+function currentHost() {
+  return process.env.HOSTNAME || os.hostname() || "";
 }
 
 function writePromotableCandidate(candidatePath, candidateId, title) {

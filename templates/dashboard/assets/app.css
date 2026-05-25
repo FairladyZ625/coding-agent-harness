@@ -294,6 +294,10 @@ button, input, select {
   animation: pulse-warn 4s infinite;
 }
 
+.status-primary.snapshot {
+  border-color: rgba(71, 85, 105, 0.3);
+}
+
 .status-primary.fail {
   border-color: rgba(225, 29, 72, 0.3);
   animation: pulse-fail 4s infinite;

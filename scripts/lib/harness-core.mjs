@@ -2,6 +2,7 @@ export * from "./core-shared.mjs";
 export * from "./markdown-utils.mjs";
 export * from "./capability-registry.mjs";
 export * from "./task-scanner.mjs";
+export * from "./status-builder.mjs";
 export * from "./check-profiles.mjs";
 export * from "./dashboard-data.mjs";
 export * from "./dashboard-workbench.mjs";

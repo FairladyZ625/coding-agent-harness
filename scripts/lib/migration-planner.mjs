@@ -6,6 +6,7 @@ import {
   normalizeTarget,
   normalizeLocale,
   readFileSafe,
+  readJsonSafe,
   existsInDocs,
   walkFiles,
   toPosix,
@@ -363,12 +364,9 @@ export function verifyMigrationSession(sessionPathInput, { fullCutover = false }
   }
   const failures = [];
   const warnings = [];
-  let session;
-  try {
-    session = JSON.parse(fs.readFileSync(sessionPath, "utf8"));
-  } catch (error) {
-    return { operation: "migrate-verify", status: "fail", failures: [`invalid session json: ${error.message}`], warnings };
-  }
+  let readError = null;
+  const session = readJsonSafe(sessionPath, null, { onError: (error) => { readError = error; } });
+  if (!session) return { operation: "migrate-verify", status: "fail", failures: [`invalid session json: ${readError?.message || "unknown parse error"}`], warnings };
   if (session.operation !== "migrate-run") failures.push("session operation is not migrate-run");
   if (session.schemaVersion !== 1 && session.version !== 1) failures.push("session missing schema version");
   if (session.planOnly) failures.push("plan-only session is not completed migration evidence; rerun migrate-run without --plan-only");

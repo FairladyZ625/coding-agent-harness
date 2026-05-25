@@ -156,3 +156,36 @@ export function updateMarkdownTableRow(content, headerPattern, updater) {
   }
   return { content, matched: false };
 }
+
+export function upsertMarkdownTableRow(content, headerPattern, matcher, row) {
+  const updated = updateMarkdownTableRow(content, headerPattern, (header, existing) => (matcher(header, existing) ? fitMarkdownTableRow(row, header.length) : null));
+  if (updated.matched) return updated.content;
+  return appendMarkdownTableRow(content, headerPattern, row);
+}
+
+export function appendMarkdownTableRow(content, headerPattern, row) {
+  const lines = String(content || "").split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!lines[index].trim().startsWith("|")) continue;
+    const header = splitMarkdownRow(lines[index]);
+    if (!header.some((cell) => headerPattern.test(cell))) continue;
+    let insertAt = index + 2;
+    while (insertAt < lines.length && lines[insertAt].trim().startsWith("|")) insertAt += 1;
+    lines.splice(insertAt, 0, `| ${fitMarkdownTableRow(row, header.length).join(" | ")} |`);
+    return lines.join("\n");
+  }
+  return `${String(content || "").trimEnd()}\n\n| ${row.map(markdownTableCell).join(" | ")} |\n`;
+}
+
+export function fitMarkdownTableRow(row, length) {
+  const next = row.map(markdownTableCell);
+  while (next.length < length) next.push("");
+  return next.slice(0, length);
+}
+
+function markdownTableCell(value) {
+  return String(value || "")
+    .replace(/\r?\n/g, " ")
+    .replaceAll("|", "\\|")
+    .trim();
+}

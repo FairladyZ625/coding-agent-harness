@@ -7,6 +7,7 @@ import {
   longRunningTaskContractFile,
   toPosix,
   readFileSafe,
+  readJsonSafe,
   walkFiles,
   titleFromMarkdown,
 } from "./core-shared.mjs";
@@ -227,8 +228,10 @@ export function taskCutoverCounters(tasks) {
   };
 }
 
-export function collectTasks(target, { requireGeneratedScaffoldProvenance = false } = {}) {
-  return listTaskPlanPaths(target).map((taskPlanPath) => {
+export function collectTasks(target, { requireGeneratedScaffoldProvenance = false, taskPlanPaths, closeoutContent } = {}) {
+  const paths = taskPlanPaths || listTaskPlanPaths(target);
+  const closeout = closeoutContent ?? readFileSafe(path.join(target.docsRoot, "10-WALKTHROUGH/Closeout-SSoT.md"));
+  return paths.map((taskPlanPath) => {
     const taskDir = path.dirname(taskPlanPath);
     const taskPlan = readFileSafe(taskPlanPath);
     const brief = readTaskContractFile(taskDir, "brief.md", "");
@@ -275,7 +278,7 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
       progressPath,
     });
     const reviewStatus = taskReviewStatus({ reviewContent: review, risks, confirmation: reviewConfirmation, submission: reviewSubmission });
-    const closeoutInfo = taskCloseoutInfo(target, taskPlanPath);
+    const closeoutInfo = taskCloseoutInfo(target, taskPlanPath, closeout);
     const effectiveCloseoutStatus = budget === "simple" && stateInfo.state === "done" && completion === 100
       ? "closed"
       : closeoutInfo.status;
@@ -424,12 +427,7 @@ function collectMigrationSnapshot(target, metadata) {
   const evidenceBundle = String(metadata.evidenceBundle || "").replace(/^TARGET:/, "").replace(/^\/+/, "");
   const bundlePath = evidenceBundle ? path.join(target.projectRoot, evidenceBundle) : "";
   const sessionPath = bundlePath ? path.join(bundlePath, "session.json") : "";
-  let session = null;
-  try {
-    session = sessionPath && fs.existsSync(sessionPath) ? JSON.parse(fs.readFileSync(sessionPath, "utf8")) : null;
-  } catch {
-    session = null;
-  }
+  const session = sessionPath && fs.existsSync(sessionPath) ? readJsonSafe(sessionPath, null) : null;
   const summary = session?.plan?.summary || {};
   return {
     targetLevel: metadata.migrationTargetLevel || "",
@@ -455,8 +453,7 @@ function formatEvidenceBundle(value) {
   return normalized ? `TARGET:${normalized}` : "";
 }
 
-function taskCloseoutInfo(target, taskPlanPath) {
-  const closeout = readFileSafe(path.join(target.docsRoot, "10-WALKTHROUGH/Closeout-SSoT.md"));
+function taskCloseoutInfo(target, taskPlanPath, closeout) {
   if (!closeout.trim()) return { status: "missing", walkthroughPath: "" };
   const docsRelative = `docs/${toPosix(path.relative(target.docsRoot, taskPlanPath))}`;
   const projectRelative = toPosix(path.relative(target.projectRoot, taskPlanPath));

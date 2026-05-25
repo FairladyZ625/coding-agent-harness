@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
+  legacyChecker,
   repoRoot,
   builtinPresetRoot,
   normalizeTarget,
@@ -24,8 +26,8 @@ import {
   getCell,
   splitDependencies,
 } from "./markdown-utils.mjs";
-import { readCapabilityRegistry } from "./capability-registry.mjs";
-import { buildStatus } from "./check-profiles.mjs";
+import { readCapabilityRegistry, validateCapabilities } from "./capability-registry.mjs";
+import { buildStatusData } from "./status-builder.mjs";
 import {
   listTaskPlanPaths,
   parseTaskState,
@@ -33,10 +35,13 @@ import {
 } from "./task-scanner.mjs";
 import { writeDashboardDirectory, writeDashboardFile } from "./dashboard-writer.mjs";
 import { listPresetPackageLayers } from "./preset-registry.mjs";
+import { validateGovernanceTableBoundaries } from "./governance-table-boundary.mjs";
+import { summarizeGitState } from "./git-status-summary.mjs";
 
-export function collectMarkdownDocuments(target) {
-  const docs = collectDashboardDocumentPaths(target);
-  return docs.map((file, index) => {
+export function collectMarkdownDocuments(target, options = {}) {
+  const docs = collectDashboardDocumentPaths(target, options);
+  return docs.map((entry, index) => {
+    const file = typeof entry === "string" ? entry : entry.file;
     const content = sanitizeText(readFileSafe(file));
     const source = prefixedPath(target, file);
     return {
@@ -45,12 +50,14 @@ export function collectMarkdownDocuments(target) {
       title: titleFromMarkdown(content, path.basename(file)),
       type: documentKind(source),
       content,
+      ...(entry.partial ? { partial: true, partialReason: entry.partialReason || "partial", taskId: entry.taskId || "" } : {}),
     };
   });
 }
 
-function collectDashboardDocumentPaths(target) {
+function collectDashboardDocumentPaths(target, options = {}) {
   const selected = new Set();
+  const partial = new Map();
   const addDocsPath = (relativePath) => {
     const file = path.join(target.docsRoot, relativePath);
     if (fs.existsSync(file)) selected.add(file);
@@ -70,21 +77,38 @@ function collectDashboardDocumentPaths(target) {
     if (path.basename(file).startsWith("_")) continue;
     selected.add(file);
   }
-  for (const taskPlanPath of listTaskPlanPaths(target)) {
+  const tasksByPlanPath = new Map((options.tasks || []).map((task) => [
+    path.join(target.projectRoot, String(task.taskPlanPath || "").replace(/^TARGET:/, "")),
+    task,
+  ]));
+  for (const taskPlanPath of options.taskPlanPaths || listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
     const progress = readFileSafe(path.join(taskDir, "progress.md"));
     const state = parseTaskState(progress);
     const active = isActiveTaskState(state);
-    const documentNames = active
-      ? ["brief.md", "task_plan.md", "execution_strategy.md", visualMapFile, legacyVisualRoadmapFile, lessonCandidatesFile, longRunningTaskContractFile, "progress.md", "review.md", "findings.md"]
+    const task = tasksByPlanPath.get(taskPlanPath);
+    const historicalClosed = !active && task?.closeoutStatus === "closed";
+    const documentNames = historicalClosed
+      ? ["brief.md"]
       : ["brief.md", "task_plan.md", "execution_strategy.md", visualMapFile, legacyVisualRoadmapFile, lessonCandidatesFile, longRunningTaskContractFile, "progress.md", "review.md", "findings.md"];
     for (const fileName of documentNames) {
       const file = path.join(taskDir, fileName);
-      if (fs.existsSync(file)) selected.add(file);
+      if (fs.existsSync(file)) {
+        selected.add(file);
+        if (historicalClosed) {
+          partial.set(file, {
+            partial: true,
+            partialReason: "historical-closed",
+            taskId: task?.id || path.basename(taskDir),
+          });
+        }
+      }
     }
-    for (const indexFile of ["references/INDEX.md", "artifacts/INDEX.md"]) {
-      const file = path.join(taskDir, indexFile);
-      if (fs.existsSync(file)) selected.add(file);
+    if (!historicalClosed) {
+      for (const indexFile of ["references/INDEX.md", "artifacts/INDEX.md"]) {
+        const file = path.join(taskDir, indexFile);
+        if (fs.existsSync(file)) selected.add(file);
+      }
     }
   }
   for (const file of walkFiles(path.join(target.docsRoot, "09-PLANNING/MODULES"))) {
@@ -98,7 +122,8 @@ function collectDashboardDocumentPaths(target) {
     .filter((file) => !file.includes(`${path.sep}_archive${path.sep}`))
     .filter((file) => !file.includes(`${path.sep}_task-template${path.sep}`))
     .filter((file) => !file.includes(`${path.sep}_optional-structures${path.sep}`))
-    .sort();
+    .sort()
+    .map((file) => ({ file, ...(partial.get(file) || {}) }));
 }
 
 function documentKind(source) {
@@ -400,14 +425,44 @@ function warningAction(message) {
 }
 
 export function buildDashboardBundle(targetInput, options = {}) {
-  const status = buildStatus(targetInput, options);
   const target = normalizeTarget(targetInput);
-  const documents = { documents: collectMarkdownDocuments(target) };
+  const taskPlanPaths = listTaskPlanPaths(target);
+  const capabilityState = validateCapabilities(target);
+  const gitState = summarizeGitState(target);
+  const declaredCapabilities = new Set(capabilityState.registry.capabilities.map((capability) => capability.name));
+  const shouldRunLegacy = !options.skipLegacyCheck && (capabilityState.registry.mode === "legacy-compat" || declaredCapabilities.has("safe-adoption"));
+  const legacy = shouldRunLegacy ? runDashboardLegacyCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
+  const legacyWarnings = legacy.status === "fail" ? [`adoption-needed: legacy check failed: ${(legacy.stderr || legacy.stdout).trim()}`] : [];
+  const governanceBoundaries = validateGovernanceTableBoundaries(target);
+  const status = buildStatusData(target, {
+    ...options,
+    capabilityState,
+    gitState,
+    taskPlanPaths,
+    legacy,
+    failures: [...capabilityState.failures, ...governanceBoundaries.failures],
+    warnings: [...capabilityState.warnings, ...legacyWarnings, ...governanceBoundaries.warnings, ...gitState.warnings],
+  });
+  const documents = { documents: collectMarkdownDocuments(target, { taskPlanPaths, tasks: status.tasks }) };
   const tables = collectTables(documents.documents);
   const graph = collectGraph(status, tables);
   const adoption = collectAdoption(status);
   const presetCatalog = collectPresetCatalog(targetInput, target, options);
   return sanitizeDeep({ status, tables, documents, graph, adoption, presetCatalog });
+}
+
+function runDashboardLegacyCheck(target) {
+  const checkTarget = target.docsOnly ? target.projectRoot : target.input;
+  const result = spawnSync(process.execPath, [legacyChecker, checkTarget], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  return {
+    status: result.status === 0 ? "pass" : "fail",
+    code: result.status ?? 1,
+    stdout: result.stdout || "",
+    stderr: result.stderr || "",
+  };
 }
 
 export function collectPresetCatalog(targetInput, target = normalizeTarget(targetInput), options = {}) {

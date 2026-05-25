@@ -16,6 +16,9 @@ function overview() {
 
 function statusStrip() {
   const status = bundle.status?.checkState?.status || "unknown";
+  const validationMode = bundle.status?.checkState?.validationMode || "validated";
+  const dataOnly = validationMode === "data-only";
+  const displayState = dataOnly ? "snapshot" : status;
   const failures = bundle.status?.checkState?.failures || 0;
   const warnings = bundle.status?.checkState?.warnings || 0;
   const tasks = bundle.status?.tasks || [];
@@ -23,9 +26,9 @@ function statusStrip() {
   const visual = summary.visualMapCoverage || {};
   const withBrief = tasks.filter((task) => task.briefSource === "standalone").length;
   return `<section class="status-card-group">
-    <div class="status-primary ${status}">
-      <span>${t("readiness")}</span>
-      <strong>${label(status)}</strong>
+    <div class="status-primary ${displayState}">
+      <span>${dataOnly ? t("snapshotStatus") : t("readiness")}</span>
+      <strong>${dataOnly ? t("snapshot") : label(status)}</strong>
       <p>${nextActionText()}</p>
     </div>
     <div class="metrics-grid">
@@ -46,6 +49,7 @@ function metric(labelText, value) {
 }
 
 function nextActionText() {
+  if ((bundle.status?.checkState?.validationMode || "validated") === "data-only") return t("snapshotNotValidated");
   const failures = bundle.status?.checkState?.failures || 0;
   if (failures > 0) return t("resolveBlockers");
   const missingBriefs = (bundle.status?.tasks || []).filter((task) => task.briefSource !== "standalone").length;

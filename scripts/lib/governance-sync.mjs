@@ -1,11 +1,11 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { readBundledTemplate, readFileSafe, repoRoot, todayDate, toPosix, visualMapFile } from "./core-shared.mjs";
+import { readBundledTemplate, readFileSafe, readJsonSafe, repoRoot, todayDate, toPosix, visualMapFile } from "./core-shared.mjs";
 import { collectTasks } from "./task-scanner.mjs";
-import { firstColumn, splitMarkdownRow, updateMarkdownTableRow } from "./markdown-utils.mjs";
-import { markdownCell } from "./task-lifecycle/text-utils.mjs";
+import { appendMarkdownTableRow, firstColumn, fitMarkdownTableRow, splitMarkdownRow, upsertMarkdownTableRow } from "./markdown-utils.mjs";
 
 export class GovernanceSyncError extends Error {
   constructor(message, { code = "governance-sync-failed", details = {}, recovery = [] } = {}) {
@@ -69,7 +69,7 @@ function acquireGovernanceSyncLock(lockPath, target, { operation }) {
         `${JSON.stringify({
           operation,
           pid: process.pid,
-          host: process.env.HOSTNAME || "",
+          host: governanceLockHost(),
           branch: currentBranch(target.projectRoot),
           targetRoot: target.projectRoot,
           startedAt: new Date().toISOString(),
@@ -86,12 +86,10 @@ function acquireGovernanceSyncLock(lockPath, target, { operation }) {
 }
 
 function removeStaleGovernanceSyncLock(lockPath) {
-  let lock;
-  try {
-    lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
-  } catch {
-    return false;
-  }
+  const lockContent = readFileSafe(lockPath);
+  const lock = readJsonSafe(lockPath, null);
+  if (!lock) return false;
+  if (lock.host !== governanceLockHost()) return false;
   if (!Number.isInteger(lock?.pid) || lock.pid <= 0) return false;
   try {
     process.kill(lock.pid, 0);
@@ -99,8 +97,13 @@ function removeStaleGovernanceSyncLock(lockPath) {
   } catch (error) {
     if (error?.code !== "ESRCH") return false;
   }
+  if (readFileSafe(lockPath) !== lockContent) return false;
   fs.rmSync(lockPath);
   return true;
+}
+
+function governanceLockHost() {
+  return process.env.HOSTNAME || os.hostname() || "";
 }
 
 function governanceLockExistsError(lockPath, error) {
@@ -190,7 +193,7 @@ export function syncModuleStepGovernance(target, { moduleKey, stepId, state, dry
       "module-step",
       todayDate(),
     ];
-    fs.writeFileSync(ledgerPath, appendRow(content, /^ID$/i, row));
+    fs.writeFileSync(ledgerPath, appendMarkdownTableRow(content, /^ID$/i, row));
   }
   changes.push({ destination: ledgerRelative, action: dryRun ? "would-sync-governance" : "sync-governance", surface: "harness-ledger" });
   return { changes };
@@ -220,7 +223,7 @@ function syncLedgerRow(target, task, { event, state, message, planPath, reviewPa
       message || "none",
       todayDate(),
     ];
-    fs.writeFileSync(ledgerPath, upsertRow(content, /^ID$/i, (header, existing) => rowMatchesPlan(header, existing, planPath), row));
+    fs.writeFileSync(ledgerPath, upsertMarkdownTableRow(content, /^ID$/i, (header, existing) => rowMatchesPlan(header, existing, planPath), row));
   }
   return { destination: relative, action: dryRun ? "would-sync-governance" : "sync-governance", surface: "harness-ledger" };
 }
@@ -247,7 +250,7 @@ function syncModuleRegistryRow(target, task, { state, planPath, dryRun }) {
       "none",
       todayDate(),
     ];
-    fs.writeFileSync(registryPath, upsertRow(content, /^ID$/i, (header, existing) => rowMatchesModule(header, existing, moduleKey, modulePlan), row));
+    fs.writeFileSync(registryPath, upsertMarkdownTableRow(content, /^ID$/i, (header, existing) => rowMatchesModule(header, existing, moduleKey, modulePlan), row));
   }
   return { destination: relative, action: dryRun ? "would-sync-governance" : "sync-governance", surface: "module-registry" };
 }
@@ -337,7 +340,7 @@ function renderModuleVisualMap(moduleKey, tasks) {
   });
   const graphLines = tasks.map((task, index) => {
     const stepId = moduleStepId(task);
-    const label = markdownCell(task.title || task.shortId || task.id).replace(/"/g, "'");
+    const label = fitMarkdownTableRow([task.title || task.shortId || task.id], 1)[0].replace(/"/g, "'");
     if (index === 0) return `  ${stepId}["${label}"]`;
     const previous = moduleStepId(tasks[index - 1]);
     return `  ${previous} --> ${stepId}["${label}"]`;
@@ -365,7 +368,7 @@ ${graphLines.length ? graphLines.join("\n") : "  EMPTY[\"No module tasks\"]"}
 
 | Phase ID | Depends On | State | Completion | Output | Required Evidence | Evidence Status | Blocking Risk | Owner / Handoff |
 | --- | --- | --- | ---: | --- | --- | --- | --- | --- |
-${rows.map((row) => `| ${fitRow(row, 9).join(" | ")} |`).join("\n")}
+${rows.map((row) => `| ${fitMarkdownTableRow(row, 9).join(" | ")} |`).join("\n")}
 
 Allowed Evidence Status: missing, partial, present, waived.
 `;
@@ -381,10 +384,10 @@ function replaceTableRows(content, headerPattern, rows) {
     if (!separator.every((cell) => /^:?-{3,}:?$/.test(cell))) continue;
     let end = index + 2;
     while (end < lines.length && lines[end].trim().startsWith("|")) end += 1;
-    lines.splice(index + 2, end - index - 2, ...rows.map((row) => `| ${fitRow(row, header.length).join(" | ")} |`));
+    lines.splice(index + 2, end - index - 2, ...rows.map((row) => `| ${fitMarkdownTableRow(row, header.length).join(" | ")} |`));
     return `${lines.join("\n").trimEnd()}\n`;
   }
-  return `${String(content || "").trimEnd()}\n\n${rows.map((row) => `| ${fitRow(row, row.length).join(" | ")} |`).join("\n")}\n`;
+  return `${String(content || "").trimEnd()}\n\n${rows.map((row) => `| ${fitMarkdownTableRow(row, row.length).join(" | ")} |`).join("\n")}\n`;
 }
 
 function existingOrTemplate(filePath, templateSource) {
@@ -411,32 +414,6 @@ function ensureFileFromTemplate(destinationPath, templateSource, { dryRun = fals
   if (fs.existsSync(destinationPath) || dryRun) return;
   fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
   fs.writeFileSync(destinationPath, readBundledTemplate(templateSource));
-}
-
-function upsertRow(content, headerPattern, matcher, row) {
-  const updated = updateMarkdownTableRow(content, headerPattern, (header, existing) => (matcher(header, existing) ? fitRow(row, header.length) : null));
-  if (updated.matched) return updated.content;
-  return appendRow(content, headerPattern, row);
-}
-
-function appendRow(content, headerPattern, row) {
-  const lines = String(content || "").split(/\r?\n/);
-  for (let index = 0; index < lines.length; index += 1) {
-    if (!lines[index].trim().startsWith("|")) continue;
-    const header = splitMarkdownRow(lines[index]);
-    if (!header.some((cell) => headerPattern.test(cell))) continue;
-    let insertAt = index + 2;
-    while (insertAt < lines.length && lines[insertAt].trim().startsWith("|")) insertAt += 1;
-    lines.splice(insertAt, 0, `| ${fitRow(row, header.length).join(" | ")} |`);
-    return lines.join("\n");
-  }
-  return `${String(content || "").trimEnd()}\n\n| ${row.join(" | ")} |\n`;
-}
-
-function fitRow(row, length) {
-  const next = row.map((cell) => markdownCell(cell));
-  while (next.length < length) next.push("");
-  return next.slice(0, length);
 }
 
 function rowMatchesPlan(header, row, planPath) {

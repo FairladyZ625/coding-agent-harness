@@ -70,6 +70,15 @@ export function readFileSafe(filePath) {
   }
 }
 
+export function readJsonSafe(filePath, fallback = null, { onError } = {}) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    if (typeof onError === "function") onError(error);
+    return fallback;
+  }
+}
+
 export function readBundledTemplate(source) {
   const sourcePath = path.join(repoRoot, source);
   if (!fs.existsSync(sourcePath)) throw new Error(`Bundled template missing: ${source}`);
@@ -78,15 +87,17 @@ export function readBundledTemplate(source) {
   return content;
 }
 
-export function walkFiles(root) {
+export function walkFiles(root, options = {}) {
   const results = [];
   if (!fs.existsSync(root)) return results;
+  const dirFilter = typeof options.dirFilter === "function" ? options.dirFilter : () => true;
   function walk(dir) {
     for (const entry of fs.readdirSync(dir)) {
       const full = path.join(dir, entry);
       const stat = fs.statSync(full);
       if (stat.isDirectory()) {
         if ([".git", "node_modules", "tmp"].includes(entry)) continue;
+        if (!dirFilter(entry, full)) continue;
         walk(full);
       } else {
         results.push(full);
