@@ -1,6 +1,6 @@
 ---
 name: preset-creator
-description: Create a Coding Agent Harness preset package using the declarative YAML, template, evidence, and reference bundle format.
+description: Use when creating, reviewing, improving, or installing Coding Agent Harness preset packages for repeatable task families.
 ---
 
 # Preset Creator

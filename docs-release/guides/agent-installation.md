@@ -29,6 +29,19 @@ English mirror: `docs-release/guides/agent-installation.en-US.md`
 `npx --yes coding-agent-harness status` / `migrate-plan` 完成扫描；等用户确认允许写入后
 再安装 Skill 或运行初始化/迁移写入命令。
 
+本仓库还发布嵌套的 `preset-creator` Skill，给需要制作可复用 Harness Preset 的 Agent
+使用。因为本仓库同时有根目录 `SKILL.md` 和嵌套 Skill，查看或安装它时要加
+`--full-depth`：
+
+```bash
+npx skills add FairladyZ625/coding-agent-harness --list --full-depth
+npx skills add FairladyZ625/coding-agent-harness --skill preset-creator --full-depth
+```
+
+`coding-agent-harness` 用于在目标项目中运行 Harness；`preset-creator` 只在 Agent
+需要为一类可重复任务设计 Preset 时使用，例如这些任务共享 Reference、Artifact、Evidence
+或 Complex Task 骨架叠加规则。
+
 使用 v1.0 六阶段流程：
 
 1. Diagnose：扫描项目结构、语言、现有文档、CI、协作方式、外部依赖和风险面。

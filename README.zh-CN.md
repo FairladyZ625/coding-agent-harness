@@ -83,20 +83,38 @@ Coding Agent Harness 适合：
 
 ## 快速开始
 
-### 安装 Skill
+### 安装 Skills
 
-如果你的 Agent 支持 Skills，用 `npx` 安装本 Skill：
+如果你的 Agent 支持 Skills，可以用 `npx` 查看本仓库提供的 Skill。因为本仓库既有根
+Skill，也有嵌套 Skill；要看到或安装 `preset-creator`，需要加 `--full-depth`：
 
 ```bash
-npx skills add FairladyZ625/coding-agent-harness --list
+npx skills add FairladyZ625/coding-agent-harness --list --full-depth
 npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
+npx skills add FairladyZ625/coding-agent-harness --skill preset-creator --full-depth
 ```
+
+两个 Skill 的用途不同：
+
+- `coding-agent-harness`：用于在目标项目中安装、迁移、运行和审查 Harness。
+- `preset-creator`：用于给一组重复任务制作可复用 Harness Preset。适合这些任务共享同一套方法、外部 Reference、Artifact、Evidence 要求，或需要在 Complex Task 骨架上叠加 Preset。这个 Skill 自带 Complex Task 骨架参考，所以 Agent 不需要预先理解 Harness 内部结构，也能做出正确的 Preset。
 
 安装到 Codex 全局 Skill 目录：
 
 ```bash
 npx skills add FairladyZ625/coding-agent-harness \
   --skill coding-agent-harness \
+  --agent codex \
+  --global \
+  -y
+```
+
+安装 Preset Creator Skill：
+
+```bash
+npx skills add FairladyZ625/coding-agent-harness \
+  --skill preset-creator \
+  --full-depth \
   --agent codex \
   --global \
   -y
