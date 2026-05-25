@@ -203,6 +203,21 @@ assert(lockResult.status !== 0, "governance sync should refuse concurrent lock")
 assert(lockResult.stderr.includes("lock already exists"), "lock refusal should explain concurrent registry write");
 fs.rmSync(path.join(lockDir, "governance-sync.lock"));
 
+fs.writeFileSync(path.join(lockDir, "governance-sync.lock"), JSON.stringify({ pid: 99999999, operation: "stale-test" }, null, 2));
+const staleLockCreated = expectJson(["new-task", "stale-lock-cleaned", "--title", "Stale Lock Cleaned", "--locale", "en-US", target]);
+assert(staleLockCreated.governance?.commit?.committed === true, "dead-pid governance lock should be cleaned and allow sync to begin");
+assert(!fs.existsSync(path.join(lockDir, "governance-sync.lock")), "dead-pid governance lock should be removed after successful sync release");
+assert(git(target, ["status", "--short"]).stdout.trim() === "", "dead-pid lock retry should leave git clean");
+
+const liveLockPath = path.join(lockDir, "governance-sync.lock");
+const liveLockContent = `${JSON.stringify({ pid: process.pid, operation: "live-test" }, null, 2)}\n`;
+fs.writeFileSync(liveLockPath, liveLockContent);
+const liveLockResult = run(["new-task", "live-lock-refused", "--title", "Live Lock Refused", target]);
+assert(liveLockResult.status !== 0, "governance sync should refuse a lock owned by a live process");
+assert(liveLockResult.stderr.includes("lock already exists"), "live lock refusal should explain concurrent registry write");
+assert(fs.readFileSync(liveLockPath, "utf8") === liveLockContent, "governance sync must not remove a live lock");
+fs.rmSync(liveLockPath);
+
 const lessonTask = expectJson(["new-task", "governance-lesson", "--title", "Governance Lesson", "--locale", "en-US", target]);
 const lessonCandidatePath = path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-governance-lesson/lesson_candidates.md`);
 writePromotableCandidate(lessonCandidatePath, "LC-20260521-002", "Promotion commit must be automatic");

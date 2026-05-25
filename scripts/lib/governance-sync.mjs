@@ -21,32 +21,7 @@ export function beginGovernanceSync(target, { operation = "governance-sync", dry
   if (dryRun) return { target, dryRun, operation, git: inspectGit(target.projectRoot), lockPath: "", active: false };
   const lockPath = path.join(target.projectRoot, ".harness/locks/governance-sync.lock");
   fs.mkdirSync(path.dirname(lockPath), { recursive: true });
-  let fd = null;
-  try {
-    fd = fs.openSync(lockPath, "wx");
-    fs.writeFileSync(
-      fd,
-      `${JSON.stringify({
-        operation,
-        pid: process.pid,
-        host: process.env.HOSTNAME || "",
-        branch: currentBranch(target.projectRoot),
-        targetRoot: target.projectRoot,
-        startedAt: new Date().toISOString(),
-      }, null, 2)}\n`,
-    );
-  } catch (error) {
-    if (fd !== null) fs.closeSync(fd);
-    throw new GovernanceSyncError("Governance sync lock already exists; refusing concurrent registry writes.", {
-      code: "governance-lock-exists",
-      details: { lockPath, error: error.message },
-      recovery: [
-        `Inspect ${lockPath}.`,
-        "If no process owns the lock, remove it manually and retry.",
-      ],
-    });
-  }
-  if (fd !== null) fs.closeSync(fd);
+  acquireGovernanceSyncLock(lockPath, target, { operation });
 
   const gitState = inspectGit(target.projectRoot);
   const allowed = [...new Set((allowedRelativePaths || []).filter(Boolean).map(toPosix))].sort();
@@ -82,6 +57,61 @@ export function beginGovernanceSync(target, { operation = "governance-sync", dry
     fingerprint: fingerprintEntry(target.projectRoot, entry),
   })) : [];
   return { target, dryRun, operation, git: gitState, initialDirtyEntries, lockPath, active: true };
+}
+
+function acquireGovernanceSyncLock(lockPath, target, { operation }) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let fd = null;
+    try {
+      fd = fs.openSync(lockPath, "wx");
+      fs.writeFileSync(
+        fd,
+        `${JSON.stringify({
+          operation,
+          pid: process.pid,
+          host: process.env.HOSTNAME || "",
+          branch: currentBranch(target.projectRoot),
+          targetRoot: target.projectRoot,
+          startedAt: new Date().toISOString(),
+        }, null, 2)}\n`,
+      );
+      fs.closeSync(fd);
+      return;
+    } catch (error) {
+      if (fd !== null) fs.closeSync(fd);
+      if (error?.code === "EEXIST" && attempt === 0 && removeStaleGovernanceSyncLock(lockPath)) continue;
+      throw governanceLockExistsError(lockPath, error);
+    }
+  }
+}
+
+function removeStaleGovernanceSyncLock(lockPath) {
+  let lock;
+  try {
+    lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+  } catch {
+    return false;
+  }
+  if (!Number.isInteger(lock?.pid) || lock.pid <= 0) return false;
+  try {
+    process.kill(lock.pid, 0);
+    return false;
+  } catch (error) {
+    if (error?.code !== "ESRCH") return false;
+  }
+  fs.rmSync(lockPath);
+  return true;
+}
+
+function governanceLockExistsError(lockPath, error) {
+  return new GovernanceSyncError("Governance sync lock already exists; refusing concurrent registry writes.", {
+    code: "governance-lock-exists",
+    details: { lockPath, error: error?.message || String(error) },
+    recovery: [
+      `Inspect ${lockPath}.`,
+      "If no process owns the lock, remove it manually and retry.",
+    ],
+  });
 }
 
 export function releaseGovernanceSync(context) {
