@@ -45,6 +45,13 @@ assert(
   fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/task_plan.md`), "utf8").includes("Task Contract: harness-task/v1"),
   "new-task should render the durable task contract marker",
 );
+const lifecycleTaskPlan = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/task_plan.md`), "utf8");
+assert(lifecycleTaskPlan.includes("Scaffold Provenance: required"), "new-task should mark scaffold provenance as required");
+assert(lifecycleTaskPlan.includes("## Scaffold Provenance"), "new-task should render a scaffold provenance section");
+assert(lifecycleTaskPlan.includes("| Created By | harness new-task |"), "new-task should record CLI scaffold provenance");
+assert(lifecycleTaskPlan.includes(`| Created At | ${todayLocal} |`), "new-task should record the scaffold date");
+assert(lifecycleTaskPlan.includes("| Budget | standard |"), "new-task should record the selected budget in scaffold provenance");
+assert(lifecycleTaskPlan.includes("harness new-task"), "new-task should record the command shape in scaffold provenance");
 const lifecycleVisualMap = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/visual_map.md`), "utf8");
 assert(lifecycleVisualMap.includes("| Phase ID | Kind | Depends On | State | Completion |"), "new-task should render phase kind columns");
 assert(lifecycleVisualMap.includes("Exit Command"), "new-task should render phase exit commands");
@@ -89,6 +96,75 @@ assert(budgetContractCheck.status !== 0, "check should fail when CLI-generated t
 assert(budgetContractOutput.includes(`${todayLocal}-budget-simple missing brief.md`), "check should require brief.md for simple tasks");
 assert(budgetContractOutput.includes(`${todayLocal}-budget-standard missing review.md`), "check should require review.md for standard tasks");
 assert(budgetContractOutput.includes(`${todayLocal}-budget-complex missing references/INDEX.md`), "check should require optional indexes for complex tasks");
+const provenanceTarget = path.join(tmpRoot, "provenance-contract-target");
+fs.mkdirSync(provenanceTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core", provenanceTarget]);
+expectJson(["new-task", "provenance-required", "--title", "Provenance Required", provenanceTarget]);
+const provenanceTaskPlanPath = path.join(provenanceTarget, `docs/09-PLANNING/TASKS/${todayLocal}-provenance-required/task_plan.md`);
+const provenanceTaskPlan = fs.readFileSync(provenanceTaskPlanPath, "utf8");
+fs.writeFileSync(
+  provenanceTaskPlanPath,
+  provenanceTaskPlan.replace(/\n## Scaffold Provenance\n[\s\S]*?(?=\n## Context Packet\n)/, "\n"),
+);
+const missingProvenanceCheck = run(["check", "--profile", "target-project", provenanceTarget]);
+const missingProvenanceOutput = `${missingProvenanceCheck.stdout}\n${missingProvenanceCheck.stderr}`;
+assert(missingProvenanceCheck.status !== 0, "check should fail when required scaffold provenance is missing");
+assert(missingProvenanceOutput.includes("missing Scaffold Provenance"), "missing scaffold provenance failure should explain the missing section");
+fs.writeFileSync(
+  provenanceTaskPlanPath,
+  provenanceTaskPlan.replace(
+    "| Created By | harness new-task |",
+    "| Created By | manual-exception |",
+  ).replace(
+    "| Exception Reason | n/a |",
+    "| Exception Reason | CLI was unavailable during emergency recovery; all required files were manually created. |",
+  ),
+);
+expectPass(["check", "--profile", "target-project", provenanceTarget]);
+fs.writeFileSync(
+  provenanceTaskPlanPath,
+  provenanceTaskPlan.replace(
+    `| Created At | ${todayLocal} |`,
+    "| Created At | 2026-99-99 |",
+  ),
+);
+const invalidCreatedAtCheck = run(["check", "--profile", "target-project", provenanceTarget]);
+const invalidCreatedAtOutput = `${invalidCreatedAtCheck.stdout}\n${invalidCreatedAtCheck.stderr}`;
+assert(invalidCreatedAtCheck.status !== 0, "check should fail when scaffold Created At is not a real calendar date");
+assert(invalidCreatedAtOutput.includes("invalid Scaffold Provenance Created At"), "invalid Created At failure should explain the bad scaffold date");
+fs.writeFileSync(
+  provenanceTaskPlanPath,
+  provenanceTaskPlan
+    .replace(/^Scaffold Provenance: required\n/im, "")
+    .replace(/\n## Scaffold Provenance\n[\s\S]*?(?=\n## Context Packet\n)/, "\n"),
+);
+const missingProvenanceMarkerCheck = run(["check", "--profile", "target-project", provenanceTarget]);
+const missingProvenanceMarkerOutput = `${missingProvenanceMarkerCheck.stdout}\n${missingProvenanceMarkerCheck.stderr}`;
+assert(missingProvenanceMarkerCheck.status !== 0, "check should fail when a generated task omits both scaffold provenance marker and section");
+assert(missingProvenanceMarkerOutput.includes("missing Scaffold Provenance section"), "missing marker and section failure should explain scaffold provenance");
+const missingProvenanceMarkerStatusResult = run(["status", "--json", provenanceTarget]);
+assert(missingProvenanceMarkerStatusResult.status !== 0, "status should fail when generated scaffold provenance is missing");
+const missingProvenanceMarkerStatus = JSON.parse(missingProvenanceMarkerStatusResult.stdout);
+const missingProvenanceMarkerTask = missingProvenanceMarkerStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-provenance-required`);
+assert(missingProvenanceMarkerTask?.materialsReady === false, "status should mark missing generated scaffold provenance as not materials-ready");
+assert(
+  missingProvenanceMarkerTask?.materialIssues?.some((issue) => issue.code === "missing-scaffold-provenance" && issue.sourcePath.endsWith(`${todayLocal}-provenance-required/task_plan.md`)),
+  "status should route missing scaffold provenance to the concrete task_plan.md path",
+);
+fs.writeFileSync(
+  provenanceTaskPlanPath,
+  provenanceTaskPlan.replace(
+    "| Created By | harness new-task |",
+    "| Created By | historical-backfill |",
+  ).replace(
+    /\| Command Shape \| [^|]+ \|/,
+    "| Command Shape | n/a |",
+  ).replace(
+    "| Exception Reason | n/a |",
+    "| Exception Reason | Existing task predates scaffold provenance enforcement. |",
+  ),
+);
+expectPass(["check", "--profile", "target-project", provenanceTarget]);
 const longRunningLifecycle = expectJson(["new-task", "long-running-lifecycle", "--long-running", "--title", "长程任务", "--locale", "zh-CN", lifecycleTarget]);
 assert(longRunningLifecycle.task?.longRunning === true, "new-task --long-running should report longRunning true");
 assert(

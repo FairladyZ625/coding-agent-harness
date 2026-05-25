@@ -180,14 +180,28 @@ export function normalizeTaskId(value) {
   return slug(value || "task");
 }
 
-export function renderTaskTemplate(content, { taskId, title, locale, budget = "standard" }) {
+export function renderTaskTemplate(content, { taskId, title, locale, budget = "standard", scaffoldProvenance = {} }) {
   const date = todayDate();
+  const provenance = {
+    createdBy: scaffoldProvenance.createdBy || "harness new-task",
+    command: scaffoldProvenance.command || "harness new-task <task-id> <target>",
+    createdAt: scaffoldProvenance.createdAt || date,
+    budget: scaffoldProvenance.budget || budget,
+    templateSource: scaffoldProvenance.templateSource || "templates/planning/task_plan.md",
+    exceptionReason: scaffoldProvenance.exceptionReason || "n/a",
+  };
   return String(content)
     .replaceAll("{{TASK_ID}}", taskId)
     .replaceAll("{{TASK_TITLE}}", title)
     .replaceAll("{{DATE}}", date)
     .replaceAll("{{LOCALE}}", normalizeLocale(locale))
     .replaceAll("{{TASK_BUDGET}}", budget)
+    .replaceAll("{{SCAFFOLD_CREATED_BY}}", provenance.createdBy)
+    .replaceAll("{{SCAFFOLD_COMMAND}}", provenance.command)
+    .replaceAll("{{SCAFFOLD_CREATED_AT}}", provenance.createdAt)
+    .replaceAll("{{SCAFFOLD_BUDGET}}", provenance.budget)
+    .replaceAll("{{SCAFFOLD_TEMPLATE_SOURCE}}", provenance.templateSource)
+    .replaceAll("{{SCAFFOLD_EXCEPTION_REASON}}", provenance.exceptionReason)
     .replaceAll("[simple / standard / complex]", budget)
     .replaceAll("[simple / standard / long-running / module-parallel]", budget)
     .replaceAll("[simple / complex]", budget)

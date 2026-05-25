@@ -40,6 +40,7 @@ assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-lifecycle/text-utils.
 
 const taskScannerModule = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-scanner.mjs"), "utf8");
 assert(taskScannerModule.split(/\r?\n/).length <= 600, "task scanner should stay below 600 lines by routing lesson candidate parsing out");
+assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-metadata.mjs")), "task metadata parsing should live outside task-scanner.mjs");
 assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-lesson-candidates.mjs")), "lesson candidate parsing should live outside task-scanner.mjs");
 
 const harnessChecker = fs.readFileSync(path.join(repoRoot, "scripts/check-harness.mjs"), "utf8");
