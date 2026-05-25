@@ -128,6 +128,8 @@ function exitWithReport(report) {
 
 if (command === "help" || command === "--help" || command === "-h") {
   printHelp();
+} else if (args.includes("--help") || args.includes("-h")) {
+  printHelp();
 } else if (command === "check") {
   const profile = takeOption("--profile", "target-project");
   const strict = takeFlag("--strict");

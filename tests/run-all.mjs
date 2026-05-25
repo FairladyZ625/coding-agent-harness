@@ -7,6 +7,7 @@ const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "
 const suites = [
   "tests/meta-test-layout.mjs",
   "tests/source-package-boundary.mjs",
+  "tests/cli-help.mjs",
   "tests/dashboard-generation.mjs",
   "tests/template-governance.mjs",
   "tests/review-confirm-git-gate.mjs",
