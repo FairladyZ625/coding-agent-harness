@@ -14,6 +14,7 @@ const state = {
   warningPage: 1,
   presetQuery: "",
   presetSourceFilter: "all",
+  selectedPresetKey: "",
   selectedPresetId: "",
   presetActionResult: null,
   presetInstallSource: "",

@@ -14,6 +14,7 @@ const state = {
   warningPage: 1,
   presetQuery: "",
   presetSourceFilter: "all",
+  selectedPresetKey: "",
   selectedPresetId: "",
   presetActionResult: null,
   presetInstallSource: "",
@@ -1668,6 +1669,7 @@ function presetsView() {
   const catalog = bundle.presetCatalog || { summary: {}, roots: [], presets: [] };
   const presets = filteredPresets();
   const selected = selectedPreset(presets);
+  syncPresetUninstallScope(selected);
   return `<div class="dashboard-grid presets-page">
     <main class="dashboard-main stack">
       <section class="flow-panel preset-catalog-panel">
@@ -1688,7 +1690,7 @@ function presetsView() {
           </div>
         </div>
         <div class="preset-catalog-grid">
-          ${presets.map((preset) => presetCard(preset, selected?.id)).join("") || emptyState(t("noPresets"))}
+          ${presets.map((preset) => presetCard(preset, selected ? presetKey(selected) : "")).join("") || emptyState(t("noPresets"))}
         </div>
       </section>
     </main>
@@ -1702,8 +1704,14 @@ function presetsView() {
 
 function ensurePresetState() {
   const presets = bundle.presetCatalog?.presets || [];
-  if (!state.selectedPresetId && presets[0]) state.selectedPresetId = presets[0].id;
-  if (!presets.some((preset) => preset.id === state.selectedPresetId) && presets[0]) state.selectedPresetId = presets[0].id;
+  if (!state.selectedPresetKey && state.selectedPresetId) {
+    const legacySelection = presets.find((preset) => preset.id === state.selectedPresetId);
+    if (legacySelection) state.selectedPresetKey = presetKey(legacySelection);
+  }
+  if (!state.selectedPresetKey && presets[0]) state.selectedPresetKey = presetKey(presets[0]);
+  if (state.selectedPresetKey && !presets.some((preset) => presetKey(preset) === state.selectedPresetKey) && presets[0]) {
+    state.selectedPresetKey = presetKey(presets[0]);
+  }
 }
 
 function presetSourceOptions() {
@@ -1741,14 +1749,14 @@ function filteredPresets() {
 }
 
 function selectedPreset(visiblePresets = filteredPresets()) {
-  const all = bundle.presetCatalog?.presets || [];
-  return all.find((preset) => preset.id === state.selectedPresetId) || visiblePresets[0] || all[0] || null;
+  return visiblePresets.find((preset) => presetKey(preset) === state.selectedPresetKey) || visiblePresets[0] || null;
 }
 
 function presetCard(preset, selectedId) {
-  const selected = preset.id === selectedId;
+  const key = presetKey(preset);
+  const selected = key === selectedId;
   return `<article class="preset-card ${selected ? "active" : ""}">
-    <button type="button" class="preset-card-select" data-preset-select="${escapeAttr(preset.id)}" aria-pressed="${selected ? "true" : "false"}">
+    <button type="button" class="preset-card-select" data-preset-select="${escapeAttr(key)}" aria-pressed="${selected ? "true" : "false"}">
       <span class="card-id">${escapeHtml(preset.id)}</span>
       ${presetSourceBadge(preset.source)}
     </button>
@@ -1757,9 +1765,18 @@ function presetCard(preset, selectedId) {
       <span>${t("version")}: ${escapeHtml(preset.version)}</span>
       <span>${t("taskKind")}: ${escapeHtml(preset.taskKind || t("none"))}</span>
       <span>${t("budgets")}: ${escapeHtml((preset.compatibleBudgets || []).join(", ") || t("none"))}</span>
+      <span>${escapeHtml(preset.effective ? t("presetEffective") : t("presetShadowed"))}</span>
     </div>
     <code class="preset-manifest-path">${escapeHtml(preset.manifestPath || "")}</code>
   </article>`;
+}
+
+function presetKey(preset) {
+  return preset?.key || `${preset?.source || "unknown"}:${preset?.id || ""}`;
+}
+
+function syncPresetUninstallScope(preset) {
+  if (preset && ["project", "user"].includes(preset.source)) state.presetUninstallScope = preset.source;
 }
 
 function presetSourceBadge(source) {
@@ -1790,6 +1807,7 @@ function presetDetailPanel(preset) {
     <dl class="preset-detail-list">
       <div><dt>${t("version")}</dt><dd>${escapeHtml(preset.version)}</dd></div>
       <div><dt>${t("source")}</dt><dd>${escapeHtml(preset.source)}</dd></div>
+      <div><dt>${t("status")}</dt><dd>${escapeHtml(preset.effective ? t("presetEffective") : t("presetShadowed"))}</dd></div>
       <div><dt>${t("taskKind")}</dt><dd>${escapeHtml(preset.taskKind || t("none"))}</dd></div>
       <div><dt>${t("inputs")}</dt><dd>${preset.inputCount || 0}</dd></div>
       <div><dt>${t("references")}</dt><dd>${preset.referenceCount || 0}</dd></div>
@@ -1807,6 +1825,7 @@ function presetDetailPanel(preset) {
 
 function presetActionPanel(preset) {
   const staticNote = canUseWorkbenchAction("preset-install") ? "" : `<p class="lesson-action-note">${escapeHtml(t("presetWorkbenchRequired"))}</p>`;
+  const lockedUninstallScope = preset && ["project", "user"].includes(preset.source) ? preset.source : "";
   return `<section class="side-panel preset-action-panel">
     <h3>${t("presetActions")}</h3>
     ${staticNote}
@@ -1834,8 +1853,8 @@ function presetActionPanel(preset) {
     </div>
     <div class="preset-action-group danger">
       <h4>${t("presetUninstall")}</h4>
-      <label>${t("scope")}<select data-preset-uninstall-scope>
-        ${presetScopeOptions(state.presetUninstallScope)}
+      <label>${t("scope")}<select data-preset-uninstall-scope ${lockedUninstallScope ? "disabled" : ""}>
+        ${presetScopeOptions(lockedUninstallScope || state.presetUninstallScope)}
       </select></label>
       <label>${t("confirmPresetId")}<input data-preset-uninstall-confirm value="${escapeAttr(state.presetUninstallConfirm)}" placeholder="${escapeAttr(preset?.id || "")}"></label>
       <button data-preset-uninstall="${escapeAttr(preset?.id || "")}" ${canUseWorkbenchAction("preset-uninstall") && preset && preset.source !== "builtin" ? "" : "disabled"}>${t("presetUninstall")}</button>
@@ -1980,10 +1999,14 @@ function bind() {
   }));
   document.querySelectorAll("[data-preset-source-filter]").forEach((button) => button.addEventListener("click", () => {
     state.presetSourceFilter = button.dataset.presetSourceFilter || "all";
+    state.selectedPresetKey = "";
     app();
   }));
   document.querySelectorAll("[data-preset-select]").forEach((button) => button.addEventListener("click", () => {
-    state.selectedPresetId = button.dataset.presetSelect || "";
+    state.selectedPresetKey = button.dataset.presetSelect || "";
+    state.selectedPresetId = "";
+    const selectedPreset = (bundle.presetCatalog?.presets || []).find((preset) => presetKey(preset) === state.selectedPresetKey);
+    if (selectedPreset && ["project", "user"].includes(selectedPreset.source)) state.presetUninstallScope = selectedPreset.source;
     state.presetUninstallConfirm = "";
     app();
   }));

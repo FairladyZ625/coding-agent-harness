@@ -56,6 +56,7 @@ for (const required of [
   "data/documents.json",
   "data/graph.json",
   "data/adoption.json",
+  "data/presetCatalog.json",
 ]) {
   assert(fs.existsSync(path.join(dashboardDir, required)), `dashboard folder missing ${required}`);
 }
@@ -132,6 +133,10 @@ assert(dashboardApp.includes("data-preset-install"), "dashboard missing preset i
 assert(dashboardApp.includes("data-preset-seed"), "dashboard missing preset seed workbench action");
 assert(dashboardApp.includes("data-preset-uninstall"), "dashboard missing preset uninstall workbench action");
 assert(dashboardApp.includes("canUseWorkbenchAction(\"preset-install\")"), "dashboard preset writes must be gated by workbench actions");
+assert(dashboardApp.includes("selectedPresetKey"), "dashboard preset selection should use a source-qualified key");
+assert(dashboardApp.includes("state.selectedPresetKey = \"\""), "dashboard preset source filters should reset stale selections");
+assert(dashboardApp.includes("syncPresetUninstallScope(selected)"), "dashboard preset uninstall scope should follow the selected preset source");
+assert(dashboardApp.includes("data-preset-uninstall-scope ${lockedUninstallScope ? \"disabled\" : \"\"}"), "dashboard preset uninstall scope should be locked for project/user selections");
 assert(dashboardApp.includes("reviewWorkspace("), "dashboard missing review workspace route implementation");
 assert(dashboardApp.includes("reviewQueueState"), "dashboard review queue must use status-level review queue state");
 assert(dashboardApp.includes("[\"lessonCandidates\", \"lesson_candidates.md\"]"), "dashboard should expose lesson candidate documents");
@@ -215,6 +220,11 @@ writePresetPackage(path.join(presetCatalogHome, ".coding-agent-harness/presets/u
   purpose: "User catalog preset",
   kind: "user-catalog-task",
 });
+writePresetPackage(path.join(presetCatalogHome, ".coding-agent-harness/presets/module"), {
+  id: "module",
+  purpose: "User shadow for bundled module preset",
+  kind: "user-module-shadow-task",
+});
 const presetCatalogDir = path.join(tmpRoot, "preset-catalog-dashboard");
 expectPass(["dashboard", "--out-dir", presetCatalogDir, presetCatalogTarget], {
   env: { ...process.env, HOME: presetCatalogHome },
@@ -224,6 +234,9 @@ assert(layeredCatalog.summary.project >= 1, "preset catalog should count project
 assert(layeredCatalog.roots.some((root) => root.source === "builtin"), "preset catalog should keep builtin root visible even when user presets shadow bundled ids");
 assert(layeredCatalog.presets.some((preset) => preset.id === "project-catalog" && preset.source === "project"), "preset catalog should include project presets");
 assert(layeredCatalog.presets.some((preset) => preset.id === "legacy-migration" && ["user", "builtin"].includes(preset.source)), "preset catalog should include discoverable bundled preset ids");
+assert(layeredCatalog.presets.some((preset) => preset.id === "module" && preset.source === "user" && preset.effective === true), "preset catalog should show the effective user shadow for a bundled preset id");
+assert(layeredCatalog.presets.some((preset) => preset.id === "module" && preset.source === "builtin" && preset.effective === false), "preset catalog should still show shadowed builtin presets");
+assert(new Set(layeredCatalog.presets.map((preset) => preset.key)).size === layeredCatalog.presets.length, "preset catalog keys should uniquely identify source/id layers");
 assert(layeredCatalog.presets.find((preset) => preset.id === "project-catalog")?.taskKind === "project-catalog-task", "preset catalog should expose task kind");
 assert(layeredCatalog.presets.find((preset) => preset.id === "project-catalog")?.inputCount === 0, "preset catalog should expose input count");
 assert(layeredCatalog.presets.find((preset) => preset.id === "project-catalog")?.referenceCount === 0, "preset catalog should expose reference count");
@@ -232,7 +245,8 @@ const isolatedHomeCatalog = buildDashboardBundle(presetCatalogTarget, { home: pr
 assert(isolatedHomeCatalog.summary.user >= 1, "preset catalog should count user presets when a home override is supplied");
 assert(isolatedHomeCatalog.summary.builtin >= 1, "preset catalog should count builtin presets when user ids do not shadow them");
 assert(isolatedHomeCatalog.presets.some((preset) => preset.id === "user-catalog" && preset.source === "user"), "preset catalog should include user presets");
-assert(isolatedHomeCatalog.presets.some((preset) => preset.id === "legacy-migration" && preset.source === "builtin"), "preset catalog should include builtin fallback presets with isolated home");
+assert(isolatedHomeCatalog.presets.some((preset) => preset.id === "legacy-migration" && preset.source === "builtin" && preset.effective === true), "preset catalog should include effective builtin fallback presets with isolated home");
+assert(isolatedHomeCatalog.presets.some((preset) => preset.id === "module" && preset.source === "builtin" && preset.effective === false), "preset catalog should include shadowed builtin layers with isolated home");
 const helpOutput = expectPass(["help"]).stdout;
 assert(helpOutput.includes("harness dev"), "help should advertise harness dev as the daily dynamic workbench entry");
 

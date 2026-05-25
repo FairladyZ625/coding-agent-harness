@@ -55,10 +55,14 @@ function bind() {
   }));
   document.querySelectorAll("[data-preset-source-filter]").forEach((button) => button.addEventListener("click", () => {
     state.presetSourceFilter = button.dataset.presetSourceFilter || "all";
+    state.selectedPresetKey = "";
     app();
   }));
   document.querySelectorAll("[data-preset-select]").forEach((button) => button.addEventListener("click", () => {
-    state.selectedPresetId = button.dataset.presetSelect || "";
+    state.selectedPresetKey = button.dataset.presetSelect || "";
+    state.selectedPresetId = "";
+    const selectedPreset = (bundle.presetCatalog?.presets || []).find((preset) => presetKey(preset) === state.selectedPresetKey);
+    if (selectedPreset && ["project", "user"].includes(selectedPreset.source)) state.presetUninstallScope = selectedPreset.source;
     state.presetUninstallConfirm = "";
     app();
   }));

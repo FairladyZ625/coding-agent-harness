@@ -8,16 +8,21 @@ const allowedEntrypointTypes = new Set(["template", "script", "check"]);
 const allowedEvidenceTypes = new Set(["text", "json", "input-json", "preset-audit", "preset-manifest", "write-scope", "migration-verify", "migration-ledger", "dashboard-hash", "target-git-status", "target-commit", "harness-version", "generated-at"]);
 
 export function listPresetPackages({ targetInput = "", home = "" } = {}) {
-  const seen = new Set();
+  return listPresetPackageLayers({ targetInput, home }).filter((preset) => preset.effective);
+}
+
+export function listPresetPackageLayers({ targetInput = "", home = "" } = {}) {
+  const effectiveIds = new Set();
   const presets = [];
   for (const { root, source } of presetSearchRoots({ targetInput, home })) {
     if (!fs.existsSync(root)) continue;
     for (const entry of fs.readdirSync(root, { withFileTypes: true }).filter((item) => item.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
       const id = tryNormalizePresetId(entry.name);
       if (!id) continue;
-      if (seen.has(id)) continue;
-      seen.add(id);
-      presets.push(readPresetPackage(id, { targetInput, home }));
+      const preset = readPresetPackageFromPath(path.join(root, id), source);
+      const effective = !effectiveIds.has(preset.id);
+      if (effective) effectiveIds.add(preset.id);
+      presets.push({ ...preset, effective });
     }
   }
   return presets;
@@ -67,13 +72,13 @@ export function checkPresetPackage(id, { targetInput = "", home = "" } = {}) {
   };
 }
 
-function readPresetPackageFromPath(directory) {
+function readPresetPackageFromPath(directory, source = "local") {
   const manifestPath = path.join(directory, "preset.yaml");
   assertPresetDirectory(directory);
   assertPresetManifestFile(directory, manifestPath);
   const raw = fs.readFileSync(manifestPath, "utf8");
   const manifest = parseSimpleYaml(raw);
-  return normalizePresetManifest(manifest, { id: normalizePresetId(manifest.id || path.basename(directory)), manifestPath, raw, source: "local" });
+  return normalizePresetManifest(manifest, { id: normalizePresetId(manifest.id || path.basename(directory)), manifestPath, raw, source });
 }
 
 function assertPresetDirectory(directory) {

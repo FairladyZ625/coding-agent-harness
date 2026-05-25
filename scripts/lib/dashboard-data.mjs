@@ -32,7 +32,7 @@ import {
   isActiveTaskState,
 } from "./task-scanner.mjs";
 import { writeDashboardDirectory, writeDashboardFile } from "./dashboard-writer.mjs";
-import { listPresetPackages } from "./preset-registry.mjs";
+import { listPresetPackageLayers } from "./preset-registry.mjs";
 
 export function collectMarkdownDocuments(target) {
   const docs = collectDashboardDocumentPaths(target);
@@ -412,10 +412,12 @@ export function buildDashboardBundle(targetInput, options = {}) {
 
 export function collectPresetCatalog(targetInput, target = normalizeTarget(targetInput), options = {}) {
   const home = options.home || "";
-  const presets = listPresetPackages({ targetInput: target.projectRoot, home }).map((preset) => ({
+  const presets = listPresetPackageLayers({ targetInput: target.projectRoot, home }).map((preset) => ({
+    key: `${preset.source}:${preset.id}`,
     id: preset.id,
     version: preset.version,
     source: preset.source,
+    effective: preset.effective === true,
     purpose: preset.purpose,
     compatibleBudgets: preset.compatibleBudgets,
     manifestPath: preset.manifestRelativePath,

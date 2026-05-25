@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import http from "node:http";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import {
@@ -58,9 +59,24 @@ try {
     body: JSON.stringify({ id: "module" }),
   });
   assert(missingCsrf.status === 403, "preset endpoints should reject missing CSRF");
+  const badOrigin = await fetch(new URL("api/presets/check", runtime.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: "http://evil.example" },
+    body: JSON.stringify({ id: "module" }),
+  });
+  assert(badOrigin.status === 403, "preset endpoints should reject untrusted origins");
+  const badHost = await rawPost("api/presets/check", { id: "module" }, {
+    "content-type": "application/json",
+    "x-harness-csrf": runtime.csrf,
+    origin,
+    host: "127.0.0.1:1",
+  });
+  assert(badHost.status === 403, "preset endpoints should reject host mismatches");
 
   const networkInstall = await postJson("api/presets/install", { source: "https://example.com/preset", scope: "project" });
   assert(networkInstall.status === 400, "preset install should reject network sources");
+  const invalidScope = await postJson("api/presets/seed", { scope: "global" });
+  assert(invalidScope.status === 400, "preset endpoints should reject invalid scopes");
 
   const projectInstall = await postJson("api/presets/install", { source: projectPresetSource, scope: "project", force: true });
   assert(projectInstall.status === 200, `project install should pass, got ${projectInstall.status}: ${projectInstall.text}`);
@@ -73,6 +89,8 @@ try {
   const seedProject = await postJson("api/presets/seed", { scope: "project" });
   assert(seedProject.status === 200, `project seed should pass, got ${seedProject.status}: ${seedProject.text}`);
   assert(seedProject.body.operation === "preset-seed" && seedProject.body.scope === "project", "project seed should return seed operation details");
+  const confirmMismatch = await postJson("api/presets/uninstall", { id: "project-workbench", scope: "project", confirmText: "wrong-id" });
+  assert(confirmMismatch.status === 400, "preset uninstall should reject mismatched confirmation text");
 
   const projectUninstall = await postJson("api/presets/uninstall", { id: "project-workbench", scope: "project", confirmText: "project-workbench" });
   assert(projectUninstall.status === 200, `project uninstall should pass, got ${projectUninstall.status}: ${projectUninstall.text}`);
@@ -103,6 +121,30 @@ async function postJson(relativePath, body) {
     parsed = text ? JSON.parse(text) : {};
   } catch {}
   return { status: response.status, body: parsed, text };
+}
+
+function rawPost(relativePath, body, headers) {
+  const url = new URL(relativePath, runtime.url);
+  const payload = JSON.stringify(body);
+  return new Promise((resolve, reject) => {
+    const request = http.request({
+      hostname: url.hostname,
+      port: url.port,
+      path: `${url.pathname}${url.search}`,
+      method: "POST",
+      headers: {
+        "content-length": Buffer.byteLength(payload),
+        ...headers,
+      },
+    }, (response) => {
+      let text = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => { text += chunk; });
+      response.on("end", () => resolve({ status: response.statusCode, text }));
+    });
+    request.on("error", reject);
+    request.end(payload);
+  });
 }
 
 function writePresetPackage(directory, { id, purpose, kind }) {
