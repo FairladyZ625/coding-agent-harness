@@ -15,7 +15,7 @@
 
 1. 遵守 `docs/11-REFERENCE/engineering-standard.md` 中的架构边界。
 2. 不提交密钥、令牌、私有接口、用户隐私数据或生产凭据。
-3. 非平凡任务先在 `docs/09-PLANNING/TASKS/` 下建立任务目录。
+3. 非平凡任务先用 Harness CLI 在 `docs/09-PLANNING/TASKS/` 下建立任务目录。
 4. 声称完成前必须记录证据。
 5. 保护无关工作区改动，不回滚任务范围外文件。
 6. 已验证的、有意义的工作切片要主动提交。除非用户明确暂停提交、检查失败、dirty 归属不清，或安全边界导致无法形成干净提交，否则不要把已完成工作只留在未提交文件里；不能提交时，必须在 progress、handoff 或 closeout 中写明 no-commit reason、owner 和下一步。不要把无关 dirty 改动混入本任务提交。
@@ -33,7 +33,7 @@
 | API、event、webhook、SDK、第三方契约 | `docs/06-INTEGRATIONS/README.md` 和相关契约文件 |
 | 测试、冒烟、回归 | `docs/11-REFERENCE/testing-standard.md`、`docs/05-TEST-QA/Regression-SSoT.md` |
 | 开发执行、提交、PR、发布 | `docs/11-REFERENCE/execution-workflow-standard.md`、`docs/11-REFERENCE/repo-governance-standard.md`、`docs/11-REFERENCE/pull-request-standard.md`、`docs/11-REFERENCE/ci-cd-standard.md` |
-| 创建或推进任务 | `docs/09-PLANNING/TASKS/` 下的当前任务目录；如果本项目已配置 Harness CLI，优先用 CLI |
+| 创建或推进任务 | `docs/09-PLANNING/TASKS/` 下的当前任务目录；如果本项目已配置 Harness CLI，使用 `harness new-task` / lifecycle 命令 |
 | Brief、Execution Strategy、Visual Map | 当前任务的 `brief.md`、`execution_strategy.md`、`visual_map.md` |
 | 长程任务 | `docs/11-REFERENCE/long-running-task-standard.md` |
 | reviewer、subagent、对抗性审查 | `docs/11-REFERENCE/review-routing-standard.md`、`docs/11-REFERENCE/adversarial-review-standard.md` |
@@ -48,7 +48,7 @@
 ## 标准执行流程
 
 1. 先确认请求、范围和受影响文件。
-2. 非平凡任务先创建或更新任务计划，再改代码。
+2. 非平凡任务先创建或更新任务计划，再改代码。优先使用 `harness new-task`；CLI 不可用时必须保留 `Scaffold Provenance` 段，并把 `Created By` 设为 `manual-exception`，写清具体原因。
 3. 根据用户目标主动判断是否需要分工；用户不需要知道或主动要求 subagent。
 4. 只读取任务阅读矩阵要求的 reference 文档。
 5. 保留已有项目事实；新增上下文使用 merge / append，不覆盖历史。

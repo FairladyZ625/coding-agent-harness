@@ -16,7 +16,7 @@ Keep it as a charter and routing index. Detailed rules belong in
 
 1. Preserve architecture boundaries documented in `docs/11-REFERENCE/engineering-standard.md`.
 2. Do not commit secrets, credentials, private endpoints, or user data.
-3. Start non-trivial work with a task directory under `docs/09-PLANNING/TASKS/`.
+3. Start non-trivial work with a Harness CLI-created task directory under `docs/09-PLANNING/TASKS/`.
 4. Record evidence before claiming completion.
 5. Protect unrelated working-tree changes; never revert files outside the assigned scope.
 6. Commit verified, meaningful work slices proactively. Do not leave completed work only as dirty files unless the user explicitly pauses commits, checks fail, dirty ownership is unclear, or a security boundary prevents a clean commit; in those cases record the no-commit reason, owner, and next step in progress, handoff, or closeout notes. Never mix unrelated dirty changes into a task commit.
@@ -34,7 +34,7 @@ Read the smallest context that can answer the task.
 | API, event, webhook, SDK, or third-party contract | `docs/06-INTEGRATIONS/README.md` and the related contract file |
 | Tests, smoke, or regression | `docs/11-REFERENCE/testing-standard.md`, `docs/05-TEST-QA/Regression-SSoT.md` |
 | Execution, commit, PR, or release work | `docs/11-REFERENCE/execution-workflow-standard.md`, `docs/11-REFERENCE/repo-governance-standard.md`, `docs/11-REFERENCE/pull-request-standard.md`, `docs/11-REFERENCE/ci-cd-standard.md` |
-| Creating or advancing a task | Current task directory under `docs/09-PLANNING/TASKS/`; use the Harness CLI if this project has it configured |
+| Creating or advancing a task | Current task directory under `docs/09-PLANNING/TASKS/`; use `harness new-task` / lifecycle commands when this project has the Harness CLI configured |
 | Brief, Execution Strategy, or Visual Map | Current task `brief.md`, `execution_strategy.md`, and `visual_map.md` |
 | Long-running task | `docs/11-REFERENCE/long-running-task-standard.md` |
 | Reviewer, subagent, or adversarial review | `docs/11-REFERENCE/review-routing-standard.md`, `docs/11-REFERENCE/adversarial-review-standard.md` |
@@ -49,7 +49,7 @@ Read the smallest context that can answer the task.
 ## Standard Execution Flow
 
 1. Confirm the request, scope, and affected files.
-2. For non-trivial work, create or update the task plan before editing code.
+2. For non-trivial work, create or update the task plan before editing code. Use `harness new-task`; if the CLI is unavailable, keep the `Scaffold Provenance` section and set `Created By` to `manual-exception` with a concrete reason.
 3. Assess delegation from the user's goal; users do not need to know or ask for subagents.
 4. Load only the reference documents required by the Reading Matrix.
 5. Preserve existing project facts; merge new context instead of overwriting history.

@@ -338,7 +338,7 @@ export function buildStatus(targetInput, options = {}) {
     else warnings.push(`adoption-needed: legacy check failed: ${(legacy.stderr || legacy.stdout).trim()}`);
   }
 
-  const tasks = collectTasks(target);
+  const tasks = collectTasks(target, { requireGeneratedScaffoldProvenance: contractStrict });
   const taskCompletionConsistency = validateTaskCompletionConsistency(tasks);
   failures.push(...taskCompletionConsistency.failures);
   warnings.push(...taskCompletionConsistency.warnings);

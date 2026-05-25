@@ -10,6 +10,7 @@ import {
   listTaskPlanPaths,
   parseTaskBudget,
   parseTaskContractInfo,
+  parseScaffoldProvenance,
 } from "./task-scanner.mjs";
 
 export function validatePlanContracts(target, { strict = true } = {}) {
@@ -25,8 +26,16 @@ export function validatePlanContracts(target, { strict = true } = {}) {
     const taskPlanContent = readFileSafe(taskPlanPath);
     const budget = parseTaskBudget(taskPlanContent);
     const taskContract = parseTaskContractInfo(taskPlanContent);
+    const scaffoldProvenance = parseScaffoldProvenance(taskPlanContent);
     if (!taskContract.generated) {
       warnings.push(`adoption-needed: ${relativeDir} missing Task Contract: harness-task/v1 marker`);
+    }
+    if (taskContract.generated && !scaffoldProvenance.present) {
+      if (strict) failures.push(`${relativeDir} missing Scaffold Provenance section`);
+    }
+    for (const issue of scaffoldProvenance.issues) {
+      if (scaffoldProvenance.required || scaffoldProvenance.present) failures.push(`${relativeDir} ${issue.message}`);
+      else report(`${relativeDir} ${issue.message}`);
     }
     for (const fileName of requiredTaskFilesForBudget(budget)) {
       if (!fs.existsSync(path.join(taskDir, fileName))) {
