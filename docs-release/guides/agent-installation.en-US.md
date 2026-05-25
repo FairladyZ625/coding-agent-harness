@@ -19,6 +19,19 @@ read-only scan, skip Skill installation first and use `npx --yes coding-agent-ha
 / `migrate-plan` for the scan; install the Skill or run write commands only after the user
 confirms write access.
 
+This repository also publishes the nested `preset-creator` Skill for agents that author
+reusable Harness preset packages. Since the repository has both a root `SKILL.md` and a
+nested Skill, list or install it with `--full-depth`:
+
+```bash
+npx skills add FairladyZ625/coding-agent-harness --list --full-depth
+npx skills add FairladyZ625/coding-agent-harness --skill preset-creator --full-depth
+```
+
+Use `coding-agent-harness` to operate Harness in a target project. Use `preset-creator`
+only when the agent is designing a reusable preset for a repeatable task family with
+shared references, artifacts, evidence, or complex-task overlays.
+
 Use the v1.0 six-phase flow:
 
 1. Diagnose: scan project structure, language, existing docs, CI, collaboration model, external dependencies, and risk surfaces.

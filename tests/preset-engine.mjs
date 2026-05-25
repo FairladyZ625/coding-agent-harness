@@ -14,7 +14,17 @@ import {
 assert(fs.existsSync(path.join(repoRootFromTest(), "docs-release/guides/preset-development.md")), "preset development guide should exist");
 assert(fs.existsSync(path.join(repoRootFromTest(), "skills/preset-creator/SKILL.md")), "preset creator skill should exist");
 assert(fs.existsSync(path.join(repoRootFromTest(), "skills/preset-creator/references/preset-package-skeleton.md")), "preset creator skill should include a package skeleton reference");
-assert(fs.readFileSync(path.join(repoRootFromTest(), "skills/preset-creator/SKILL.md"), "utf8").includes("references/preset-package-skeleton.md"), "preset creator skill should route agents to the package skeleton reference");
+const readmeEn = fs.readFileSync(path.join(repoRootFromTest(), "README.md"), "utf8");
+const readmeZh = fs.readFileSync(path.join(repoRootFromTest(), "README.zh-CN.md"), "utf8");
+const agentGuideEn = fs.readFileSync(path.join(repoRootFromTest(), "docs-release/guides/agent-installation.en-US.md"), "utf8");
+const agentGuideZh = fs.readFileSync(path.join(repoRootFromTest(), "docs-release/guides/agent-installation.md"), "utf8");
+for (const doc of [readmeEn, readmeZh, agentGuideEn, agentGuideZh]) {
+  assert(doc.includes("--skill preset-creator"), "public docs should show how to install the preset creator skill");
+  assert(doc.includes("--full-depth"), "public docs should explain full-depth discovery for nested skills");
+}
+const presetCreatorSkill = fs.readFileSync(path.join(repoRootFromTest(), "skills/preset-creator/SKILL.md"), "utf8");
+assert(presetCreatorSkill.includes("description: Use when"), "preset creator skill description should be trigger-oriented for skill discovery");
+assert(presetCreatorSkill.includes("references/preset-package-skeleton.md"), "preset creator skill should route agents to the package skeleton reference");
 const complexSkillSkeletonFiles = [
   "README.md",
   "brief.md",
@@ -33,7 +43,6 @@ for (const file of complexSkillSkeletonFiles) {
   assert(fs.existsSync(path.join(repoRootFromTest(), "skills/preset-creator/references/complex-task-skeleton", file)), `preset creator skill should include complex task skeleton file: ${file}`);
 }
 assert(fs.readFileSync(path.join(repoRootFromTest(), "skills/preset-creator/SKILL.md"), "utf8").includes("references/complex-task-skeleton/"), "preset creator skill should route agents to the complex task skeleton reference");
-const presetCreatorSkill = fs.readFileSync(path.join(repoRootFromTest(), "skills/preset-creator/SKILL.md"), "utf8");
 const presetPackageSkeleton = fs.readFileSync(path.join(repoRootFromTest(), "skills/preset-creator/references/preset-package-skeleton.md"), "utf8");
 for (const requiredPhrase of ["Supported input types", "exactly match one `writeScopes", "Preset Required Reads", "evidence.bundleDir", "Do not write `evidence.files` as an array"]) {
   assert(presetCreatorSkill.includes(requiredPhrase) || presetPackageSkeleton.includes(requiredPhrase), `preset creator references should clarify: ${requiredPhrase}`);
