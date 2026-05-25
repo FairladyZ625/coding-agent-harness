@@ -1,11 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import crypto from "node:crypto";
+import zlib from "node:zlib";
 import { builtinPresetRoot, projectPresetRoot, repoRoot, toPosix, userPresetRoot, userPresetRootForHome } from "./core-shared.mjs";
 
 const allowedEntrypoints = new Set(["newTask", "plan", "scaffold", "check"]);
 const allowedEntrypointTypes = new Set(["template", "script", "check"]);
 const allowedEvidenceTypes = new Set(["text", "json", "input-json", "preset-audit", "preset-manifest", "write-scope", "migration-verify", "migration-ledger", "dashboard-hash", "target-git-status", "target-commit", "harness-version", "generated-at"]);
+const maxPresetArchiveBytes = 25 * 1024 * 1024;
+const maxPresetArchiveUncompressedBytes = 50 * 1024 * 1024;
+const maxPresetArchiveEntries = 500;
 
 export function listPresetPackages({ targetInput = "", home = "" } = {}) {
   return listPresetPackageLayers({ targetInput, home }).filter((preset) => preset.effective);
@@ -100,38 +105,43 @@ function assertPresetManifestFile(directory, manifestPath) {
 
 export function installPresetPackage(source, { force = false, scope = "user", targetInput = ".", home = "" } = {}) {
   if (!source) throw new Error("Missing preset source");
-  const sourcePath = resolveInstallSource(source);
-  const stagedPreset = readPresetPackageFromPath(sourcePath);
-  const stagedReport = validatePresetPackage(stagedPreset);
-  if (stagedReport.failures.length) throw new Error(`Invalid preset package ${stagedPreset.id}: ${stagedReport.failures.join("; ")}`);
-  const id = stagedPreset.id;
-  if (!id) throw new Error("Preset manifest missing id");
-  const destination = scope === "project" ? projectPresetDestination(id, targetInput) : userPresetDestination(id, { home });
-  if (fs.existsSync(destination)) {
-    if (!force) throw new Error(`Preset already installed: ${id}. Re-run with --force to overwrite.`);
-  }
-  fs.mkdirSync(path.dirname(destination), { recursive: true });
-  const tempDestination = path.join(path.dirname(destination), `.${id}.install-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`);
-  fs.rmSync(tempDestination, { recursive: true, force: true });
-  copyDirectory(sourcePath, tempDestination);
+  const resolvedSource = resolveInstallSource(source);
   try {
-    const tempPreset = readPresetPackageFromPath(tempDestination);
-    const tempReport = validatePresetPackage(tempPreset);
-    if (tempReport.failures.length) throw new Error(`Invalid preset package ${id}: ${tempReport.failures.join("; ")}`);
-    fs.rmSync(destination, { recursive: true, force: true });
-    fs.renameSync(tempDestination, destination);
-    const preset = readPresetPackage(id, scope === "project" ? { targetInput, home } : { home });
-    return {
-      installed: true,
-      id: preset.id,
-      version: preset.version,
-      source: preset.source,
-      destination: toPosix(destination),
-      manifestPath: preset.manifestRelativePath,
-    };
-  } catch (error) {
+    const sourcePath = resolvedSource.path;
+    const stagedPreset = readPresetPackageFromPath(sourcePath);
+    const stagedReport = validatePresetPackage(stagedPreset);
+    if (stagedReport.failures.length) throw new Error(`Invalid preset package ${stagedPreset.id}: ${stagedReport.failures.join("; ")}`);
+    const id = stagedPreset.id;
+    if (!id) throw new Error("Preset manifest missing id");
+    const destination = scope === "project" ? projectPresetDestination(id, targetInput) : userPresetDestination(id, { home });
+    if (fs.existsSync(destination)) {
+      if (!force) throw new Error(`Preset already installed: ${id}. Re-run with --force to overwrite.`);
+    }
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    const tempDestination = path.join(path.dirname(destination), `.${id}.install-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`);
     fs.rmSync(tempDestination, { recursive: true, force: true });
-    throw error;
+    copyDirectory(sourcePath, tempDestination);
+    try {
+      const tempPreset = readPresetPackageFromPath(tempDestination);
+      const tempReport = validatePresetPackage(tempPreset);
+      if (tempReport.failures.length) throw new Error(`Invalid preset package ${id}: ${tempReport.failures.join("; ")}`);
+      fs.rmSync(destination, { recursive: true, force: true });
+      fs.renameSync(tempDestination, destination);
+      const preset = readPresetPackage(id, scope === "project" ? { targetInput, home } : { home });
+      return {
+        installed: true,
+        id: preset.id,
+        version: preset.version,
+        source: preset.source,
+        destination: toPosix(destination),
+        manifestPath: preset.manifestRelativePath,
+      };
+    } catch (error) {
+      fs.rmSync(tempDestination, { recursive: true, force: true });
+      throw error;
+    }
+  } finally {
+    resolvedSource.cleanup();
   }
 }
 
@@ -598,10 +608,139 @@ function presetSearchRoots({ targetInput = "", home = "" } = {}) {
 
 function resolveInstallSource(source) {
   const localPath = path.resolve(source);
-  if (fs.existsSync(path.join(localPath, "preset.yaml"))) return localPath;
+  if (fs.existsSync(path.join(localPath, "preset.yaml"))) return { path: localPath, cleanup: () => {} };
+  if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+    if (!localPath.toLowerCase().endsWith(".zip")) throw new Error(`Preset source file must be a .zip archive: ${toPosix(localPath)}`);
+    return resolveZipInstallSource(localPath);
+  }
   const builtinPath = path.join(builtinPresetRoot, normalizePresetId(source));
-  if (fs.existsSync(path.join(builtinPath, "preset.yaml"))) return builtinPath;
+  if (fs.existsSync(path.join(builtinPath, "preset.yaml"))) return { path: builtinPath, cleanup: () => {} };
   throw new Error(`Preset source not found: ${source}`);
+}
+
+function resolveZipInstallSource(sourcePath) {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-preset-archive-"));
+  try {
+    extractPresetZip(sourcePath, tempRoot);
+    return {
+      path: presetRootFromExtractedArchive(tempRoot),
+      cleanup: () => fs.rmSync(tempRoot, { recursive: true, force: true }),
+    };
+  } catch (error) {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function presetRootFromExtractedArchive(tempRoot) {
+  if (fs.existsSync(path.join(tempRoot, "preset.yaml"))) return tempRoot;
+  const children = fs.readdirSync(tempRoot, { withFileTypes: true })
+    .filter((entry) => entry.name !== "__MACOSX" && entry.name !== ".DS_Store");
+  const presetDirs = children
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(tempRoot, entry.name))
+    .filter((directory) => fs.existsSync(path.join(directory, "preset.yaml")));
+  if (presetDirs.length === 1) return presetDirs[0];
+  throw new Error("Preset archive must contain preset.yaml at the archive root or inside one top-level directory.");
+}
+
+function extractPresetZip(sourcePath, destinationRoot) {
+  const archiveStat = fs.statSync(sourcePath);
+  if (archiveStat.size > maxPresetArchiveBytes) throw new Error("Preset archive file is too large.");
+  const archive = fs.readFileSync(sourcePath);
+  const eocdOffset = findZipEndOfCentralDirectory(archive);
+  const entryCount = archive.readUInt16LE(eocdOffset + 10);
+  const centralSize = archive.readUInt32LE(eocdOffset + 12);
+  const centralOffset = archive.readUInt32LE(eocdOffset + 16);
+  if (entryCount === 0xffff || centralSize === 0xffffffff || centralOffset === 0xffffffff) {
+    throw new Error("Zip64 preset archives are not supported.");
+  }
+  if (entryCount > maxPresetArchiveEntries) throw new Error(`Preset archive has too many entries: ${entryCount}`);
+  if (centralOffset + centralSize > archive.length) throw new Error("Invalid preset archive central directory.");
+  const written = new Set();
+  let cursor = centralOffset;
+  let totalUncompressed = 0;
+  for (let index = 0; index < entryCount; index += 1) {
+    if (archive.readUInt32LE(cursor) !== 0x02014b50) throw new Error("Invalid preset archive central directory entry.");
+    const flags = archive.readUInt16LE(cursor + 8);
+    const method = archive.readUInt16LE(cursor + 10);
+    const compressedSize = archive.readUInt32LE(cursor + 20);
+    const uncompressedSize = archive.readUInt32LE(cursor + 24);
+    const nameLength = archive.readUInt16LE(cursor + 28);
+    const extraLength = archive.readUInt16LE(cursor + 30);
+    const commentLength = archive.readUInt16LE(cursor + 32);
+    const externalAttributes = archive.readUInt32LE(cursor + 38);
+    const localOffset = archive.readUInt32LE(cursor + 42);
+    const rawName = archive.slice(cursor + 46, cursor + 46 + nameLength).toString(flags & 0x0800 ? "utf8" : "utf8");
+    cursor += 46 + nameLength + extraLength + commentLength;
+    if (shouldSkipZipEntry(rawName)) continue;
+    if (flags & 0x0001) throw new Error(`Encrypted preset archive entries are not supported: ${rawName}`);
+    if (method !== 0 && method !== 8) throw new Error(`Unsupported preset archive compression method ${method}: ${rawName}`);
+    const mode = (externalAttributes >>> 16) & 0o170000;
+    if (mode === 0o120000) throw new Error(`Preset archive must not contain symlinks: ${rawName}`);
+    const entryName = safeZipEntryName(rawName);
+    if (!entryName) continue;
+    if (entryName.endsWith("/")) {
+      fs.mkdirSync(path.join(destinationRoot, entryName), { recursive: true });
+      continue;
+    }
+    if (written.has(entryName)) throw new Error(`Preset archive contains duplicate entry: ${entryName}`);
+    if (uncompressedSize > maxPresetArchiveUncompressedBytes - totalUncompressed) throw new Error("Preset archive is too large.");
+    const data = readZipEntryData(archive, { localOffset, compressedSize, uncompressedSize, method, name: entryName });
+    totalUncompressed += data.length;
+    const destination = path.resolve(destinationRoot, entryName);
+    if (!isInside(path.resolve(destinationRoot), destination)) throw new Error(`Preset archive entry escapes extraction root: ${rawName}`);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.writeFileSync(destination, data);
+    written.add(entryName);
+  }
+}
+
+function findZipEndOfCentralDirectory(archive) {
+  const minOffset = Math.max(0, archive.length - 22 - 65535);
+  for (let offset = archive.length - 22; offset >= minOffset; offset -= 1) {
+    if (archive.readUInt32LE(offset) === 0x06054b50) return offset;
+  }
+  throw new Error("Invalid preset zip archive: end of central directory not found.");
+}
+
+function readZipEntryData(archive, { localOffset, compressedSize, uncompressedSize, method, name }) {
+  if (localOffset + 30 > archive.length || archive.readUInt32LE(localOffset) !== 0x04034b50) {
+    throw new Error(`Invalid preset archive local header: ${name}`);
+  }
+  const localNameLength = archive.readUInt16LE(localOffset + 26);
+  const localExtraLength = archive.readUInt16LE(localOffset + 28);
+  const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+  const dataEnd = dataStart + compressedSize;
+  if (dataEnd > archive.length) throw new Error(`Invalid preset archive entry size: ${name}`);
+  const compressed = archive.slice(dataStart, dataEnd);
+  let data;
+  try {
+    data = method === 0 ? Buffer.from(compressed) : zlib.inflateRawSync(compressed, { maxOutputLength: uncompressedSize });
+  } catch (error) {
+    throw new Error(`Preset archive entry could not be decompressed within its declared size: ${name}`);
+  }
+  if (data.length !== uncompressedSize) throw new Error(`Preset archive entry size mismatch: ${name}`);
+  return data;
+}
+
+function shouldSkipZipEntry(rawName) {
+  const normalized = String(rawName || "").replace(/\\/g, "/");
+  return normalized === "__MACOSX/" || normalized.startsWith("__MACOSX/") || normalized.endsWith("/.DS_Store") || normalized === ".DS_Store";
+}
+
+function safeZipEntryName(rawName) {
+  if (String(rawName).includes("\0")) throw new Error("Preset archive entry contains NUL byte.");
+  const withSlashes = String(rawName || "").replace(/\\/g, "/");
+  if (/^[A-Za-z]:/.test(withSlashes) || withSlashes.startsWith("/")) {
+    throw new Error(`Preset archive entry must be relative: ${rawName}`);
+  }
+  const normalized = path.posix.normalize(withSlashes);
+  if (normalized === "." || normalized === "") return "";
+  if (normalized === ".." || normalized.startsWith("../") || normalized.includes("/../")) {
+    throw new Error(`Preset archive entry escapes extraction root: ${rawName}`);
+  }
+  return withSlashes.endsWith("/") ? `${normalized}/` : normalized;
 }
 
 function copyDirectory(source, destination) {

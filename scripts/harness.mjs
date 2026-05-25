@@ -93,7 +93,7 @@ Usage:
   harness preset list [--json] [target]
   harness preset inspect <id> [--json] [target]
   harness preset check <id> [--json] [target]
-  harness preset install <path-or-builtin-id> [--project] [--force] [--json] [target]
+  harness preset install <folder|zip|builtin-id> [--project] [--force] [--json] [target]
   harness preset seed [--project] [--force] [--dry-run] [--json] [target]
   harness preset uninstall <id> [--project] [--json] [target]
   harness new-task <task-id> [--module key] [--budget simple|standard|complex] [--preset id] [--from-session session.json] [--long-running] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
@@ -127,6 +127,9 @@ Preset discovery:
   "harness init" seeds bundled presets into the target project. "harness
   install-user" and npm postinstall seed bundled presets into the user root.
   Use "harness preset seed" to repair or re-run preset seeding.
+  Use "harness preset install" with a local preset folder, .zip archive, or
+  bundled preset id. Preset archives must contain preset.yaml at the archive
+  root or inside one top-level folder.
   Use "harness preset list --json" to see available presets, their source,
   purpose, compatible budgets, and manifest path. Use "harness preset inspect
   <id> --json" for the full preset manifest summary.

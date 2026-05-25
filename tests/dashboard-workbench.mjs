@@ -11,6 +11,7 @@ import {
   repoRoot,
   tmpRoot,
   waitForWorkbench,
+  writeZipFromDirectory,
 } from "./helpers/harness-test-utils.mjs";
 
 const target = path.join(tmpRoot, "preset-workbench-target");
@@ -18,6 +19,8 @@ const home = path.join(tmpRoot, "preset-workbench-home");
 const outDir = path.join(tmpRoot, "preset-workbench-dashboard");
 const projectPresetSource = path.join(tmpRoot, "project-workbench-preset-source");
 const userPresetSource = path.join(tmpRoot, "user-workbench-preset-source");
+const archivePresetSource = path.join(tmpRoot, "archive-workbench-preset-source");
+const archivePresetZip = path.join(tmpRoot, "archive-workbench-preset.zip");
 
 fs.cpSync(path.join(repoRoot, "examples/minimal-project"), target, { recursive: true });
 writePresetPackage(projectPresetSource, {
@@ -30,6 +33,12 @@ writePresetPackage(userPresetSource, {
   purpose: "User workbench preset",
   kind: "user-workbench-task",
 });
+writePresetPackage(archivePresetSource, {
+  id: "archive-workbench",
+  purpose: "Archive workbench preset",
+  kind: "archive-workbench-task",
+});
+writeZipFromDirectory(archivePresetSource, archivePresetZip, { rootName: "archive-workbench" });
 
 const workbench = spawn(node, [cli, "dashboard", "--workbench", "--out-dir", outDir, "--host", "127.0.0.1", "--port", "0", target], {
   cwd: repoRoot,
@@ -85,6 +94,9 @@ try {
   const userInstall = await postJson("api/presets/install", { source: userPresetSource, scope: "user", force: true });
   assert(userInstall.status === 200, `user install should pass, got ${userInstall.status}: ${userInstall.text}`);
   assert(fs.existsSync(path.join(home, ".coding-agent-harness/presets/user-workbench/preset.yaml")), "user install should write user preset under isolated HOME");
+  const archiveInstall = await postJson("api/presets/install", { source: archivePresetZip, scope: "project", force: true });
+  assert(archiveInstall.status === 200, `archive install should pass, got ${archiveInstall.status}: ${archiveInstall.text}`);
+  assert(fs.existsSync(path.join(target, ".coding-agent-harness/presets/archive-workbench/preset.yaml")), "archive install should write target project preset");
 
   const seedProject = await postJson("api/presets/seed", { scope: "project" });
   assert(seedProject.status === 200, `project seed should pass, got ${seedProject.status}: ${seedProject.text}`);
