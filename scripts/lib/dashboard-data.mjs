@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   repoRoot,
+  builtinPresetRoot,
   normalizeTarget,
+  projectPresetRoot,
   readFileSafe,
   sanitizeText,
   sanitizeDeep,
@@ -15,6 +17,7 @@ import {
   legacyVisualRoadmapFile,
   lessonCandidatesFile,
   longRunningTaskContractFile,
+  userPresetRoot,
 } from "./core-shared.mjs";
 import {
   parseAllMarkdownTables,
@@ -29,6 +32,7 @@ import {
   isActiveTaskState,
 } from "./task-scanner.mjs";
 import { writeDashboardDirectory, writeDashboardFile } from "./dashboard-writer.mjs";
+import { listPresetPackages } from "./preset-registry.mjs";
 
 export function collectMarkdownDocuments(target) {
   const docs = collectDashboardDocumentPaths(target);
@@ -402,7 +406,44 @@ export function buildDashboardBundle(targetInput, options = {}) {
   const tables = collectTables(documents.documents);
   const graph = collectGraph(status, tables);
   const adoption = collectAdoption(status);
-  return sanitizeDeep({ status, tables, documents, graph, adoption });
+  const presetCatalog = collectPresetCatalog(targetInput, target, options);
+  return sanitizeDeep({ status, tables, documents, graph, adoption, presetCatalog });
+}
+
+export function collectPresetCatalog(targetInput, target = normalizeTarget(targetInput), options = {}) {
+  const home = options.home || "";
+  const presets = listPresetPackages({ targetInput: target.projectRoot, home }).map((preset) => ({
+    id: preset.id,
+    version: preset.version,
+    source: preset.source,
+    purpose: preset.purpose,
+    compatibleBudgets: preset.compatibleBudgets,
+    manifestPath: preset.manifestRelativePath,
+    manifestSha256: preset.manifestSha256,
+    taskKind: preset.task?.kind || "",
+    inputCount: Object.keys(preset.inputs || {}).length,
+    referenceCount: Object.keys(preset.resources?.references || {}).length,
+    artifactCount: Object.keys(preset.resources?.artifacts || {}).length,
+    writeScopeCount: Object.keys(preset.writeScopes || {}).length,
+    evidenceFileCount: Object.keys(preset.evidence?.files || {}).length,
+    requiredReadCount: Array.isArray(preset.context?.requiredReads) ? preset.context.requiredReads.length : 0,
+    checkStatus: "unknown",
+  }));
+  const countSource = (source) => presets.filter((preset) => preset.source === source).length;
+  return {
+    summary: {
+      total: presets.length,
+      project: countSource("project"),
+      user: countSource("user"),
+      builtin: countSource("builtin"),
+    },
+    roots: [
+      { source: "project", path: projectPresetRoot(target.projectRoot) },
+      { source: "user", path: home ? path.join(path.resolve(home), ".coding-agent-harness/presets") : userPresetRoot },
+      { source: "builtin", path: builtinPresetRoot },
+    ],
+    presets,
+  };
 }
 
 export function writeDashboardFolder(outDir, targetInput, options = {}) {
