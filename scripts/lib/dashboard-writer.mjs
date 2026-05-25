@@ -28,6 +28,7 @@ export function writeDashboardDirectory(outDir, bundle, options = {}) {
   writeJsonFile(path.join(target, "data/documents.json"), bundle.documents);
   writeJsonFile(path.join(target, "data/graph.json"), bundle.graph);
   writeJsonFile(path.join(target, "data/adoption.json"), bundle.adoption);
+  writeJsonFile(path.join(target, "data/presetCatalog.json"), bundle.presetCatalog);
   fs.writeFileSync(
     path.join(target, "assets/dashboard-data.js"),
     `window.__HARNESS_DASHBOARD__ = ${JSON.stringify(bundle, null, 2)};\n`,

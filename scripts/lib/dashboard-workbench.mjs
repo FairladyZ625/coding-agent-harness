@@ -9,6 +9,13 @@ import { createLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
 import { normalizeTarget } from "./core-shared.mjs";
 import { collectTasks } from "./task-scanner.mjs";
 import { writeDashboardFolder } from "./dashboard-data.mjs";
+import {
+  checkPresetPackage,
+  installPresetPackage,
+  listPresetPackages,
+  seedBundledPresets,
+  uninstallPresetPackage,
+} from "./preset-registry.mjs";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 
@@ -36,7 +43,7 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
         writeJson(response, 200, {
           mode: "workbench",
           csrfToken,
-          writableActions: ["review-complete", "lesson-sedimentation-task"],
+          writableActions: ["review-complete", "lesson-sedimentation-task", "preset-check", "preset-install", "preset-seed", "preset-uninstall"],
           target: target.projectRoot,
           autoRefresh: autoRefresh === true,
           snapshotVersion,
@@ -94,6 +101,72 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
         return;
       }
 
+      if (requestUrl.pathname === "/api/presets/check" && request.method === "POST") {
+        assertTrustedWorkbenchRequest(request, { origin, csrfToken });
+        const body = await readJsonBody(request);
+        const id = String(body.id || "");
+        if (!id) {
+          writeJson(response, 400, { error: "Missing preset id" });
+          return;
+        }
+        const result = checkPresetPackage(id, { targetInput: target.projectRoot });
+        writeJson(response, 200, result);
+        return;
+      }
+
+      if (requestUrl.pathname === "/api/presets/install" && request.method === "POST") {
+        assertTrustedWorkbenchRequest(request, { origin, csrfToken });
+        const body = await readJsonBody(request);
+        const source = String(body.source || "");
+        if (!source) {
+          writeJson(response, 400, { error: "Missing preset source" });
+          return;
+        }
+        if (/^https?:\/\//i.test(source)) {
+          writeJson(response, 400, { error: "Network preset sources are not supported by the dashboard workbench." });
+          return;
+        }
+        const scope = normalizePresetScope(body.scope);
+        const result = installPresetPackage(source, { force: body.force === true, scope, targetInput: target.projectRoot });
+        regenerate();
+        writeJson(response, 200, { ...result, scope });
+        return;
+      }
+
+      if (requestUrl.pathname === "/api/presets/seed" && request.method === "POST") {
+        assertTrustedWorkbenchRequest(request, { origin, csrfToken });
+        const body = await readJsonBody(request);
+        const scope = normalizePresetScope(body.scope);
+        const result = seedBundledPresets({ force: body.force === true, dryRun: body.dryRun === true, scope, targetInput: target.projectRoot });
+        if (body.dryRun !== true) regenerate();
+        writeJson(response, 200, result);
+        return;
+      }
+
+      if (requestUrl.pathname === "/api/presets/uninstall" && request.method === "POST") {
+        assertTrustedWorkbenchRequest(request, { origin, csrfToken });
+        const body = await readJsonBody(request);
+        const id = String(body.id || "");
+        if (!id) {
+          writeJson(response, 400, { error: "Missing preset id" });
+          return;
+        }
+        if (String(body.confirmText || "").trim() !== id) {
+          writeJson(response, 400, { error: "Preset uninstall requires typing the preset id." });
+          return;
+        }
+        const scope = normalizePresetScope(body.scope);
+        const discovered = listPresetPackages({ targetInput: target.projectRoot }).find((preset) => preset.id === id);
+        if (discovered?.source === "builtin") {
+          writeJson(response, 409, { error: "Builtin preset cannot be uninstalled from the dashboard workbench.", id, source: "builtin" });
+          return;
+        }
+        const result = uninstallPresetPackage(id, { scope, targetInput: target.projectRoot });
+        regenerate();
+        writeJson(response, 200, { ...result, scope });
+        return;
+      }
+
       if (request.method !== "GET" && request.method !== "HEAD") {
         writeJson(response, 405, { error: "Method not allowed" });
         return;
@@ -124,6 +197,12 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
   process.once("SIGINT", close);
   process.once("SIGTERM", close);
   await new Promise(() => {});
+}
+
+function normalizePresetScope(value) {
+  const scope = String(value || "project");
+  if (scope !== "project" && scope !== "user") throw new Error(`Invalid preset scope: ${scope}`);
+  return scope;
 }
 
 function isTaskInReviewQueue(task) {

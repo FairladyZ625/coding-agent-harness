@@ -49,6 +49,59 @@ function bind() {
     state.warningPage = 1;
     app();
   }));
+  document.querySelectorAll("[data-preset-search]").forEach((input) => input.addEventListener("input", () => {
+    state.presetQuery = input.value;
+    app();
+  }));
+  document.querySelectorAll("[data-preset-source-filter]").forEach((button) => button.addEventListener("click", () => {
+    state.presetSourceFilter = button.dataset.presetSourceFilter || "all";
+    state.selectedPresetKey = "";
+    app();
+  }));
+  document.querySelectorAll("[data-preset-select]").forEach((button) => button.addEventListener("click", () => {
+    state.selectedPresetKey = button.dataset.presetSelect || "";
+    state.selectedPresetId = "";
+    const selectedPreset = (bundle.presetCatalog?.presets || []).find((preset) => presetKey(preset) === state.selectedPresetKey);
+    if (selectedPreset && ["project", "user"].includes(selectedPreset.source)) state.presetUninstallScope = selectedPreset.source;
+    state.presetUninstallConfirm = "";
+    app();
+  }));
+  document.querySelectorAll("[data-preset-install-source]").forEach((input) => input.addEventListener("input", () => {
+    state.presetInstallSource = input.value;
+  }));
+  document.querySelectorAll("[data-preset-install-scope]").forEach((select) => select.addEventListener("change", () => {
+    state.presetInstallScope = select.value || "project";
+  }));
+  document.querySelectorAll("[data-preset-install-force]").forEach((input) => input.addEventListener("change", () => {
+    state.presetInstallForce = input.checked;
+  }));
+  document.querySelectorAll("[data-preset-seed-scope]").forEach((select) => select.addEventListener("change", () => {
+    state.presetSeedScope = select.value || "project";
+  }));
+  document.querySelectorAll("[data-preset-seed-force]").forEach((input) => input.addEventListener("change", () => {
+    state.presetSeedForce = input.checked;
+  }));
+  document.querySelectorAll("[data-preset-uninstall-scope]").forEach((select) => select.addEventListener("change", () => {
+    state.presetUninstallScope = select.value || "project";
+  }));
+  document.querySelectorAll("[data-preset-uninstall-confirm]").forEach((input) => input.addEventListener("input", () => {
+    state.presetUninstallConfirm = input.value;
+  }));
+  document.querySelectorAll("[data-preset-check]").forEach((button) => button.addEventListener("click", () => runPresetAction("check", { id: button.dataset.presetCheck || "" })));
+  document.querySelectorAll("[data-preset-install]").forEach((button) => button.addEventListener("click", () => runPresetAction("install", {
+    source: state.presetInstallSource,
+    scope: state.presetInstallScope,
+    force: state.presetInstallForce,
+  })));
+  document.querySelectorAll("[data-preset-seed]").forEach((button) => button.addEventListener("click", () => runPresetAction("seed", {
+    scope: state.presetSeedScope,
+    force: state.presetSeedForce,
+  })));
+  document.querySelectorAll("[data-preset-uninstall]").forEach((button) => button.addEventListener("click", () => runPresetAction("uninstall", {
+    id: button.dataset.presetUninstall || "",
+    scope: state.presetUninstallScope,
+    confirmText: state.presetUninstallConfirm,
+  })));
   document.querySelectorAll("[data-review-queue-tab]").forEach((button) => button.addEventListener("click", () => {
     state.reviewQueueTab = button.dataset.reviewQueueTab || "review";
     state.reviewQueuePage = 1;
@@ -175,6 +228,45 @@ async function completeReviewFromDashboard(taskId) {
   } catch (error) {
     if (result) result.textContent = `${t("reviewCompleteFailed")}: ${error.message}`;
   }
+}
+
+async function runPresetAction(action, body) {
+  state.presetActionResult = { ok: true, title: t("presetActionRunning"), message: action };
+  app();
+  try {
+    const response = await fetch(`/api/presets/${action}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-harness-csrf": state.runtime?.csrfToken || "",
+      },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw payload;
+    state.presetActionResult = {
+      ok: true,
+      title: t("presetActionSuccess"),
+      message: presetActionMessage(action, payload),
+    };
+    app();
+    if (["install", "seed", "uninstall"].includes(action)) setTimeout(() => window.location.reload(), 650);
+  } catch (error) {
+    state.presetActionResult = {
+      ok: false,
+      title: t("presetActionFailed"),
+      message: error?.error || error?.message || String(error || action),
+    };
+    app();
+  }
+}
+
+function presetActionMessage(action, payload) {
+  if (action === "check") return `${payload.id || ""} ${payload.status || ""}`.trim();
+  if (action === "install") return `${payload.id || ""} -> ${payload.scope || ""}`.trim();
+  if (action === "seed") return `${payload.created || 0} ${t("created")} · ${payload.skipped || 0} ${t("skipped")}`;
+  if (action === "uninstall") return `${payload.id || ""} ${payload.removed ? t("removed") : t("notInstalled")}`.trim();
+  return action;
 }
 
 function renderDrawerContent(taskId) {

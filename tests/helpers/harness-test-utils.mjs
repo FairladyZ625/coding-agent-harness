@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 import { spawnSync } from "node:child_process";
 
 export const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
@@ -81,6 +82,20 @@ export function commandExists(command) {
   return !result.error && result.status === 0;
 }
 
+export function writeZipFromDirectory(sourceDir, zipPath, { rootName = path.basename(sourceDir) } = {}) {
+  const entries = [];
+  const visit = (directory, prefix = "") => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const absolute = path.join(directory, entry.name);
+      const relative = path.posix.join(prefix, entry.name);
+      if (entry.isDirectory()) visit(absolute, relative);
+      else if (entry.isFile()) entries.push({ name: path.posix.join(rootName, relative), data: fs.readFileSync(absolute) });
+    }
+  };
+  visit(sourceDir);
+  writeZipEntries(entries, zipPath, { method: 8 });
+}
+
 export function runInTty(args, options = {}) {
   const input = options.input || "";
   const timeout = options.timeout;
@@ -117,6 +132,78 @@ export function parseJsonFromOutput(output) {
 
 function tclWord(value) {
   return `{${String(value).replace(/\\/g, "\\\\").replace(/}/g, "\\}")}}`;
+}
+
+export function writeZipEntries(entries, zipPath, { method = 0 } = {}) {
+  const fileRecords = [];
+  const localParts = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name, "utf8");
+    const data = Buffer.from(entry.data);
+    const entryMethod = entry.method ?? method;
+    const compressed = entry.compressedData ? Buffer.from(entry.compressedData) : entryMethod === 8 ? zlib.deflateRawSync(data) : data;
+    const compressedSize = entry.compressedSize ?? compressed.length;
+    const uncompressedSize = entry.uncompressedSize ?? data.length;
+    const flags = entry.flags ?? 0x0800;
+    const crc = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(flags, 6);
+    local.writeUInt16LE(entryMethod, 8);
+    local.writeUInt32LE(0, 10);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(compressedSize, 18);
+    local.writeUInt32LE(uncompressedSize, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    localParts.push(local, name, compressed);
+    fileRecords.push({ name, crc, compressedSize, uncompressedSize, method: entryMethod, flags, externalAttributes: entry.externalAttributes || 0, offset });
+    offset += local.length + name.length + compressed.length;
+  }
+  const centralParts = [];
+  for (const record of fileRecords) {
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(record.flags, 8);
+    central.writeUInt16LE(record.method, 10);
+    central.writeUInt32LE(0, 12);
+    central.writeUInt32LE(record.crc, 16);
+    central.writeUInt32LE(record.compressedSize, 20);
+    central.writeUInt32LE(record.uncompressedSize, 24);
+    central.writeUInt16LE(record.name.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt16LE(0, 34);
+    central.writeUInt16LE(0, 36);
+    central.writeUInt32LE(record.externalAttributes, 38);
+    central.writeUInt32LE(record.offset, 42);
+    centralParts.push(central, record.name);
+  }
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(fileRecords.length, 8);
+  eocd.writeUInt16LE(fileRecords.length, 10);
+  eocd.writeUInt32LE(centralSize, 12);
+  eocd.writeUInt32LE(offset, 16);
+  eocd.writeUInt16LE(0, 20);
+  fs.mkdirSync(path.dirname(zipPath), { recursive: true });
+  fs.writeFileSync(zipPath, Buffer.concat([...localParts, ...centralParts, eocd]));
+}
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let index = 0; index < 8; index += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 export function acceptNoLessonCandidate(taskDir) {

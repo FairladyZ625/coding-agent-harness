@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { buildDashboardBundle } from "../scripts/lib/dashboard-data.mjs";
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const node = process.execPath;
@@ -37,6 +38,7 @@ assert(dashboardHtml.includes("window.__HARNESS_DASHBOARD__"), "dashboard HTML m
 assert(dashboardHtml.includes("Human Visibility Dashboard"), "dashboard HTML missing v2 visibility copy");
 assert(dashboardHtml.includes("#/tasks"), "dashboard HTML missing task index route");
 assert(dashboardHtml.includes("#/review"), "dashboard HTML missing review queue route");
+assert(dashboardHtml.includes("#/presets"), "dashboard HTML missing preset catalog route");
 assert(dashboardHtml.includes("function reviewQueue()"), "dashboard HTML missing review queue page implementation");
 
 const dashboardDir = path.join(tmpRoot, "dashboard-folder");
@@ -54,6 +56,7 @@ for (const required of [
   "data/documents.json",
   "data/graph.json",
   "data/adoption.json",
+  "data/presetCatalog.json",
 ]) {
   assert(fs.existsSync(path.join(dashboardDir, required)), `dashboard folder missing ${required}`);
 }
@@ -82,6 +85,13 @@ const graph = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/graph.jso
 assert(graph.edges.length > 0, "graph should include task/phase edges");
 assert(graph.nodes.some((node) => node.type === "phase" && node.kind), "phase graph nodes should expose phase kind");
 assertGraphIntegrity(graph, "example graph");
+const presetCatalogPath = path.join(dashboardDir, "data/presetCatalog.json");
+assert(fs.existsSync(presetCatalogPath), "dashboard folder should write presetCatalog.json");
+const presetCatalog = JSON.parse(fs.readFileSync(presetCatalogPath, "utf8"));
+assert(presetCatalog.summary.total >= 1, "preset catalog should summarize available presets");
+assert(Array.isArray(presetCatalog.roots) && presetCatalog.roots.some((root) => root.source === "builtin"), "preset catalog should include builtin root");
+assert(presetCatalog.presets.some((preset) => preset.id === "legacy-migration" && ["user", "builtin"].includes(preset.source)), "preset catalog should include discoverable bundled presets");
+assert(presetCatalog.presets.every((preset) => preset.id && preset.version && preset.source && preset.purpose && Array.isArray(preset.compatibleBudgets) && preset.manifestPath), "preset catalog presets should expose stable summary fields");
 const dashboardApp = fs.readFileSync(path.join(dashboardDir, "assets/app.js"), "utf8");
 const dashboardCss = fs.readFileSync(path.join(dashboardDir, "assets/app.css"), "utf8");
 const dashboardMarkdown = fs.readFileSync(path.join(dashboardDir, "assets/markdown-reader.js"), "utf8");
@@ -117,6 +127,16 @@ assert(dashboardApp.includes("fullCutoverEligible"), "dashboard missing full cut
 assert(dashboardApp.includes("legacyVisualOnlyCount"), "dashboard missing legacy visual-only summary field");
 assert(dashboardApp.includes("weakBriefCount"), "dashboard missing weak brief summary field");
 assert(dashboardApp.includes("warningQueue()"), "dashboard missing warning queue workbench");
+assert(dashboardApp.includes("function presetsView()"), "dashboard missing preset catalog page implementation");
+assert(dashboardApp.includes("data-preset-source-filter"), "dashboard missing preset source filter controls");
+assert(dashboardApp.includes("data-preset-install"), "dashboard missing preset install workbench action");
+assert(dashboardApp.includes("data-preset-seed"), "dashboard missing preset seed workbench action");
+assert(dashboardApp.includes("data-preset-uninstall"), "dashboard missing preset uninstall workbench action");
+assert(dashboardApp.includes("canUseWorkbenchAction(\"preset-install\")"), "dashboard preset writes must be gated by workbench actions");
+assert(dashboardApp.includes("selectedPresetKey"), "dashboard preset selection should use a source-qualified key");
+assert(dashboardApp.includes("state.selectedPresetKey = \"\""), "dashboard preset source filters should reset stale selections");
+assert(dashboardApp.includes("syncPresetUninstallScope(selected)"), "dashboard preset uninstall scope should follow the selected preset source");
+assert(dashboardApp.includes("data-preset-uninstall-scope ${lockedUninstallScope ? \"disabled\" : \"\"}"), "dashboard preset uninstall scope should be locked for project/user selections");
 assert(dashboardApp.includes("reviewWorkspace("), "dashboard missing review workspace route implementation");
 assert(dashboardApp.includes("reviewQueueState"), "dashboard review queue must use status-level review queue state");
 assert(dashboardApp.includes("[\"lessonCandidates\", \"lesson_candidates.md\"]"), "dashboard should expose lesson candidate documents");
@@ -141,6 +161,9 @@ assert(dashboardCss.includes(".brief-scroll"), "dashboard missing scrollable act
 assert(dashboardMarkdown.includes("rendered-table"), "dashboard missing rendered markdown table support");
 assert(dashboardMermaid.includes("mermaid-rendered"), "dashboard missing rendered mermaid output");
 assert(dashboardCss.includes(".runtime-banner"), "dashboard missing static read-only banner styling");
+assert(dashboardCss.includes(".preset-catalog-grid"), "dashboard missing preset catalog layout");
+assert(dashboardCss.includes(".preset-action-panel"), "dashboard missing preset action panel styling");
+assert(dashboardCss.includes(".preset-manifest-path"), "dashboard preset paths should have bounded wrapping styles");
 assert(dashboardCss.includes("max-height: min(68vh, 620px)"), "dashboard missing mermaid viewport containment");
 assert(dashboardCss.includes(".review-workspace-grid"), "dashboard missing review workspace layout");
 assert(dashboardCss.includes(".review-queue-toolbar input,"), "review queue controls should use scoped dashboard input styling");
@@ -184,6 +207,46 @@ assert(
   fs.readFileSync(path.join(staticWorkbenchFlagDir, "assets/app.js"), "utf8").includes("staticReadOnly"),
   "static dashboard app should render a visible read-only runtime boundary",
 );
+const presetCatalogTarget = path.join(tmpRoot, "preset-catalog-target");
+const presetCatalogHome = path.join(tmpRoot, "preset-catalog-home");
+fs.cpSync(path.join(repoRoot, "examples/minimal-project"), presetCatalogTarget, { recursive: true });
+writePresetPackage(path.join(presetCatalogTarget, ".coding-agent-harness/presets/project-catalog"), {
+  id: "project-catalog",
+  purpose: "Project catalog preset",
+  kind: "project-catalog-task",
+});
+writePresetPackage(path.join(presetCatalogHome, ".coding-agent-harness/presets/user-catalog"), {
+  id: "user-catalog",
+  purpose: "User catalog preset",
+  kind: "user-catalog-task",
+});
+writePresetPackage(path.join(presetCatalogHome, ".coding-agent-harness/presets/module"), {
+  id: "module",
+  purpose: "User shadow for bundled module preset",
+  kind: "user-module-shadow-task",
+});
+const presetCatalogDir = path.join(tmpRoot, "preset-catalog-dashboard");
+expectPass(["dashboard", "--out-dir", presetCatalogDir, presetCatalogTarget], {
+  env: { ...process.env, HOME: presetCatalogHome },
+});
+const layeredCatalog = JSON.parse(fs.readFileSync(path.join(presetCatalogDir, "data/presetCatalog.json"), "utf8"));
+assert(layeredCatalog.summary.project >= 1, "preset catalog should count project presets");
+assert(layeredCatalog.roots.some((root) => root.source === "builtin"), "preset catalog should keep builtin root visible even when user presets shadow bundled ids");
+assert(layeredCatalog.presets.some((preset) => preset.id === "project-catalog" && preset.source === "project"), "preset catalog should include project presets");
+assert(layeredCatalog.presets.some((preset) => preset.id === "legacy-migration" && ["user", "builtin"].includes(preset.source)), "preset catalog should include discoverable bundled preset ids");
+assert(layeredCatalog.presets.some((preset) => preset.id === "module" && preset.source === "user" && preset.effective === true), "preset catalog should show the effective user shadow for a bundled preset id");
+assert(layeredCatalog.presets.some((preset) => preset.id === "module" && preset.source === "builtin" && preset.effective === false), "preset catalog should still show shadowed builtin presets");
+assert(new Set(layeredCatalog.presets.map((preset) => preset.key)).size === layeredCatalog.presets.length, "preset catalog keys should uniquely identify source/id layers");
+assert(layeredCatalog.presets.find((preset) => preset.id === "project-catalog")?.taskKind === "project-catalog-task", "preset catalog should expose task kind");
+assert(layeredCatalog.presets.find((preset) => preset.id === "project-catalog")?.inputCount === 0, "preset catalog should expose input count");
+assert(layeredCatalog.presets.find((preset) => preset.id === "project-catalog")?.referenceCount === 0, "preset catalog should expose reference count");
+assert(layeredCatalog.presets.find((preset) => preset.id === "project-catalog")?.artifactCount === 0, "preset catalog should expose artifact count");
+const isolatedHomeCatalog = buildDashboardBundle(presetCatalogTarget, { home: presetCatalogHome }).presetCatalog;
+assert(isolatedHomeCatalog.summary.user >= 1, "preset catalog should count user presets when a home override is supplied");
+assert(isolatedHomeCatalog.summary.builtin >= 1, "preset catalog should count builtin presets when user ids do not shadow them");
+assert(isolatedHomeCatalog.presets.some((preset) => preset.id === "user-catalog" && preset.source === "user"), "preset catalog should include user presets");
+assert(isolatedHomeCatalog.presets.some((preset) => preset.id === "legacy-migration" && preset.source === "builtin" && preset.effective === true), "preset catalog should include effective builtin fallback presets with isolated home");
+assert(isolatedHomeCatalog.presets.some((preset) => preset.id === "module" && preset.source === "builtin" && preset.effective === false), "preset catalog should include shadowed builtin layers with isolated home");
 const helpOutput = expectPass(["help"]).stdout;
 assert(helpOutput.includes("harness dev"), "help should advertise harness dev as the daily dynamic workbench entry");
 
@@ -242,6 +305,39 @@ function writeStaleDashboardLikeDirectory(outDir) {
   fs.writeFileSync(path.join(outDir, "assets/app.js"), "window.__STALE__ = true;\n");
   fs.writeFileSync(path.join(outDir, "assets/dashboard-data.js"), "window.__HARNESS_DASHBOARD__ = {};\n");
   fs.writeFileSync(path.join(outDir, "data/status.json"), "{}\n");
+}
+
+function writePresetPackage(directory, { id, purpose, kind }) {
+  fs.mkdirSync(path.join(directory, "templates"), { recursive: true });
+  fs.writeFileSync(path.join(directory, "templates/task_plan.append.md"), `## ${id}\n\nPreset: {{title}}\n`);
+  fs.writeFileSync(
+    path.join(directory, "preset.yaml"),
+    `id: ${id}
+version: 1
+purpose: ${purpose}
+compatibleBudgets: [standard, complex]
+localeSupport: [en-US, zh-CN]
+task:
+  kind: ${kind}
+entrypoints:
+  newTask:
+    type: template
+    writes: [docs/09-PLANNING/TASKS/**]
+    audit: true
+    templates:
+      taskPlanAppend: templates/task_plan.append.md
+templateValues:
+  title:
+    from: task.title
+audit:
+  manifestRequired: true
+  evidenceFiles: [preset-audit.json]
+writeScopes:
+  taskDocs:
+    path: docs/09-PLANNING/TASKS/**
+    access: write
+`,
+  );
 }
 
 function expectDevStarts(args) {

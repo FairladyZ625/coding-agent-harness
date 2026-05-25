@@ -7,6 +7,7 @@
   "app-src/40-modules.js",
   "app-src/45-review.js",
   "app-src/50-migration.js",
+  "app-src/55-presets.js",
   "app-src/60-shared.js",
   "app-src/90-bindings.js"
 ]

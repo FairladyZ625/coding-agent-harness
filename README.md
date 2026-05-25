@@ -157,6 +157,10 @@ Start the local dynamic Workbench:
 npx --yes coding-agent-harness dev .
 ```
 
+The Workbench includes a Presets view for checking, installing, seeding, and
+uninstalling project or user presets. Static dashboards show the same preset
+catalog as read-only evidence.
+
 Generate a static Dashboard that can be opened offline:
 
 ```bash

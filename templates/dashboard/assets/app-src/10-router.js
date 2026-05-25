@@ -29,6 +29,7 @@ function shell() {
         ${routeLink("#/tasks", t("taskIndex"), "tasks")}
         ${routeLink("#/review", t("reviewQueue"), "review")}
         ${routeLink("#/modules", t("moduleView"), "modules")}
+        ${routeLink("#/presets", t("presetCatalog"), "presets")}
         <button data-language-toggle>${locale === "zh" ? "EN" : "中文"}</button>
         <button data-theme-toggle>${themeLabel()}</button>
       </div>
@@ -55,6 +56,7 @@ function renderRoute() {
   if (route.name === "reviewTask") return reviewWorkspace(route);
   if (route.name === "review") return reviewQueue();
   if (route.name === "modules") return modulesView(route.id);
+  if (route.name === "presets") return presetsView();
   if (route.name === "tasks") return taskIndex();
   return overview();
 }
@@ -66,6 +68,7 @@ function currentRoute() {
   if (parts[0] === "review" && parts[1]) return { name: "reviewTask", id: parts[1] };
   if (parts[0] === "review") return { name: "review" };
   if (parts[0] === "modules") return { name: "modules", id: parts[1] || "" };
+  if (parts[0] === "presets") return { name: "presets" };
   if (parts[0] === "tasks") return { name: "tasks" };
   return { name: "overview" };
 }

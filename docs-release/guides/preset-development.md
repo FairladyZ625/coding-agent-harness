@@ -28,6 +28,29 @@ and `harness install-user` seed them into the user preset root, while
 `harness preset seed` for the user root or `harness preset seed --project <target>`
 for the project root when a preset root is missing or incomplete.
 
+## Dashboard Management
+
+The Dashboard exposes a Presets view for the target project. Static dashboards
+show a read-only catalog of discovered project, user, and bundled presets,
+including source, purpose, compatible budgets, task kind, manifest path, and
+resource counts.
+
+Use the local dynamic Workbench when you want to manage presets from the web UI:
+
+```bash
+harness dev /path/to/project
+```
+
+In Workbench mode, the Presets view can check presets, install a local preset
+directory, `.zip` archive, or bundled preset id into the project or user scope,
+seed bundled presets into either scope, and uninstall project/user presets.
+Bundled package presets are immutable from the Dashboard: they can be inspected,
+checked, and used as install or seed sources, but not edited or deleted.
+
+The CLI and filesystem remain canonical. The Dashboard calls the same preset
+registry operations as `harness preset ...`; it does not store independent preset
+state.
+
 ## Package Layout
 
 ```text
@@ -184,6 +207,7 @@ Supported evidence types:
 ```bash
 harness preset check ./my-preset
 harness preset install ./my-preset
+harness preset install ./my-preset.zip
 harness preset install ./my-preset --project /path/to/project
 harness preset install legacy-migration --force
 harness preset seed
@@ -199,7 +223,7 @@ harness preset uninstall custom-review
 For every preset, prove both the manifest and downstream task behavior:
 
 1. Run `harness preset check ./my-preset`.
-2. Install into an isolated HOME or disposable environment.
+2. Install the folder and, if distributing an archive, install the `.zip` into an isolated HOME or disposable environment.
 3. Create at least one task with `harness new-task --preset`.
 4. For reference bundles, create two different tasks from the same preset and verify both contain the same shared `references/` files and independent audit/evidence bundles.
 5. Run `harness status --json`, `harness task-index --json`, and `harness check --profile target-project <target>`.

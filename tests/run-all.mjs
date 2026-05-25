@@ -9,6 +9,7 @@ const suites = [
   "tests/source-package-boundary.mjs",
   "tests/cli-help.mjs",
   "tests/dashboard-generation.mjs",
+  "tests/dashboard-workbench.mjs",
   "tests/template-governance.mjs",
   "tests/review-confirm-git-gate.mjs",
   "tests/governance-table-boundary.mjs",

@@ -9,6 +9,8 @@ import {
   run,
   tmpRoot,
   todayLocal,
+  writeZipEntries,
+  writeZipFromDirectory,
 } from "./helpers/harness-test-utils.mjs";
 
 assert(fs.existsSync(path.join(repoRootFromTest(), "docs-release/guides/preset-development.md")), "preset development guide should exist");
@@ -120,6 +122,45 @@ assert(expectJson(["preset", "check", customSource, "--json"], { env }).source =
 const install = expectJson(["preset", "install", customSource, "--force", "--json"], { env });
 assert(install.installed === true, "preset install should report installed=true");
 assert(install.destination.includes(".coding-agent-harness/presets/custom-review"), "preset install should copy into the user preset directory");
+const customArchive = path.join(tmpRoot, "custom-review.zip");
+writeZipFromDirectory(customSource, customArchive, { rootName: "custom-review" });
+const archiveInstall = expectJson(["preset", "install", customArchive, "--force", "--json"], { env });
+assert(archiveInstall.installed === true && archiveInstall.id === "custom-review", "preset install should accept zipped preset packages");
+assert(archiveInstall.destination.includes(".coding-agent-harness/presets/custom-review"), "zipped preset install should copy into the user preset directory");
+const rootArchive = path.join(tmpRoot, "custom-review-root.zip");
+writeZipFromDirectory(customSource, rootArchive, { rootName: "" });
+const rootArchiveInstall = expectJson(["preset", "install", rootArchive, "--force", "--json"], { env });
+assert(rootArchiveInstall.installed === true && rootArchiveInstall.id === "custom-review", "preset install should accept archives with preset.yaml at the root");
+const escapingArchive = path.join(tmpRoot, "escaping-preset.zip");
+writeZipEntries([{ name: "../escaping-preset/preset.yaml", data: "id: escaping-preset\nversion: 1\n" }], escapingArchive);
+const escapingInstall = run(["preset", "install", escapingArchive, "--force", "--json"], { env });
+assert(escapingInstall.status !== 0, "preset install should reject archive entries that escape the extraction root");
+assert(`${escapingInstall.stdout}\n${escapingInstall.stderr}`.includes("escapes extraction root"), "archive path escape failure should explain the rejected entry");
+const absoluteArchive = path.join(tmpRoot, "absolute-preset.zip");
+writeZipEntries([{ name: "/absolute-preset/preset.yaml", data: "id: absolute-preset\nversion: 1\n" }], absoluteArchive);
+const absoluteInstall = run(["preset", "install", absoluteArchive, "--force", "--json"], { env });
+assert(absoluteInstall.status !== 0, "preset install should reject archive entries with absolute paths");
+assert(`${absoluteInstall.stdout}\n${absoluteInstall.stderr}`.includes("must be relative"), "absolute archive path failure should explain the rejected entry");
+const encryptedArchive = path.join(tmpRoot, "encrypted-preset.zip");
+writeZipEntries([{ name: "encrypted-preset/preset.yaml", data: "id: encrypted-preset\nversion: 1\n", flags: 0x0801 }], encryptedArchive);
+const encryptedInstall = run(["preset", "install", encryptedArchive, "--force", "--json"], { env });
+assert(encryptedInstall.status !== 0, "preset install should reject encrypted archive entries");
+assert(`${encryptedInstall.stdout}\n${encryptedInstall.stderr}`.includes("Encrypted preset archive entries are not supported"), "encrypted archive failure should explain unsupported encryption");
+const unsupportedMethodArchive = path.join(tmpRoot, "unsupported-method-preset.zip");
+writeZipEntries([{ name: "unsupported-method-preset/preset.yaml", data: "id: unsupported-method-preset\nversion: 1\n", method: 99 }], unsupportedMethodArchive);
+const unsupportedMethodInstall = run(["preset", "install", unsupportedMethodArchive, "--force", "--json"], { env });
+assert(unsupportedMethodInstall.status !== 0, "preset install should reject unsupported archive compression methods");
+assert(`${unsupportedMethodInstall.stdout}\n${unsupportedMethodInstall.stderr}`.includes("Unsupported preset archive compression method"), "unsupported method failure should explain the rejected method");
+const symlinkArchive = path.join(tmpRoot, "symlink-preset.zip");
+writeZipEntries([{ name: "symlink-preset/preset.yaml", data: "id: symlink-preset\nversion: 1\n", externalAttributes: (0o120000 << 16) >>> 0 }], symlinkArchive);
+const symlinkInstall = run(["preset", "install", symlinkArchive, "--force", "--json"], { env });
+assert(symlinkInstall.status !== 0, "preset install should reject archive symlink entries");
+assert(`${symlinkInstall.stdout}\n${symlinkInstall.stderr}`.includes("must not contain symlinks"), "symlink archive failure should explain the rejected symlink");
+const oversizedInflateArchive = path.join(tmpRoot, "oversized-inflate-preset.zip");
+writeZipEntries([{ name: "oversized-inflate-preset/preset.yaml", data: Buffer.alloc(1024 * 1024, "a"), method: 8, uncompressedSize: 1 }], oversizedInflateArchive);
+const oversizedInflateInstall = run(["preset", "install", oversizedInflateArchive, "--force", "--json"], { env });
+assert(oversizedInflateInstall.status !== 0, "preset install should bound zip inflate output before trusting entry data");
+assert(`${oversizedInflateInstall.stdout}\n${oversizedInflateInstall.stderr}`.includes("could not be decompressed within its declared size"), "oversized inflate failure should explain decompression bound");
 const listAfter = expectJson(["preset", "list", "--json"], { env });
 assert(listAfter.presets.some((preset) => preset.id === "custom-review" && preset.source === "user"), "installed preset should be listed with source=user");
 const inspect = expectJson(["preset", "inspect", "custom-review", "--json"], { env });
