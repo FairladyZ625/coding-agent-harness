@@ -285,6 +285,8 @@ When done, summarize what changed, list verification results, call out any skipp
 - Legacy migration playbook: [`docs-release/guides/migration-playbook.en-US.md`](docs-release/guides/migration-playbook.en-US.md)
 - Full legacy migration strategy: [`docs-release/guides/full-legacy-migration-subagent-strategy.md`](docs-release/guides/full-legacy-migration-subagent-strategy.md)
 - Architecture overview: [`docs-release/architecture/overview.md`](docs-release/architecture/overview.md)
+- Deep architecture explainer (zh-CN): [`docs-release/architecture/system-explainer/`](docs-release/architecture/system-explainer/) — system design, module dependencies, task lifecycle, check system, data flow, and preset/migration engine with design rationale
+- Deep architecture explainer (en-US): [`docs-release/architecture/system-explainer/en-US/`](docs-release/architecture/system-explainer/en-US/)
 
 ## Star History
 

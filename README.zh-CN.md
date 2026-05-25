@@ -280,6 +280,8 @@ npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 - 旧项目迁移指南：[`docs-release/guides/migration-playbook.md`](docs-release/guides/migration-playbook.md)
 - 完整旧项目迁移策略：[`docs-release/guides/full-legacy-migration-subagent-strategy.zh-CN.md`](docs-release/guides/full-legacy-migration-subagent-strategy.zh-CN.md)
 - 架构说明：[`docs-release/architecture/overview.md`](docs-release/architecture/overview.md)
+- 深度架构解析（中文）：[`docs-release/architecture/system-explainer/`](docs-release/architecture/system-explainer/) — 系统设计、模块依赖、任务生命周期、检查体系、数据流、Preset 与迁移引擎，含设计决策背景
+- Deep architecture explainer (en-US): [`docs-release/architecture/system-explainer/en-US/`](docs-release/architecture/system-explainer/en-US/)
 
 ## Star History
 
