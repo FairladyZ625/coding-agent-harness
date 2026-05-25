@@ -59,6 +59,7 @@ const legacyBefore = listBefore.presets.find((preset) => preset.id === "legacy-m
 assert(legacyBefore?.source === "builtin", "builtin presets should report source=builtin");
 const listTextBefore = expectPass(["preset", "list"], { env }).stdout;
 assert(listTextBefore.includes("legacy-migration@") && listTextBefore.includes("[builtin]"), "text preset list should show source labels");
+assert(listTextBefore.includes(" - "), "text preset list should include preset purpose");
 
 const customSource = path.join(tmpRoot, "custom-review-preset");
 fs.mkdirSync(path.join(customSource, "templates"), { recursive: true });

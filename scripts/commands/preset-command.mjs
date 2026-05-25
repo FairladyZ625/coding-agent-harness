@@ -20,7 +20,7 @@ export function runPresetCommand({ args, takeFlag }) {
         manifestPath: preset.manifestRelativePath,
       }));
       if (json) console.log(JSON.stringify({ presets }, null, 2));
-      else for (const preset of presets) console.log(`${preset.id}@${preset.version} [${preset.source}] ${preset.compatibleBudgets.join(",")}`);
+      else for (const preset of presets) console.log(`${preset.id}@${preset.version} [${preset.source}] ${preset.compatibleBudgets.join(",")} - ${preset.purpose}`);
     } else if (subcommand === "inspect") {
       const id = args.shift();
       if (!id) throw new Error("Missing preset id");

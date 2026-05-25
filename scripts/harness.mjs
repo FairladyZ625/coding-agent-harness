@@ -117,6 +117,14 @@ Usage:
 
 If init runs in an interactive terminal and --locale is omitted, it asks for a
 language. Non-interactive init defaults to en-US.
+
+Preset discovery:
+  User presets live in ~/.coding-agent-harness/presets/<preset-id>/.
+  Harness discovers user presets first, then falls back to bundled package
+  presets under presets/<preset-id>/.
+  Use "harness preset list --json" to see available presets, their source,
+  purpose, compatible budgets, and manifest path. Use "harness preset inspect
+  <id> --json" for the full preset manifest summary.
 `);
 }
 
@@ -128,7 +136,7 @@ function exitWithReport(report) {
 
 if (command === "help" || command === "--help" || command === "-h") {
   printHelp();
-} else if (args.includes("--help") || args.includes("-h")) {
+} else if (args[0] === "help" || args.includes("--help") || args.includes("-h")) {
   printHelp();
 } else if (command === "check") {
   const profile = takeOption("--profile", "target-project");
