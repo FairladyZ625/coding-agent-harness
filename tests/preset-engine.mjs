@@ -13,6 +13,8 @@ import {
 
 assert(fs.existsSync(path.join(repoRootFromTest(), "docs-release/guides/preset-development.md")), "preset development guide should exist");
 assert(fs.existsSync(path.join(repoRootFromTest(), "skills/preset-creator/SKILL.md")), "preset creator skill should exist");
+assert(fs.existsSync(path.join(repoRootFromTest(), "skills/preset-creator/references/preset-package-skeleton.md")), "preset creator skill should include a package skeleton reference");
+assert(fs.readFileSync(path.join(repoRootFromTest(), "skills/preset-creator/SKILL.md"), "utf8").includes("references/preset-package-skeleton.md"), "preset creator skill should route agents to the package skeleton reference");
 
 const home = path.join(tmpRoot, "preset-home");
 const env = { ...process.env, HOME: home };

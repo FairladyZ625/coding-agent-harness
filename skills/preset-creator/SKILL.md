@@ -37,6 +37,12 @@ Before writing files, answer these in the task notes or your response:
 
 ## Package Layout
 
+Use the reference skeleton before writing files:
+
+- `references/preset-package-skeleton.md`
+
+That reference contains a copyable package tree, a complete `preset.yaml`, starter Markdown resources, and the verification checklist. Keep this `SKILL.md` focused on method and judgment; use the reference when the task has moved from design to file creation.
+
 Use a simple package:
 
 ```text
@@ -139,14 +145,15 @@ Do not confuse artifacts with evidence. Artifacts can be input packets or fixtur
 ## Creation Workflow
 
 1. Ask or infer the preset purpose, task family, target budget, task kind, required inputs, shared references, and evidence needs.
-2. Create the preset directory with `preset.yaml`, templates, and resources.
-3. Keep task creation declarative: manifest inputs, `templateValues`, `metadata`, Markdown templates, `resources`, evidence declarations, and `writeScopes`.
-4. Run `harness preset check <path>`.
-5. Install with `harness preset install <path> --force` in a disposable or user-approved environment.
-6. Smoke test with `harness new-task <id> --budget <budget> --preset <preset-id> ... <target>`.
-7. For reference-bundle presets, create two different tasks from the same preset and verify both contain the same shared references but independent audit/evidence bundles.
-8. Run `harness status --json <target>`, `harness task-index --json <target>`, and `harness check --profile target-project <target>`.
-9. Inspect the generated `task_plan.md`, `references/INDEX.md`, and `artifacts/INDEX.md` manually before declaring success.
+2. Open `references/preset-package-skeleton.md` and copy only the files the preset actually needs.
+3. Create the preset directory with `preset.yaml`, templates, and resources.
+4. Keep task creation declarative: manifest inputs, `templateValues`, `metadata`, Markdown templates, `resources`, evidence declarations, and `writeScopes`.
+5. Run `harness preset check <path>`.
+6. Install with `harness preset install <path> --force` in a disposable or user-approved environment.
+7. Smoke test with `harness new-task <id> --budget <budget> --preset <preset-id> ... <target>`.
+8. For reference-bundle presets, create two different tasks from the same preset and verify both contain the same shared references but independent audit/evidence bundles.
+9. Run `harness status --json <target>`, `harness task-index --json <target>`, and `harness check --profile target-project <target>`.
+10. Inspect the generated `task_plan.md`, `references/INDEX.md`, and `artifacts/INDEX.md` manually before declaring success.
 
 ## Quality Checklist
 
