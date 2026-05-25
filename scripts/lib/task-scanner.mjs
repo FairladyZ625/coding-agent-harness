@@ -367,7 +367,10 @@ export function collectTasks(target) {
     });
     const reviewStatus = taskReviewStatus({ reviewContent: review, risks, confirmation: reviewConfirmation, submission: reviewSubmission });
     const closeoutInfo = taskCloseoutInfo(target, taskPlanPath);
-    const lifecycleState = deriveLifecycleState({ state: stateInfo.state, reviewStatus, closeoutStatus: closeoutInfo.status });
+    const effectiveCloseoutStatus = budget === "simple" && stateInfo.state === "done" && completion === 100
+      ? "closed"
+      : closeoutInfo.status;
+    const lifecycleState = deriveLifecycleState({ state: stateInfo.state, reviewStatus, closeoutStatus: effectiveCloseoutStatus, budget });
     const materialReadiness = assessMaterialsReadiness({
       budget,
       taskDir,
@@ -381,15 +384,15 @@ export function collectTasks(target) {
       reviewSurfaceRequired: requiresReviewMaterials({
         state: stateInfo.state,
         lifecycleState,
-        closeoutStatus: closeoutInfo.status,
+        closeoutStatus: effectiveCloseoutStatus,
       }),
     });
-    const stateConflicts = collectStateConflicts({ state: stateInfo.state, reviewStatus, closeoutStatus: closeoutInfo.status, lifecycleState });
+    const stateConflicts = collectStateConflicts({ state: stateInfo.state, reviewStatus, closeoutStatus: effectiveCloseoutStatus, lifecycleState, budget });
     const reviewQueueState = deriveReviewQueueState({
       state: stateInfo.state,
       lifecycleState,
       reviewStatus,
-      closeoutStatus: closeoutInfo.status,
+      closeoutStatus: effectiveCloseoutStatus,
       budget,
       walkthroughPath: closeoutInfo.walkthroughPath,
       lessonCandidateDecisionComplete: isLessonCandidateDecisionComplete(lessonCandidates),
@@ -409,7 +412,7 @@ export function collectTasks(target) {
       risks,
       stateConflicts,
       lessonCandidates,
-      closeoutStatus: closeoutInfo.status,
+      closeoutStatus: effectiveCloseoutStatus,
       tombstone,
       taskDir,
       target,
@@ -466,7 +469,7 @@ export function collectTasks(target) {
       taskQueues: queueModel.taskQueues,
       queueReasons: queueModel.queueReasons,
       repairPrompt: queueModel.repairPrompt,
-      closeoutStatus: closeoutInfo.status,
+      closeoutStatus: effectiveCloseoutStatus,
       walkthroughPath: closeoutInfo.walkthroughPath ? `TARGET:${closeoutInfo.walkthroughPath}` : "",
       lessonCandidatePath: fs.existsSync(lessonCandidatesPath)
         ? `TARGET:${toPosix(path.relative(target.projectRoot, lessonCandidatesPath))}`

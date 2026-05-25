@@ -248,9 +248,14 @@ assert(fs.readFileSync(promotableCandidatePath, "utf8").includes("| LC-20260521-
 const promoteAgain = expectJson(["lesson-promote", "long-running-lifecycle", "LC-20260521-001", "--apply", lifecycleTarget]);
 assert(promoteAgain.changes.length === 0, "lesson-promote should be idempotent after promotion");
 expectPass(["check", "--profile", "target-project", lifecycleTarget]);
-expectJson(["task-start", "simple-lifecycle", "--message", "开始简单任务", lifecycleTarget]);
+const simpleStart = expectJson(["task-start", "simple-lifecycle", "--message", "开始简单任务", lifecycleTarget]);
+assert(simpleStart.task?.phases?.some((phase) => phase.id === "INIT-01" && phase.state === "done" && phase.completion === 100), "task-start should mark the init phase complete");
+expectJson(["task-phase", "simple-lifecycle", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
 const simpleComplete = expectJson(["task-complete", "simple-lifecycle", "--message", "简单任务完成", lifecycleTarget]);
 assert(simpleComplete.task?.state === "done", "simple task should be able to complete without review");
+assert(simpleComplete.task?.phases?.some((phase) => phase.id === "GATE-01" && phase.state === "done" && phase.completion === 100), "task-complete should mark the simple gate phase complete");
+assert(simpleComplete.task?.lifecycleState === "closed", "completed simple task should be closed without separate closeout SSoT");
+assert(simpleComplete.task?.taskQueues?.includes("finalized"), "completed simple task should enter the finalized queue");
 const earlyReview = run(["task-review", "review-too-early", lifecycleTarget]);
 assert(earlyReview.status !== 0, "task-review should reject unknown tasks");
 const tooEarlyTask = expectJson(["new-task", "review-too-early", "--title", "Too early review", "--locale", "zh-CN", lifecycleTarget]);
@@ -284,6 +289,10 @@ assert(directComplete.stderr.includes("task-review"), "standard task-complete fa
 expectJson(["task-start", "phase-2-lifecycle", "--message", "恢复执行生命周期切片", lifecycleTarget]);
 const lifecycleReview = expectJson(["task-review", "phase-2-lifecycle", "--message", "进入执行审查", lifecycleTarget]);
 assert(lifecycleReview.task?.state === "review", "task-review should report review state");
+assert(lifecycleReview.task?.phases?.some((phase) => phase.id === "GATE-01" && phase.state === "done" && phase.completion === 100), "task-review should mark the agent review gate complete");
+assert(lifecycleReview.task?.lessonCandidateDecisionComplete === true, "task-review should auto-record no-candidate lesson decisions for empty candidate tables");
+assert(!lifecycleReview.task?.materialIssues?.some((issue) => issue.code === "missing-lesson-decision"), "task-review should not leave empty lesson candidates as missing material");
+assert(lifecycleReview.task?.taskQueues?.includes("missing-materials"), "reviewed tasks that still need walkthrough closeout should stay in missing-materials");
 const lifecycleReviewPath = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/review.md`);
 fs.writeFileSync(
   lifecycleReviewPath,

@@ -1679,7 +1679,9 @@ function tag(value) {
 }
 
 function label(value) {
-  return t(`state_${value}`) || String(value || "unknown").replaceAll("_", " ");
+  const key = `state_${value}`;
+  const translated = t(key);
+  return translated === key ? String(value || "unknown").replaceAll("_", " ") : translated;
 }
 
 function list(items = []) {

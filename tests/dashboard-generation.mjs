@@ -91,6 +91,7 @@ assert(dashboardApp.includes("taskDetail("), "dashboard should implement task de
 assert(dashboardApp.includes("phase-kind-group"), "dashboard should group phase timeline by kind");
 assert(dashboardApp.includes("phase-exit-command"), "dashboard should render phase exit commands");
 assert(dashboardApp.includes("Other / Invalid"), "dashboard should keep invalid or future phase kinds visible");
+assert(dashboardApp.includes("translated === key"), "dashboard state labels should fall back instead of rendering missing i18n keys");
 assert(dashboardCss.includes(".phase-step.other"), "dashboard CSS should style unknown phase kinds");
 assert(dashboardApp.includes("data-render-toggle"), "dashboard missing render/source toggle");
 assert(dashboardApp.includes("data-search"), "dashboard missing task search control");

@@ -42,15 +42,9 @@ import {
   taskIdForDirectory,
   taskScannerVersion,
 } from "./task-scanner.mjs";
-import {
-  getColumn,
-  firstColumn,
-  updateMarkdownTableRow,
-} from "./markdown-utils.mjs";
-import {
-  validateLifecycleTransition,
-  validateReviewEntryGate,
-} from "./task-lifecycle/review-gates.mjs";
+import { getColumn, firstColumn, updateMarkdownTableRow } from "./markdown-utils.mjs";
+import { validateLifecycleTransition, validateReviewEntryGate } from "./task-lifecycle/review-gates.mjs";
+import { advanceLifecyclePhase, autoRecordNoLessonCandidateDecision } from "./task-lifecycle/phase-sync.mjs";
 import { confirmTaskReview as confirmTaskReviewWithContext } from "./task-lifecycle/review-confirm.mjs";
 import { appendProgressLog, markdownCell } from "./task-lifecycle/text-utils.mjs";
 import {
@@ -413,6 +407,8 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
     content = appendProgressLog(content, { event, message, evidence });
     fs.writeFileSync(progressPath, content.endsWith("\n") ? content : `${content}\n`);
     const allowedPaths = [toPosix(path.relative(target.projectRoot, progressPath))];
+    const advancedPhasePath = advanceLifecyclePhase(target, taskDir, event);
+    if (advancedPhasePath) allowedPaths.push(advancedPhasePath);
     if (event === "task-review") {
       const reviewPath = path.join(taskDir, "review.md");
       const reviewContent = readFileSafe(reviewPath);
@@ -430,6 +426,8 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
         ),
       );
       allowedPaths.push(toPosix(path.relative(target.projectRoot, reviewPath)));
+      const lessonDecisionPath = autoRecordNoLessonCandidateDecision(target, taskDir);
+      if (lessonDecisionPath) allowedPaths.push(lessonDecisionPath);
     }
     const task =
       findTaskByDirectory(target, taskDir) ||
