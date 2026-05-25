@@ -2263,6 +2263,23 @@ button, input, select {
   font-size: 16px;
 }
 
+.phase-kind-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-column: 1 / -1;
+  gap: 12px;
+}
+
+.phase-kind-group h3 {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
 .phase-step {
   background: var(--paper);
   border: 1px solid var(--line);
@@ -2271,6 +2288,22 @@ button, input, select {
   box-shadow: var(--shadow);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
+}
+
+.phase-step.init {
+  border-left: 4px solid #64748b;
+}
+
+.phase-step.execution {
+  border-left: 4px solid var(--accent);
+}
+
+.phase-step.gate {
+  border-left: 4px solid #9f7aea;
+}
+
+.phase-step.other {
+  border-left: 4px solid var(--warn);
 }
 
 .card-header-actions {
@@ -2291,11 +2324,40 @@ button, input, select {
   font-weight: 800;
 }
 
+.phase-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.phase-step-head span {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .phase-step p {
   color: var(--muted);
   min-height: 42px;
   font-size: 12px;
   margin: 8px 0;
+  line-height: 1.4;
+}
+
+.phase-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.phase-exit-command {
+  display: block;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 11px;
   line-height: 1.4;
 }
 

@@ -80,6 +80,7 @@ assert(tables.tables.some((table) => table.kind === "harness-ledger"), "document
 assert(JSON.stringify(tables).includes("alpha|beta"), "markdown table parser should preserve escaped pipes");
 const graph = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/graph.json"), "utf8"));
 assert(graph.edges.length > 0, "graph should include task/phase edges");
+assert(graph.nodes.some((node) => node.type === "phase" && node.kind), "phase graph nodes should expose phase kind");
 assertGraphIntegrity(graph, "example graph");
 const dashboardApp = fs.readFileSync(path.join(dashboardDir, "assets/app.js"), "utf8");
 const dashboardCss = fs.readFileSync(path.join(dashboardDir, "assets/app.css"), "utf8");
@@ -87,6 +88,11 @@ const dashboardMarkdown = fs.readFileSync(path.join(dashboardDir, "assets/markdo
 const dashboardMermaid = fs.readFileSync(path.join(dashboardDir, "assets/mermaid-renderer.js"), "utf8");
 assert(dashboardApp.includes("hashchange"), "dashboard should use hash routing");
 assert(dashboardApp.includes("taskDetail("), "dashboard should implement task detail route");
+assert(dashboardApp.includes("phase-kind-group"), "dashboard should group phase timeline by kind");
+assert(dashboardApp.includes("phase-exit-command"), "dashboard should render phase exit commands");
+assert(dashboardApp.includes("Other / Invalid"), "dashboard should keep invalid or future phase kinds visible");
+assert(dashboardApp.includes("translated === key"), "dashboard state labels should fall back instead of rendering missing i18n keys");
+assert(dashboardCss.includes(".phase-step.other"), "dashboard CSS should style unknown phase kinds");
 assert(dashboardApp.includes("data-render-toggle"), "dashboard missing render/source toggle");
 assert(dashboardApp.includes("data-search"), "dashboard missing task search control");
 assert(dashboardApp.includes("taskGroupsPerPage"), "dashboard missing global task group paging");
@@ -98,6 +104,7 @@ assert(dashboardApp.includes("sortTasksByTime"), "dashboard missing reusable tas
 assert(dashboardApp.includes("function taskFolderName"), "dashboard missing reusable task folder name helper");
 assert(dashboardApp.includes("data-copy-task-folder"), "dashboard copy controls must copy task folder names");
 assert(!dashboardApp.includes("task?.title || task?.id || \"\""), "dashboard copy controls must not copy display titles");
+assert(dashboardCss.includes("phase-kind-group"), "dashboard CSS should style phase kind groups");
 assert(dashboardApp.includes("activeBriefCount"), "dashboard missing active brief count label");
 assert(dashboardApp.includes("data-copy-task-name"), "dashboard missing task name copy controls");
 assert(dashboardApp.includes("copyTaskNameSuccess"), "dashboard missing task name copy success feedback");

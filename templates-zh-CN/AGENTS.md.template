@@ -19,6 +19,7 @@
 4. 声称完成前必须记录证据。
 5. 保护无关工作区改动，不回滚任务范围外文件。
 6. 已验证的、有意义的工作切片要主动提交。除非用户明确暂停提交、检查失败、dirty 归属不清，或安全边界导致无法形成干净提交，否则不要把已完成工作只留在未提交文件里；不能提交时，必须在 progress、handoff 或 closeout 中写明 no-commit reason、owner 和下一步。不要把无关 dirty 改动混入本任务提交。
+7. 最终回复前检查当前任务 `visual_map.md` 的 gate 阶段。如果当前 `Exit Command` 的 `Actor` 是 `agent`，就执行它或记录 blocker。不得执行 `review-confirm` 这类 `human` gate，除非用户已经明确完成或委托了人工确认。
 
 ## 任务阅读矩阵
 
@@ -55,8 +56,9 @@
 7. 只在确认范围内实现。
 8. 运行相关检查，并把证据写入任务记录。
 9. 按需触发 review，关闭阻塞发现。
-10. 写入或更新 walkthrough 与 closeout 记录。
-11. 只更新本任务实际触达的 SSoT / ledger；任务生命周期总账优先由 Harness CLI 生成，不手写任务行。
+10. 按当前 `visual_map.md` lifecycle gate 的 `Exit Command` / `Actor` 收口。
+11. 写入或更新 walkthrough 与 closeout 记录。
+12. 只更新本任务实际触达的 SSoT / ledger；任务生命周期总账优先由 Harness CLI 生成，不手写任务行。
 
 ## 协作规则
 

@@ -16,18 +16,16 @@ Include only diagrams that materially help a human or agent understand the task.
 ```mermaid
 flowchart LR
   INIT01["INIT-01 Scope and Context\nkind=init"] --> EXEC01["EXEC-01 Implementation Slice\nkind=execution"]
-  EXEC01 --> GATE01["GATE-01 Agent Review Submission\nkind=gate"]
-  GATE01 --> GATE02["GATE-02 Human Review Confirmation\nkind=gate"]
+  EXEC01 --> GATE01["GATE-01 Direct Completion\nkind=gate"]
 ```
 
 ## Phase Table
 
 | Phase ID | Kind | Depends On | State | Completion | Output | Required Evidence | Exit Command | Actor | Evidence Status | Blocking Risk | Owner / Handoff |
 | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- |
-| INIT-01 | init | none | planned | 0 | Approved task plan and execution strategy | `task_plan.md`, `execution_strategy.md` | `harness task-start {{TASK_ID}}` | agent | missing | none | coordinator |
-| EXEC-01 | execution | INIT-01 | planned | 0 | Scoped implementation, document update, and verification evidence | diff, commands, worker handoff, or artifact path | `harness task-phase {{TASK_ID}} EXEC-01 --state done --completion 100 --evidence present` | agent | missing | [risk] | [owner] |
-| GATE-01 | gate | EXEC-01 | planned | 0 | Agent Review Submission | `review.md`, progress update, lesson routing | `harness task-review {{TASK_ID}} --message "<summary>"` | agent | missing | [risk] | coordinator |
-| GATE-02 | gate | GATE-01 | planned | 0 | Human Review Confirmation | review packet and human confirmation | `harness review-confirm {{TASK_ID}} --confirm {{TASK_ID}}` | human | missing | agent must not perform human confirmation | human |
+| INIT-01 | init | none | planned | 0 | Task scope is clear enough to execute | `task_plan.md` | `harness task-start {{TASK_ID}}` | agent | missing | none | coordinator |
+| EXEC-01 | execution | INIT-01 | planned | 0 | Simple implementation or documentation change is complete | diff, command, or artifact path | `harness task-phase {{TASK_ID}} EXEC-01 --state done --completion 100 --evidence present` | agent | missing | [risk] | [owner] |
+| GATE-01 | gate | EXEC-01 | planned | 0 | Direct task completion | progress update and final evidence note | `harness task-complete {{TASK_ID}} --message "<summary>"` | agent | missing | [risk] | coordinator |
 
 Allowed Kind: init, execution, gate.
 Allowed Actor: agent, human, coordinator.

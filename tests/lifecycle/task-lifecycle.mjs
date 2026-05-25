@@ -45,6 +45,12 @@ assert(
   fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/task_plan.md`), "utf8").includes("Task Contract: harness-task/v1"),
   "new-task should render the durable task contract marker",
 );
+const lifecycleVisualMap = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/visual_map.md`), "utf8");
+assert(lifecycleVisualMap.includes("| Phase ID | Kind | Depends On | State | Completion |"), "new-task should render phase kind columns");
+assert(lifecycleVisualMap.includes("Exit Command"), "new-task should render phase exit commands");
+assert(lifecycleVisualMap.includes("Actor"), "new-task should render phase actors");
+assert(!lifecycleVisualMap.includes("<task-id>"), "new-task should not leave task-id placeholders in exit commands");
+assert(lifecycleVisualMap.includes(`harness task-review ${todayLocal}-phase-2-lifecycle`), "standard task visual map should render a concrete review command");
 const duplicateLifecycle = run(["new-task", `${todayLocal}-phase-2-lifecycle`, "--title", "duplicate", lifecycleTarget]);
 assert(duplicateLifecycle.status !== 0, "new-task should refuse to overwrite an existing task directory");
 const simpleLifecycle = expectJson(["new-task", "simple-lifecycle", "--budget", "simple", "--title", "简单任务", "--locale", "zh-CN", lifecycleTarget]);
@@ -63,6 +69,11 @@ for (const omitted of ["execution_strategy.md", "findings.md", "review.md", "les
 }
 const simpleTaskPlan = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-simple-lifecycle/task_plan.md`), "utf8");
 assert(/Selected budget\s*:\s*simple/i.test(simpleTaskPlan) || /选择预算\s*[:：]\s*simple/i.test(simpleTaskPlan), "simple task should persist selected budget");
+const simpleVisualMap = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-simple-lifecycle/visual_map.md`), "utf8");
+assert(!simpleVisualMap.includes("<task-id>"), "simple visual map should not leave task-id placeholders in exit commands");
+assert(simpleVisualMap.includes(`harness task-complete ${todayLocal}-simple-lifecycle`), "simple visual map should route the gate to task-complete");
+assert(!simpleVisualMap.includes("task-review"), "simple visual map should not route through agent review submission");
+assert(!simpleVisualMap.includes("review-confirm"), "simple visual map should not route through human review confirmation");
 const budgetContractTarget = path.join(tmpRoot, "budget-contract-target");
 fs.mkdirSync(budgetContractTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", budgetContractTarget]);
@@ -237,9 +248,14 @@ assert(fs.readFileSync(promotableCandidatePath, "utf8").includes("| LC-20260521-
 const promoteAgain = expectJson(["lesson-promote", "long-running-lifecycle", "LC-20260521-001", "--apply", lifecycleTarget]);
 assert(promoteAgain.changes.length === 0, "lesson-promote should be idempotent after promotion");
 expectPass(["check", "--profile", "target-project", lifecycleTarget]);
-expectJson(["task-start", "simple-lifecycle", "--message", "开始简单任务", lifecycleTarget]);
+const simpleStart = expectJson(["task-start", "simple-lifecycle", "--message", "开始简单任务", lifecycleTarget]);
+assert(simpleStart.task?.phases?.some((phase) => phase.id === "INIT-01" && phase.state === "done" && phase.completion === 100), "task-start should mark the init phase complete");
+expectJson(["task-phase", "simple-lifecycle", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
 const simpleComplete = expectJson(["task-complete", "simple-lifecycle", "--message", "简单任务完成", lifecycleTarget]);
 assert(simpleComplete.task?.state === "done", "simple task should be able to complete without review");
+assert(simpleComplete.task?.phases?.some((phase) => phase.id === "GATE-01" && phase.state === "done" && phase.completion === 100), "task-complete should mark the simple gate phase complete");
+assert(simpleComplete.task?.lifecycleState === "closed", "completed simple task should be closed without separate closeout SSoT");
+assert(simpleComplete.task?.taskQueues?.includes("finalized"), "completed simple task should enter the finalized queue");
 const earlyReview = run(["task-review", "review-too-early", lifecycleTarget]);
 assert(earlyReview.status !== 0, "task-review should reject unknown tasks");
 const tooEarlyTask = expectJson(["new-task", "review-too-early", "--title", "Too early review", "--locale", "zh-CN", lifecycleTarget]);
@@ -257,13 +273,13 @@ assert(
 );
 const lifecycleBlocked = expectJson(["task-block", "phase-2-lifecycle", "--message", "等待旧项目迁移验证", lifecycleTarget]);
 assert(lifecycleBlocked.task?.state === "blocked", "task-block should report blocked state");
-const lifecyclePhase = expectJson(["task-phase", "phase-2-lifecycle", "PH-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
-assert(lifecyclePhase.task?.phases?.some((phase) => phase.id === "PH-01" && phase.state === "done" && phase.completion === 100), "task-phase should update visual map row");
+const lifecyclePhase = expectJson(["task-phase", "phase-2-lifecycle", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
+assert(lifecyclePhase.task?.phases?.some((phase) => phase.id === "EXEC-01" && phase.state === "done" && phase.completion === 100), "task-phase should update visual map row");
 assert(
   fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/visual_map.md`), "utf8").includes("Visual Map Contract: v1.0"),
   "new-task should render canonical visual map contract",
 );
-expectJson(["task-phase", "phase-2-lifecycle", "PH-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
+expectJson(["task-phase", "phase-2-lifecycle", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
 const missingPhase = run(["task-phase", "phase-2-lifecycle", "NO_SUCH_PHASE", "--state", "done", lifecycleTarget]);
 assert(missingPhase.status !== 0, "task-phase should fail for unknown phase id");
 assert(missingPhase.stderr.includes("Phase not found"), "task-phase unknown phase should explain missing phase");
@@ -273,6 +289,10 @@ assert(directComplete.stderr.includes("task-review"), "standard task-complete fa
 expectJson(["task-start", "phase-2-lifecycle", "--message", "恢复执行生命周期切片", lifecycleTarget]);
 const lifecycleReview = expectJson(["task-review", "phase-2-lifecycle", "--message", "进入执行审查", lifecycleTarget]);
 assert(lifecycleReview.task?.state === "review", "task-review should report review state");
+assert(lifecycleReview.task?.phases?.some((phase) => phase.id === "GATE-01" && phase.state === "done" && phase.completion === 100), "task-review should mark the agent review gate complete");
+assert(lifecycleReview.task?.lessonCandidateDecisionComplete === true, "task-review should auto-record no-candidate lesson decisions for empty candidate tables");
+assert(!lifecycleReview.task?.materialIssues?.some((issue) => issue.code === "missing-lesson-decision"), "task-review should not leave empty lesson candidates as missing material");
+assert(lifecycleReview.task?.taskQueues?.includes("missing-materials"), "reviewed tasks that still need walkthrough closeout should stay in missing-materials");
 const lifecycleReviewPath = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/review.md`);
 fs.writeFileSync(
   lifecycleReviewPath,
@@ -360,6 +380,72 @@ assert(
   "stale phase closeout failure should explain the inconsistent Visual Map phases",
 );
 
+const phaseKindTarget = path.join(tmpRoot, "phase-kind-target");
+fs.mkdirSync(phaseKindTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard", phaseKindTarget]);
+expectJson(["new-task", "phase-kind-closeout", "--budget", "simple", "--title", "Phase Kind Closeout", "--locale", "en-US", phaseKindTarget]);
+const phaseKindDir = path.join(phaseKindTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-kind-closeout`);
+fs.writeFileSync(
+  path.join(phaseKindDir, "visual_map.md"),
+  `# Phase Kind Closeout - Visual Map
+
+Visual Map Contract: v1.0
+
+## Phase Table
+
+| Phase ID | Kind | Depends On | State | Completion | Output | Required Evidence | Exit Command | Actor | Evidence Status | Blocking Risk | Owner / Handoff |
+| --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- |
+| INIT-01 | init | none | done | 100 | Scope ready | task_plan.md | harness task-start TASK | agent | present | none | coordinator |
+| EXEC-01 | execution | INIT-01 | done | 100 | Implementation done | diff | harness task-phase TASK EXEC-01 --state done --completion 100 --evidence present | agent | present | none | coordinator |
+| GATE-01 | gate | EXEC-01 | planned | 0 | Human review pending | review.md | harness review-confirm TASK --confirm TASK | human | missing | agent must not confirm | human |
+`,
+);
+fs.writeFileSync(path.join(phaseKindDir, "progress.md"), "# Progress\n\n## Status\n\ndone\n");
+const phaseKindStatus = expectJson(["status", "--json", phaseKindTarget]);
+const phaseKindTask = phaseKindStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-phase-kind-closeout`);
+assert(phaseKindTask?.completion === 100, "status should compute completion from execution phases only");
+assert(phaseKindTask?.phases?.some((phase) => phase.id === "GATE-01" && phase.kind === "gate" && phase.actor === "human"), "status should expose gate phase kind and actor");
+
+const phaseKindReviewTarget = path.join(tmpRoot, "phase-kind-review-target");
+fs.mkdirSync(phaseKindReviewTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core", phaseKindReviewTarget]);
+expectJson(["new-task", "review-gate-kind", "--title", "Review Gate Kind", "--locale", "en-US", phaseKindReviewTarget]);
+expectJson(["task-start", "review-gate-kind", "--message", "begin", phaseKindReviewTarget]);
+expectJson(["task-phase", "review-gate-kind", "GATE-01", "--state", "done", "--completion", "100", "--evidence", "present", phaseKindReviewTarget]);
+const gateOnlyReview = run(["task-review", "review-gate-kind", "--message", "gate only", phaseKindReviewTarget]);
+assert(gateOnlyReview.status !== 0, "task-review should not accept gate-only phase progress");
+assert(gateOnlyReview.stderr.includes("execution phase progress"), "task-review gate-only failure should name execution phase progress");
+expectJson(["task-phase", "review-gate-kind", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", phaseKindReviewTarget]);
+const executionReview = expectJson(["task-review", "review-gate-kind", "--message", "execution ready", phaseKindReviewTarget]);
+assert(executionReview.task?.state === "review", "task-review should accept execution phase progress");
+
+const phaseNoExecutionTarget = path.join(tmpRoot, "phase-no-execution-target");
+fs.mkdirSync(phaseNoExecutionTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core", phaseNoExecutionTarget]);
+expectJson(["new-task", "no-execution-kind", "--title", "No Execution Kind", "--locale", "en-US", phaseNoExecutionTarget]);
+const phaseNoExecutionDir = path.join(phaseNoExecutionTarget, `docs/09-PLANNING/TASKS/${todayLocal}-no-execution-kind`);
+fs.writeFileSync(
+  path.join(phaseNoExecutionDir, "visual_map.md"),
+  `# No Execution Kind - Visual Map
+
+Visual Map Contract: v1.0
+
+## Phase Table
+
+| Phase ID | Kind | Depends On | State | Completion | Output | Required Evidence | Exit Command | Actor | Evidence Status | Blocking Risk | Owner / Handoff |
+| --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- |
+| INIT-01 | init | none | done | 100 | Scope ready | task_plan.md | harness task-start TASK | agent | present | none | coordinator |
+| GATE-01 | gate | INIT-01 | planned | 0 | Review pending | review.md | harness task-review TASK --message summary | agent | missing | none | coordinator |
+`,
+);
+const noExecutionCheck = run(["check", "--profile", "target-project", phaseNoExecutionTarget]);
+assert(noExecutionCheck.status !== 0, "checker should reject standard phase maps without execution phases");
+assert(noExecutionCheck.stderr.includes("non-skipped execution phase"), "checker failure should explain missing execution phase");
+expectJson(["task-start", "no-execution-kind", "--message", "begin", phaseNoExecutionTarget]);
+const noExecutionReview = run(["task-review", "no-execution-kind", "--message", "no execution", phaseNoExecutionTarget]);
+assert(noExecutionReview.status !== 0, "task-review should reject phase maps without execution phases");
+assert(noExecutionReview.stderr.includes("execution phase"), "task-review failure should explain missing execution phase");
+
 const moduleLifecycle = expectJson(["new-task", "module-lifecycle", "--module", "auth", "--budget", "complex", "--title", "模块生命周期", "--locale", "zh-CN", lifecycleTarget]);
 assert(moduleLifecycle.task?.id === `MODULES/auth/${todayLocal}-module-lifecycle`, "new-task --module should create a module task id");
 assert(moduleLifecycle.task?.preset === "module", "new-task --module should apply the module preset by default");
@@ -397,7 +483,7 @@ const missingModuleStep = run(["module-step", "auth", "NO_SUCH_STEP", "--state",
 assert(missingModuleStep.status !== 0, "module-step should fail for unknown step id");
 assert(missingModuleStep.stderr.includes("Module step not found"), "module-step unknown step should explain missing step");
 expectJson(["task-start", `MODULES/auth/${todayLocal}-module-lifecycle`, "--message", "开始模块任务审查夹具", lifecycleTarget]);
-expectJson(["task-phase", `MODULES/auth/${todayLocal}-module-lifecycle`, "PH-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
+expectJson(["task-phase", `MODULES/auth/${todayLocal}-module-lifecycle`, "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
 expectJson(["task-review", `MODULES/auth/${todayLocal}-module-lifecycle`, "--message", "模块任务进入审查", lifecycleTarget]);
 const moduleWalkthrough = path.join(lifecycleTarget, `docs/10-WALKTHROUGH/${todayLocal}-module-lifecycle-walkthrough.md`);
 fs.writeFileSync(
@@ -423,7 +509,7 @@ fs.writeFileSync(
   fs.readFileSync(workbenchClosedReviewProgress, "utf8").replace(/^## 状态：.*$/m, "## 状态：done"),
 );
 commitFixtureBaseline(lifecycleTarget, "before workbench closed review phase fixture");
-expectJson(["task-phase", "workbench-closed-review", "PH-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
+expectJson(["task-phase", "workbench-closed-review", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
 const closedReviewWalkthrough = path.join(lifecycleTarget, "docs/10-WALKTHROUGH/workbench-closed-walkthrough.md");
 fs.writeFileSync(
   closedReviewWalkthrough,
@@ -551,7 +637,7 @@ try {
   acceptNoLessonCandidate(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-workbench-review`));
   commitFixtureBaseline(lifecycleTarget, "before workbench review lifecycle fixture");
   expectJson(["task-start", "workbench-review", "--message", "readying workbench review fixture", lifecycleTarget]);
-  expectJson(["task-phase", "workbench-review", "PH-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
+  expectJson(["task-phase", "workbench-review", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
   expectJson(["task-review", "workbench-review", "--message", "submitted for workbench confirmation", "--evidence", "command:TARGET:workbench-smoke:passed", lifecycleTarget]);
   commitFixtureBaseline(lifecycleTarget, "before workbench review confirmation");
   const okResponse = await fetch(new URL("api/tasks/review-complete", runtime.url), {

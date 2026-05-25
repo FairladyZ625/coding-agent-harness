@@ -34,6 +34,21 @@ stateDiagram-v2
 
 `task-review` means the agent submitted a review packet. It does not mean human approval. `review-confirm` is the Human Review Confirmation gate. `task-complete` / closeout is not a substitute for review confirmation.
 
+## Phase Kind Map
+
+`visual_map.md` is the machine-readable phase timeline. New phase tables may include `Kind`, `Exit Command`, and `Actor` columns:
+
+| Kind | Purpose | Counts Toward Implementation Completion | Typical Exit |
+| --- | --- | --- | --- |
+| `init` | Scope, context, budget, and execution strategy. | no | `harness task-start <task-id>` |
+| `execution` | Implementation, documentation, and verification slices. | yes | `harness task-phase <task-id> <phase-id> --state done --completion 100 --evidence present` |
+| `gate` | Agent review submission, human confirmation, lesson routing, walkthrough, and closeout. | no | `harness task-review`, `harness review-confirm`, or `harness task-complete` |
+
+Older phase tables without `Kind` remain valid and are treated as `execution`.
+The Dashboard implementation score uses non-skipped `execution` phases only.
+Gate phases explain the next lifecycle action and owner; they do not make a finished implementation look incomplete.
+Agents may run `Exit Command` values with `Actor: agent`. `Actor: human` gates, especially `review-confirm`, require explicit human action.
+
 ## Derived State
 
 ```mermaid

@@ -15,18 +15,16 @@ Visual Map Contract: v1.0
 ```mermaid
 flowchart LR
   INIT01["INIT-01 范围与上下文\nkind=init"] --> EXEC01["EXEC-01 实现切片\nkind=execution"]
-  EXEC01 --> GATE01["GATE-01 Agent 提交审查\nkind=gate"]
-  GATE01 --> GATE02["GATE-02 人工审查确认\nkind=gate"]
+  EXEC01 --> GATE01["GATE-01 直接完成\nkind=gate"]
 ```
 
 ## 阶段表（Phase Table，表头供 checker 解析）
 
 | Phase ID | Kind | Depends On | State | Completion | Output | Required Evidence | Exit Command | Actor | Evidence Status | Blocking Risk | Owner / Handoff |
 | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- |
-| INIT-01 | init | none | planned | 0 | 任务计划和执行策略已确认 | `task_plan.md`; `execution_strategy.md` | `harness task-start {{TASK_ID}}` | agent | missing | none | coordinator |
-| EXEC-01 | execution | INIT-01 | planned | 0 | 有边界的实现、文档切片和验证证据 | diff、commands、worker handoff 或 artifact path | `harness task-phase {{TASK_ID}} EXEC-01 --state done --completion 100 --evidence present` | agent | missing | [risk] | [owner] |
-| GATE-01 | gate | EXEC-01 | planned | 0 | Agent Review Submission | `review.md`、progress update、lesson routing | `harness task-review {{TASK_ID}} --message "<summary>"` | agent | missing | [risk] | coordinator |
-| GATE-02 | gate | GATE-01 | planned | 0 | Human Review Confirmation | review packet 和人工确认 | `harness review-confirm {{TASK_ID}} --confirm {{TASK_ID}}` | human | missing | Agent 不能代办人工确认 | human |
+| INIT-01 | init | none | planned | 0 | 任务边界已清楚到可以执行 | `task_plan.md` | `harness task-start {{TASK_ID}}` | agent | missing | none | coordinator |
+| EXEC-01 | execution | INIT-01 | planned | 0 | 简单实现或文档变更已完成 | diff、command 或 artifact path | `harness task-phase {{TASK_ID}} EXEC-01 --state done --completion 100 --evidence present` | agent | missing | [risk] | [owner] |
+| GATE-01 | gate | EXEC-01 | planned | 0 | 直接完成任务 | progress update 和最终证据说明 | `harness task-complete {{TASK_ID}} --message "<summary>"` | agent | missing | [risk] | coordinator |
 
 允许的 `State`：`planned`, `in_progress`, `review`, `blocked`, `done`, `skipped`。
 

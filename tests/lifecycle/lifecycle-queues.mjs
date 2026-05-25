@@ -134,7 +134,7 @@ const activeTask = activeStatus.tasks.find((task) => task.id === taskId);
 assert(!activeTask.taskQueues.includes("missing-materials"), "in-progress complex task should not enter missing-materials before review is requested");
 assert(activeTask.reviewQueueState === "not-in-queue", "in-progress complex task should stay outside the review queue");
 
-expectJson(["task-phase", "queue-ready", "PH-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
+expectJson(["task-phase", "queue-ready", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
 acceptNoLessonCandidate(taskDir);
 expectJson(["task-review", "queue-ready", "--message", "ready for human review", "--evidence", "command:TARGET:npm-test:passed", target]);
 
@@ -244,7 +244,7 @@ assert(confirmationReview.includes("| Audit Status | committed |") || confirmati
 const lessonTask = expectJson(["new-task", "queue-lesson", "--title", "Queue Lesson", "--locale", "en-US", "--long-running", target]);
 const lessonDir = path.join(target, "docs/09-PLANNING/TASKS", `${todayLocal}-queue-lesson`);
 expectJson(["task-start", "queue-lesson", "--message", "implementation started", target]);
-expectJson(["task-phase", "queue-lesson", "PH-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
+expectJson(["task-phase", "queue-lesson", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
 fs.writeFileSync(
   path.join(lessonDir, "lesson_candidates.md"),
   [

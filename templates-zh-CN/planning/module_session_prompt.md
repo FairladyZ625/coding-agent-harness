@@ -56,6 +56,7 @@
 - 如果需要全局表更新，在 task_plan.md 或 progress.md 写 Coordinator 交接，并标记 `Global sync status: pending-coordinator-pass`。
 - 只有 coordinator pass 或明确的 shared-lock owner 可以更新 docs/09-PLANNING/Module-Registry.md。
 - 汇报状态时区分 `task.state`、`lifecycleState`、`reviewStatus` 和 `closeoutStatus`；`done` 只表示实现步骤完成，不等于 `closed`。
+- 把当前任务 `visual_map.md` 阶段表作为生命周期地图。切片结束时检查当前 gate phase；只有 `Actor` 为 `agent` 的 `Exit Command` 才由 Agent 执行。
 - 更新 docs/09-PLANNING/MODULES/<module-key>/module_plan.md。
 - 写 review.md，或记录 review skipped-with-reason。需要人工确认审查完成时，必须通过本地 dashboard workbench，或由 coordinator 执行 `harness review-confirm`；存在开放 P0/P1/P2 finding 时不得确认。
 - 步骤完成时写 walkthrough，并包含 Lessons 反思。

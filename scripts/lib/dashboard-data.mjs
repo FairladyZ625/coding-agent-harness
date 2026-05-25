@@ -145,7 +145,17 @@ export function collectGraph(status, tables = { tables: [] }) {
     addNode({ id: `task:${task.id}`, type: "task", label: task.title, state: task.state, completion: task.completion });
     for (const phase of task.phases || []) {
       const phaseId = `phase:${task.id}:${phase.id}`;
-      addNode({ id: phaseId, type: "phase", label: phase.id, state: phase.state, completion: phase.completion, taskId: task.id });
+      addNode({
+        id: phaseId,
+        type: "phase",
+        label: phase.id,
+        state: phase.state,
+        completion: phase.completion,
+        kind: phase.kind,
+        actor: phase.actor,
+        exitCommand: phase.exitCommand,
+        taskId: task.id,
+      });
       addEdge({ from: `task:${task.id}`, to: phaseId, type: "contains" });
       for (const dependency of phase.dependsOn || []) {
         addEdge({ from: `phase:${task.id}:${dependency}`, to: phaseId, type: "depends_on" });

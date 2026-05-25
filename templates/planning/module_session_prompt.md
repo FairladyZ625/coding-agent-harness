@@ -34,6 +34,7 @@ Do not edit shared SSoT files, coordinator-owned integration files, or unrelated
 
 - Keep `task.state`, `lifecycleState`, `reviewStatus`, and `closeoutStatus` separate when reporting progress.
 - `done` means the implementation step finished. It is not `closed` until closeout evidence is recorded.
+- Use the current task `visual_map.md` phase table as the lifecycle map. At the end of a slice, inspect the current gate phase and follow its `Exit Command` only when its `Actor` is `agent`.
 - If review is required, update `review.md`. Human review completion must be confirmed through the local dashboard workbench or by the coordinator with `harness review-confirm`; do not mark it complete while open P0/P1/P2 findings remain.
 
 ## Shared Sync Rule

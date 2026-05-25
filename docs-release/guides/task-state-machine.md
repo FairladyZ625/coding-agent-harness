@@ -34,6 +34,21 @@ stateDiagram-v2
 
 `task-review` 表示 Agent 提交审查材料包，不表示人工批准。`review-confirm` 才表示 Human Review Confirmation。`task-complete` / closeout 也不是 review confirmation 的替代品。
 
+## 阶段类型地图
+
+`visual_map.md` 是机器可读的阶段时间线。新的阶段表可以包含 `Kind`、`Exit Command` 和 `Actor` 三列：
+
+| Kind | 作用 | 是否计入实现完成度 | 典型出口 |
+| --- | --- | --- | --- |
+| `init` | 范围、上下文、预算和执行策略。 | 否 | `harness task-start <task-id>` |
+| `execution` | 实现、文档和验证切片。 | 是 | `harness task-phase <task-id> <phase-id> --state done --completion 100 --evidence present` |
+| `gate` | Agent 提交审查、人工确认、lesson routing、walkthrough 和 closeout。 | 否 | `harness task-review`、`harness review-confirm` 或 `harness task-complete` |
+
+旧阶段表没有 `Kind` 也继续有效，默认按 `execution` 处理。
+Dashboard 实现完成度只计算非 skipped 的 `execution` 阶段。
+Gate 阶段用于解释下一步生命周期动作和责任人，不会让已完成的实现看起来未完成。
+Agent 只能执行 `Actor: agent` 的 `Exit Command`。`Actor: human` 的 gate，尤其是 `review-confirm`，必须由人工明确执行。
+
 ## 派生状态
 
 ```mermaid

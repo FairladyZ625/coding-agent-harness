@@ -1,13 +1,16 @@
+import { implementationPhases } from "./phase-kind.mjs";
+
 export function renderDashboard(status) {
   const taskCards = status.tasks
     .map((task) => {
       const phases = task.phases
         .map(
-          (phase) => `<div class="phase ${escapeHtml(phase.state)}">
-            <div class="phase-top"><strong>${escapeHtml(phase.id)}</strong><span>${phase.completion}%</span></div>
+          (phase) => `<div class="phase ${escapeHtml(phase.state)} ${escapeHtml(phase.kind || "execution")}">
+            <div class="phase-top"><strong>${escapeHtml(phase.id)}</strong><span>${escapeHtml(phase.kind || "execution")} · ${phase.completion}%</span></div>
             <div class="phase-output">${escapeHtml(phase.output)}</div>
             <div class="meter"><i style="width:${phase.completion}%"></i></div>
-            <div class="muted">${escapeHtml(phase.state)} · evidence ${escapeHtml(phase.evidenceStatus)}</div>
+            <div class="muted">${escapeHtml(phase.state)} · actor ${escapeHtml(phase.actor || "agent")} · evidence ${escapeHtml(phase.evidenceStatus)}</div>
+            ${phase.exitCommand ? `<div class="muted">exit ${escapeHtml(phase.exitCommand)}</div>` : ""}
           </div>`,
         )
         .join("");
@@ -91,7 +94,7 @@ function escapeHtml(value) {
 }
 
 function evidenceCompletion(phases) {
-  const scored = phases.filter((phase) => phase.state !== "skipped");
+  const scored = implementationPhases(phases);
   if (scored.length === 0) return 0;
   const score = scored.reduce((sum, phase) => {
     if (["present", "waived"].includes(phase.evidenceStatus)) return sum + 100;

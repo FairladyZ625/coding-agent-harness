@@ -10,6 +10,10 @@ import {
   parseReviewConfirmation,
   readVisualMapContractFile,
 } from "../task-scanner.mjs";
+import {
+  implementationPhases,
+  phaseHasRecordedProgress,
+} from "../phase-kind.mjs";
 
 export function validateLifecycleTransition({ event, currentState, budget, reviewContent = "", reviewTaskKey = "", projectRoot = "", taskDir = "" }) {
   if (event === "task-review" && currentState !== "in_progress") {
@@ -37,15 +41,13 @@ export function validateReviewEntryGate(taskDir, budget) {
     throw new Error(`task-review requires ${lessonCandidatesFile} before entering human review.`);
   }
   const phases = parsePhases(readVisualMapContractFile(taskDir).content);
-  const actionablePhases = phases.filter((phase) => phase.state !== "skipped");
-  const hasRecordedPhaseProgress = actionablePhases.some(
-    (phase) =>
-      phase.completion > 0 ||
-      ["in_progress", "review", "blocked", "done"].includes(phase.state) ||
-      ["partial", "present", "waived"].includes(phase.evidenceStatus),
-  );
+  const actionablePhases = implementationPhases(phases);
+  if (phases.length > 0 && actionablePhases.length === 0) {
+    throw new Error("task-review requires at least one non-skipped Visual Map execution phase.");
+  }
+  const hasRecordedPhaseProgress = actionablePhases.some(phaseHasRecordedProgress);
   if (actionablePhases.length > 0 && !hasRecordedPhaseProgress) {
-    throw new Error("task-review requires at least one Visual Map phase progress update. Run task-phase before entering human review.");
+    throw new Error("task-review requires at least one Visual Map execution phase progress update. Run task-phase before entering human review.");
   }
 }
 

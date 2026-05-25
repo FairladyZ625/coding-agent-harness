@@ -65,7 +65,7 @@ function prepareReviewTarget(name) {
   );
   acceptNoLessonCandidate(taskDir);
   expectHarnessJson(["task-start", name, "--message", "start", target]);
-  expectHarnessJson(["task-phase", name, "PH-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
+  expectHarnessJson(["task-phase", name, "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
   expectHarnessJson(["task-review", name, "--message", "submitted", "--evidence", "command:test", target]);
   expectGit(target, ["init"]);
   expectGit(target, ["config", "user.name", "Harness Test"]);

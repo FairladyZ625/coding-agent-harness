@@ -20,6 +20,7 @@ Keep it as a charter and routing index. Detailed rules belong in
 4. Record evidence before claiming completion.
 5. Protect unrelated working-tree changes; never revert files outside the assigned scope.
 6. Commit verified, meaningful work slices proactively. Do not leave completed work only as dirty files unless the user explicitly pauses commits, checks fail, dirty ownership is unclear, or a security boundary prevents a clean commit; in those cases record the no-commit reason, owner, and next step in progress, handoff, or closeout notes. Never mix unrelated dirty changes into a task commit.
+7. Before the final response, inspect the current task `visual_map.md` gate phase. If the current `Exit Command` has `Actor: agent`, run it or record the blocker. Never run a `human` gate such as `review-confirm` unless the user has explicitly performed or delegated that human confirmation.
 
 ## Reading Matrix
 
@@ -56,8 +57,9 @@ Read the smallest context that can answer the task.
 7. Implement only within the approved scope.
 8. Run the relevant checks and capture evidence in the task records.
 9. Route required review and close blocking findings.
-10. Write or update the walkthrough and closeout records.
-11. Update SSoT / ledger files that the task actually touched.
+10. Follow the current `visual_map.md` lifecycle gate and its `Exit Command` / `Actor`.
+11. Write or update the walkthrough and closeout records.
+12. Update SSoT / ledger files that the task actually touched.
 
 ## Coordination Rules
 

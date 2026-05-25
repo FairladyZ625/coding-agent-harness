@@ -26,17 +26,9 @@ import { capabilityDefinitions, validateCapabilities } from "./capability-regist
 import { readPresetPackage } from "./preset-registry.mjs";
 import { validateTaskPresetAuditSnapshot } from "./preset-audit-contracts.mjs";
 import { validatePresetResourcesForTask } from "./preset-resource-contracts.mjs";
-import {
-  collectTasks,
-  listTaskPlanPaths,
-  readVisualMapContractFile,
-  parsePhases,
-  taskCutoverCounters,
-} from "./task-scanner.mjs";
-import {
-  normalizeReviewBoolean,
-  reviewFindingColumns,
-} from "./task-review-model.mjs";
+import { collectTasks, listTaskPlanPaths, parseTaskBudget, readVisualMapContractFile, parsePhases, taskCutoverCounters } from "./task-scanner.mjs";
+import { normalizeReviewBoolean, reviewFindingColumns } from "./task-review-model.mjs";
+import { allowedPhaseActors, allowedPhaseKinds } from "./phase-kind.mjs";
 import { validateTaskCompletionConsistency } from "./task-completion-consistency.mjs";
 import { validatePlanContracts } from "./check-task-contracts.mjs";
 import { validateGovernanceTableBoundaries } from "./governance-table-boundary.mjs";
@@ -161,7 +153,10 @@ export function validateVisualMaps(target) {
       }
     }
     const phases = parsePhases(visualMap.content);
+    const budget = parseTaskBudget(taskPlan);
     for (const phase of phases) {
+      if (!allowedPhaseKinds.has(phase.kind)) failures.push(`${relative} phase ${phase.id} invalid kind: ${phase.kind}`);
+      if (!allowedPhaseActors.has(phase.actor)) failures.push(`${relative} phase ${phase.id} invalid actor: ${phase.actor}`);
       if (!allowedPhaseStates.has(phase.state)) failures.push(`${relative} phase ${phase.id} invalid state: ${phase.state}`);
       if (!allowedEvidenceStatus.has(phase.evidenceStatus)) {
         failures.push(`${relative} phase ${phase.id} invalid evidence status: ${phase.evidenceStatus}`);
@@ -176,6 +171,9 @@ export function validateVisualMaps(target) {
       failures.push(`${relative} missing Visual Map Contract: v1.0`);
     }
     if (visualMap.source === "canonical" && phases.length === 0) warnings.push(`${relative} has no Visual Map phase table`);
+    if (visualMap.source === "canonical" && budget !== "simple" && phases.length > 0 && !phases.some((phase) => phase.kind === "execution" && phase.state !== "skipped")) {
+      failures.push(`${relative} requires at least one non-skipped execution phase`);
+    }
     if (visualMap.source === "legacy" && fs.existsSync(legacyPath)) {
       warnings.push(`${relative} missing; legacy visual_roadmap.md is rewrite input only`);
     } else if (visualMap.source === "legacy" && phases.length > 0) {

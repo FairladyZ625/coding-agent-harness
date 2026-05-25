@@ -72,15 +72,55 @@ function taskQueueReasonSummary(task) {
 }
 
 function phaseTimeline(task) {
+  const knownKinds = new Set(["init", "execution", "gate"]);
+  const groups = [
+    ["init", "Init"],
+    ["execution", "Execution"],
+    ["gate", "Gate"],
+    ["other", "Other / Invalid"],
+  ];
+  const phases = task.phases || [];
+  const grouped = groups
+    .map(([kind, label]) => {
+      const items = kind === "other"
+        ? phases.filter((phase) => !knownKinds.has(phase.kind || "execution"))
+        : phases.filter((phase) => (phase.kind || "execution") === kind);
+      if (!items.length) return "";
+      return `<div class="phase-kind-group ${escapeAttr(kind)}">
+        <h3>${escapeHtml(label)}</h3>
+        ${items.map(phaseStep).join("")}
+      </div>`;
+    })
+    .join("");
   return `<section class="phase-timeline">
     <h2>${t("phaseTimeline")}</h2>
-    ${(task.phases || []).map((phase) => `<div class="phase-step ${phase.state}">
-      <strong>${escapeHtml(phase.id)}</strong>
-      <span>${phase.completion}%</span>
-      <p>${escapeHtml(phase.output || phase.blockingRisk || phase.state)}</p>
-      ${progressBar(phase.completion)}
-    </div>`).join("") || emptyState(t("noPhaseData"))}
+    ${grouped || emptyState(t("noPhaseData"))}
   </section>`;
+}
+
+function phaseStep(phase) {
+  const kind = phase.kind || "execution";
+  const actor = phase.actor || "agent";
+  const knownKind = ["init", "execution", "gate"].includes(kind);
+  const kindLabel = knownKind ? escapeHtml(kind) : `<span class="tag warn">${escapeHtml(kind)}</span>`;
+  const phaseKindClass = knownKind ? kind : "other";
+  return `<div class="phase-step ${escapeAttr(phase.state)} ${escapeAttr(phaseKindClass)}">
+    <div class="phase-step-head">
+      <strong>${escapeHtml(phase.id)}</strong>
+      <span>${kindLabel} · ${phase.completion}%</span>
+    </div>
+    <p>${escapeHtml(phase.output || phase.blockingRisk || phase.state)}</p>
+    ${progressBar(phase.completion)}
+    <div class="phase-meta">
+      ${phaseMetaTag(actor)}
+      ${tag(phase.evidenceStatus || "missing")}
+    </div>
+    ${phase.exitCommand ? `<code class="phase-exit-command">${escapeHtml(phase.exitCommand)}</code>` : ""}
+  </div>`;
+}
+
+function phaseMetaTag(value) {
+  return `<span class="tag">${escapeHtml(String(value || "unknown").replaceAll("_", " "))}</span>`;
 }
 
 function taskDocSection(task, fileName, title, required) {
