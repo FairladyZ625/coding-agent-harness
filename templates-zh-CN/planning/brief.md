@@ -30,3 +30,14 @@
 ## 第一步
 
 开始实现前，把这里替换成第一个具体动作。
+
+## Scaffold Provenance
+
+| Field | Value |
+| --- | --- |
+| Created By | {{SCAFFOLD_CREATED_BY}} |
+| Command Shape | {{SCAFFOLD_COMMAND}} |
+| Created At | {{SCAFFOLD_CREATED_AT}} |
+| Budget | {{SCAFFOLD_BUDGET}} |
+| Template Source | {{SCAFFOLD_TEMPLATE_SOURCE}} |
+| Exception Reason | {{SCAFFOLD_EXCEPTION_REASON}} |

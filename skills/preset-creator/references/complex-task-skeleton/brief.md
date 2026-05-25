@@ -30,3 +30,14 @@ State the user-visible or project-visible result this task must deliver.
 ## First Next Step
 
 Replace this line with the first concrete action before implementation starts.
+
+## Scaffold Provenance
+
+| Field | Value |
+| --- | --- |
+| Created By | {{SCAFFOLD_CREATED_BY}} |
+| Command Shape | {{SCAFFOLD_COMMAND}} |
+| Created At | {{SCAFFOLD_CREATED_AT}} |
+| Budget | {{SCAFFOLD_BUDGET}} |
+| Template Source | {{SCAFFOLD_TEMPLATE_SOURCE}} |
+| Exception Reason | {{SCAFFOLD_EXCEPTION_REASON}} |

@@ -48,7 +48,7 @@
 ## 标准执行流程
 
 1. 先确认请求、范围和受影响文件。
-2. 非平凡任务先创建或更新任务计划，再改代码。优先使用 `harness new-task`；CLI 不可用时必须保留 `Scaffold Provenance` 段，并把 `Created By` 设为 `manual-exception`，写清具体原因。
+2. 非平凡任务先创建或更新任务计划，再改代码。优先使用 `harness new-task`；CLI 不可用时必须在 `brief.md` 末尾保留短 `Scaffold Provenance` 表格，并把 `Created By` 设为 `manual-exception`，写清具体原因。
 3. 根据用户目标主动判断是否需要分工；用户不需要知道或主动要求 subagent。
 4. 只读取任务阅读矩阵要求的 reference 文档。
 5. 保留已有项目事实；新增上下文使用 merge / append，不覆盖历史。

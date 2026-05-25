@@ -30,7 +30,7 @@
 8. 主动提交已验证的、有意义的中间成果；commit message 应说明变更类型和范围。除非用户明确要求暂不提交、检查失败、dirty 归属不清，或安全边界阻止干净提交，否则不要把已完成切片长期留在未提交状态；延期提交必须写明 no-commit reason、owner 和下一步。
 9. 机械化 Harness 写入优先使用 CLI lifecycle 命令。CLI-owned 写入会加锁、限制 allowlist 并自动提交，也会拒绝 dirty Git 状态；agent-owned 手工编辑仍需要明确任务提交或延期提交理由。
 10. 把 `visual_map.md` 当作生命周期阶段地图。`init` 阶段准备工作，`execution` 阶段定义实现完成度，`gate` 阶段定义审查、人工确认、lesson routing 和 closeout。只有当前操作者匹配阶段 `Actor` 时，才执行该阶段 `Exit Command`；Agent 不得执行 `human` gate。
-11. 新任务目录的 `task_plan.md` 必须保留 Scaffold Provenance。正常路径是 `Created By: harness new-task`；手工创建只能作为 `manual-exception`，并写清具体原因；历史迁移使用 `historical-backfill`。
+11. 新任务目录的 `brief.md` 末尾必须保留短机器可读 Scaffold Provenance 表格。正常路径是 `Created By: harness new-task`；手工创建只能作为 `manual-exception`，并写清具体原因；历史迁移使用 `historical-backfill`。
 
 ## 完成任务后
 

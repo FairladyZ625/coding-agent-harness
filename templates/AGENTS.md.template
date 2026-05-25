@@ -49,7 +49,7 @@ Read the smallest context that can answer the task.
 ## Standard Execution Flow
 
 1. Confirm the request, scope, and affected files.
-2. For non-trivial work, create or update the task plan before editing code. Use `harness new-task`; if the CLI is unavailable, keep the `Scaffold Provenance` section and set `Created By` to `manual-exception` with a concrete reason.
+2. For non-trivial work, create or update the task plan before editing code. Use `harness new-task`; if the CLI is unavailable, keep the short `Scaffold Provenance` table at the end of `brief.md` and set `Created By` to `manual-exception` with a concrete reason.
 3. Assess delegation from the user's goal; users do not need to know or ask for subagents.
 4. Load only the reference documents required by the Reading Matrix.
 5. Preserve existing project facts; merge new context instead of overwriting history.

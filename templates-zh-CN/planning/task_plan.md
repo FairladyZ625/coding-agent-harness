@@ -1,7 +1,6 @@
 # [任务名称]
 
 Task Contract: harness-task/v1
-Scaffold Provenance: required
 
 ## 目标
 
@@ -22,19 +21,6 @@ Scaffold Provenance: required
 | complex | 需要 L2/L3 证据、subagent/reviewer、外部参考、生成产物，或超过 5 个切片 | standard 文件，并额外创建 `references/INDEX.md` 与 `artifacts/INDEX.md` |
 
 选择预算：{{TASK_BUDGET}}
-
-## Scaffold Provenance
-
-不要删除本段。`harness check` 依赖它区分 CLI 创建、手工例外和历史回填。
-
-| Field | Value |
-| --- | --- |
-| Created By | {{SCAFFOLD_CREATED_BY}} |
-| Command Shape | {{SCAFFOLD_COMMAND}} |
-| Created At | {{SCAFFOLD_CREATED_AT}} |
-| Budget | {{SCAFFOLD_BUDGET}} |
-| Template Source | {{SCAFFOLD_TEMPLATE_SOURCE}} |
-| Exception Reason | {{SCAFFOLD_EXCEPTION_REASON}} |
 
 可选子目录按触发条件创建，不作为默认脚手架：
 

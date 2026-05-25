@@ -1,7 +1,6 @@
 # [Task Name]
 
 Task Contract: harness-task/v1
-Scaffold Provenance: required
 
 ## Goal
 
@@ -21,20 +20,6 @@ Scaffold Provenance: required
 | complex | Multi-hour work, L2/L3 evidence, subagent/reviewer, or optional artifact/reference indexes | Standard files plus `references/INDEX.md` and `artifacts/INDEX.md` |
 
 Selected budget: {{TASK_BUDGET}}
-
-## Scaffold Provenance
-
-Do not remove this section. `harness check` uses it to distinguish CLI-created
-task scaffolds from manual exceptions and historical backfills.
-
-| Field | Value |
-| --- | --- |
-| Created By | {{SCAFFOLD_CREATED_BY}} |
-| Command Shape | {{SCAFFOLD_COMMAND}} |
-| Created At | {{SCAFFOLD_CREATED_AT}} |
-| Budget | {{SCAFFOLD_BUDGET}} |
-| Template Source | {{SCAFFOLD_TEMPLATE_SOURCE}} |
-| Exception Reason | {{SCAFFOLD_EXCEPTION_REASON}} |
 
 ## Context Packet
 

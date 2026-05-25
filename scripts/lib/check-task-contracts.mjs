@@ -23,19 +23,18 @@ export function validatePlanContracts(target, { strict = true } = {}) {
   for (const taskPlanPath of listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
     const relativeDir = toPosix(path.relative(target.projectRoot, taskDir));
+    const relativeBriefPath = `${relativeDir}/brief.md`;
     const taskPlanContent = readFileSafe(taskPlanPath);
+    const briefContent = readFileSafe(path.join(taskDir, "brief.md"));
     const budget = parseTaskBudget(taskPlanContent);
     const taskContract = parseTaskContractInfo(taskPlanContent);
-    const scaffoldProvenance = parseScaffoldProvenance(taskPlanContent);
+    const scaffoldProvenance = parseScaffoldProvenance(briefContent, { required: strict && taskContract.generated });
     if (!taskContract.generated) {
       warnings.push(`adoption-needed: ${relativeDir} missing Task Contract: harness-task/v1 marker`);
     }
-    if (taskContract.generated && !scaffoldProvenance.present) {
-      if (strict) failures.push(`${relativeDir} missing Scaffold Provenance section`);
-    }
     for (const issue of scaffoldProvenance.issues) {
-      if (scaffoldProvenance.required || scaffoldProvenance.present) failures.push(`${relativeDir} ${issue.message}`);
-      else report(`${relativeDir} ${issue.message}`);
+      if (scaffoldProvenance.required || scaffoldProvenance.present) failures.push(`${relativeBriefPath} ${issue.message}`);
+      else report(`${relativeBriefPath} ${issue.message}`);
     }
     for (const fileName of requiredTaskFilesForBudget(budget)) {
       if (!fs.existsSync(path.join(taskDir, fileName))) {

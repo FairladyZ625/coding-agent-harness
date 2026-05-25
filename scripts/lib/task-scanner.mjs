@@ -257,7 +257,9 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
     const budget = parseTaskBudget(taskPlan);
     const metadata = parseTaskMetadata(taskPlan);
     const taskContract = parseTaskContractInfo(taskPlan);
-    const scaffoldProvenance = parseScaffoldProvenance(taskPlan);
+    const scaffoldProvenance = parseScaffoldProvenance(brief.content, {
+      required: requireGeneratedScaffoldProvenance && taskContract.generated,
+    });
     const explicitModule = id.startsWith("MODULES/") ? id.split("/")[1] : null;
     const legacyCandidate = brief.source !== "standalone" || visualMap.status === "legacy-only" || !fs.existsSync(executionStrategyPath);
     const classification = inferTaskClassification({ id, title, relative, explicitModule, legacyCandidate });
@@ -295,12 +297,6 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
       }),
     });
     const materialIssues = [...materialReadiness.issues, ...scaffoldProvenanceMaterialIssues(target, taskDir, scaffoldProvenance)];
-    if (requireGeneratedScaffoldProvenance && taskContract.generated && !scaffoldProvenance.present) {
-      materialIssues.push(...scaffoldProvenanceMaterialIssues(target, taskDir, {
-        ...scaffoldProvenance,
-        issues: [{ code: "missing-scaffold-provenance", message: "missing Scaffold Provenance section" }],
-      }));
-    }
     const stateConflicts = collectStateConflicts({ state: stateInfo.state, reviewStatus, closeoutStatus: effectiveCloseoutStatus, lifecycleState, budget });
     const reviewQueueState = deriveReviewQueueState({
       state: stateInfo.state,

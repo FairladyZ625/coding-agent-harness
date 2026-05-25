@@ -41,7 +41,7 @@ export function buildScaffoldProvenance({ taskId, normalizedTaskId, title, local
     })),
     createdAt: todayDate(),
     budget,
-    templateSource: localizedTemplateSource("templates/planning/task_plan.md", locale),
+    templateSource: localizedTemplateSource("templates/planning/brief.md", locale),
     exceptionReason: "n/a",
   };
 }

@@ -46,12 +46,16 @@ assert(
   "new-task should render the durable task contract marker",
 );
 const lifecycleTaskPlan = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/task_plan.md`), "utf8");
-assert(lifecycleTaskPlan.includes("Scaffold Provenance: required"), "new-task should mark scaffold provenance as required");
-assert(lifecycleTaskPlan.includes("## Scaffold Provenance"), "new-task should render a scaffold provenance section");
-assert(lifecycleTaskPlan.includes("| Created By | harness new-task |"), "new-task should record CLI scaffold provenance");
-assert(lifecycleTaskPlan.includes(`| Created At | ${todayLocal} |`), "new-task should record the scaffold date");
-assert(lifecycleTaskPlan.includes("| Budget | standard |"), "new-task should record the selected budget in scaffold provenance");
-assert(lifecycleTaskPlan.includes("harness new-task"), "new-task should record the command shape in scaffold provenance");
+assert(!lifecycleTaskPlan.includes("Scaffold Provenance"), "new-task should not render scaffold provenance into task_plan.md");
+const lifecycleBrief = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/brief.md`), "utf8");
+assert(lifecycleBrief.includes("## Scaffold Provenance"), "new-task should render scaffold provenance into brief.md");
+assert(lifecycleBrief.includes("| Created By | harness new-task |"), "new-task should record CLI scaffold provenance");
+assert(lifecycleBrief.includes(`| Created At | ${todayLocal} |`), "new-task should record the scaffold date");
+assert(lifecycleBrief.includes("| Budget | standard |"), "new-task should record the selected budget in scaffold provenance");
+assert(lifecycleBrief.includes("harness new-task"), "new-task should record the command shape in scaffold provenance");
+assert(!lifecycleBrief.includes("Do not remove this section"), "scaffold provenance should stay machine-readable without educational prose");
+assert(lifecycleBrief.lastIndexOf("## Scaffold Provenance") > lifecycleBrief.indexOf("## First Next Step"), "scaffold provenance should live at the end of brief.md");
+assert(lifecycleBrief.trimEnd().endsWith("| Exception Reason | n/a |"), "scaffold provenance should be the final content in brief.md");
 const lifecycleVisualMap = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/visual_map.md`), "utf8");
 assert(lifecycleVisualMap.includes("| Phase ID | Kind | Depends On | State | Completion |"), "new-task should render phase kind columns");
 assert(lifecycleVisualMap.includes("Exit Command"), "new-task should render phase exit commands");
@@ -101,18 +105,49 @@ fs.mkdirSync(provenanceTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", provenanceTarget]);
 expectJson(["new-task", "provenance-required", "--title", "Provenance Required", provenanceTarget]);
 const provenanceTaskPlanPath = path.join(provenanceTarget, `docs/09-PLANNING/TASKS/${todayLocal}-provenance-required/task_plan.md`);
+const provenanceBriefPath = path.join(provenanceTarget, `docs/09-PLANNING/TASKS/${todayLocal}-provenance-required/brief.md`);
 const provenanceTaskPlan = fs.readFileSync(provenanceTaskPlanPath, "utf8");
+const provenanceBrief = fs.readFileSync(provenanceBriefPath, "utf8");
 fs.writeFileSync(
-  provenanceTaskPlanPath,
-  provenanceTaskPlan.replace(/\n## Scaffold Provenance\n[\s\S]*?(?=\n## Context Packet\n)/, "\n"),
+  provenanceBriefPath,
+  provenanceBrief.replace(/\n## Scaffold Provenance\n[\s\S]*$/, "\n"),
 );
 const missingProvenanceCheck = run(["check", "--profile", "target-project", provenanceTarget]);
 const missingProvenanceOutput = `${missingProvenanceCheck.stdout}\n${missingProvenanceCheck.stderr}`;
 assert(missingProvenanceCheck.status !== 0, "check should fail when required scaffold provenance is missing");
 assert(missingProvenanceOutput.includes("missing Scaffold Provenance"), "missing scaffold provenance failure should explain the missing section");
+assert(missingProvenanceOutput.includes(`${todayLocal}-provenance-required/brief.md`), "missing scaffold provenance failure should route to brief.md");
+fs.writeFileSync(provenanceBriefPath, `${provenanceBrief}\n\n## Later Section\nThis section should make provenance non-final.\n`);
+const misplacedProvenanceCheck = run(["check", "--profile", "target-project", provenanceTarget]);
+const misplacedProvenanceOutput = `${misplacedProvenanceCheck.stdout}\n${misplacedProvenanceCheck.stderr}`;
+assert(misplacedProvenanceCheck.status !== 0, "check should fail when scaffold provenance is not the final brief section");
+assert(misplacedProvenanceOutput.includes("Scaffold Provenance must be the final brief section"), "misplaced scaffold provenance failure should explain final-section requirement");
+assert(misplacedProvenanceOutput.includes(`${todayLocal}-provenance-required/brief.md`), "misplaced scaffold provenance failure should route to brief.md");
+const misplacedProvenanceStatusResult = run(["status", "--json", provenanceTarget]);
+assert(misplacedProvenanceStatusResult.status !== 0, "status should fail when scaffold provenance is not the final brief section");
+const misplacedProvenanceStatus = JSON.parse(misplacedProvenanceStatusResult.stdout);
+const misplacedProvenanceTask = misplacedProvenanceStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-provenance-required`);
+assert(
+  misplacedProvenanceTask?.materialIssues?.some((issue) => issue.code === "scaffold-provenance-not-at-end" && issue.sourcePath.endsWith(`${todayLocal}-provenance-required/brief.md`)),
+  "status should route non-final scaffold provenance to the concrete brief.md path",
+);
+fs.writeFileSync(provenanceBriefPath, `${provenanceBrief}\nDo not remove this section. harness check depends on it.\n`);
+const proseProvenanceCheck = run(["check", "--profile", "target-project", provenanceTarget]);
+const proseProvenanceOutput = `${proseProvenanceCheck.stdout}\n${proseProvenanceCheck.stderr}`;
+assert(proseProvenanceCheck.status !== 0, "check should fail when scaffold provenance contains prose");
+assert(proseProvenanceOutput.includes("Scaffold Provenance must contain only the machine-readable table"), "prose scaffold provenance failure should explain table-only requirement");
+assert(proseProvenanceOutput.includes(`${todayLocal}-provenance-required/brief.md`), "prose scaffold provenance failure should route to brief.md");
+const proseProvenanceStatusResult = run(["status", "--json", provenanceTarget]);
+assert(proseProvenanceStatusResult.status !== 0, "status should fail when scaffold provenance contains prose");
+const proseProvenanceStatus = JSON.parse(proseProvenanceStatusResult.stdout);
+const proseProvenanceTask = proseProvenanceStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-provenance-required`);
+assert(
+  proseProvenanceTask?.materialIssues?.some((issue) => issue.code === "scaffold-provenance-non-table-content" && issue.sourcePath.endsWith(`${todayLocal}-provenance-required/brief.md`)),
+  "status should route prose scaffold provenance to the concrete brief.md path",
+);
 fs.writeFileSync(
-  provenanceTaskPlanPath,
-  provenanceTaskPlan.replace(
+  provenanceBriefPath,
+  provenanceBrief.replace(
     "| Created By | harness new-task |",
     "| Created By | manual-exception |",
   ).replace(
@@ -122,8 +157,8 @@ fs.writeFileSync(
 );
 expectPass(["check", "--profile", "target-project", provenanceTarget]);
 fs.writeFileSync(
-  provenanceTaskPlanPath,
-  provenanceTaskPlan.replace(
+  provenanceBriefPath,
+  provenanceBrief.replace(
     `| Created At | ${todayLocal} |`,
     "| Created At | 2026-99-99 |",
   ),
@@ -132,11 +167,14 @@ const invalidCreatedAtCheck = run(["check", "--profile", "target-project", prove
 const invalidCreatedAtOutput = `${invalidCreatedAtCheck.stdout}\n${invalidCreatedAtCheck.stderr}`;
 assert(invalidCreatedAtCheck.status !== 0, "check should fail when scaffold Created At is not a real calendar date");
 assert(invalidCreatedAtOutput.includes("invalid Scaffold Provenance Created At"), "invalid Created At failure should explain the bad scaffold date");
+assert(invalidCreatedAtOutput.includes(`${todayLocal}-provenance-required/brief.md`), "invalid Created At failure should route to brief.md");
+fs.writeFileSync(
+  provenanceBriefPath,
+  provenanceBrief.replace(/\n## Scaffold Provenance\n[\s\S]*$/, "\n"),
+);
 fs.writeFileSync(
   provenanceTaskPlanPath,
-  provenanceTaskPlan
-    .replace(/^Scaffold Provenance: required\n/im, "")
-    .replace(/\n## Scaffold Provenance\n[\s\S]*?(?=\n## Context Packet\n)/, "\n"),
+  `${provenanceTaskPlan}\n\n## Scaffold Provenance\n\n| Field | Value |\n| --- | --- |\n| Created By | historical-backfill |\n| Command Shape | n/a |\n| Created At | ${todayLocal} |\n| Budget | standard |\n| Template Source | obsolete task_plan fallback |\n| Exception Reason | Old task-plan provenance should not be accepted. |\n`,
 );
 const missingProvenanceMarkerCheck = run(["check", "--profile", "target-project", provenanceTarget]);
 const missingProvenanceMarkerOutput = `${missingProvenanceMarkerCheck.stdout}\n${missingProvenanceMarkerCheck.stderr}`;
@@ -148,12 +186,12 @@ const missingProvenanceMarkerStatus = JSON.parse(missingProvenanceMarkerStatusRe
 const missingProvenanceMarkerTask = missingProvenanceMarkerStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-provenance-required`);
 assert(missingProvenanceMarkerTask?.materialsReady === false, "status should mark missing generated scaffold provenance as not materials-ready");
 assert(
-  missingProvenanceMarkerTask?.materialIssues?.some((issue) => issue.code === "missing-scaffold-provenance" && issue.sourcePath.endsWith(`${todayLocal}-provenance-required/task_plan.md`)),
-  "status should route missing scaffold provenance to the concrete task_plan.md path",
+  missingProvenanceMarkerTask?.materialIssues?.some((issue) => issue.code === "missing-scaffold-provenance" && issue.sourcePath.endsWith(`${todayLocal}-provenance-required/brief.md`)),
+  "status should route missing scaffold provenance to the concrete brief.md path",
 );
 fs.writeFileSync(
-  provenanceTaskPlanPath,
-  provenanceTaskPlan.replace(
+  provenanceBriefPath,
+  provenanceBrief.replace(
     "| Created By | harness new-task |",
     "| Created By | historical-backfill |",
   ).replace(

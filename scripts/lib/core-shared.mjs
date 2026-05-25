@@ -187,7 +187,7 @@ export function renderTaskTemplate(content, { taskId, title, locale, budget = "s
     command: scaffoldProvenance.command || "harness new-task <task-id> <target>",
     createdAt: scaffoldProvenance.createdAt || date,
     budget: scaffoldProvenance.budget || budget,
-    templateSource: scaffoldProvenance.templateSource || "templates/planning/task_plan.md",
+    templateSource: scaffoldProvenance.templateSource || "templates/planning/brief.md",
     exceptionReason: scaffoldProvenance.exceptionReason || "n/a",
   };
   return String(content)

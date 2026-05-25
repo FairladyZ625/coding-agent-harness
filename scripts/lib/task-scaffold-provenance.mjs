@@ -21,6 +21,14 @@ function stripFencedCodeBlocks(content) {
   return String(content || "").replace(/^```[\s\S]*?^```[^\n]*$/gm, "");
 }
 
+function nonTableLines(content) {
+  return String(content || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !line.startsWith("|"));
+}
+
 function isValidIsoDate(value) {
   const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return false;
@@ -31,9 +39,9 @@ function isValidIsoDate(value) {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
-export function parseScaffoldProvenance(taskPlanContent) {
-  const content = stripFencedCodeBlocks(taskPlanContent);
-  const required =
+export function parseScaffoldProvenance(contentSource, { required = false } = {}) {
+  const content = stripFencedCodeBlocks(contentSource);
+  const markerRequired =
     /^Scaffold Provenance\s*[:：]\s*(required|yes|true|必需|必须|required)\s*$/im.test(content) ||
     /^脚手架来源\s*[:：]\s*(required|yes|true|必需|必须|required)\s*$/im.test(content);
   const blockMatch = content.match(/^##\s*(?:Scaffold Provenance|脚手架来源)\s*$([\s\S]*?)(?=^##\s+|(?![\s\S]))/im);
@@ -53,7 +61,7 @@ export function parseScaffoldProvenance(taskPlanContent) {
   const createdBy = normalizeMetadataValue(createdByRaw, "");
   const budgetRaw = fields.get("budget") || fields.get("预算") || "";
   const provenance = {
-    required,
+    required: Boolean(required || markerRequired),
     present: fields.size > 0,
     fields,
     createdBy,
@@ -79,6 +87,12 @@ export function parseScaffoldProvenance(taskPlanContent) {
   if (isConcreteScaffoldField(provenance.createdAt) && !isValidIsoDate(provenance.createdAt)) {
     provenance.issues.push({ code: "invalid-scaffold-created-at", message: `invalid Scaffold Provenance Created At: ${provenance.createdAt}` });
   }
+  if (nonTableLines(blockMatch[1]).length > 0) {
+    provenance.issues.push({ code: "scaffold-provenance-non-table-content", message: "Scaffold Provenance must contain only the machine-readable table" });
+  }
+  if (blockMatch && content.slice(blockMatch.index + blockMatch[0].length).trim()) {
+    provenance.issues.push({ code: "scaffold-provenance-not-at-end", message: "Scaffold Provenance must be the final brief section" });
+  }
   if (provenance.budget && !allowedTaskBudgets.has(provenance.budget)) {
     provenance.issues.push({ code: "invalid-scaffold-budget", message: `invalid Scaffold Provenance Budget: ${budgetRaw}` });
   }
@@ -89,16 +103,16 @@ export function parseScaffoldProvenance(taskPlanContent) {
 }
 
 export function scaffoldProvenanceMaterialIssues(target, taskDir, provenance) {
-  const relativePlanPath = `${toPosix(path.relative(target.projectRoot, taskDir))}/task_plan.md`;
+  const relativeBriefPath = `${toPosix(path.relative(target.projectRoot, taskDir))}/brief.md`;
   return provenance.issues.map((issue) => ({
     code: issue.code,
     severity: "P1",
     queue: "missing-materials",
-    sourcePath: `TARGET:${relativePlanPath}`,
+    sourcePath: `TARGET:${relativeBriefPath}`,
     sourceLine: 0,
     owner: "agent",
     message: issue.message,
-    allowedWritePaths: [relativePlanPath],
+    allowedWritePaths: [relativeBriefPath],
     forbiddenActions: ["human-confirm", "edit-unrelated-task", "fabricate-evidence"],
     validationCommands: ["node scripts/harness.mjs check --profile target-project <target>"],
     confidence: "exact",
