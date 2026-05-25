@@ -25,8 +25,8 @@ then the localized section follows after the English section.
 
 ## Content Rules
 
-- State the target version explicitly. If `package.json` changes from `1.0.2`
-  to `1.0.3`, say so in Version Impact.
+- State the target version explicitly. If `package.json` changes from `1.0.3`
+  to `1.0.4`, say so in Version Impact.
 - List changed surfaces by user-visible area or module, not by dumping every
   file path.
 - Verification must name the real commands, browser checks, CI runs, or

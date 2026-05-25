@@ -157,19 +157,25 @@ const userInstallDryRun = expectJson(["install-user", "--agent", "codex", "--hom
 assert(userInstallDryRun.operation === "install-user", "install-user dry-run should report operation");
 assert(userInstallDryRun.targets?.[0]?.agent === "codex", "install-user dry-run should target codex");
 assert(userInstallDryRun.targets?.[0]?.changes?.some((change) => change.destination.endsWith("SKILL.md") && change.action === "would-create"), "install-user dry-run should plan SKILL.md");
+assert(userInstallDryRun.presets?.presets?.some((preset) => preset.id === "module" && preset.action === "would-create"), "install-user dry-run should plan bundled preset seed");
 assert(!fs.existsSync(path.join(userInstallHome, ".codex")), "install-user dry-run should not mutate home");
+assert(!fs.existsSync(path.join(userInstallHome, ".coding-agent-harness")), "install-user dry-run should not mutate user preset root");
 const userInstall = expectJson(["install-user", "--agent", "codex", "--home", userInstallHome, "--yes"]);
 const codexSkillRoot = path.join(userInstallHome, ".codex/skills/coding-agent-harness");
 assert(userInstall.status === "installed", "install-user should install skill");
 assert(fs.existsSync(path.join(codexSkillRoot, "SKILL.md")), "install-user should copy SKILL.md");
 assert(fs.existsSync(path.join(codexSkillRoot, "templates-zh-CN/AGENTS.md.template")), "install-user should copy Chinese templates");
+assert(fs.existsSync(path.join(codexSkillRoot, "presets/module/preset.yaml")), "install-user should copy bundled presets into the user skill package");
 assert(fs.existsSync(path.join(codexSkillRoot, "scripts/harness.mjs")), "install-user should copy CLI scripts");
 assert(fs.existsSync(path.join(codexSkillRoot, "docs-release/guides/agent-installation.md")), "install-user should copy agent guide");
+assert(fs.existsSync(path.join(userInstallHome, ".coding-agent-harness/presets/module/preset.yaml")), "install-user should seed bundled presets into the user preset root");
 const userInstallAgain = expectJson(["install-user", "--agent", "codex", "--home", userInstallHome, "--yes"]);
 assert(userInstallAgain.targets?.[0]?.changes?.some((change) => change.action === "skip-existing"), "install-user should not overwrite existing files by default");
+assert(userInstallAgain.presets?.presets?.some((preset) => preset.id === "module" && preset.action === "skip-existing"), "install-user should not overwrite seeded presets by default");
 const userDoctor = expectJson(["doctor-user", "--agent", "codex", "--home", userInstallHome]);
 assert(userDoctor.status === "pass", "doctor-user should pass for installed codex skill");
 assert(userDoctor.targets?.[0]?.version === packageVersion, "doctor-user should report installed package version");
+assert(userDoctor.presets?.status === "pass", "doctor-user should validate bundled user presets");
 const missingDoctor = run(["doctor-user", "--agent", "gemini", "--home", userInstallHome]);
 assert(missingDoctor.status !== 0, "doctor-user should fail for missing agent install");
 

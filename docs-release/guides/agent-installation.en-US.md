@@ -122,6 +122,17 @@ harness install-user --agent codex --global
 harness doctor-user --agent codex
 ```
 
+`npm install -g coding-agent-harness`, `harness install-user`, and `harness init`
+seed bundled presets:
+
+- User presets: `~/.coding-agent-harness/presets/<preset-id>/`
+- Project presets: `<target>/.coding-agent-harness/presets/<preset-id>/`
+
+Before initializing or taking over a task, agents must run
+`harness preset list --json [target]` and choose `--preset` only after checking
+the available presets. To repair missing bundled presets, run
+`harness preset seed` or `harness preset seed --project <target>`.
+
 Supported agent targets:
 
 | Agent | User directory |
@@ -138,7 +149,7 @@ Safety rules:
 - Interactive confirmation is the default. Non-interactive runs must pass `--yes` or first use `--dry-run`.
 - Existing files are not overwritten by default; only missing files are added.
 - Use `--force` only for explicit forced updates.
-- `doctor-user` checks that `SKILL.md`, templates, references, CLI scripts, and this guide exist.
+- `doctor-user` checks that `SKILL.md`, templates, references, bundled presets, CLI scripts, this guide, and the user-level preset seed exist.
 
 ## Legacy Harness Migration
 

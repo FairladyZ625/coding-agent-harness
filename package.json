@@ -1,6 +1,6 @@
 {
   "name": "coding-agent-harness",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Document governance kernel for long-running coding agents.",
   "type": "module",
   "keywords": [
@@ -32,6 +32,7 @@
     "dashboard": "node scripts/harness.mjs dashboard --out tmp/harness-dashboard.html examples/minimal-project",
     "dashboard:folder": "node scripts/harness.mjs dashboard --out-dir tmp/harness-dashboard examples/minimal-project",
     "pack:dry-run": "npm pack --dry-run --json",
+    "postinstall": "node scripts/postinstall.mjs",
     "smoke:dashboard": "node tests/smoke-dashboard.mjs",
     "test": "node tests/run-all.mjs"
   },

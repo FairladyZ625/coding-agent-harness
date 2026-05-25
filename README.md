@@ -136,6 +136,11 @@ npm install -g coding-agent-harness
 harness --help
 ```
 
+The npm install seeds bundled presets into `~/.coding-agent-harness/presets/`.
+`harness init` also seeds those presets into the target project at
+`.coding-agent-harness/presets/`, so agents can discover stable task methods
+with `harness preset list --json`.
+
 Agents must not silently run a global install. They may run `npm install -g coding-agent-harness` only after the user explicitly approves changing the global npm environment. Without that approval, keep using `npx --yes coding-agent-harness ...`.
 
 ### Commands For Humans
@@ -183,6 +188,7 @@ If you do not approve, I will use npx --yes coding-agent-harness ... temporarily
 
 Only after I explicitly approve, run:
 npm install -g coding-agent-harness
+harness preset list --json
 
 If I do not approve or do not respond, run CLI commands with:
 npx --yes coding-agent-harness <command>
@@ -196,6 +202,7 @@ If the external material is large, create an external-source-packs index and dig
 After confirmation, execute Diagnose → Decide → Scaffold → Configure → Verify → Deliver.
 When initializing, run:
 npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
+npx --yes coding-agent-harness preset list --json .
 
 After initialization, use the dynamic web UI for daily viewing and human confirmations:
 npx --yes coding-agent-harness dev .
@@ -223,6 +230,7 @@ If you do not approve, I will use npx --yes coding-agent-harness ... temporarily
 
 Only after I explicitly approve, run:
 npm install -g coding-agent-harness
+harness preset list --json
 
 If I do not approve or do not respond, run CLI commands with:
 npx --yes coding-agent-harness <command>

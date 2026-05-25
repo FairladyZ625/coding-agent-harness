@@ -1,34 +1,34 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { builtinPresetRoot, projectPresetRoot, repoRoot, toPosix, userPresetRoot } from "./core-shared.mjs";
+import { builtinPresetRoot, projectPresetRoot, repoRoot, toPosix, userPresetRoot, userPresetRootForHome } from "./core-shared.mjs";
 
 const allowedEntrypoints = new Set(["newTask", "plan", "scaffold", "check"]);
 const allowedEntrypointTypes = new Set(["template", "script", "check"]);
 const allowedEvidenceTypes = new Set(["text", "json", "input-json", "preset-audit", "preset-manifest", "write-scope", "migration-verify", "migration-ledger", "dashboard-hash", "target-git-status", "target-commit", "harness-version", "generated-at"]);
 
-export function listPresetPackages({ targetInput = "" } = {}) {
+export function listPresetPackages({ targetInput = "", home = "" } = {}) {
   const seen = new Set();
   const presets = [];
-  for (const { root, source } of presetSearchRoots({ targetInput })) {
+  for (const { root, source } of presetSearchRoots({ targetInput, home })) {
     if (!fs.existsSync(root)) continue;
     for (const entry of fs.readdirSync(root, { withFileTypes: true }).filter((item) => item.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
       const id = tryNormalizePresetId(entry.name);
       if (!id) continue;
       if (seen.has(id)) continue;
       seen.add(id);
-      presets.push(readPresetPackage(id, { targetInput }));
+      presets.push(readPresetPackage(id, { targetInput, home }));
     }
   }
   return presets;
 }
 
-export function readPresetPackage(id, { targetInput = "" } = {}) {
+export function readPresetPackage(id, { targetInput = "", home = "" } = {}) {
   const normalizedId = normalizePresetId(id);
-  const found = findPresetManifest(normalizedId, { targetInput });
+  const found = findPresetManifest(normalizedId, { targetInput, home });
   const manifestPath = found?.manifestPath || "";
   if (!fs.existsSync(manifestPath)) {
-    const known = listPresetIds({ targetInput });
+    const known = listPresetIds({ targetInput, home });
     throw new Error(`Invalid task preset: ${id}. Expected one of: ${known.join(", ") || "(none)"}`);
   }
   assertPresetDirectory(path.dirname(manifestPath));
@@ -41,13 +41,13 @@ export function readPresetPackage(id, { targetInput = "" } = {}) {
   return preset;
 }
 
-export function inspectPresetPackage(id, { targetInput = "" } = {}) {
-  const preset = fs.existsSync(path.join(path.resolve(id || ""), "preset.yaml")) ? readPresetPackageFromPath(path.resolve(id)) : readPresetPackage(id, { targetInput });
+export function inspectPresetPackage(id, { targetInput = "", home = "" } = {}) {
+  const preset = fs.existsSync(path.join(path.resolve(id || ""), "preset.yaml")) ? readPresetPackageFromPath(path.resolve(id)) : readPresetPackage(id, { targetInput, home });
   return publicPresetShape(preset);
 }
 
-export function checkPresetPackage(id, { targetInput = "" } = {}) {
-  const preset = fs.existsSync(path.join(path.resolve(id || ""), "preset.yaml")) ? readPresetPackageFromPath(path.resolve(id)) : readPresetPackage(id, { targetInput });
+export function checkPresetPackage(id, { targetInput = "", home = "" } = {}) {
+  const preset = fs.existsSync(path.join(path.resolve(id || ""), "preset.yaml")) ? readPresetPackageFromPath(path.resolve(id)) : readPresetPackage(id, { targetInput, home });
   const report = validatePresetPackage(preset);
   return {
     id: preset.id,
@@ -93,7 +93,7 @@ function assertPresetManifestFile(directory, manifestPath) {
   if (!isInside(realRoot, realPath)) throw new Error(`Preset manifest real path escapes preset package: ${displayManifestPath(manifestPath)}`);
 }
 
-export function installPresetPackage(source, { force = false, scope = "user", targetInput = "." } = {}) {
+export function installPresetPackage(source, { force = false, scope = "user", targetInput = ".", home = "" } = {}) {
   if (!source) throw new Error("Missing preset source");
   const sourcePath = resolveInstallSource(source);
   const stagedPreset = readPresetPackageFromPath(sourcePath);
@@ -101,7 +101,7 @@ export function installPresetPackage(source, { force = false, scope = "user", ta
   if (stagedReport.failures.length) throw new Error(`Invalid preset package ${stagedPreset.id}: ${stagedReport.failures.join("; ")}`);
   const id = stagedPreset.id;
   if (!id) throw new Error("Preset manifest missing id");
-  const destination = scope === "project" ? projectPresetDestination(id, targetInput) : userPresetDestination(id);
+  const destination = scope === "project" ? projectPresetDestination(id, targetInput) : userPresetDestination(id, { home });
   if (fs.existsSync(destination)) {
     if (!force) throw new Error(`Preset already installed: ${id}. Re-run with --force to overwrite.`);
   }
@@ -115,7 +115,7 @@ export function installPresetPackage(source, { force = false, scope = "user", ta
     if (tempReport.failures.length) throw new Error(`Invalid preset package ${id}: ${tempReport.failures.join("; ")}`);
     fs.rmSync(destination, { recursive: true, force: true });
     fs.renameSync(tempDestination, destination);
-    const preset = readPresetPackage(id, scope === "project" ? { targetInput } : {});
+    const preset = readPresetPackage(id, scope === "project" ? { targetInput, home } : { home });
     return {
       installed: true,
       id: preset.id,
@@ -130,13 +130,52 @@ export function installPresetPackage(source, { force = false, scope = "user", ta
   }
 }
 
-export function uninstallPresetPackage(id, { scope = "user", targetInput = "." } = {}) {
+export function uninstallPresetPackage(id, { scope = "user", targetInput = ".", home = "" } = {}) {
   const normalizedId = normalizePresetId(id);
   if (!normalizedId) throw new Error("Missing preset id");
-  const destination = scope === "project" ? projectPresetDestination(normalizedId, targetInput) : userPresetDestination(normalizedId);
+  const destination = scope === "project" ? projectPresetDestination(normalizedId, targetInput) : userPresetDestination(normalizedId, { home });
   const existed = fs.existsSync(destination);
   if (existed) fs.rmSync(destination, { recursive: true, force: true });
   return { removed: existed, id: normalizedId, destination: toPosix(destination) };
+}
+
+export function listBundledPresetIds() {
+  if (!fs.existsSync(builtinPresetRoot)) return [];
+  return fs.readdirSync(builtinPresetRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => tryNormalizePresetId(entry.name))
+    .filter(Boolean)
+    .filter((id) => fs.existsSync(path.join(builtinPresetRoot, id, "preset.yaml")))
+    .sort();
+}
+
+export function seedBundledPresets({ force = false, scope = "user", targetInput = ".", home = "", dryRun = false } = {}) {
+  const presets = listBundledPresetIds().map((id) => {
+    const sourcePath = path.join(builtinPresetRoot, id);
+    const stagedPreset = readPresetPackageFromPath(sourcePath);
+    const destination = scope === "project" ? projectPresetDestination(stagedPreset.id, targetInput) : userPresetDestination(stagedPreset.id, { home });
+    const existsAlready = fs.existsSync(destination);
+    const action = existsAlready ? (force ? (dryRun ? "would-overwrite" : "overwrite") : "skip-existing") : dryRun ? "would-create" : "create";
+    if (!dryRun && (!existsAlready || force)) copyPresetPackage(sourcePath, destination, stagedPreset.id);
+    return {
+      id: stagedPreset.id,
+      version: stagedPreset.version,
+      source: "builtin",
+      destination: toPosix(destination),
+      action,
+    };
+  });
+  return {
+    operation: "preset-seed",
+    scope,
+    target: scope === "project" ? toPosix(projectPresetRoot(targetInput)) : toPosix(userPresetRootForHome(home)),
+    dryRun,
+    force,
+    presets,
+    created: presets.filter((preset) => ["create", "would-create"].includes(preset.action)).length,
+    overwritten: presets.filter((preset) => ["overwrite", "would-overwrite"].includes(preset.action)).length,
+    skipped: presets.filter((preset) => preset.action === "skip-existing").length,
+  };
 }
 
 export function validatePresetPackage(preset) {
@@ -241,9 +280,10 @@ function tryNormalizePresetId(id) {
   }
 }
 
-function userPresetDestination(id) {
-  const destination = path.resolve(userPresetRoot, normalizePresetId(id));
-  if (!isInside(path.resolve(userPresetRoot), destination) || destination === path.resolve(userPresetRoot)) {
+function userPresetDestination(id, { home = "" } = {}) {
+  const root = home ? userPresetRootForHome(home) : userPresetRoot;
+  const destination = path.resolve(root, normalizePresetId(id));
+  if (!isInside(path.resolve(root), destination) || destination === path.resolve(root)) {
     throw new Error(`Preset destination escapes user preset root: ${id}`);
   }
   return destination;
@@ -527,14 +567,14 @@ function displayManifestPath(manifestPath) {
   return toPosix(manifestPath);
 }
 
-function findPresetManifest(id, { targetInput = "" } = {}) {
-  const candidates = presetSearchRoots({ targetInput }).map(({ source, root }) => ({ source, manifestPath: path.join(root, id, "preset.yaml") }));
+function findPresetManifest(id, { targetInput = "", home = "" } = {}) {
+  const candidates = presetSearchRoots({ targetInput, home }).map(({ source, root }) => ({ source, manifestPath: path.join(root, id, "preset.yaml") }));
   return candidates.find((candidate) => fs.existsSync(candidate.manifestPath)) || null;
 }
 
-function listPresetIds({ targetInput = "" } = {}) {
+function listPresetIds({ targetInput = "", home = "" } = {}) {
   const ids = new Set();
-  for (const { root } of presetSearchRoots({ targetInput })) {
+  for (const { root } of presetSearchRoots({ targetInput, home })) {
     if (!fs.existsSync(root)) continue;
     for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
       if (entry.isDirectory()) ids.add(entry.name);
@@ -543,10 +583,10 @@ function listPresetIds({ targetInput = "" } = {}) {
   return [...ids].sort();
 }
 
-function presetSearchRoots({ targetInput = "" } = {}) {
+function presetSearchRoots({ targetInput = "", home = "" } = {}) {
   const roots = [];
   if (targetInput) roots.push({ source: "project", root: projectPresetRoot(targetInput) });
-  roots.push({ source: "user", root: userPresetRoot });
+  roots.push({ source: "user", root: home ? userPresetRootForHome(home) : userPresetRoot });
   roots.push({ source: "builtin", root: builtinPresetRoot });
   return roots;
 }
@@ -566,5 +606,22 @@ function copyDirectory(source, destination) {
     const destinationPath = path.join(destination, entry.name);
     if (entry.isDirectory()) copyDirectory(sourcePath, destinationPath);
     else if (entry.isFile()) fs.copyFileSync(sourcePath, destinationPath);
+  }
+}
+
+function copyPresetPackage(sourcePath, destination, id) {
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  const tempDestination = path.join(path.dirname(destination), `.${id}.install-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`);
+  fs.rmSync(tempDestination, { recursive: true, force: true });
+  copyDirectory(sourcePath, tempDestination);
+  try {
+    const tempPreset = readPresetPackageFromPath(tempDestination);
+    const tempReport = validatePresetPackage(tempPreset);
+    if (tempReport.failures.length) throw new Error(`Invalid preset package ${id}: ${tempReport.failures.join("; ")}`);
+    fs.rmSync(destination, { recursive: true, force: true });
+    fs.renameSync(tempDestination, destination);
+  } catch (error) {
+    fs.rmSync(tempDestination, { recursive: true, force: true });
+    throw error;
   }
 }

@@ -12,7 +12,10 @@ export const lessonCandidatesFile = "lesson_candidates.md";
 export const longRunningTaskContractFile = "long-running-task-contract.md";
 export const taskContractMarker = "Task Contract: harness-task/v1";
 export const builtinPresetRoot = path.join(repoRoot, "presets");
-export const userPresetRoot = path.join(os.homedir(), ".coding-agent-harness/presets");
+export function userPresetRootForHome(home = "") {
+  return path.join(path.resolve(home || os.homedir()), ".coding-agent-harness/presets");
+}
+export const userPresetRoot = userPresetRootForHome();
 
 
 export const supportedLocales = new Set(["zh-CN", "en-US"]);

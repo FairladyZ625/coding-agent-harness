@@ -161,7 +161,7 @@ assert(legacyPresetTask.task?.id === `TASKS/${todayLocal}-harness-v1-migration`,
 assert(legacyPresetTask.task?.kind === "project-migration", "legacy-migration preset should report project-migration kind");
 assert(legacyPresetTask.task?.preset === "legacy-migration", "legacy-migration preset should report preset");
 assert(legacyPresetTask.task?.presetVersion === "2", "legacy-migration preset should use version from preset.yaml");
-assert(legacyPresetTask.task?.presetAudit?.manifestPath === "presets/legacy-migration/preset.yaml", "legacy-migration preset should report manifest audit path");
+assert(legacyPresetTask.task?.presetAudit?.manifestPath.endsWith(".coding-agent-harness/presets/legacy-migration/preset.yaml"), "legacy-migration preset should report seeded project manifest audit path");
 assert(legacyPresetTask.task?.evidenceBundle, "legacy-migration preset should report evidence bundle");
 const legacyPresetTaskDir = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-harness-v1-migration`);
 const legacyPresetTaskPlan = fs.readFileSync(path.join(legacyPresetTaskDir, "task_plan.md"), "utf8");
@@ -180,7 +180,7 @@ for (const required of ["preset-manifest.json", "preset-audit.json", "write-scop
   );
 }
 const legacyPresetAudit = JSON.parse(fs.readFileSync(path.join(lifecycleTarget, legacyPresetTask.task.evidenceBundle, "preset-audit.json"), "utf8"));
-assert(legacyPresetAudit.manifestPath === "presets/legacy-migration/preset.yaml", "preset audit should record the manifest path");
+assert(legacyPresetAudit.manifestPath.endsWith(".coding-agent-harness/presets/legacy-migration/preset.yaml"), "preset audit should record the seeded project manifest path");
 assert(legacyPresetAudit.entrypoints.newTask.type === "template", "preset audit should record audited newTask entrypoint");
 assert(legacyPresetAudit.writeScopes.includes("docs/09-PLANNING/TASKS/**"), "preset audit should record allowed write scopes");
 const legacyMigrationLedger = JSON.parse(fs.readFileSync(path.join(lifecycleTarget, legacyPresetTask.task.evidenceBundle, "migration-ledger.json"), "utf8"));

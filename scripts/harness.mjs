@@ -94,6 +94,7 @@ Usage:
   harness preset inspect <id> [--json] [target]
   harness preset check <id> [--json] [target]
   harness preset install <path-or-builtin-id> [--project] [--force] [--json] [target]
+  harness preset seed [--project] [--force] [--dry-run] [--json] [target]
   harness preset uninstall <id> [--project] [--json] [target]
   harness new-task <task-id> [--module key] [--budget simple|standard|complex] [--preset id] [--from-session session.json] [--long-running] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
   harness task-start <task-id> [--message text] [target]
@@ -112,7 +113,7 @@ Usage:
   harness task-archive <task-id> [--reason text] [target]
   harness task-reopen <task-id> [--reason text] [target]
   harness module-step <module-key> <step-id> [--state done|in-progress|blocked] [target]
-  harness install-user [--agent codex|claude|gemini|openclaw|agents|all] [--home dir] [--dry-run] [--force] [--yes]
+  harness install-user [--agent codex|claude|gemini|openclaw|agents|all] [--home dir] [--dry-run] [--force] [--skip-presets] [--yes]
   harness doctor-user [--agent codex|claude|gemini|openclaw|agents|all] [--home dir]
 
 If init runs in an interactive terminal and --locale is omitted, it asks for a
@@ -123,6 +124,9 @@ Preset discovery:
   User presets live in ~/.coding-agent-harness/presets/<preset-id>/.
   Harness discovers project presets first when a target is supplied, then user
   presets, then bundled package presets under presets/<preset-id>/.
+  "harness init" seeds bundled presets into the target project. "harness
+  install-user" and npm postinstall seed bundled presets into the user root.
+  Use "harness preset seed" to repair or re-run preset seeding.
   Use "harness preset list --json" to see available presets, their source,
   purpose, compatible budgets, and manifest path. Use "harness preset inspect
   <id> --json" for the full preset manifest summary.
@@ -200,7 +204,7 @@ if (command === "help" || command === "--help" || command === "-h") {
   const capabilities = takeOption("--capabilities", "core").split(",").map((item) => item.trim()).filter(Boolean);
   try {
     const result = writeInitFiles(targetArg(), capabilities, { dryRun, locale, addNpmScripts });
-    console.log(JSON.stringify({ dryRun, locale: result.locale, capabilities: result.capabilities, changes: result.changes, nextCommands: result.nextCommands, report: result.report }, null, 2));
+    console.log(JSON.stringify({ dryRun, locale: result.locale, capabilities: result.capabilities, changes: result.changes, presetSeed: result.presetSeed, nextCommands: result.nextCommands, report: result.report }, null, 2));
   } catch (error) {
     console.error(error.message);
     process.exit(1);
@@ -245,6 +249,7 @@ if (command === "help" || command === "--help" || command === "-h") {
   const dryRun = takeFlag("--dry-run");
   const force = takeFlag("--force");
   const yes = takeFlag("--yes") || takeFlag("-y");
+  const skipPresets = takeFlag("--skip-presets");
   takeFlag("--global");
   const agent = takeOption("--agent", "codex");
   const home = takeOption("--home", "");
@@ -253,7 +258,7 @@ if (command === "help" || command === "--help" || command === "-h") {
     process.exit(2);
   }
   try {
-    console.log(JSON.stringify(installUserSkill({ agent, home, dryRun, force }), null, 2));
+    console.log(JSON.stringify(installUserSkill({ agent, home, dryRun, force, seedPresets: !skipPresets }), null, 2));
   } catch (error) {
     console.error(error.message);
     process.exit(1);

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.4
+
+- Seed bundled presets into user preset storage during npm/user installation and
+  into project preset storage during `harness init`.
+- Added `harness preset seed` for idempotent bundled preset repair/re-run flows.
+- Included bundled presets in user-level Skill installation and `doctor-user`
+  validation.
+- Updated agent-facing installation guidance to require preset discovery before
+  choosing task presets.
+
 ## 1.0.3
 
 - Added lesson sedimentation follow-up task creation through CLI, preset, and

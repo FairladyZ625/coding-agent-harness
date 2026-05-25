@@ -52,7 +52,13 @@ const home = path.join(tmpRoot, "preset-home");
 const env = { ...process.env, HOME: home };
 const target = path.join(tmpRoot, "preset-engine-target");
 fs.mkdirSync(target);
-expectJson(["init", "--locale", "en-US", "--capabilities", "core", target], { env });
+const initResult = expectJson(["init", "--locale", "en-US", "--capabilities", "core", target], { env });
+assert(initResult.presetSeed?.scope === "project", "init should seed bundled presets into the project preset root");
+assert(fs.existsSync(path.join(target, ".coding-agent-harness/presets/module/preset.yaml")), "init should install the bundled module preset into the project");
+const projectSeededList = expectJson(["preset", "list", "--json", target], { env });
+assert(projectSeededList.presets.some((preset) => preset.id === "module" && preset.source === "project"), "project-seeded bundled presets should be discovered before builtin fallback");
+const projectSeedAgain = expectJson(["preset", "seed", "--project", "--json", target], { env });
+assert(projectSeedAgain.skipped >= 1, "preset seed should be idempotent by default");
 
 const listBefore = expectJson(["preset", "list", "--json"], { env });
 const legacyBefore = listBefore.presets.find((preset) => preset.id === "legacy-migration");

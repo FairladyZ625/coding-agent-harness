@@ -25,6 +25,7 @@ const noSideEffectCommands = [
   ["add-capability", "--help"],
   ["preset", "--help"],
   ["preset", "install", "--help"],
+  ["preset", "seed", "--help"],
   ["task-start", "--help"],
   ["task-log", "--help"],
   ["task-complete", "--help"],
@@ -50,3 +51,4 @@ assert(helpText.includes("<target>/.coding-agent-harness/presets/<preset-id>/"),
 assert(helpText.includes("~/.coding-agent-harness/presets/<preset-id>/"), "help should document user preset root");
 assert(helpText.includes("bundled package"), "help should document bundled preset fallback");
 assert(helpText.includes("preset list --json"), "help should point agents to preset discovery command");
+assert(helpText.includes("preset seed"), "help should document bundled preset seeding");

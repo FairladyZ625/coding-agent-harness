@@ -135,6 +135,11 @@ npm install -g coding-agent-harness
 harness --help
 ```
 
+npm 安装会把内置 Preset seed 到 `~/.coding-agent-harness/presets/`。
+`harness init` 也会把这些 Preset seed 到目标项目的
+`.coding-agent-harness/presets/`，所以 Agent 可以用
+`harness preset list --json` 发现稳定的任务方法。
+
 Agent 不应静默执行全局安装。只有用户明确同意修改全局 npm 环境后，Agent 才能运行 `npm install -g coding-agent-harness`；否则继续使用 `npx --yes coding-agent-harness ...`。
 
 ### 人看的常用命令
@@ -182,6 +187,7 @@ npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
 
 只有我明确同意后，才运行：
 npm install -g coding-agent-harness
+harness preset list --json
 
 如果我不同意或没有回复，后续 CLI 都用：
 npx --yes coding-agent-harness <command>
@@ -195,6 +201,7 @@ npx --yes coding-agent-harness <command>
 确认后，按照 Diagnose → Decide → Scaffold → Configure → Verify → Deliver 六阶段执行。
 执行初始化时使用：
 npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
+npx --yes coding-agent-harness preset list --json .
 
 初始化完成后，日常查看和人工确认使用动态网页：
 npx --yes coding-agent-harness dev .
@@ -222,6 +229,7 @@ npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness
 
 只有我明确同意后，才运行：
 npm install -g coding-agent-harness
+harness preset list --json
 
 如果我不同意或没有回复，后续 CLI 都用：
 npx --yes coding-agent-harness <command>

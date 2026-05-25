@@ -22,6 +22,12 @@ User-installed presets live in:
 
 When a target is supplied, Harness discovers project presets first, then user presets, then bundled presets under the package `presets/` directory. Use project presets when a repository needs to override or pin a task method. Use user presets for personal reusable methods across repositories.
 
+Bundled presets are not only fallback files. `npm install -g coding-agent-harness`
+and `harness install-user` seed them into the user preset root, while
+`harness init` seeds them into the project preset root. Re-run
+`harness preset seed` for the user root or `harness preset seed --project <target>`
+for the project root when a preset root is missing or incomplete.
+
 ## Package Layout
 
 ```text
@@ -180,6 +186,8 @@ harness preset check ./my-preset
 harness preset install ./my-preset
 harness preset install ./my-preset --project /path/to/project
 harness preset install legacy-migration --force
+harness preset seed
+harness preset seed --project /path/to/project
 harness preset list --json /path/to/project
 harness preset inspect custom-review --json /path/to/project
 harness new-task custom-review-task --preset custom-review --subject "API contracts" /path/to/project

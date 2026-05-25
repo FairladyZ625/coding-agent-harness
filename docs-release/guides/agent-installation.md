@@ -137,6 +137,16 @@ harness install-user --agent codex --global
 harness doctor-user --agent codex
 ```
 
+`npm install -g coding-agent-harness`、`harness install-user` 和 `harness init`
+都会 seed 内置 Preset：
+
+- 用户级 Preset：`~/.coding-agent-harness/presets/<preset-id>/`
+- 项目级 Preset：`<target>/.coding-agent-harness/presets/<preset-id>/`
+
+Agent 初始化或接手任务前必须运行 `harness preset list --json [target]`，
+确认可用 Preset 后再选择 `--preset`。如需修复缺失的内置 Preset，运行
+`harness preset seed` 或 `harness preset seed --project <target>`。
+
 支持的 agent target：
 
 | Agent | 用户级目录 |
@@ -153,7 +163,7 @@ harness doctor-user --agent codex
 - 默认交互确认；非交互场景必须传 `--yes` 或先用 `--dry-run`。
 - 默认不覆盖已有文件，只补缺失文件。
 - 需要强制更新时显式传 `--force`。
-- `doctor-user` 会检查 `SKILL.md`、模板、references、CLI scripts 和本指南是否存在。
+- `doctor-user` 会检查 `SKILL.md`、模板、references、内置 Preset、CLI scripts、本指南，以及用户级 Preset seed 是否存在。
 
 ## 旧 Harness 迁移
 

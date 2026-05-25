@@ -14,7 +14,9 @@ import {
   walkFiles,
   normalizeLocale,
   localizedTemplateSource,
+  userPresetRootForHome,
 } from "./core-shared.mjs";
+import { listBundledPresetIds, seedBundledPresets } from "./preset-registry.mjs";
 
 export const capabilityDefinitions = {
   core: {
@@ -205,6 +207,7 @@ export function buildInstallReport({ target, locale, capabilities, changes, dryR
     agentInstructions: [
       "Agents must choose locale during Decide and pass --locale zh-CN|en-US explicitly in non-interactive installs.",
       "Use core for every install; add optional capabilities only when their selectWhen rule is true.",
+      "Bundled presets are seeded during init; use harness preset list --json before choosing task presets.",
       "After scaffold, run Configure before marking capabilities configured or verified.",
       "Run harness check/status/dashboard and record residuals before delivery.",
     ],
@@ -250,6 +253,7 @@ function skillPackageEntries() {
     "references",
     "templates",
     "templates-zh-CN",
+    "presets",
     "scripts",
     "docs-release",
     "examples",
@@ -287,7 +291,7 @@ function copySkillPackage(targetRoot, { dryRun = false, force = false } = {}) {
   return changes;
 }
 
-export function installUserSkill({ agent = "codex", home = "", dryRun = false, force = false } = {}) {
+export function installUserSkill({ agent = "codex", home = "", dryRun = false, force = false, seedPresets = true } = {}) {
   const agents = normalizeUserAgent(agent);
   const targets = agents.map((targetAgent) => {
     const target = targetForUserAgent(targetAgent, home);
@@ -301,8 +305,11 @@ export function installUserSkill({ agent = "codex", home = "", dryRun = false, f
       skipped: changes.filter((change) => change.action === "skip-existing").length,
     };
   });
-  const changed = targets.some((target) => target.created > 0 || target.overwritten > 0);
-  const onlySkipped = targets.every((target) => target.created === 0 && target.overwritten === 0 && target.skipped > 0);
+  const presetSeed = seedPresets ? seedBundledPresets({ scope: "user", home, dryRun, force }) : null;
+  const changed = targets.some((target) => target.created > 0 || target.overwritten > 0) || (presetSeed && (presetSeed.created > 0 || presetSeed.overwritten > 0));
+  const onlySkipped =
+    targets.every((target) => target.created === 0 && target.overwritten === 0 && target.skipped > 0) &&
+    (!presetSeed || presetSeed.presets.every((preset) => preset.action === "skip-existing"));
   return {
     operation: "install-user",
     status: dryRun ? "dry-run" : changed ? "installed" : onlySkipped ? "already-present" : "no-op",
@@ -310,6 +317,7 @@ export function installUserSkill({ agent = "codex", home = "", dryRun = false, f
     force,
     version: packageVersion(),
     source: repoRoot,
+    presets: presetSeed,
     targets,
   };
 }
@@ -342,6 +350,7 @@ export function doctorUserSkill({ agent = "codex", home = "" } = {}) {
     "references",
     "templates",
     "templates-zh-CN",
+    "presets",
     "scripts/harness.mjs",
     "docs-release/guides/agent-installation.md",
   ];
@@ -356,12 +365,20 @@ export function doctorUserSkill({ agent = "codex", home = "" } = {}) {
       missing,
     };
   });
+  const presetRoot = userPresetRootForHome(home);
+  const missingPresets = listBundledPresetIds().filter((id) => !fs.existsSync(path.join(presetRoot, id, "preset.yaml")));
+  const presets = {
+    root: presetRoot,
+    status: missingPresets.length === 0 ? "pass" : "fail",
+    missing: missingPresets,
+  };
   const harnessCommand = commandOnPath("harness");
   return {
     operation: "doctor-user",
-    status: targets.every((target) => target.status === "pass") ? "pass" : "fail",
+    status: targets.every((target) => target.status === "pass") && presets.status === "pass" ? "pass" : "fail",
     version: packageVersion(),
     harnessCommand: harnessCommand || null,
+    presets,
     targets,
   };
 }
@@ -504,8 +521,9 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true, local
     const registryPath = path.join(target.projectRoot, ".harness-capabilities.json");
     if (!fs.existsSync(registryPath)) fs.writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
   }
+  const presetSeed = seedBundledPresets({ scope: "project", targetInput: target.projectRoot, dryRun });
   const report = buildInstallReport({ target, locale: normalizedLocale, capabilities: normalizedCapabilities, changes, dryRun, operation: "init" });
-  return { target, capabilities: normalizedCapabilities, locale: normalizedLocale, changes, nextCommands: initNextCommands(), report };
+  return { target, capabilities: normalizedCapabilities, locale: normalizedLocale, changes, presetSeed, nextCommands: initNextCommands(), report };
 }
 
 function initNextCommands() {
