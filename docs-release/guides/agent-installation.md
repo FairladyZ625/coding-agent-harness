@@ -179,6 +179,12 @@ harness migrate-run \
 
 harness migrate-verify \
   /tmp/cah-migration-project/session.json
+
+harness new-task \
+  --budget complex \
+  --preset legacy-migration \
+  --from-session /tmp/cah-migration-project/session.json \
+  /path/to/old-project
 ```
 
 规则：
@@ -192,6 +198,7 @@ harness migrate-verify \
 - `--strict` 必须仍然能因为旧 checker 失败或历史合同缺口而失败。
 - 旧全局表和模块索引先归档，再用 `harness governance rebuild --archive --apply` 重新生成；这些表是 Agent 索引，人看状态优先用 Dashboard。
 - `migrate-verify` 必须通过，才能报告迁移输出可用；dashboard 路径必须是 HTML。
+- 必须基于验证通过的 `session.json` 创建 `legacy-migration` preset 任务。它记录 migration session、证据包、preset audit 和后续 work queue；不会自动重写历史任务正文。
 - 详细迁移策略见 `docs-release/guides/migration-playbook.md` 或英文镜像
   `docs-release/guides/migration-playbook.en-US.md`。如果用户要求证明旧项目已经完整迁移，
   还必须读取 `docs-release/guides/full-legacy-migration-subagent-strategy.md` 或中文镜像

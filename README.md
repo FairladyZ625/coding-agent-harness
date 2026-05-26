@@ -275,6 +275,15 @@ During the scan phase, run at least:
 npx --yes coding-agent-harness status --json .
 npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 
+After I confirm the migration mode, run the migration rail and verify it:
+npx --yes coding-agent-harness migrate-run --locale zh-CN --session-dir /tmp/cah-migration-project --out-dir /tmp/cah-migration-project/dashboard .
+npx --yes coding-agent-harness migrate-verify /tmp/cah-migration-project/session.json
+
+Then create the controlled migration task with the bundled preset:
+npx --yes coding-agent-harness new-task --budget complex --preset legacy-migration --from-session /tmp/cah-migration-project/session.json .
+
+Do not skip the `legacy-migration` preset task. It records the migration session, evidence bundle, preset audit, and follow-up work queue in the project Harness. It does not automatically rewrite historical task bodies.
+
 When the migration is complete, report the dynamic workbench URL or static dashboard HTML, session.json, normal/strict checks, migrate-plan summary, and whether full-cutover verification passes. If human review confirmation is required, expose that action in the local web workbench; static dashboards are read-only evidence snapshots.
 ```
 

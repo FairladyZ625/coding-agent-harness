@@ -122,6 +122,20 @@ The command writes:
 - `status-strict.json`
 - `dashboard/index.html`
 
+After `migrate-run`, verify the session and create the controlled migration task:
+
+```bash
+harness migrate-verify /tmp/cah-migration-project/session.json
+
+harness new-task \
+  --budget complex \
+  --preset legacy-migration \
+  --from-session /tmp/cah-migration-project/session.json \
+  /path/to/project
+```
+
+Do not skip the `legacy-migration` preset task. It creates a Complex Task that records the session, evidence bundle, preset manifest audit, write scope, and migration follow-up queue. It does not automatically rewrite historical task bodies. If `harness new-task --preset legacy-migration` fails, stop and report that the migration task was not created instead of continuing from a verbal summary.
+
 Classify the output:
 
 | Output | Meaning | Action |

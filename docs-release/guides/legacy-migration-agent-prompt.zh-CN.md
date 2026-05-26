@@ -123,6 +123,20 @@ harness migrate-run \
 - `status-strict.json`
 - `dashboard/index.html`
 
+`migrate-run` 之后，先验证 session，再创建受控迁移任务：
+
+```bash
+harness migrate-verify /tmp/cah-migration-project/session.json
+
+harness new-task \
+  --budget complex \
+  --preset legacy-migration \
+  --from-session /tmp/cah-migration-project/session.json \
+  /path/to/project
+```
+
+不要跳过 `legacy-migration` preset 任务。它会创建一个 Complex Task，把 session、证据包、preset manifest audit、write scope 和 migration follow-up queue 记录下来；它不会自动重写历史任务正文。如果 `harness new-task --preset legacy-migration` 失败，停止并报告迁移任务没有创建，不要只靠口头总结继续。
+
 输出分类：
 
 | Output | 含义 | 动作 |

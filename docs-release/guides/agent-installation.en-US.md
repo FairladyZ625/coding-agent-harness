@@ -164,6 +164,12 @@ harness migrate-run \
 
 harness migrate-verify \
   /tmp/cah-migration-project/session.json
+
+harness new-task \
+  --budget complex \
+  --preset legacy-migration \
+  --from-session /tmp/cah-migration-project/session.json \
+  /path/to/old-project
 ```
 
 Rules:
@@ -176,6 +182,7 @@ Rules:
 - `--strict` must still fail on legacy checker failures or unresolved historical contract gaps.
 - Archive old global tables and module indexes first, then regenerate them with `harness governance rebuild --archive --apply`; those tables are agent indexes, while humans should use the Dashboard for status.
 - `migrate-verify` must pass before the migration output is reported as usable, and the dashboard path must be HTML.
+- The `legacy-migration` preset task must be created from the verified `session.json`. It records the migration session, evidence bundle, preset audit, and follow-up work queue; it does not automatically rewrite historical task bodies.
 - For detailed migration strategy, read `docs-release/guides/migration-playbook.md` or `docs-release/guides/migration-playbook.en-US.md`. If the user requires proof that the old project is fully migrated, also read `docs-release/guides/full-legacy-migration-subagent-strategy.md` or `docs-release/guides/full-legacy-migration-subagent-strategy.zh-CN.md`.
 
 The agent must read `session.json` and `migrate-plan.json`, then migrate active tasks, current reviews, and truly adopted capabilities step by step. Subagent review must prove dashboard brief coverage, strict check, and final session all pass.

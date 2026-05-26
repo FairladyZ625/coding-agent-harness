@@ -9,6 +9,7 @@ import {
   localDate,
 } from "./core-shared.mjs";
 import { parseLessonCandidateStatus } from "./task-lesson-candidates.mjs";
+import { readCapabilityRegistry } from "./capability-registry.mjs";
 import { createTask, resolveTaskDirectory } from "./task-lifecycle.mjs";
 import { readPresetPackage, buildPresetAudit, renderPresetTemplate } from "./preset-registry.mjs";
 import { firstColumn, updateMarkdownTableRow } from "./markdown-utils.mjs";
@@ -79,11 +80,12 @@ export function createLessonSedimentationTask(targetInput, taskRef, candidateId,
   const preset = readPresetPackage(presetId);
   const slug = normalizeTaskId(`lesson-${sourceShortId.replace(/^\d{4}-\d{2}-\d{2}-/, "")}-${candidate.id}`);
   const taskTitle = title || `Lesson sedimentation for ${candidate.id}`;
+  const locale = readCapabilityRegistry(target).locale;
   let taskResult;
   try {
     taskResult = createTask(target.projectRoot, slug, {
       title: taskTitle,
-      locale: "en-US",
+      locale,
       budget: "standard",
       longRunning: true,
       dryRun,

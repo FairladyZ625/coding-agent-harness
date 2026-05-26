@@ -96,6 +96,18 @@ harness migrate-verify /tmp/cah-migration-project/session.json
 
 `migrate-verify` 会检查 capability registry、locale、dashboard HTML 路径、普通检查、strict deferred 元数据和 git index。它通过以后，才可以说迁移输出“可用”。
 
+4. 基于验证通过的 session 创建迁移任务：
+
+```bash
+harness new-task \
+  --budget complex \
+  --preset legacy-migration \
+  --from-session /tmp/cah-migration-project/session.json \
+  /path/to/project
+```
+
+`legacy-migration` preset 任务是后续迁移工作的可审计交接点。它会记录 session、证据包、preset audit、write scope 和 migration follow-up queue；不会自动重写历史任务正文。
+
 如果后续继续清理 warning 或补活跃任务合同，第一次 session 只能作为 baseline。最终交付前要重新运行 `migrate-run` 生成新 session/dashboard，或者明确列出 baseline session 与最终检查证据的差异。
 
 `migrate-verify` 通过不等于 full migration complete。完整迁移还必须满足：

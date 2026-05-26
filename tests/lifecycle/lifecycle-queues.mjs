@@ -352,6 +352,8 @@ const lessonSediment = expectJson(["lesson-sediment", lessonTask.task.id, "LC-QU
 assert(lessonSediment.preset === "lesson-sedimentation", "lesson-sediment should report preset");
 assert(lessonSediment.followUpTask.id.startsWith("TASKS/"), "lesson-sediment should create a follow-up task");
 assert(fs.existsSync(path.join(target, lessonSediment.followUpTask.path.replace(/^TARGET:/, ""), "artifacts/lesson-sedimentation-prompt.md")), "lesson-sediment should write prompt artifact");
+const followUpBrief = fs.readFileSync(path.join(target, lessonSediment.followUpTask.path.replace(/^TARGET:/, ""), "brief.md"), "utf8");
+assert(followUpBrief.includes("## 创建日期"), "lesson-sediment should create follow-up tasks using the target registry locale");
 const followUpTaskPlan = fs.readFileSync(path.join(target, lessonSediment.followUpTask.path.replace(/^TARGET:/, ""), "task_plan.md"), "utf8");
 assert(followUpTaskPlan.includes(`| Source Lesson Candidates | TARGET:docs/09-PLANNING/${lessonTask.task.id}/lesson_candidates.md |`), "lesson-sediment context should link the source lesson_candidates.md file");
 assert(followUpTaskPlan.includes(`| Source Lesson Detail | TARGET:docs/09-PLANNING/${lessonTask.task.id}/lessons/LC-QUEUE-LESSON.md |`), "lesson-sediment context should link the source detail artifact");

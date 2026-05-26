@@ -92,6 +92,18 @@ harness migrate-verify /tmp/cah-migration-project/session.json
 
 `migrate-verify` checks the capability registry, locale, dashboard HTML path, normal check, strict deferred metadata, and git index. Only after it passes may the agent say the migration output is usable.
 
+4. Create the migration task from the verified session:
+
+```bash
+harness new-task \
+  --budget complex \
+  --preset legacy-migration \
+  --from-session /tmp/cah-migration-project/session.json \
+  /path/to/project
+```
+
+The `legacy-migration` preset task is the auditable handoff point for later work. It records the session, evidence bundle, preset audit, write scope, and migration follow-up queue. It does not automatically rewrite historical task bodies.
+
 If later cleanup repairs warnings or active task contracts, the first session is only the baseline. Before final delivery, rerun `migrate-run` for a fresh session/dashboard or explicitly label the differences between baseline session and final evidence.
 
 `migrate-verify` passing does not mean the full migration is complete. Full migration also requires:

@@ -266,6 +266,15 @@ npx --yes coding-agent-harness <command>
 npx --yes coding-agent-harness status --json .
 npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 
+等我确认迁移模式后，执行迁移轨道并验证：
+npx --yes coding-agent-harness migrate-run --locale zh-CN --session-dir /tmp/cah-migration-project --out-dir /tmp/cah-migration-project/dashboard .
+npx --yes coding-agent-harness migrate-verify /tmp/cah-migration-project/session.json
+
+然后用内置 preset 创建受控迁移任务：
+npx --yes coding-agent-harness new-task --budget complex --preset legacy-migration --from-session /tmp/cah-migration-project/session.json .
+
+不要跳过 `legacy-migration` preset 任务。它会把 migration session、证据包、preset audit 和后续 work queue 记录进项目 Harness；它不会自动重写历史任务正文。
+
 最终迁移完成时，必须给出动态 workbench 入口或静态 dashboard HTML、session.json、normal/strict check、migrate-plan summary，以及 full-cutover 验证是否通过。需要人工确认审查时，必须通过本地网页 workbench 暴露确认操作；静态 dashboard 只作为只读证据快照。
 ```
 
