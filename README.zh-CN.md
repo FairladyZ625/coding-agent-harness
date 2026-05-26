@@ -305,4 +305,8 @@ npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 
 ## License
 
-MIT
+AGPL-3.0-or-later，并附带 Generated Harness Materials 额外许可。
+
+详见 [`LICENSE`](LICENSE) 和 [`LICENSE-EXCEPTION.md`](LICENSE-EXCEPTION.md)。
+该额外许可确保 Harness 生成或安装到目标项目里的文件，不会仅仅因为由
+Coding Agent Harness 创建或更新，就自动变成 AGPL 覆盖范围。

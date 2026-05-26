@@ -314,4 +314,10 @@ When done, summarize what changed, list verification results, call out any skipp
 
 ## License
 
-MIT
+AGPL-3.0-or-later with an additional permission for Generated Harness
+Materials.
+
+See [`LICENSE`](LICENSE) and [`LICENSE-EXCEPTION.md`](LICENSE-EXCEPTION.md).
+The additional permission keeps files generated or installed into a target
+project from becoming AGPL-covered solely because Coding Agent Harness created
+or updated them.

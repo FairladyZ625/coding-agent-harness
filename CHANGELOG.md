@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Relicense the public package from MIT to AGPL-3.0-or-later.
+- Add an additional permission for Generated Harness Materials so target
+  project files generated or installed by Coding Agent Harness can follow the
+  target project's own license terms.
+
 ## 1.0.4
 
 - Seed bundled presets into user preset storage during npm/user installation and
