@@ -180,7 +180,7 @@ export function normalizeTaskId(value) {
   return slug(value || "task");
 }
 
-export function renderTaskTemplate(content, { taskId, title, locale, budget = "standard", scaffoldProvenance = {} }) {
+export function renderTaskTemplate(content, { taskId, title, locale, budget = "standard", moduleKey = "", preset = "none", presetVersion = "", evidenceBundle = "", longRunning = false, scaffoldProvenance = {} }) {
   const date = todayDate();
   const provenance = {
     createdBy: scaffoldProvenance.createdBy || "harness new-task",
@@ -196,6 +196,11 @@ export function renderTaskTemplate(content, { taskId, title, locale, budget = "s
     .replaceAll("{{DATE}}", date)
     .replaceAll("{{LOCALE}}", normalizeLocale(locale))
     .replaceAll("{{TASK_BUDGET}}", budget)
+    .replaceAll("{{TASK_MODULE}}", moduleKey || "n/a")
+    .replaceAll("{{TASK_PRESET}}", preset || "none")
+    .replaceAll("{{TASK_PRESET_VERSION}}", presetVersion || "n/a")
+    .replaceAll("{{TASK_EVIDENCE_BUNDLE}}", evidenceBundle || "n/a")
+    .replaceAll("{{TASK_LONG_RUNNING}}", longRunning ? "yes" : "no")
     .replaceAll("{{SCAFFOLD_CREATED_BY}}", provenance.createdBy)
     .replaceAll("{{SCAFFOLD_COMMAND}}", provenance.command)
     .replaceAll("{{SCAFFOLD_CREATED_AT}}", provenance.createdAt)

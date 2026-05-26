@@ -8,6 +8,7 @@ import { builtinPresetRoot, projectPresetRoot, repoRoot, toPosix, userPresetRoot
 const allowedEntrypoints = new Set(["newTask", "plan", "scaffold", "check"]);
 const allowedEntrypointTypes = new Set(["template", "script", "check"]);
 const allowedEvidenceTypes = new Set(["text", "json", "input-json", "preset-audit", "preset-manifest", "write-scope", "migration-verify", "migration-ledger", "dashboard-hash", "target-git-status", "target-commit", "harness-version", "generated-at"]);
+const allowedNewTaskTemplateKeys = new Set(["taskPlanAppend", "executionStrategyAppend", "visualMapAppend", "findingsSeed", "reviewSeed", "prompt"]);
 const maxPresetArchiveBytes = 25 * 1024 * 1024;
 const maxPresetArchiveUncompressedBytes = 50 * 1024 * 1024;
 const maxPresetArchiveEntries = 500;
@@ -241,7 +242,11 @@ export function validatePresetPackage(preset) {
       else validatePresetPackageFile(preset, entrypoint.command, `${name} command`, failures);
     }
   }
-  for (const templatePath of Object.values(preset.newTaskTemplates)) {
+  for (const [templateKey, templatePath] of Object.entries(preset.newTaskTemplates)) {
+    if (!allowedNewTaskTemplateKeys.has(templateKey)) {
+      failures.push(`unsupported newTask template: ${templateKey}`);
+      continue;
+    }
     const absolute = path.join(preset.directory, templatePath);
     if (!isInside(preset.directory, absolute)) failures.push(`template escapes preset package: ${templatePath}`);
     else validatePresetPackageFile(preset, templatePath, "template", failures);

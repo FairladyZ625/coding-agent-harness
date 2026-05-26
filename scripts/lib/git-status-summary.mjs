@@ -27,7 +27,7 @@ export function summarizeGitState(target) {
   const dirty = entries.length > 0;
   const warnings = [];
   if (dirty) {
-    warnings.push(`dirty-state: ${entries.length} uncommitted Git path(s) will block CLI-owned auto-commit; commit them or record owner/no-commit reason before lifecycle commands.`);
+    warnings.push(`dirty-state: ${entries.length} uncommitted Git path(s) may block CLI-owned auto-commit when they overlap a command write scope or are staged; commit them or record owner/no-commit reason before lifecycle commands.`);
   }
   return {
     summary: {

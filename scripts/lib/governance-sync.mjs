@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { readBundledTemplate, readFileSafe, repoRoot, todayDate, toPosix, visualMapFile } from "./core-shared.mjs";
 import { collectTasks } from "./task-scanner.mjs";
@@ -16,7 +17,7 @@ export class GovernanceSyncError extends Error {
   }
 }
 
-export function beginGovernanceSync(target, { operation = "governance-sync", dryRun = false } = {}) {
+export function beginGovernanceSync(target, { operation = "governance-sync", dryRun = false, allowDirtyWorktree = false, allowedRelativePaths = [] } = {}) {
   if (dryRun) return { target, dryRun, operation, git: inspectGit(target.projectRoot), lockPath: "", active: false };
   const lockPath = path.join(target.projectRoot, ".harness/locks/governance-sync.lock");
   fs.mkdirSync(path.dirname(lockPath), { recursive: true });
@@ -48,6 +49,7 @@ export function beginGovernanceSync(target, { operation = "governance-sync", dry
   if (fd !== null) fs.closeSync(fd);
 
   const gitState = inspectGit(target.projectRoot);
+  const allowed = [...new Set((allowedRelativePaths || []).filter(Boolean).map(toPosix))].sort();
   if (gitState.inGit) {
     if (real(gitState.gitRoot) !== real(target.projectRoot)) {
       releaseGovernanceSync({ lockPath, active: true });
@@ -57,7 +59,7 @@ export function beginGovernanceSync(target, { operation = "governance-sync", dry
         recovery: ["Run the harness command against the target repository root."],
       });
     }
-    if (gitState.entries.length > 0) {
+    if (gitState.entries.length > 0 && !allowDirtyWorktree) {
       releaseGovernanceSync({ lockPath, active: true });
       throw new GovernanceSyncError("Governance sync requires a clean Git working tree before CLI-owned writes.", {
         code: "governance-git-dirty",
@@ -65,9 +67,21 @@ export function beginGovernanceSync(target, { operation = "governance-sync", dry
         recovery: ["Commit or otherwise resolve unrelated changes before running this lifecycle command."],
       });
     }
+    if (gitState.entries.length > 0 && allowDirtyWorktree) {
+      try {
+        assertDirtyCompatibleWithWriteScope(gitState.entries, allowed);
+      } catch (error) {
+        releaseGovernanceSync({ lockPath, active: true });
+        throw error;
+      }
+    }
     assertCommitIdentity(target.projectRoot);
   }
-  return { target, dryRun, operation, git: gitState, lockPath, active: true };
+  const initialDirtyEntries = gitState.inGit ? gitState.entries.map((entry) => ({
+    ...entry,
+    fingerprint: fingerprintEntry(target.projectRoot, entry),
+  })) : [];
+  return { target, dryRun, operation, git: gitState, initialDirtyEntries, lockPath, active: true };
 }
 
 export function releaseGovernanceSync(context) {
@@ -82,24 +96,32 @@ export function releaseGovernanceSync(context) {
 export function commitGovernanceSync(context, allowedRelativePaths, { message = "chore(harness): sync governance state" } = {}) {
   const allowed = [...new Set((allowedRelativePaths || []).filter(Boolean).map(toPosix))].sort();
   if (context?.dryRun || !context?.git?.inGit) return { committed: false, reason: context?.git?.inGit ? "dry-run" : "not-git", allowedPaths: allowed };
-  assertOnlyAllowedChanged(context.target.projectRoot, allowed);
   if (allowed.length === 0) return { committed: false, reason: "no-allowed-paths", allowedPaths: allowed };
+  assertNoUnexpectedOutsideChanges(context.target.projectRoot, allowed, context.initialDirtyEntries || []);
   git(context.target.projectRoot, ["add", "--", ...allowed]);
   assertOnlyAllowedStaged(context.target.projectRoot, allowed);
   const staged = git(context.target.projectRoot, ["diff", "--cached", "--name-only", "-z"]).stdout.split("\0").filter(Boolean);
   if (staged.length === 0) return { committed: false, reason: "no-changes", allowedPaths: allowed };
-  const commitResult = git(context.target.projectRoot, ["commit", "-m", message], { allowFailure: true });
+  const commitResult = git(context.target.projectRoot, ["-c", "core.hooksPath=/dev/null", "commit", "--no-verify", "-m", message], { allowFailure: true });
   if (commitResult.status !== 0) {
+    let outsideChanges = null;
+    try {
+      assertNoUnexpectedOutsideChanges(context.target.projectRoot, allowed, context.initialDirtyEntries || []);
+    } catch (error) {
+      outsideChanges = error.details || null;
+    }
     throw new GovernanceSyncError("Governance sync wrote files but Git commit failed.", {
       code: "governance-git-commit-failed",
-      details: { stdout: commitResult.stdout.trim(), stderr: commitResult.stderr.trim(), allowedPaths: allowed },
+      details: { stdout: commitResult.stdout.trim(), stderr: commitResult.stderr.trim(), allowedPaths: allowed, outsideChanges },
       recovery: [
         `Inspect files: ${allowed.join(", ")}`,
-        `Then run: git add -- ${allowed.join(" ")} && git commit -m ${JSON.stringify(message)}`,
+        `Then run: git add -- ${allowed.join(" ")} && git -c core.hooksPath=/dev/null commit --no-verify -m ${JSON.stringify(message)}`,
       ],
     });
   }
-  assertClean(context.target.projectRoot);
+  assertLastCommitOnlyAllowed(context.target.projectRoot, allowed);
+  assertNoUnexpectedOutsideChanges(context.target.projectRoot, allowed, context.initialDirtyEntries || []);
+  assertWriteScopeClean(context.target.projectRoot, allowed);
   return { committed: true, commitSha: git(context.target.projectRoot, ["rev-parse", "HEAD"]).stdout.trim(), allowedPaths: allowed };
 }
 
@@ -446,19 +468,28 @@ function assertCommitIdentity(root) {
   }
 }
 
-function assertOnlyAllowedChanged(root, allowedPaths) {
-  const outside = statusEntries(root).filter((entry) => !allowedPaths.includes(entry.path));
-  if (outside.length > 0) {
-    throw new GovernanceSyncError("Governance sync produced changes outside the allowlist.", {
-      code: "governance-allowlist-violation",
-      details: { disallowed: outside, allowedPaths },
-      recovery: ["Inspect the extra paths; the CLI will not stage or commit unrelated files."],
+function assertDirtyCompatibleWithWriteScope(entries, allowedPaths) {
+  const allowed = new Set(allowedPaths);
+  const overlapping = entries.filter((entry) => allowed.has(entry.path));
+  if (overlapping.length > 0) {
+    throw new GovernanceSyncError("Governance sync write scope overlaps existing dirty files; refusing to overwrite user-owned changes.", {
+      code: "governance-write-scope-dirty",
+      details: { overlapping, allowedPaths },
+      recovery: ["Commit, move, or remove the overlapping files before retrying this lifecycle command."],
+    });
+  }
+  const outsideStaged = entries.filter((entry) => entry.index !== " " && entry.index !== "?" && !allowed.has(entry.path));
+  if (outsideStaged.length > 0) {
+    throw new GovernanceSyncError("Git index contains staged files outside the governance sync write scope.", {
+      code: "governance-index-outside-write-scope",
+      details: { disallowed: outsideStaged, allowedPaths },
+      recovery: ["Unstage unrelated files before retrying the lifecycle command."],
     });
   }
 }
 
 function assertOnlyAllowedStaged(root, allowedPaths) {
-  const outside = statusEntries(root).filter((entry) => entry.index !== " " && !allowedPaths.includes(entry.path));
+  const outside = statusEntries(root).filter((entry) => entry.index !== " " && entry.index !== "?" && !allowedPaths.includes(entry.path));
   if (outside.length > 0) {
     throw new GovernanceSyncError("Git index contains staged files outside the governance sync allowlist.", {
       code: "governance-index-allowlist-violation",
@@ -468,14 +499,73 @@ function assertOnlyAllowedStaged(root, allowedPaths) {
   }
 }
 
-function assertClean(root) {
-  const entries = statusEntries(root);
-  if (entries.length > 0) {
-    throw new GovernanceSyncError("Governance sync commit completed but working tree is not clean.", {
-      code: "governance-post-commit-dirty",
-      details: { entries },
-      recovery: ["Inspect remaining files before continuing."],
+function assertNoUnexpectedOutsideChanges(root, allowedPaths, initialDirtyEntries) {
+  const allowed = new Set(allowedPaths);
+  const initialByPath = new Map(
+    (initialDirtyEntries || [])
+      .filter((entry) => !allowed.has(entry.path))
+      .map((entry) => [entry.path, entry]),
+  );
+  const unexpected = [];
+  const changed = [];
+  for (const entry of statusEntries(root)) {
+    if (allowed.has(entry.path)) continue;
+    const current = { ...entry, fingerprint: fingerprintEntry(root, entry) };
+    const initial = initialByPath.get(entry.path);
+    if (!initial) {
+      unexpected.push(current);
+    } else if (initial.raw !== current.raw || initial.fingerprint !== current.fingerprint) {
+      changed.push({ before: initial, after: current });
+    }
+  }
+  if (unexpected.length > 0 || changed.length > 0) {
+    throw new GovernanceSyncError("Governance sync produced changes outside its write scope.", {
+      code: "governance-allowlist-violation",
+      details: { unexpected, changed, allowedPaths },
+      recovery: ["Inspect the extra paths; the CLI will not stage or commit unrelated files."],
     });
+  }
+}
+
+function assertLastCommitOnlyAllowed(root, allowedPaths) {
+  const committed = git(root, ["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "HEAD"]).stdout
+    .split("\0")
+    .filter(Boolean)
+    .map(toPosix);
+  const outside = committed.filter((file) => !allowedPaths.includes(file));
+  if (outside.length > 0) {
+    throw new GovernanceSyncError("Governance sync commit contains files outside its write scope.", {
+      code: "governance-commit-allowlist-violation",
+      details: { disallowed: outside, committed, allowedPaths },
+      recovery: ["Inspect the last commit and remove any files that are not owned by the lifecycle command."],
+    });
+  }
+}
+
+function assertWriteScopeClean(root, allowedPaths) {
+  const entries = statusEntries(root);
+  const remaining = entries.filter((entry) => allowedPaths.includes(entry.path));
+  if (remaining.length > 0) {
+    throw new GovernanceSyncError("Governance sync commit completed but write scope is not clean.", {
+      code: "governance-post-commit-dirty",
+      details: { entries: remaining, allowedPaths },
+      recovery: ["Inspect remaining write-scope files before continuing."],
+    });
+  }
+}
+
+function fingerprintEntry(root, entry) {
+  const absolute = path.join(root, entry.path);
+  try {
+    const stat = fs.lstatSync(absolute);
+    if (stat.isSymbolicLink()) return `symlink:${fs.readlinkSync(absolute)}`;
+    if (stat.isFile()) {
+      return `file:${stat.size}:${crypto.createHash("sha256").update(fs.readFileSync(absolute)).digest("hex")}`;
+    }
+    if (stat.isDirectory()) return "directory";
+    return `${stat.mode}:${stat.size}`;
+  } catch {
+    return "missing";
   }
 }
 

@@ -36,7 +36,8 @@ export function validatePlanContracts(target, { strict = true } = {}) {
       if (scaffoldProvenance.required || scaffoldProvenance.present) failures.push(`${relativeBriefPath} ${issue.message}`);
       else report(`${relativeBriefPath} ${issue.message}`);
     }
-    for (const fileName of requiredTaskFilesForBudget(budget)) {
+    const indexRequired = /^Task Package Index\s*[:：]\s*(required|yes|true|必需|必须|required)\s*$/im.test(taskPlanContent);
+    for (const fileName of requiredTaskFilesForBudget(budget, { indexRequired })) {
       if (!fs.existsSync(path.join(taskDir, fileName))) {
         if (taskContract.generated) failures.push(`${relativeDir} missing ${fileName}`);
         else report(`${relativeDir} missing ${fileName}`);
@@ -46,8 +47,8 @@ export function validatePlanContracts(target, { strict = true } = {}) {
   return { failures, warnings };
 }
 
-function requiredTaskFilesForBudget(budget) {
-  const simpleFiles = ["brief.md", "task_plan.md", visualMapFile, "progress.md"];
+function requiredTaskFilesForBudget(budget, { indexRequired = false } = {}) {
+  const simpleFiles = [...(indexRequired ? ["INDEX.md"] : []), "brief.md", "task_plan.md", visualMapFile, "progress.md"];
   if (budget === "simple") return simpleFiles;
   const standardFiles = [...simpleFiles, "execution_strategy.md", "findings.md", lessonCandidatesFile, "review.md"];
   if (budget === "complex") return [...standardFiles, "references/INDEX.md", "artifacts/INDEX.md"];

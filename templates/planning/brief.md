@@ -24,7 +24,7 @@ State the user-visible or project-visible result this task must deliver.
 
 - Owner: coordinator
 - Lifecycle state: not_started
-- Required files: `task_plan.md`, `execution_strategy.md`, `visual_map.md`, `progress.md`, `findings.md`, `review.md`
+- Required files: `INDEX.md`, `task_plan.md`, `execution_strategy.md`, `visual_map.md`, `progress.md`, `findings.md`, `review.md`
 - Required closeout: verification evidence recorded in `progress.md`
 
 ## First Next Step

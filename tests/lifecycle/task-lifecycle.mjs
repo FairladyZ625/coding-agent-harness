@@ -49,16 +49,24 @@ assert(
   lifecycleDryRun.changes.some((change) => change.destination.endsWith("brief.md") && change.action === "would-create"),
   "new-task dry-run should plan brief.md",
 );
+assert(
+  lifecycleDryRun.changes.some((change) => change.destination.endsWith("INDEX.md") && change.action === "would-create"),
+  "new-task dry-run should plan a root task INDEX.md",
+);
 assert(!fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle`)), "new-task dry-run should not mutate target");
 const lifecycleCreate = expectJson(["new-task", "phase-2-lifecycle", "--title", "阶段二任务生命周期", "--locale", "zh-CN", lifecycleTarget]);
 assert(lifecycleCreate.task?.shortId === `${todayLocal}-phase-2-lifecycle`, "new-task should report normalized short task id");
 assert(lifecycleCreate.task?.id === `TASKS/${todayLocal}-phase-2-lifecycle`, "new-task should report relative task id");
-for (const required of ["brief.md", "task_plan.md", "execution_strategy.md", "visual_map.md", "findings.md", "lesson_candidates.md", "progress.md", "review.md"]) {
+for (const required of ["INDEX.md", "brief.md", "task_plan.md", "execution_strategy.md", "visual_map.md", "findings.md", "lesson_candidates.md", "progress.md", "review.md"]) {
   assert(
     fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle`, required)),
     `new-task should create ${required}`,
   );
 }
+const lifecycleIndex = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/INDEX.md`), "utf8");
+assert(lifecycleIndex.includes("阶段二任务生命周期"), "root task index should render the task title");
+assert(lifecycleIndex.includes("task_plan.md") && lifecycleIndex.includes("visual_map.md"), "root task index should link core contract files");
+assert(lifecycleIndex.includes("Preset") || lifecycleIndex.includes("预设"), "root task index should reserve a system-rendered preset summary area");
 assert(
   fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/brief.md`), "utf8").includes("阶段二任务生命周期"),
   "new-task should render the requested title into brief.md",
@@ -68,6 +76,9 @@ assert(
   "new-task should render the durable task contract marker",
 );
 const lifecycleTaskPlan = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/task_plan.md`), "utf8");
+assert(!lifecycleTaskPlan.includes("| Budget | Use When |"), "task_plan.md should not repeat the budget matrix");
+assert(!lifecycleTaskPlan.includes("Do not hand-copy this template"), "task_plan.md should not carry scaffold usage warnings");
+assert(!lifecycleTaskPlan.includes("| Contract File | Purpose |"), "task_plan.md should not repeat generic contract-file purpose tables");
 assert(!lifecycleTaskPlan.includes("Scaffold Provenance"), "new-task should not render scaffold provenance into task_plan.md");
 const lifecycleBrief = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/brief.md`), "utf8");
 assert(lifecycleBrief.includes("## Scaffold Provenance"), "new-task should render scaffold provenance into brief.md");
@@ -88,7 +99,7 @@ const duplicateLifecycle = run(["new-task", `${todayLocal}-phase-2-lifecycle`, "
 assert(duplicateLifecycle.status !== 0, "new-task should refuse to overwrite an existing task directory");
 const simpleLifecycle = expectJson(["new-task", "simple-lifecycle", "--budget", "simple", "--title", "简单任务", "--locale", "zh-CN", lifecycleTarget]);
 assert(simpleLifecycle.task?.budget === "simple", "new-task --budget simple should report simple budget");
-for (const required of ["brief.md", "task_plan.md", "visual_map.md", "progress.md"]) {
+for (const required of ["INDEX.md", "brief.md", "task_plan.md", "visual_map.md", "progress.md"]) {
   assert(
     fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-simple-lifecycle`, required)),
     `simple task should create ${required}`,
@@ -114,12 +125,14 @@ expectJson(["new-task", "budget-simple", "--budget", "simple", "--title", "Budge
 expectJson(["new-task", "budget-standard", "--title", "Budget Standard", budgetContractTarget]);
 expectJson(["new-task", "budget-complex", "--budget", "complex", "--title", "Budget Complex", budgetContractTarget]);
 fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-simple/brief.md`));
+fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-standard/INDEX.md`));
 fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-standard/review.md`));
 fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-complex/references/INDEX.md`));
 const budgetContractCheck = run(["check", "--profile", "target-project", budgetContractTarget]);
 const budgetContractOutput = `${budgetContractCheck.stdout}\n${budgetContractCheck.stderr}`;
 assert(budgetContractCheck.status !== 0, "check should fail when CLI-generated task budget files are missing");
 assert(budgetContractOutput.includes(`${todayLocal}-budget-simple missing brief.md`), "check should require brief.md for simple tasks");
+assert(budgetContractOutput.includes(`${todayLocal}-budget-standard missing INDEX.md`), "check should require root INDEX.md for standard tasks");
 assert(budgetContractOutput.includes(`${todayLocal}-budget-standard missing review.md`), "check should require review.md for standard tasks");
 assert(budgetContractOutput.includes(`${todayLocal}-budget-complex missing references/INDEX.md`), "check should require optional indexes for complex tasks");
 const provenanceTarget = path.join(tmpRoot, "provenance-contract-target");

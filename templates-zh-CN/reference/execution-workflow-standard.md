@@ -28,9 +28,31 @@
 6. 遇到共享文件冲突，由 coordinator 或人工决定串行顺序。
 7. 遇到目标失效、权限阻塞、高风险决策或 stop condition 不适用，立即暂停并记录。
 8. 主动提交已验证的、有意义的中间成果；commit message 应说明变更类型和范围。除非用户明确要求暂不提交、检查失败、dirty 归属不清，或安全边界阻止干净提交，否则不要把已完成切片长期留在未提交状态；延期提交必须写明 no-commit reason、owner 和下一步。
-9. 机械化 Harness 写入优先使用 CLI lifecycle 命令。CLI-owned 写入会加锁、限制 allowlist 并自动提交，也会拒绝 dirty Git 状态；agent-owned 手工编辑仍需要明确任务提交或延期提交理由。
+9. 机械化 Harness 写入优先使用 CLI lifecycle 命令。CLI-owned 写入会加锁、限制 allowlist 并自动提交。`new-task` 可以保留无关 dirty 文件，并只提交本次命令自己的 write scope；但 write scope 重叠 dirty 或无关 staged 文件仍会阻塞命令。其他 lifecycle 命令仍可能要求 clean tree。agent-owned 手工编辑仍需要明确任务提交或延期提交理由。
 10. 把 `visual_map.md` 当作生命周期阶段地图。`init` 阶段准备工作，`execution` 阶段定义实现完成度，`gate` 阶段定义审查、人工确认、lesson routing 和 closeout。只有当前操作者匹配阶段 `Actor` 时，才执行该阶段 `Exit Command`；Agent 不得执行 `human` gate。
 11. 新任务目录的 `brief.md` 末尾必须保留短机器可读 Scaffold Provenance 表格。正常路径是 `Created By: harness new-task`；手工创建只能作为 `manual-exception`，并写清具体原因；历史迁移使用 `historical-backfill`。
+
+## 任务包结构
+
+使用 `harness new-task` 创建任务目录，不要手工复制任务文件。CLI 会按所选预算创建文件集，并记录 provenance，供 `harness check` 校验。
+
+| 预算 | 必需文件 |
+| --- | --- |
+| simple | `INDEX.md`、`brief.md`、`task_plan.md`、`visual_map.md`、`progress.md` |
+| standard | simple 文件，加 `execution_strategy.md`、`findings.md`、`lesson_candidates.md`、`review.md` |
+| complex | standard 文件，加 `references/INDEX.md`、`artifacts/INDEX.md` |
+| long-running 附加项 | 选择 `--long-running` 时额外创建 `long-running-task-contract.md` |
+
+`INDEX.md` 是任务包导航页。它只指向合同文件和可选索引，不替代这些文件。
+
+可选目录只在触发时创建：
+
+- `references/INDEX.md`：任务本地资料、外部链接、reviewer 输入包、preset 提供的 required reads。
+- `artifacts/INDEX.md`：命令输出、截图、fixture、生成报告、审查记录和其他证据。
+- `lessons/LC-*.md`：进入 `needs-promotion` 的 lesson candidate 的任务本地详情文件。
+- `slices/<slice-id>/`：明确启用多切片任务包时使用。
+
+Preset 包不能新增或替换根级 base scaffold 文档。Preset 只能追加固定基础文档的受控 section，或把隔离资源写入 `references/**` 和 `artifacts/**`。resource rows 只能登记在 `references/INDEX.md` 和 `artifacts/INDEX.md`；根 `INDEX.md` 最多显示系统渲染的 preset summary 字段。
 
 ## 完成任务后
 

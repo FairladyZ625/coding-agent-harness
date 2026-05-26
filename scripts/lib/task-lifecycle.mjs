@@ -5,7 +5,6 @@ import {
   visualMapFile,
   legacyVisualRoadmapFile,
   lessonCandidatesFile,
-  longRunningTaskContractFile,
   allowedTaskStates,
   allowedTaskBudgets,
   allowedPhaseStates,
@@ -15,7 +14,6 @@ import {
   toPosix,
   readFileSafe,
   readBundledTemplate,
-  localizedTemplateSource,
   todayDate,
   localDate,
   datePrefix,
@@ -49,6 +47,15 @@ import {
   replaceAgentReviewSubmission,
 } from "./task-lifecycle/review-submission.mjs";
 import {
+  appendLongRunningContractFile,
+  moduleTemplateFiles,
+  taskFilesForBudget,
+} from "./task-lifecycle/template-files.mjs";
+import {
+  planCreateTaskChanges,
+  refreshPresetCommandAudit,
+} from "./task-lifecycle/create-task-helpers.mjs";
+import {
   beginGovernanceSync,
   commitGovernanceSync,
   governanceRelativePaths,
@@ -56,45 +63,6 @@ import {
   syncModuleStepGovernance,
   syncTaskGovernance,
 } from "./governance-sync.mjs";
-
-function taskTemplateFiles({ locale = "en-US" } = {}) {
-  return [
-    ["brief.md", "templates/planning/brief.md"],
-    ["task_plan.md", "templates/planning/task_plan.md"],
-    ["execution_strategy.md", "templates/planning/execution_strategy.md"],
-    [visualMapFile, "templates/planning/visual_map.md"],
-    ["findings.md", "templates/planning/findings.md"],
-    [lessonCandidatesFile, "templates/planning/lesson_candidates.md"],
-    ["progress.md", "templates/planning/progress.md"],
-    ["review.md", "templates/planning/review.md"],
-  ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
-}
-
-function simpleTaskTemplateFiles({ locale = "en-US" } = {}) {
-  return [
-    ["brief.md", "templates/planning/brief.md"],
-    ["task_plan.md", "templates/planning/task_plan.md"],
-    [visualMapFile, "templates/planning/visual_map.simple.md"],
-    ["progress.md", "templates/planning/progress.md"],
-  ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
-}
-
-function optionalTaskTemplateFiles({ locale = "en-US" } = {}) {
-  return [
-    ["references/INDEX.md", "templates/planning/optional/references/INDEX.md"],
-    ["artifacts/INDEX.md", "templates/planning/optional/artifacts/INDEX.md"],
-  ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
-}
-
-function moduleTemplateFiles({ locale = "en-US" } = {}) {
-  return [
-    ["brief.md", "templates/planning/module_brief.md"],
-    ["module_plan.md", "templates/planning/module_plan.md"],
-    ["execution_strategy.md", "templates/planning/execution_strategy.md"],
-    [visualMapFile, "templates/planning/visual_map.md"],
-    ["session_prompt.md", "templates/planning/module_session_prompt.md"],
-  ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
-}
 
 function taskRoot(target, taskId, { moduleKey = "" } = {}) {
   const normalizedTaskId = normalizeTaskId(taskId);
@@ -168,17 +136,6 @@ function normalizeTaskPresetInput(preset, { targetInput = "" } = {}) {
   const normalized = String(preset || "none").trim().toLowerCase().replaceAll("_", "-");
   if (!normalized || normalized === "none") return "none";
   return readPresetPackage(normalized, { targetInput }).id;
-}
-
-function taskFilesForBudget({ budget, locale }) {
-  if (budget === "simple") return simpleTaskTemplateFiles({ locale });
-  if (budget === "complex") return [...taskTemplateFiles({ locale }), ...optionalTaskTemplateFiles({ locale })];
-  return taskTemplateFiles({ locale });
-}
-
-function appendLongRunningContractFile(files, { locale, longRunning }) {
-  if (!longRunning) return files;
-  return [...files, [longRunningTaskContractFile, localizedTemplateSource("templates/planning/long-running-task-contract.md", locale)]];
 }
 
 function updateProgressState(content, state, locale) {
@@ -271,8 +228,37 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
         evaluatedValues: evaluatedPresetValues,
       })
     : null;
+  const task = {
+    id: taskIdForDirectory(target, directory),
+    shortId: normalizedTaskId,
+    title: taskTitle,
+    module: normalizedModuleKey || null,
+    path: `TARGET:${toPosix(path.relative(target.projectRoot, directory))}`,
+    locale: normalizedLocale,
+    budget: normalizedBudget,
+    kind: presetContext?.kind || "general",
+    preset: normalizedPreset,
+    presetVersion: presetContext?.presetVersion || "",
+    presetAudit: presetContext?.audit || null,
+    migrationTargetLevel: presetContext?.migrationTargetLevel || "",
+    migrationAchievedLevel: presetContext?.migrationAchievedLevel || "",
+    evidenceBundle: presetContext?.evidenceBundle || "",
+    longRunning,
+  };
+  const plannedChanges = planCreateTaskChanges({
+    target,
+    directory,
+    normalizedModuleKey,
+    normalizedLocale,
+    normalizedBudget,
+    longRunning,
+    presetContext,
+    task,
+  });
+  const plannedGovernance = syncTaskGovernance(target, task, { event: "new-task", state: "planned", message: "task registered by CLI", dryRun: true });
+  const plannedWriteScopes = governanceRelativePaths([...plannedChanges, ...plannedGovernance.changes]);
   const changes = [];
-  const governanceContext = beginGovernanceSync(target, { operation: `new-task ${normalizedTaskId}`, dryRun });
+  const governanceContext = beginGovernanceSync(target, { operation: `new-task ${normalizedTaskId}`, dryRun, allowDirtyWorktree: true, allowedRelativePaths: plannedWriteScopes });
   try {
   if (normalizedModuleKey) {
     const moduleDirectory = path.dirname(directory);
@@ -294,6 +280,11 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
           title: normalizedModuleKey,
           locale: normalizedLocale,
           budget: normalizedBudget,
+          moduleKey: normalizedModuleKey,
+          preset: normalizedPreset,
+          presetVersion: presetContext?.presetVersion || "",
+          evidenceBundle: presetContext?.evidenceBundle || "",
+          longRunning,
           scaffoldProvenance,
         }),
       );
@@ -320,6 +311,11 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
         title: taskTitle,
         locale: normalizedLocale,
         budget: normalizedBudget,
+        moduleKey: normalizedModuleKey,
+        preset: normalizedPreset,
+        presetVersion: presetContext?.presetVersion || "",
+        evidenceBundle: presetContext?.evidenceBundle || "",
+        longRunning,
         scaffoldProvenance: {
           ...scaffoldProvenance,
           templateSource: source,
@@ -369,23 +365,6 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
       fs.writeFileSync(destinationPath, renderPresetResourceIndex(existing, kind, rows));
     }
   }
-  const task = {
-    id: taskIdForDirectory(target, directory),
-    shortId: normalizedTaskId,
-    title: taskTitle,
-    module: normalizedModuleKey || null,
-    path: `TARGET:${toPosix(path.relative(target.projectRoot, directory))}`,
-    locale: normalizedLocale,
-    budget: normalizedBudget,
-    kind: presetContext?.kind || "general",
-    preset: normalizedPreset,
-    presetVersion: presetContext?.presetVersion || "",
-    presetAudit: presetContext?.audit || null,
-    migrationTargetLevel: presetContext?.migrationTargetLevel || "",
-    migrationAchievedLevel: presetContext?.migrationAchievedLevel || "",
-    evidenceBundle: presetContext?.evidenceBundle || "",
-    longRunning,
-  };
   const governance = syncTaskGovernance(target, task, { event: "new-task", state: "planned", message: "task registered by CLI", dryRun });
   changes.push(...governance.changes);
   const commandWriteScopes = governanceRelativePaths(changes);
@@ -404,21 +383,6 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
   };
   } finally {
     releaseGovernanceSync(governanceContext);
-  }
-}
-
-function refreshPresetCommandAudit(target, presetContext, { commandWriteScopes = [], dryRun = false } = {}) {
-  const scopes = [...new Set(commandWriteScopes.filter(Boolean))];
-  presetContext.audit = {
-    ...presetContext.audit,
-    presetWriteScopes: presetContext.audit.writeScopes || [],
-    commandWriteScopes: scopes,
-  };
-  for (const evidence of presetContext.evidenceFiles || []) {
-    if (evidence.source !== "preset-audit") continue;
-    evidence.content = `${JSON.stringify(presetContext.audit, null, 2)}\n`;
-    if (dryRun) continue;
-    fs.writeFileSync(path.join(target.projectRoot, evidence.relativePath), evidence.content);
   }
 }
 

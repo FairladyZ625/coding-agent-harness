@@ -1102,6 +1102,90 @@ const exactScopeCreate = run(["new-task", "exact-scope-task", "--preset", "exact
 assert(exactScopeCreate.status !== 0, "runtime write scope enforcement should cover generated task files, not only evidence");
 assert(`${exactScopeCreate.stdout}\n${exactScopeCreate.stderr}`.includes("write scope"), "runtime scope failure should explain the write scope violation");
 
+const rootDocTemplateSource = path.join(tmpRoot, "root-doc-template-preset");
+fs.mkdirSync(path.join(rootDocTemplateSource, "templates"), { recursive: true });
+fs.writeFileSync(path.join(rootDocTemplateSource, "templates/INDEX.md"), "# Custom root index\n");
+fs.writeFileSync(
+  path.join(rootDocTemplateSource, "preset.yaml"),
+  `id: root-doc-template
+version: 1
+purpose: Invalid root scaffold template fixture
+compatibleBudgets: [standard]
+entrypoints:
+  newTask:
+    type: template
+    writes: [docs/09-PLANNING/TASKS/**]
+    audit: true
+    templates:
+      index: templates/INDEX.md
+audit:
+  manifestRequired: true
+writeScopes:
+  taskDocs:
+    path: docs/09-PLANNING/TASKS/**
+    access: write
+`,
+);
+const rootDocTemplateCheck = run(["preset", "check", rootDocTemplateSource, "--json"], { env });
+assert(rootDocTemplateCheck.status !== 0, "preset check should reject custom root-level base scaffold templates");
+assert(`${rootDocTemplateCheck.stdout}\n${rootDocTemplateCheck.stderr}`.includes("unsupported newTask template"), "root template rejection should explain unsupported base scaffold template keys");
+
+const rootResourcePathSource = path.join(tmpRoot, "root-resource-path-preset");
+fs.mkdirSync(rootResourcePathSource, { recursive: true });
+fs.writeFileSync(
+  path.join(rootResourcePathSource, "preset.yaml"),
+  `id: root-resource-path
+version: 1
+purpose: Invalid root resource path fixture
+compatibleBudgets: [complex]
+resources:
+  references:
+    rootIndex:
+      source: preset.yaml
+      path: INDEX.md
+      index:
+        id: REF-ROOT
+        summary: Root resource paths must be rejected.
+audit:
+  manifestRequired: true
+writeScopes:
+  taskDocs:
+    path: docs/09-PLANNING/TASKS/**
+    access: write
+`,
+);
+const rootResourcePathCheck = run(["preset", "check", rootResourcePathSource, "--json"], { env });
+assert(rootResourcePathCheck.status !== 0, "preset check should reject root-level resource paths");
+assert(`${rootResourcePathCheck.stdout}\n${rootResourcePathCheck.stderr}`.includes("must be under references/"), "root resource rejection should preserve isolated reference/artifact directories");
+
+const rootArtifactPathSource = path.join(tmpRoot, "root-artifact-path-preset");
+fs.mkdirSync(rootArtifactPathSource, { recursive: true });
+fs.writeFileSync(
+  path.join(rootArtifactPathSource, "preset.yaml"),
+  `id: root-artifact-path
+version: 1
+purpose: Invalid root artifact path fixture
+compatibleBudgets: [complex]
+resources:
+  artifacts:
+    rootIndex:
+      source: preset.yaml
+      path: INDEX.md
+      index:
+        id: ART-ROOT
+        summary: Root artifact paths must be rejected.
+audit:
+  manifestRequired: true
+writeScopes:
+  taskDocs:
+    path: docs/09-PLANNING/TASKS/**
+    access: write
+`,
+);
+const rootArtifactPathCheck = run(["preset", "check", rootArtifactPathSource, "--json"], { env });
+assert(rootArtifactPathCheck.status !== 0, "preset check should reject root-level artifact resource paths");
+assert(`${rootArtifactPathCheck.stdout}\n${rootArtifactPathCheck.stderr}`.includes("must be under artifacts/"), "root artifact rejection should preserve isolated artifact directory");
+
 const builtinInstall = expectJson(["preset", "install", "legacy-migration", "--force", "--json"], { env });
 assert(builtinInstall.installed === true && builtinInstall.id === "legacy-migration", "preset install should copy builtin presets by id");
 assert(expectJson(["preset", "inspect", "legacy-migration", "--json"], { env }).source === "user", "installed builtin preset should be discovered from user directory first");
