@@ -67,6 +67,26 @@ Harness covers the continuity layer of real development: task lifecycle, Brief, 
 
 It gives each agent step context, evidence, and a finish condition.
 
+### Reusable Presets For Task Families
+
+A preset is a versioned, declarative task method package. It does not install a
+new agent and it does not replace the Harness. It tells `harness new-task` how
+to create a task for a repeatable work type: what task kind to set, which inputs
+to ask for, which shared references or artifacts to copy into the task, which
+files the agent must read first, and what audit/evidence files should prove the
+task was created correctly.
+
+Use presets when a group of tasks share the same setup. For example, several
+interface tasks may all depend on the same upstream microservice contract,
+fixture packet, runbook, and verification checklist. Instead of repeating that
+context in every prompt, put it in a preset and create each task with
+`harness new-task --preset <preset-id> ...`.
+
+Harness ships bundled presets, `harness init` seeds them into the target project,
+and teams can add project-local presets under `.coding-agent-harness/presets/`.
+The `preset-creator` Skill is for authoring these preset packages; the Harness
+CLI is what checks, installs, lists, and applies them.
+
 ### Safe Migration For Existing Projects
 
 Legacy project migration starts with a scan, a migration plan, a recommended migration mode, and user confirmation. Only then should the agent write files. Final status is proven with a dashboard and checks.

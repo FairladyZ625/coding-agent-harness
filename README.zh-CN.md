@@ -67,6 +67,22 @@ Harness 覆盖长程开发里的持续性问题：任务生命周期、Brief、E
 
 它让 Agent 每一步都有上下文、证据和收口标准。
 
+### 面向任务族的可复用 Preset
+
+Preset 是一个可版本化、声明式的任务方法包。它不是安装一个新 Agent，也不是替代
+Harness；它告诉 `harness new-task` 如何为某一类可重复工作创建任务：应该设置什么
+Task Kind、需要询问哪些输入、要把哪些共享 Reference 或 Artifact 复制进任务、Agent
+必须先读哪些文件，以及要生成哪些 audit / evidence 文件来证明任务创建正确。
+
+当一组任务共享同一套启动上下文时，就适合用 Preset。比如多个接口任务都依赖同一个
+上游微服务 contract、fixture packet、runbook 和验证清单，就不应该每次都把这些内容塞进
+prompt；应该把它们放进 Preset，然后用
+`harness new-task --preset <preset-id> ...` 创建每个任务。
+
+Harness 自带内置 Preset，`harness init` 会把它们 seed 到目标项目，团队也可以在
+`.coding-agent-harness/presets/` 下维护项目级 Preset。`preset-creator` Skill 用来制作
+这些 Preset 包；真正检查、安装、列出和应用 Preset 的是 Harness CLI。
+
 ### 旧项目也能迁移
 
 旧项目迁移不是直接套模板。标准流程是：先扫描项目，生成迁移计划，推荐迁移模式，向用户提问确认，再执行迁移，最后用 Dashboard 和检查结果证明迁移状态。

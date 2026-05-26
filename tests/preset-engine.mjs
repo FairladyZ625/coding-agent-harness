@@ -24,6 +24,10 @@ for (const doc of [readmeEn, readmeZh, agentGuideEn, agentGuideZh]) {
   assert(doc.includes("--skill preset-creator"), "public docs should show how to install the preset creator skill");
   assert(doc.includes("--full-depth"), "public docs should explain full-depth discovery for nested skills");
 }
+assert(readmeEn.includes("A preset is a versioned, declarative task method package"), "English README should explain what a preset is");
+assert(readmeEn.includes("The `preset-creator` Skill is for authoring these preset packages"), "English README should distinguish preset authoring from CLI application");
+assert(readmeZh.includes("Preset 是一个可版本化、声明式的任务方法包"), "Chinese README should explain what a preset is");
+assert(readmeZh.includes("`preset-creator` Skill 用来制作"), "Chinese README should distinguish preset authoring from CLI application");
 const presetCreatorSkill = fs.readFileSync(path.join(repoRootFromTest(), "skills/preset-creator/SKILL.md"), "utf8");
 assert(presetCreatorSkill.includes("description: Use when"), "preset creator skill description should be trigger-oriented for skill discovery");
 assert(presetCreatorSkill.includes("references/preset-package-skeleton.md"), "preset creator skill should route agents to the package skeleton reference");
