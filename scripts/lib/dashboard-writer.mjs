@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { readJsonSafe } from "./core-shared.mjs";
 
-const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, "../..");
 const dashboardTemplateRoot = path.join(repoRoot, "templates/dashboard");
 const dashboardMarker = ".harness-dashboard";
 

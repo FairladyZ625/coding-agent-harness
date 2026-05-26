@@ -81,6 +81,11 @@ assert(!packedFiles.includes("scripts/smoke-dashboard.mjs"), "npm package must n
 assert(!packedFiles.some((file) => file.startsWith("tests/")), "npm package must not include tests/");
 
 const dashboardAssetsDir = path.join(repoRoot, "templates/dashboard/assets");
+const dashboardWriter = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-writer.mjs"), "utf8");
+assert(dashboardWriter.includes('from "node:url"'), "dashboard writer should use Node URL helpers for import.meta.url paths");
+assert(dashboardWriter.includes("fileURLToPath(import.meta.url)"), "dashboard writer should convert import.meta.url with fileURLToPath");
+assert(!dashboardWriter.includes("new URL(import.meta.url).pathname"), "dashboard writer must not derive filesystem paths from URL.pathname");
+
 assert(
   fs.readFileSync(path.join(dashboardAssetsDir, "app.js"), "utf8") === readManifestBundle(dashboardAssetsDir, "app.manifest.json"),
   "tracked dashboard assets/app.js must match app-src manifest assembly",
