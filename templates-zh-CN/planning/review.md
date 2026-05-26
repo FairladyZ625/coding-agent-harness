@@ -78,24 +78,6 @@ Scanner 会根据必需文件、章节、证据和这个严格提交块派生 `m
 
 [如果没有重要发现，明确写：本轮已检查上述证据，未发现阻塞目标的重要发现。]
 
-## Human Review Confirmation（人工审查确认）
-
-本节只能由人工 reviewer，或代表明确人工确认的命令 / workbench 动作填写。Agent 提交审查、自查、subagent 审查都不能满足这个门禁。
-
-| Field | Value |
-| --- | --- |
-| Confirmation ID | [由 review-confirm 生成] |
-| Confirmed At | [timestamp] |
-| Reviewer | [人工 reviewer 姓名] |
-| Reviewer Email | [邮箱，如可用] |
-| Task Key | {{TASK_ID}} |
-| Confirm Text | [必须匹配任务 ID 或命令要求的确认短语] |
-| Evidence Checked | [review packet / tests / diff 摘要] |
-| Commit SHA | [由 review-confirm 生成的确认提交 SHA] |
-| Audit Status | committed / blocked |
-
-任务仍属于缺材料、阻塞或 Lessons 路由时，不要填写本节。`review-confirm` 与 Dashboard Workbench 必须在 Git dirty、提交身份缺失、hook 失败，或写入超出当前任务 `review.md` / `progress.md` 白名单时拒绝确认。
-
 ## 残余风险
 
 | Risk | Owner | Accepted? | Follow-up |

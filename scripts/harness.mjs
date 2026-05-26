@@ -87,6 +87,7 @@ Usage:
   harness init [--dry-run] [--locale zh-CN|en-US] [--capabilities core,dashboard] [--add-npm-scripts] [target]
   harness add-capability <name> [--dry-run] [--locale zh-CN|en-US] [target]
   harness migrate-plan [--json] [--limit n] [target]
+  harness migrate-task-audit-index [--plan] [--apply] [--json] [target]
   harness migrate-run [--locale zh-CN|en-US] [--assume-locale] [--allow-dirty] [--plan-only] [--out-dir folder] [--session-dir folder] [target]
   harness migrate-verify [--json] [--full-cutover] <session.json>
   harness governance rebuild [--dry-run] [--archive] [--apply] [target]
@@ -227,7 +228,7 @@ if (command === "help" || command === "--help" || command === "-h") {
     console.error(error.message);
     process.exit(1);
   }
-} else if (["migrate-plan", "migrate-run", "migrate-verify"].includes(command)) {
+} else if (["migrate-plan", "migrate-run", "migrate-verify", "migrate-task-audit-index"].includes(command)) {
   runMigrationCommand(command, { args, takeFlag, takeOption, targetArg });
 } else if (command === "governance") {
   const subcommand = args.shift() || "";

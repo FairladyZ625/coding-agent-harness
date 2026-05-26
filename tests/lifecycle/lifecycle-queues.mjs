@@ -34,8 +34,7 @@ const writeOnlyParsed = parseReviewConfirmation(
   ].join("\n"),
   { taskKey: parserTaskKey },
 );
-assert(writeOnlyParsed?.confirmed === false, "parser must not confirm write-only/manual Human Review Confirmation blocks");
-assert(writeOnlyParsed?.auditStatus === "write-only", "parser should preserve write-only audit status");
+assert(writeOnlyParsed === null, "hard cutover parser must not read legacy Human Review Confirmation blocks from review.md");
 
 const mismatchedConfirmTextParsed = parseReviewConfirmation(
   [
@@ -56,8 +55,7 @@ const mismatchedConfirmTextParsed = parseReviewConfirmation(
   ].join("\n"),
   { taskKey: parserTaskKey },
 );
-assert(mismatchedConfirmTextParsed?.confirmed === false, "parser must require Confirm Text to match the task key");
-assert(mismatchedConfirmTextParsed?.confirmTextMismatch === true, "parser should expose Confirm Text mismatch");
+assert(mismatchedConfirmTextParsed === null, "hard cutover parser must not validate legacy Human Review Confirmation blocks from review.md");
 
 const fakeCommittedParsed = parseReviewConfirmation(
   [
@@ -78,8 +76,7 @@ const fakeCommittedParsed = parseReviewConfirmation(
   ].join("\n"),
   { taskKey: parserTaskKey },
 );
-assert(fakeCommittedParsed?.confirmed === false, "parser must not confirm committed audit text without Git-backed validation");
-assert(fakeCommittedParsed?.gitAuditInvalid === true, "parser should expose missing Git audit validation");
+assert(fakeCommittedParsed === null, "hard cutover parser must not fallback to legacy review.md confirmation data");
 
 const target = path.join(tmpRoot, "lifecycle-queues-target");
 fs.mkdirSync(target);
@@ -172,9 +169,12 @@ fs.writeFileSync(
   reviewPath,
   `${afterSubmitReview}\n\n## Human Review Confirmation\n\nReviewer: Missing Fields\n\n`,
 );
-let looseConfirmStatus = expectJson(["status", "--json", target]);
+let looseConfirmStatusResult = run(["status", "--json", target]);
+assert(looseConfirmStatusResult.status !== 0, "legacy Human Review Confirmation should fail hard cutover status");
+let looseConfirmStatus = JSON.parse(looseConfirmStatusResult.stdout);
 let looseConfirmTask = looseConfirmStatus.tasks.find((task) => task.id === taskId);
 assert(looseConfirmTask.reviewStatus !== "confirmed", "heading-only Human Review Confirmation must not count as confirmed");
+assert(looseConfirmTask.materialIssues.some((issue) => issue.code === "legacy-human-review-confirmation"), "legacy Human Review Confirmation should be reported as a migration action");
 
 fs.writeFileSync(
   reviewPath,
@@ -195,10 +195,12 @@ fs.writeFileSync(
     "",
   ].join("\n")),
 );
-let mismatchedConfirmStatus = expectJson(["status", "--json", target]);
+let mismatchedConfirmStatusResult = run(["status", "--json", target]);
+assert(mismatchedConfirmStatusResult.status !== 0, "legacy Human Review Confirmation with mismatched data should fail hard cutover status");
+let mismatchedConfirmStatus = JSON.parse(mismatchedConfirmStatusResult.stdout);
 let mismatchedConfirmTask = mismatchedConfirmStatus.tasks.find((task) => task.id === taskId);
 assert(mismatchedConfirmTask.reviewStatus !== "confirmed", "Human Review Confirmation with another Task Key must not count as confirmed");
-assert(mismatchedConfirmTask.reviewConfirmation?.taskKeyMismatch === true, "Task Key mismatch should be exposed on reviewConfirmation");
+assert(mismatchedConfirmTask.materialIssues.some((issue) => issue.code === "legacy-human-review-confirmation"), "legacy Human Review Confirmation mismatch should route to migration");
 
 fs.writeFileSync(
   reviewPath,
@@ -237,9 +239,10 @@ const confirmed = expectJson([
   target,
 ]);
 assert(confirmed.task.reviewStatus === "confirmed", "review-confirm should produce confirmed status");
-const confirmationReview = fs.readFileSync(reviewPath, "utf8");
-assert(confirmationReview.includes("| Confirmation ID |"), "Human Review Confirmation should include strict confirmation fields");
-assert(confirmationReview.includes("| Audit Status | committed |") || confirmationReview.includes("| Audit Status | write-only |"), "Human Review Confirmation should include audit status");
+const confirmationIndex = fs.readFileSync(path.join(taskDir, "INDEX.md"), "utf8");
+assert(confirmationIndex.includes("| Confirmation ID |"), "INDEX Human Review fields should include strict confirmation fields");
+assert(confirmationIndex.includes("| Audit Status | committed |"), "INDEX Human Review fields should include audit status");
+assert(!fs.readFileSync(reviewPath, "utf8").includes("## Human Review Confirmation"), "review-confirm should not write Human Review Confirmation to review.md");
 
 const lessonTask = expectJson(["new-task", "queue-lesson", "--title", "Queue Lesson", "--locale", "en-US", "--long-running", target]);
 const lessonDir = path.join(target, "docs/09-PLANNING/TASKS", `${todayLocal}-queue-lesson`);

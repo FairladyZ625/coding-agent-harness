@@ -348,6 +348,12 @@ export function buildStatus(targetInput, options = {}) {
   const briefReady = tasks.filter((task) => task.briefSource === "standalone").length;
   const briefMissing = tasks.length - briefReady;
   for (const task of tasks) {
+    for (const issue of task.materialIssues || []) {
+      if (!String(issue.code || "").startsWith("missing-task-audit") && !String(issue.code || "").startsWith("legacy-")) continue;
+      const message = `${String(issue.sourcePath || task.path).replace(/^TARGET:/, "")} ${issue.message}`;
+      if (contractStrict || options.strictLegacy) failures.push(message);
+      else warnings.push(`adoption-needed: ${message}`);
+    }
     if (task.stateSource === "invalid") {
       const message = `${task.path}/progress.md invalid task state: ${task.stateRaw}`;
       if (contractStrict || options.strictLegacy) failures.push(message);

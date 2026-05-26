@@ -3,8 +3,38 @@ import {
   runMigration,
   verifyMigrationSession,
 } from "../lib/harness-core.mjs";
+import {
+  applyTaskAuditIndexMigration,
+  planTaskAuditIndexMigration,
+} from "../lib/task-audit-migration.mjs";
 
 export function runMigrationCommand(command, { args, takeFlag, takeOption, targetArg }) {
+  if (command === "migrate-task-audit-index") {
+    const json = takeFlag("--json");
+    const apply = takeFlag("--apply");
+    const planOnly = takeFlag("--plan");
+    try {
+      const result = apply && !planOnly
+        ? applyTaskAuditIndexMigration(targetArg())
+        : planTaskAuditIndexMigration(targetArg());
+      if (json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        console.log(`Task audit INDEX migration ${result.result}: ${result.target}`);
+        console.log(`actions: ${result.summary.actions}`);
+        console.log(`legacy audit blocks: ${result.summary.legacyAuditBlocks}`);
+        console.log(`failures: ${result.summary.failures}`);
+        for (const action of result.actions || []) console.log(`- ${action.taskId}: ${action.legacyBlocks.join(", ")}`);
+        for (const failure of result.failures || []) console.error(`Failure: ${failure.taskId}: ${failure.failure}`);
+      }
+      process.exit(result.failures?.length ? 1 : 0);
+    } catch (error) {
+      if (json && error.plan) console.error(JSON.stringify(error.plan, null, 2));
+      else console.error(error.message);
+      process.exit(1);
+    }
+  }
+
   if (command === "migrate-plan") {
     const json = takeFlag("--json");
     const limit = Number.parseInt(takeOption("--limit", "20"), 10) || 20;

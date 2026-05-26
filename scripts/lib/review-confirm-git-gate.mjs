@@ -141,7 +141,7 @@ function assertAllowedPaths(paths) {
     throw new ReviewConfirmGitGateError("Review confirmation write allowlist contains forbidden paths.", {
       code: "git-allowlist-forbidden-path",
       details: { disallowed },
-      recovery: ["Limit review-confirm writes to the current task review.md and progress.md files."],
+      recovery: ["Limit review-confirm writes to the current task INDEX.md file."],
     });
   }
 }

@@ -93,11 +93,25 @@ function readReview(fixture) {
   return fs.readFileSync(path.join(fixture.taskDir, "review.md"), "utf8");
 }
 
+function readIndex(fixture) {
+  return fs.readFileSync(path.join(fixture.taskDir, "INDEX.md"), "utf8");
+}
+
 {
   const fixture = prepareReviewTarget("git-gate-fake-committed-audit");
   fs.writeFileSync(
-    path.join(fixture.taskDir, "review.md"),
-    `${readReview(fixture).trimEnd()}\n\n## Human Review Confirmation\n\n| Field | Value |\n| --- | --- |\n| Confirmation ID | HRC-20260524000100 |\n| Confirmed At | 2026-05-24T00:01:00+08:00 |\n| Reviewer | Human Reviewer |\n| Reviewer Email | reviewer@example.test |\n| Task Key | ${fixture.taskId} |\n| Confirm Text | ${fixture.shortId} |\n| Evidence Checked | command:test |\n| Commit SHA | deadbeefdeadbeefdeadbeefdeadbeefdeadbeef |\n| Audit Status | committed |\n| Message | forged committed block |\n`,
+    path.join(fixture.taskDir, "INDEX.md"),
+    readIndex(fixture)
+      .replace("| Human Review Status | not-confirmed |", "| Human Review Status | confirmed |")
+      .replace("| Confirmation ID | n/a |", "| Confirmation ID | HRC-20260524000100 |")
+      .replace("| Confirmed At | n/a |", "| Confirmed At | 2026-05-24T00:01:00+08:00 |")
+      .replace("| Reviewer | n/a |", "| Reviewer | Human Reviewer |")
+      .replace("| Reviewer Email | n/a |", "| Reviewer Email | reviewer@example.test |")
+      .replace("| Confirm Text | n/a |", `| Confirm Text | ${fixture.shortId} |`)
+      .replace("| Evidence Checked | n/a |", "| Evidence Checked | command:test |")
+      .replace("| Review Commit SHA | n/a |", "| Review Commit SHA | deadbeefdeadbeefdeadbeefdeadbeefdeadbeef |")
+      .replace("| Audit Status | created |", "| Audit Status | committed |")
+      .replace("| Message | n/a |", "| Message | forged committed block |"),
   );
   const status = expectHarnessJson(["status", "--json", fixture.target]);
   const task = status.tasks.find((candidate) => candidate.id === fixture.taskId);
@@ -114,9 +128,10 @@ function readReview(fixture) {
   const payload = JSON.parse(result.stdout);
   assert(/^[0-9a-f]{7,40}$/.test(payload.audit?.commitSha || ""), "review-confirm should return the confirmation commit SHA");
   assert(/^[0-9a-f]{7,40}$/.test(payload.audit?.auditCommitSha || ""), "review-confirm should return the audit finalization commit SHA");
-  const review = readReview(fixture);
-  assert(review.includes("| Audit Status | committed |"), "review confirmation should record committed audit status");
-  assert(review.includes(`| Commit SHA | ${payload.audit.commitSha} |`), "review confirmation should record real commit SHA");
+  const index = readIndex(fixture);
+  assert(index.includes("| Audit Status | committed |"), "review confirmation should record committed audit status in INDEX.md");
+  assert(index.includes(`| Review Commit SHA | ${payload.audit.commitSha} |`), "review confirmation should record real commit SHA in INDEX.md");
+  assert(!readReview(fixture).includes("Human Review Confirmation"), "review-confirm should not write Human Review Confirmation to review.md");
   assert(git(fixture.target, ["status", "--porcelain"]).stdout.trim() === "", "clean success should leave the repo clean");
 }
 
@@ -169,8 +184,8 @@ function readReview(fixture) {
   const result = reviewConfirm(fixture);
   assert(result.status === 0, `allowlist fixture should pass\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   const committedFiles = expectGit(fixture.target, ["show", "--name-only", "--format=", `${result.stdout && JSON.parse(result.stdout).audit.commitSha}`]).stdout.trim().split(/\r?\n/).filter(Boolean);
-  assert(committedFiles.length === 2, `review-confirm commit should contain exactly two files, got ${committedFiles.join(", ")}`);
-  assert(committedFiles.every((file) => file === `docs/09-PLANNING/${fixture.taskId}/review.md` || file === `docs/09-PLANNING/${fixture.taskId}/progress.md`), "review-confirm commit should stage only review.md and progress.md");
+  assert(committedFiles.length === 1, `review-confirm commit should contain exactly one file, got ${committedFiles.join(", ")}`);
+  assert(committedFiles[0] === `docs/09-PLANNING/${fixture.taskId}/INDEX.md`, "review-confirm commit should stage only INDEX.md");
 }
 
 {

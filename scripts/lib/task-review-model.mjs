@@ -18,6 +18,7 @@ import {
 } from "./phase-kind.mjs";
 import { validateReviewConfirmationGitAudit } from "./review-confirm-git-gate.mjs";
 import { isLessonCandidateDecisionComplete } from "./task-lesson-candidates.mjs";
+import { reviewConfirmationFromTaskAudit } from "./task-audit-metadata.mjs";
 
 export const taskScannerVersion = "task-scanner/2026-05-25-phase-kind";
 export const reviewFindingColumns = {
@@ -258,60 +259,34 @@ export function deriveTaskQueues({ id, title, state, budget, reviewStatus, revie
   };
 }
 
-export function parseReviewConfirmation(reviewContent, { taskKey = "", projectRoot = "", taskDir = "", reviewPath = "", progressPath = "" } = {}) {
-  const match = String(reviewContent || "").match(/^##\s*(?:Human Review Confirmation|人工审查确认)\s*$([\s\S]*?)(?=^##\s+|(?![\s\S]))/im);
-  if (!match) return null;
-  const fields = fieldsFromMarkdownBlock(match[1] || "");
-  const required = ["Confirmation ID", "Confirmed At", "Reviewer", "Reviewer Email", "Task Key", "Confirm Text", "Evidence Checked", "Commit SHA", "Audit Status"];
-  const missing = required.filter((field) => !isConcreteField(fields.get(field.toLowerCase())));
-  const confirmedTaskKey = fields.get("task key") || "";
-  const confirmText = fields.get("confirm text") || "";
-  const commitSha = fields.get("commit sha") || "";
-  const auditStatus = fields.get("audit status") || "";
-  const taskKeyMismatch = Boolean(taskKey && isConcreteField(confirmedTaskKey) && !taskKeysMatch(confirmedTaskKey, taskKey));
-  const confirmTextMismatch = Boolean(taskKey && isConcreteField(confirmText) && !taskKeysMatch(confirmText, taskKey));
-  const commitShaInvalid = Boolean(isConcreteField(commitSha) && !/^[0-9a-f]{7,40}$/i.test(commitSha));
-  const auditStatusInvalid = Boolean(isConcreteField(auditStatus) && auditStatus.trim().toLowerCase() !== "committed");
-  let gitAudit = null;
-  if (missing.length === 0 && !taskKeyMismatch && !confirmTextMismatch && !commitShaInvalid && !auditStatusInvalid) {
-    gitAudit = validateReviewConfirmationGitAudit({
-      projectRoot,
-      taskId: taskKey,
-      reviewPath: reviewPath || (taskDir ? path.join(taskDir, "review.md") : ""),
-      progressPath: progressPath || (taskDir ? path.join(taskDir, "progress.md") : ""),
-      commitSha,
-    });
+export function parseReviewConfirmation(reviewContent, { taskKey = "", taskAudit = null, projectRoot = "", taskDir = "", indexPath = "", reviewPath = "", progressPath = "" } = {}) {
+  if (taskAudit) {
+    const confirmation = reviewConfirmationFromTaskAudit(taskAudit, { taskKey });
+    if (
+      confirmation?.confirmed &&
+      confirmation.auditSource !== "migrated-legacy-review" &&
+      projectRoot &&
+      (indexPath || taskDir) &&
+      confirmation.commitSha
+    ) {
+      const gitAudit = validateReviewConfirmationGitAudit({
+        projectRoot,
+        taskId: taskKey,
+        reviewPath: indexPath || path.join(taskDir, "INDEX.md"),
+        progressPath: "",
+        commitSha: confirmation.commitSha,
+      });
+      return {
+        ...confirmation,
+        confirmed: confirmation.confirmed && gitAudit.valid,
+        missingFields: gitAudit.valid ? confirmation.missingFields : [...confirmation.missingFields, "Review Commit SHA git audit"],
+        gitAudit,
+        gitAuditInvalid: !gitAudit.valid,
+      };
+    }
+    return confirmation;
   }
-  const gitAuditInvalid = Boolean(gitAudit && !gitAudit.valid);
-  const invalidFields = [
-    ...(taskKeyMismatch ? ["Task Key match"] : []),
-    ...(confirmTextMismatch ? ["Confirm Text match"] : []),
-    ...(commitShaInvalid ? ["Commit SHA valid"] : []),
-    ...(auditStatusInvalid ? ["Audit Status committed"] : []),
-    ...(gitAuditInvalid ? ["Commit SHA git audit"] : []),
-  ];
-  if (fields.size > 0) {
-    return {
-      confirmed: missing.length === 0 && invalidFields.length === 0,
-      missingFields: [...missing, ...invalidFields],
-      confirmationId: fields.get("confirmation id") || "",
-      confirmedAt: fields.get("confirmed at") || "",
-      reviewer: fields.get("reviewer") || "",
-      reviewerEmail: fields.get("reviewer email") || "",
-      taskKey: confirmedTaskKey,
-      taskKeyMismatch,
-      confirmText,
-      confirmTextMismatch,
-      evidenceChecked: fields.get("evidence checked") || "",
-      commitSha,
-      commitShaInvalid,
-      auditStatus,
-      auditStatusInvalid,
-      gitAudit,
-      gitAuditInvalid,
-    };
-  }
-  return { confirmed: false, missingFields: required };
+  return null;
 }
 
 export function taskReviewStatus({ reviewContent = "", risks = [], confirmation = null, submission = null } = {}) {

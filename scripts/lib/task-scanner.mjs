@@ -23,9 +23,11 @@ import {
   phaseCompletionAverage,
 } from "./phase-kind.mjs";
 import {
-  parseScaffoldProvenance,
-  scaffoldProvenanceMaterialIssues,
-} from "./task-scaffold-provenance.mjs";
+  legacyAuditIssues,
+  parseTaskAuditMetadata,
+  scaffoldProvenanceSummaryFromTaskAudit,
+  taskAuditMaterialIssues,
+} from "./task-audit-metadata.mjs";
 import {
   parseTaskBudget,
   parseTaskContractInfo,
@@ -74,9 +76,8 @@ export {
   taskScannerVersion,
 } from "./task-review-model.mjs";
 export {
-  parseScaffoldProvenance,
-  scaffoldProvenanceMaterialIssues,
-} from "./task-scaffold-provenance.mjs";
+  parseTaskAuditMetadata,
+} from "./task-audit-metadata.mjs";
 export {
   allowedLessonCandidateRowStatuses,
   allowedLessonCandidateTaskStatuses,
@@ -236,6 +237,7 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
     const taskPlan = readFileSafe(taskPlanPath);
     const brief = readTaskContractFile(taskDir, "brief.md", "");
     const executionStrategyPath = path.join(taskDir, "execution_strategy.md");
+    const indexPath = path.join(taskDir, "INDEX.md");
     const progressPath = path.join(taskDir, "progress.md");
     const reviewPath = path.join(taskDir, "review.md");
     const findingsPath = path.join(taskDir, "findings.md");
@@ -244,6 +246,7 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
     const visualMap = readVisualMapContractFile(taskDir, taskPlan);
     const progress = readFileSafe(progressPath);
     const review = readFileSafe(reviewPath);
+    const indexContent = readFileSafe(indexPath);
     const parsedLessonCandidates = parseLessonCandidateStatus(readFileSafe(lessonCandidatesPath));
     const lessonDetailIssues = validateLessonCandidateDetailArtifacts(target, taskDir, parsedLessonCandidates);
     const lessonCandidates = lessonDetailIssues.length
@@ -260,9 +263,10 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
     const budget = parseTaskBudget(taskPlan);
     const metadata = parseTaskMetadata(taskPlan);
     const taskContract = parseTaskContractInfo(taskPlan);
-    const scaffoldProvenance = parseScaffoldProvenance(brief.content, {
+    const taskAudit = parseTaskAuditMetadata(indexContent, {
       required: requireGeneratedScaffoldProvenance && taskContract.generated,
     });
+    const scaffoldProvenance = { summary: scaffoldProvenanceSummaryFromTaskAudit(taskAudit) };
     const explicitModule = id.startsWith("MODULES/") ? id.split("/")[1] : null;
     const legacyCandidate = brief.source !== "standalone" || visualMap.status === "legacy-only" || !fs.existsSync(executionStrategyPath);
     const classification = inferTaskClassification({ id, title, relative, explicitModule, legacyCandidate });
@@ -272,8 +276,10 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
     const reviewSubmission = parseAgentReviewSubmission(review, { taskKey: identity.taskKey });
     const reviewConfirmation = parseReviewConfirmation(review, {
       taskKey: identity.taskKey,
+      taskAudit,
       projectRoot: target.projectRoot,
       taskDir,
+      indexPath,
       reviewPath,
       progressPath,
     });
@@ -299,7 +305,11 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
         closeoutStatus: effectiveCloseoutStatus,
       }),
     });
-    const materialIssues = [...materialReadiness.issues, ...scaffoldProvenanceMaterialIssues(target, taskDir, scaffoldProvenance)];
+    const materialIssues = [
+      ...materialReadiness.issues,
+      ...taskAuditMaterialIssues(target, taskDir, taskAudit),
+      ...legacyAuditIssues(target, taskDir, { briefContent: brief.content, reviewContent: review }),
+    ];
     const stateConflicts = collectStateConflicts({ state: stateInfo.state, reviewStatus, closeoutStatus: effectiveCloseoutStatus, lifecycleState, budget });
     const reviewQueueState = deriveReviewQueueState({
       state: stateInfo.state,
@@ -372,6 +382,7 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
       evidenceBundle: formatEvidenceBundle(metadata.evidenceBundle),
       migrationSnapshot: collectMigrationSnapshot(target, metadata),
       scaffoldProvenance: scaffoldProvenance.summary,
+      taskAudit: taskAudit.summary,
       lifecycleState,
       reviewStatus,
       reviewSubmitted: Boolean(reviewSubmission?.submitted),

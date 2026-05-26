@@ -5,7 +5,8 @@ Chinese mirror: `docs-release/guides/task-state-machine.md`
 Coding Agent Harness does not model task state as a single field. The Dashboard derives the visible lifecycle from multiple files:
 
 - `progress.md` stores raw `task.state` and execution evidence.
-- `review.md` stores Agent Review Submission, material findings, and Human Review Confirmation.
+- `review.md` stores Agent Review Submission, material findings, and review evidence.
+- `INDEX.md` stores Task Audit Metadata, including task creation and human review confirmation audit fields.
 - `lesson_candidates.md` records lesson candidate decisions and sedimentation routing.
 - `10-WALKTHROUGH/Closeout-SSoT.md` records closeout status and links walkthrough evidence.
 - Tombstone / supersede metadata records whether a task was soft-deleted, merged, archived, or replaced.
@@ -32,7 +33,7 @@ stateDiagram-v2
   finalized --> [*]
 ```
 
-`task-review` means the agent submitted a review packet. It does not mean human approval. `review-confirm` is the Human Review Confirmation gate. `task-complete` / closeout is not a substitute for review confirmation.
+`task-review` means the agent submitted a review packet. It does not mean human approval. `review-confirm` is the human confirmation gate and writes its audit fields to `INDEX.md`. `task-complete` / closeout is not a substitute for review confirmation.
 
 ## Phase Kind Map
 
@@ -54,13 +55,15 @@ Agents may run `Exit Command` values with `Actor: agent`. `Actor: human` gates, 
 ```mermaid
 flowchart TB
   Progress["progress.md<br/>task.state + evidence"]
-  Review["review.md<br/>Agent Review Submission + findings + Human Review Confirmation"]
+  Index["INDEX.md<br/>Task Audit Metadata"]
+  Review["review.md<br/>Agent Review Submission + findings + evidence"]
   Lessons["lesson_candidates.md<br/>decision + sedimentation route"]
   Closeout["Closeout-SSoT.md<br/>closeout row + walkthrough"]
   Tombstone["tombstone / supersede metadata"]
   Scanner["scanner"]
 
   Progress --> Scanner
+  Index --> Scanner
   Review --> Scanner
   Lessons --> Scanner
   Closeout --> Scanner
@@ -77,7 +80,7 @@ flowchart TB
 | Field | Source | Purpose |
 | --- | --- | --- |
 | `task.state` | `progress.md` | Raw execution stage. |
-| `reviewStatus` | `review.md` + findings + Human Review Confirmation | Separates missing review, agent-submitted review, blockers, and human confirmation. |
+| `reviewStatus` | `INDEX.md` Task Audit Metadata + `review.md` findings/submission | Separates missing review, agent-submitted review, blockers, and human confirmation. |
 | `closeoutStatus` | `Closeout-SSoT.md` | Separates missing, pending, and closed closeout. |
 | `lifecycleState` | scanner-derived | Main Dashboard lifecycle meaning. |
 | `taskQueues[]` | scanner-derived | Which lifecycle queues include the task. A task can be visible in more than one governance queue. |
@@ -91,9 +94,9 @@ flowchart TB
 | Tombstone, superseded-by, archive, or abandoned marker exists | `soft-deleted-superseded` | Hidden by default, but preserved for audit and replacement tracing. |
 | Open P0-P2 finding, invalid transition, audit failure, or failed human-review gate | `blocked` | Cannot enter human confirmation until the blocker is fixed or waived. |
 | Standard / complex task is missing required files, sections, evidence, lesson decision, or review submission | `missing-materials` | Needs agent repair; not part of the human review queue. |
-| `task-review` was submitted, materials are ready, and Human Review Confirmation is missing | `review-submitted` | Truly waiting for human review. |
-| Human Review Confirmation exists, but closeout / ledger / lessons are not fully closed | `confirmed-finalization-pending` | Accountability moved to the reviewer, but governance closeout remains. |
-| Human Review Confirmation exists, and closeout / ledger / lesson routing are complete | `finalized` | Truly complete and traceable. |
+| `task-review` was submitted, materials are ready, and `INDEX.md` does not show human confirmation | `review-submitted` | Truly waiting for human review. |
+| `INDEX.md` shows human confirmation, but closeout / ledger / lessons are not fully closed | `confirmed-finalization-pending` | Accountability moved to the reviewer, but governance closeout remains. |
+| `INDEX.md` shows human confirmation, and closeout / ledger / lesson routing are complete | `finalized` | Truly complete and traceable. |
 | `task.state = blocked` without a review blocker | `active-blocked` | Execution is blocked. |
 | `task.state = in_progress` | `active` | Work is active. |
 | `task.state = planned/not_started` | `ready` | Work has not started; not in human review by default. |
@@ -106,9 +109,9 @@ flowchart TB
 | `required` | Review document exists, but the packet is not ready for human review. |
 | `submitted` | An agent submitted a review packet. This is not human confirmation. |
 | `blocked-open-findings` | There is an open P0-P2 finding or a finding that blocks release / confirmation. |
-| `confirmed` | `Human Review Confirmation` exists. |
+| `confirmed` | `INDEX.md` Task Audit Metadata has `Human Review Status: confirmed` and committed audit fields. |
 
-Agent self-review, subagent review, and coordinator review can only move a task toward `submitted`. Only `review-confirm` or an explicit Dashboard Workbench human confirmation writes `Human Review Confirmation`.
+Agent self-review, subagent review, and coordinator review can only move a task toward `submitted`. Only `review-confirm` or an explicit Dashboard Workbench human confirmation writes the confirmation audit fields in `INDEX.md`.
 
 ## Lifecycle Queues
 
@@ -182,16 +185,15 @@ sequenceDiagram
   else accepted
     API->>Lifecycle: confirmTaskReview()
     Lifecycle->>Lifecycle: verify clean Git state, identity, hooks, allowlist
-    Lifecycle->>Docs: write Human Review Confirmation
-    Lifecycle->>Docs: append review-confirm log
-    Lifecycle->>Lifecycle: commit allowlisted review/progress files
+    Lifecycle->>Docs: write confirmation fields to INDEX.md
+    Lifecycle->>Lifecycle: commit allowlisted INDEX.md
     Lifecycle->>Docs: record confirmation commit SHA + committed audit status
     API->>Scanner: regenerate dashboard snapshot
     API-->>UI: confirmed task
   end
 ```
 
-Strict rule: an agent can prepare review evidence and submit the task for review, but the task is not human-confirmed until the Human Review Confirmation block exists. Confirmation must use gated auto-commit: the CLI and Workbench reject dirty Git state, missing commit identity, hook/preflight failure, or writes outside the current task `review.md` / `progress.md` allowlist, and return recovery guidance.
+Strict rule: an agent can prepare review evidence and submit the task for review, but the task is not human-confirmed until the task `INDEX.md` contains committed confirmation audit fields. Confirmation must use gated auto-commit: the CLI and Workbench reject dirty Git state, missing commit identity, hook/preflight failure, or writes outside the current task `INDEX.md` allowlist, and return recovery guidance.
 
 CLI-owned mechanical writes and agent-owned manual slices have different boundaries. `new-task`, `task-*`, `task-phase`, `module-step`, `review-confirm`, `lesson-sediment`, and `lesson-promote --apply` acquire a lock, restrict writes to an allowlist, and auto-commit in a clean Git root. When an agent manually edits code, templates, or task docs, it still needs to proactively commit after verification; if it cannot commit, it must record the no-commit reason, owner, and next step, and must not mix unrelated dirty changes into the task commit.
 

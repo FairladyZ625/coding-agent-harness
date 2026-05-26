@@ -6,6 +6,12 @@ import {
   readFileSafe,
 } from "../core-shared.mjs";
 import {
+  parseTaskAuditMetadata,
+  readGitIdentity,
+  replaceTaskAuditMetadata,
+  taskAuditFieldOrder,
+} from "../task-audit-metadata.mjs";
+import {
   collectReviewRisks,
   isBlockingReviewRisk,
   isLessonCandidateDecisionComplete,
@@ -15,7 +21,7 @@ import {
 } from "../task-scanner.mjs";
 import { commitReviewConfirmationGate, prepareReviewConfirmGitGate } from "../review-confirm-git-gate.mjs";
 import { validateHumanReviewConfirmation } from "./review-gates.mjs";
-import { appendProgressLog, markdownCell } from "./text-utils.mjs";
+import { markdownCell } from "./text-utils.mjs";
 
 export function confirmTaskReview({ target, taskDir, findTaskByDirectory }, { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "" } = {}) {
   assertTaskDirectoryInsidePlanning(target, taskDir);
@@ -27,8 +33,9 @@ export function confirmTaskReview({ target, taskDir, findTaskByDirectory }, { re
   if (!confirmText) throw new Error(`Missing review confirmation text: ${shortId}`);
 
   const reviewPath = path.join(taskDir, "review.md");
-  const progressPath = path.join(taskDir, "progress.md");
+  const indexPath = path.join(taskDir, "INDEX.md");
   const reviewContent = readFileSafe(reviewPath);
+  const indexContent = readFileSafe(indexPath);
   const budget = parseTaskBudget(readFileSafe(path.join(taskDir, "task_plan.md")));
   const candidateStatus = parseLessonCandidateStatus(readFileSafe(path.join(taskDir, lessonCandidatesFile)));
   const blockingRisks = collectReviewRisks(reviewContent).filter(isBlockingReviewRisk);
@@ -43,35 +50,36 @@ export function confirmTaskReview({ target, taskDir, findTaskByDirectory }, { re
   if (budget !== "simple" && !isLessonCandidateDecisionComplete(candidateStatus)) {
     throw new Error(`Human review confirmation requires lesson candidate decision complete; current status is ${candidateStatus.status}.`);
   }
-  const gitGate = prepareReviewConfirmGitGate(target.projectRoot, [reviewPath, progressPath]);
+  const gitGate = prepareReviewConfirmGitGate(target.projectRoot, [indexPath]);
 
   const timestamp = nowTimestamp();
   const confirmationId = `HRC-${timestamp.replace(/[^0-9]/g, "").slice(0, 14)}`;
-  const safeReviewer = markdownCell(reviewer || "Human Reviewer");
-  const safeReviewerEmail = markdownCell(process.env.GIT_AUTHOR_EMAIL || process.env.GIT_COMMITTER_EMAIL || "reviewer@example.invalid");
-  const safeMessage = markdownCell(message || "Human review confirmed");
-  const safeEvidence = markdownCell(evidence || `TARGET:docs/09-PLANNING/${canonicalTaskId}/review.md`);
-  const renderConfirmationBlock = ({ commitSha = "pending", auditStatus = "commit-pending" } = {}) =>
-    `## Human Review Confirmation\n\n| Field | Value |\n| --- | --- |\n| Confirmation ID | ${confirmationId} |\n| Confirmed At | ${timestamp} |\n| Reviewer | ${safeReviewer} |\n| Reviewer Email | ${safeReviewerEmail} |\n| Task Key | ${canonicalTaskId} |\n| Confirm Text | ${markdownCell(confirmText)} |\n| Evidence Checked | ${safeEvidence} |\n| Commit SHA | ${markdownCell(commitSha)} |\n| Audit Status | ${markdownCell(auditStatus)} |\n| Message | ${safeMessage} |\n`;
-  const confirmationBlock = renderConfirmationBlock();
-  const nextReview = replaceReviewConfirmation(reviewContent, confirmationBlock);
-  fs.writeFileSync(reviewPath, nextReview.endsWith("\n") ? nextReview : `${nextReview}\n`);
-  let progressContent = readFileSafe(progressPath);
-  progressContent = appendProgressLog(progressContent, {
-    event: "review-confirm",
-    message: message || `Human review confirmed by ${reviewer}`,
-    evidence: evidence || `TARGET:docs/09-PLANNING/${canonicalTaskId}/review.md`,
-    actor: reviewer || "Human Reviewer",
+  const identity = readGitIdentity(target.projectRoot);
+  const baseAuditFields = taskAuditFieldsFromIndex(indexContent);
+  const buildAuditFields = ({ commitSha = "pending", auditStatus = "commit-pending" } = {}) => ({
+    ...baseAuditFields,
+    "Human Review Status": "confirmed",
+    "Confirmation ID": confirmationId,
+    "Confirmed At": timestamp,
+    "Reviewer": reviewer || identity.name || "Human Reviewer",
+    "Reviewer Email": identity.email || "n/a",
+    "Confirm Text": markdownCell(confirmText),
+    "Evidence Checked": evidence || `TARGET:docs/09-PLANNING/${canonicalTaskId}/review.md`,
+    "Review Commit SHA": commitSha,
+    "Audit Source": "native-index",
+    "Audit Status": auditStatus,
+    "Message": message || "Human review confirmed",
+    "Migration Status": baseAuditFields["Migration Status"] || "native",
   });
-  fs.writeFileSync(progressPath, progressContent.endsWith("\n") ? progressContent : `${progressContent}\n`);
+  fs.writeFileSync(indexPath, ensureTrailingNewline(replaceTaskAuditMetadata(indexContent, buildAuditFields(), { locale: target.locale })));
   const audit = commitReviewConfirmationGate(gitGate, {
     taskId: canonicalTaskId,
-    reviewPath,
+    reviewPath: indexPath,
     message: message || `Human review confirmed by ${reviewer}`,
     writeFinalAudit(commitSha) {
-      const currentReview = readFileSafe(reviewPath);
-      const finalReview = replaceReviewConfirmation(currentReview, renderConfirmationBlock({ commitSha, auditStatus: "committed" }));
-      fs.writeFileSync(reviewPath, finalReview.endsWith("\n") ? finalReview : `${finalReview}\n`);
+      const currentIndex = readFileSafe(indexPath);
+      const finalIndex = replaceTaskAuditMetadata(currentIndex, buildAuditFields({ commitSha, auditStatus: "committed" }), { locale: target.locale });
+      fs.writeFileSync(indexPath, ensureTrailingNewline(finalIndex));
     },
   });
   return {
@@ -92,10 +100,13 @@ function assertTaskDirectoryInsidePlanning(target, taskDir) {
   }
 }
 
-function replaceReviewConfirmation(content, block) {
-  const trimmed = String(content || "").trimEnd();
-  if (/^##\s*(?:Human Review Confirmation|人工审查确认)\s*$/im.test(trimmed)) {
-    return trimmed.replace(/^##\s*(?:Human Review Confirmation|人工审查确认)\s*$[\s\S]*?(?=^##\s+|(?![\s\S]))/im, `${block.trimEnd()}\n\n`);
-  }
-  return `${trimmed}\n\n${block.trimEnd()}\n`;
+function taskAuditFieldsFromIndex(content) {
+  const audit = parseTaskAuditMetadata(content, { required: true });
+  const fields = {};
+  for (const field of taskAuditFieldOrder) fields[field] = audit.fields.get(field.toLowerCase()) || "n/a";
+  return fields;
+}
+
+function ensureTrailingNewline(content) {
+  return content.endsWith("\n") ? content : `${content}\n`;
 }

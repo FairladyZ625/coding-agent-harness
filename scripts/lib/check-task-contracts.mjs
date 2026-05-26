@@ -10,8 +10,8 @@ import {
   listTaskPlanPaths,
   parseTaskBudget,
   parseTaskContractInfo,
-  parseScaffoldProvenance,
 } from "./task-scanner.mjs";
+import { parseTaskAuditMetadata } from "./task-audit-metadata.mjs";
 
 export function validatePlanContracts(target, { strict = true, taskPlanPaths } = {}) {
   const failures = [];
@@ -23,18 +23,17 @@ export function validatePlanContracts(target, { strict = true, taskPlanPaths } =
   for (const taskPlanPath of taskPlanPaths || listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
     const relativeDir = toPosix(path.relative(target.projectRoot, taskDir));
-    const relativeBriefPath = `${relativeDir}/brief.md`;
     const taskPlanContent = readFileSafe(taskPlanPath);
-    const briefContent = readFileSafe(path.join(taskDir, "brief.md"));
+    const indexContent = readFileSafe(path.join(taskDir, "INDEX.md"));
     const budget = parseTaskBudget(taskPlanContent);
     const taskContract = parseTaskContractInfo(taskPlanContent);
-    const scaffoldProvenance = parseScaffoldProvenance(briefContent, { required: strict && taskContract.generated });
+    const taskAudit = parseTaskAuditMetadata(indexContent, { required: strict && taskContract.generated });
     if (!taskContract.generated) {
       warnings.push(`adoption-needed: ${relativeDir} missing Task Contract: harness-task/v1 marker`);
     }
-    for (const issue of scaffoldProvenance.issues) {
-      if (scaffoldProvenance.required || scaffoldProvenance.present) failures.push(`${relativeBriefPath} ${issue.message}`);
-      else report(`${relativeBriefPath} ${issue.message}`);
+    for (const issue of taskAudit.issues) {
+      if (taskContract.generated || taskAudit.present) failures.push(`${relativeDir}/INDEX.md ${issue.message}`);
+      else report(`${relativeDir}/INDEX.md ${issue.message}`);
     }
     const indexRequired = /^Task Package Index\s*[:：]\s*(required|yes|true|必需|必须|required)\s*$/im.test(taskPlanContent);
     for (const fileName of requiredTaskFilesForBudget(budget, { indexRequired })) {

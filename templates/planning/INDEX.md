@@ -13,6 +13,34 @@ Task Contract: harness-task/v1
 | Long-running | `{{TASK_LONG_RUNNING}}` |
 | Created | {{DATE}} |
 
+## Task Audit Metadata
+
+| Field | Value |
+| --- | --- |
+| Created By | {{TASK_AUDIT_CREATED_BY}} |
+| Created At | {{TASK_AUDIT_CREATED_AT}} |
+| Command Shape | {{TASK_AUDIT_COMMAND_SHAPE}} |
+| Budget | {{TASK_AUDIT_BUDGET}} |
+| Template Source | {{TASK_AUDIT_TEMPLATE_SOURCE}} |
+| Task Creator | {{TASK_AUDIT_TASK_CREATOR}} |
+| Task Creator Source | {{TASK_AUDIT_TASK_CREATOR_SOURCE}} |
+| Human Review Status | {{TASK_AUDIT_HUMAN_REVIEW_STATUS}} |
+| Confirmation ID | {{TASK_AUDIT_CONFIRMATION_ID}} |
+| Confirmed At | {{TASK_AUDIT_CONFIRMED_AT}} |
+| Reviewer | {{TASK_AUDIT_REVIEWER}} |
+| Reviewer Email | {{TASK_AUDIT_REVIEWER_EMAIL}} |
+| Confirm Text | {{TASK_AUDIT_CONFIRM_TEXT}} |
+| Evidence Checked | {{TASK_AUDIT_EVIDENCE_CHECKED}} |
+| Review Commit SHA | {{TASK_AUDIT_REVIEW_COMMIT_SHA}} |
+| Audit Source | {{TASK_AUDIT_AUDIT_SOURCE}} |
+| Audit Status | {{TASK_AUDIT_AUDIT_STATUS}} |
+| Exception Reason | {{TASK_AUDIT_EXCEPTION_REASON}} |
+| Message | {{TASK_AUDIT_MESSAGE}} |
+| Migration Status | {{TASK_AUDIT_MIGRATION_STATUS}} |
+| Migrated From | {{TASK_AUDIT_MIGRATED_FROM}} |
+| Legacy Extra Fields | {{TASK_AUDIT_LEGACY_EXTRA_FIELDS}} |
+| Migration Notes | {{TASK_AUDIT_MIGRATION_NOTES}} |
+
 ## Core Contract Files
 
 | File | Purpose |
@@ -31,7 +59,7 @@ These files exist for standard and complex tasks.
 | `execution_strategy.md` | Execution mode, ownership, conflict control, and evidence strategy. |
 | `findings.md` | Findings, research notes, accepted risks, and unresolved questions. |
 | `lesson_candidates.md` | Task-local lesson candidate decisions before closeout. |
-| `review.md` | Agent review submission, adversarial review, and human confirmation area. |
+| `review.md` | Agent review submission, adversarial review, findings, evidence, and routing. |
 
 ## Optional Indexes
 

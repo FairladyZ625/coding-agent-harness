@@ -38,9 +38,9 @@ for (const task of [firstAutomaticTask, secondAutomaticTask]) {
     "created automatic task should write files under the target project",
   );
 }
-const firstAutomaticBrief = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${firstAutomaticTask.task.shortId}/brief.md`), "utf8");
-assert(firstAutomaticBrief.includes("harness new-task --budget standard"), "automatic task scaffold command should preserve title-only command shape");
-assert(!firstAutomaticBrief.includes(`harness new-task ${firstAutomaticTask.task.shortId}`), "automatic task scaffold command should not pretend the generated id was explicit input");
+const firstAutomaticIndex = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${firstAutomaticTask.task.shortId}/INDEX.md`), "utf8");
+assert(firstAutomaticIndex.includes("harness new-task --budget standard"), "automatic task audit command should preserve title-only command shape");
+assert(!firstAutomaticIndex.includes(`harness new-task ${firstAutomaticTask.task.shortId}`), "automatic task audit command should not pretend the generated id was explicit input");
 const explicitDocsId = expectJson(["new-task", "docs", "--title", "Bare Docs Explicit ID", "--dry-run", lifecycleTarget]);
 assert(explicitDocsId.task?.shortId === `${todayLocal}-docs`, "bare explicit task ids should stay explicit even if they look like local directories");
 const lifecycleDryRun = expectJson(["new-task", "phase-2-lifecycle", "--title", "阶段二任务生命周期", "--locale", "zh-CN", "--dry-run", lifecycleTarget]);
@@ -81,14 +81,13 @@ assert(!lifecycleTaskPlan.includes("Do not hand-copy this template"), "task_plan
 assert(!lifecycleTaskPlan.includes("| Contract File | Purpose |"), "task_plan.md should not repeat generic contract-file purpose tables");
 assert(!lifecycleTaskPlan.includes("Scaffold Provenance"), "new-task should not render scaffold provenance into task_plan.md");
 const lifecycleBrief = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/brief.md`), "utf8");
-assert(lifecycleBrief.includes("## Scaffold Provenance"), "new-task should render scaffold provenance into brief.md");
-assert(lifecycleBrief.includes("| Created By | harness new-task |"), "new-task should record CLI scaffold provenance");
-assert(lifecycleBrief.includes(`| Created At | ${todayLocal} |`), "new-task should record the scaffold date");
-assert(lifecycleBrief.includes("| Budget | standard |"), "new-task should record the selected budget in scaffold provenance");
-assert(lifecycleBrief.includes("harness new-task"), "new-task should record the command shape in scaffold provenance");
-assert(!lifecycleBrief.includes("Do not remove this section"), "scaffold provenance should stay machine-readable without educational prose");
-assert(lifecycleBrief.lastIndexOf("## Scaffold Provenance") > lifecycleBrief.indexOf("## First Next Step"), "scaffold provenance should live at the end of brief.md");
-assert(lifecycleBrief.trimEnd().endsWith("| Exception Reason | n/a |"), "scaffold provenance should be the final content in brief.md");
+assert(!lifecycleBrief.includes("## Scaffold Provenance"), "new-task should not render scaffold provenance into brief.md");
+assert(lifecycleIndex.includes("## 任务审计元数据"), "new-task should render task audit metadata into INDEX.md");
+assert(lifecycleIndex.includes("| Created By | harness new-task |"), "new-task should record CLI scaffold provenance in INDEX.md");
+assert(lifecycleIndex.includes(`| Created At | ${todayLocal} |`), "new-task should record the scaffold date in INDEX.md");
+assert(lifecycleIndex.includes("| Budget | standard |"), "new-task should record the selected budget in INDEX.md");
+assert(lifecycleIndex.includes("harness new-task"), "new-task should record the command shape in INDEX.md");
+assert(lifecycleIndex.includes("| Human Review Status | not-confirmed |"), "new-task should initialize human review status in INDEX.md");
 const lifecycleVisualMap = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/visual_map.md`), "utf8");
 assert(lifecycleVisualMap.includes("| Phase ID | Kind | Depends On | State | Completion |"), "new-task should render phase kind columns");
 assert(lifecycleVisualMap.includes("Exit Command"), "new-task should render phase exit commands");
@@ -135,109 +134,29 @@ assert(budgetContractOutput.includes(`${todayLocal}-budget-simple missing brief.
 assert(budgetContractOutput.includes(`${todayLocal}-budget-standard missing INDEX.md`), "check should require root INDEX.md for standard tasks");
 assert(budgetContractOutput.includes(`${todayLocal}-budget-standard missing review.md`), "check should require review.md for standard tasks");
 assert(budgetContractOutput.includes(`${todayLocal}-budget-complex missing references/INDEX.md`), "check should require optional indexes for complex tasks");
-const provenanceTarget = path.join(tmpRoot, "provenance-contract-target");
-fs.mkdirSync(provenanceTarget);
-expectJson(["init", "--locale", "en-US", "--capabilities", "core", provenanceTarget]);
-expectJson(["new-task", "provenance-required", "--title", "Provenance Required", provenanceTarget]);
-const provenanceTaskPlanPath = path.join(provenanceTarget, `docs/09-PLANNING/TASKS/${todayLocal}-provenance-required/task_plan.md`);
-const provenanceBriefPath = path.join(provenanceTarget, `docs/09-PLANNING/TASKS/${todayLocal}-provenance-required/brief.md`);
-const provenanceTaskPlan = fs.readFileSync(provenanceTaskPlanPath, "utf8");
-const provenanceBrief = fs.readFileSync(provenanceBriefPath, "utf8");
-fs.writeFileSync(
-  provenanceBriefPath,
-  provenanceBrief.replace(/\n## Scaffold Provenance\n[\s\S]*$/, "\n"),
+const auditContractTarget = path.join(tmpRoot, "audit-contract-target");
+fs.mkdirSync(auditContractTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core", auditContractTarget]);
+expectJson(["new-task", "audit-required", "--title", "Audit Required", auditContractTarget]);
+const auditIndexPath = path.join(auditContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-audit-required/INDEX.md`);
+const auditBriefPath = path.join(auditContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-audit-required/brief.md`);
+const auditIndex = fs.readFileSync(auditIndexPath, "utf8");
+fs.writeFileSync(auditIndexPath, auditIndex.replace(/\n## Task Audit Metadata\n[\s\S]*?(?=\n## Core Contract Files)/, "\n"));
+const missingAuditCheck = run(["check", "--profile", "target-project", auditContractTarget]);
+const missingAuditOutput = `${missingAuditCheck.stdout}\n${missingAuditCheck.stderr}`;
+assert(missingAuditCheck.status !== 0, "check should fail when required Task Audit Metadata is missing");
+assert(missingAuditOutput.includes("missing Task Audit Metadata"), "missing task audit failure should explain the missing section");
+assert(missingAuditOutput.includes(`${todayLocal}-audit-required/INDEX.md`), "missing task audit failure should route to INDEX.md");
+fs.writeFileSync(auditIndexPath, auditIndex);
+fs.appendFileSync(
+  auditBriefPath,
+  `\n## Scaffold Provenance\n\n| Field | Value |\n| --- | --- |\n| Created By | manual-exception |\n| Command Shape | n/a |\n| Created At | ${todayLocal} |\n| Budget | standard |\n| Template Source | legacy fixture |\n| Exception Reason | legacy |\n`,
 );
-const missingProvenanceCheck = run(["check", "--profile", "target-project", provenanceTarget]);
-const missingProvenanceOutput = `${missingProvenanceCheck.stdout}\n${missingProvenanceCheck.stderr}`;
-assert(missingProvenanceCheck.status !== 0, "check should fail when required scaffold provenance is missing");
-assert(missingProvenanceOutput.includes("missing Scaffold Provenance"), "missing scaffold provenance failure should explain the missing section");
-assert(missingProvenanceOutput.includes(`${todayLocal}-provenance-required/brief.md`), "missing scaffold provenance failure should route to brief.md");
-fs.writeFileSync(provenanceBriefPath, `${provenanceBrief}\n\n## Later Section\nThis section should make provenance non-final.\n`);
-const misplacedProvenanceCheck = run(["check", "--profile", "target-project", provenanceTarget]);
-const misplacedProvenanceOutput = `${misplacedProvenanceCheck.stdout}\n${misplacedProvenanceCheck.stderr}`;
-assert(misplacedProvenanceCheck.status !== 0, "check should fail when scaffold provenance is not the final brief section");
-assert(misplacedProvenanceOutput.includes("Scaffold Provenance must be the final brief section"), "misplaced scaffold provenance failure should explain final-section requirement");
-assert(misplacedProvenanceOutput.includes(`${todayLocal}-provenance-required/brief.md`), "misplaced scaffold provenance failure should route to brief.md");
-const misplacedProvenanceStatusResult = run(["status", "--json", provenanceTarget]);
-assert(misplacedProvenanceStatusResult.status !== 0, "status should fail when scaffold provenance is not the final brief section");
-const misplacedProvenanceStatus = JSON.parse(misplacedProvenanceStatusResult.stdout);
-const misplacedProvenanceTask = misplacedProvenanceStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-provenance-required`);
-assert(
-  misplacedProvenanceTask?.materialIssues?.some((issue) => issue.code === "scaffold-provenance-not-at-end" && issue.sourcePath.endsWith(`${todayLocal}-provenance-required/brief.md`)),
-  "status should route non-final scaffold provenance to the concrete brief.md path",
-);
-fs.writeFileSync(provenanceBriefPath, `${provenanceBrief}\nDo not remove this section. harness check depends on it.\n`);
-const proseProvenanceCheck = run(["check", "--profile", "target-project", provenanceTarget]);
-const proseProvenanceOutput = `${proseProvenanceCheck.stdout}\n${proseProvenanceCheck.stderr}`;
-assert(proseProvenanceCheck.status !== 0, "check should fail when scaffold provenance contains prose");
-assert(proseProvenanceOutput.includes("Scaffold Provenance must contain only the machine-readable table"), "prose scaffold provenance failure should explain table-only requirement");
-assert(proseProvenanceOutput.includes(`${todayLocal}-provenance-required/brief.md`), "prose scaffold provenance failure should route to brief.md");
-const proseProvenanceStatusResult = run(["status", "--json", provenanceTarget]);
-assert(proseProvenanceStatusResult.status !== 0, "status should fail when scaffold provenance contains prose");
-const proseProvenanceStatus = JSON.parse(proseProvenanceStatusResult.stdout);
-const proseProvenanceTask = proseProvenanceStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-provenance-required`);
-assert(
-  proseProvenanceTask?.materialIssues?.some((issue) => issue.code === "scaffold-provenance-non-table-content" && issue.sourcePath.endsWith(`${todayLocal}-provenance-required/brief.md`)),
-  "status should route prose scaffold provenance to the concrete brief.md path",
-);
-fs.writeFileSync(
-  provenanceBriefPath,
-  provenanceBrief.replace(
-    "| Created By | harness new-task |",
-    "| Created By | manual-exception |",
-  ).replace(
-    "| Exception Reason | n/a |",
-    "| Exception Reason | CLI was unavailable during emergency recovery; all required files were manually created. |",
-  ),
-);
-expectPass(["check", "--profile", "target-project", provenanceTarget]);
-fs.writeFileSync(
-  provenanceBriefPath,
-  provenanceBrief.replace(
-    `| Created At | ${todayLocal} |`,
-    "| Created At | 2026-99-99 |",
-  ),
-);
-const invalidCreatedAtCheck = run(["check", "--profile", "target-project", provenanceTarget]);
-const invalidCreatedAtOutput = `${invalidCreatedAtCheck.stdout}\n${invalidCreatedAtCheck.stderr}`;
-assert(invalidCreatedAtCheck.status !== 0, "check should fail when scaffold Created At is not a real calendar date");
-assert(invalidCreatedAtOutput.includes("invalid Scaffold Provenance Created At"), "invalid Created At failure should explain the bad scaffold date");
-assert(invalidCreatedAtOutput.includes(`${todayLocal}-provenance-required/brief.md`), "invalid Created At failure should route to brief.md");
-fs.writeFileSync(
-  provenanceBriefPath,
-  provenanceBrief.replace(/\n## Scaffold Provenance\n[\s\S]*$/, "\n"),
-);
-fs.writeFileSync(
-  provenanceTaskPlanPath,
-  `${provenanceTaskPlan}\n\n## Scaffold Provenance\n\n| Field | Value |\n| --- | --- |\n| Created By | historical-backfill |\n| Command Shape | n/a |\n| Created At | ${todayLocal} |\n| Budget | standard |\n| Template Source | obsolete task_plan fallback |\n| Exception Reason | Old task-plan provenance should not be accepted. |\n`,
-);
-const missingProvenanceMarkerCheck = run(["check", "--profile", "target-project", provenanceTarget]);
-const missingProvenanceMarkerOutput = `${missingProvenanceMarkerCheck.stdout}\n${missingProvenanceMarkerCheck.stderr}`;
-assert(missingProvenanceMarkerCheck.status !== 0, "check should fail when a generated task omits both scaffold provenance marker and section");
-assert(missingProvenanceMarkerOutput.includes("missing Scaffold Provenance section"), "missing marker and section failure should explain scaffold provenance");
-const missingProvenanceMarkerStatusResult = run(["status", "--json", provenanceTarget]);
-assert(missingProvenanceMarkerStatusResult.status !== 0, "status should fail when generated scaffold provenance is missing");
-const missingProvenanceMarkerStatus = JSON.parse(missingProvenanceMarkerStatusResult.stdout);
-const missingProvenanceMarkerTask = missingProvenanceMarkerStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-provenance-required`);
-assert(missingProvenanceMarkerTask?.materialsReady === false, "status should mark missing generated scaffold provenance as not materials-ready");
-assert(
-  missingProvenanceMarkerTask?.materialIssues?.some((issue) => issue.code === "missing-scaffold-provenance" && issue.sourcePath.endsWith(`${todayLocal}-provenance-required/brief.md`)),
-  "status should route missing scaffold provenance to the concrete brief.md path",
-);
-fs.writeFileSync(
-  provenanceBriefPath,
-  provenanceBrief.replace(
-    "| Created By | harness new-task |",
-    "| Created By | historical-backfill |",
-  ).replace(
-    /\| Command Shape \| [^|]+ \|/,
-    "| Command Shape | n/a |",
-  ).replace(
-    "| Exception Reason | n/a |",
-    "| Exception Reason | Existing task predates scaffold provenance enforcement. |",
-  ),
-);
-expectPass(["check", "--profile", "target-project", provenanceTarget]);
+const legacyAuditCheck = run(["check", "--profile", "target-project", auditContractTarget]);
+const legacyAuditOutput = `${legacyAuditCheck.stdout}\n${legacyAuditCheck.stderr}`;
+assert(legacyAuditCheck.status !== 0, "check should fail when a legacy Scaffold Provenance block remains");
+assert(legacyAuditOutput.includes("legacy Scaffold Provenance must be migrated to INDEX.md"), "legacy scaffold failure should explain migration action");
+assert(legacyAuditOutput.includes(`${todayLocal}-audit-required/brief.md`), "legacy scaffold failure should route to brief.md");
 const longRunningLifecycle = expectJson(["new-task", "long-running-lifecycle", "--long-running", "--title", "长程任务", "--locale", "zh-CN", lifecycleTarget]);
 assert(longRunningLifecycle.task?.longRunning === true, "new-task --long-running should report longRunning true");
 assert(
@@ -510,8 +429,9 @@ const confirmedStatus = expectJson(["status", "--json", lifecycleTarget]);
 const confirmedTask = confirmedStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-phase-2-lifecycle`);
 assert(confirmedTask?.reviewStatus === "confirmed", "status should expose confirmed review status");
 assert(confirmedTask?.closeoutStatus === "pending", "status should keep pending closeout separate from review confirmation");
-assert(fs.readFileSync(lifecycleReviewPath, "utf8").includes("Human Review Confirmation"), "review-confirm should write a human review confirmation block");
-assert(fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/progress.md`), "utf8").includes("review-confirm"), "review-confirm should append a progress log entry");
+const lifecycleConfirmedIndex = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/INDEX.md`), "utf8");
+assert(lifecycleConfirmedIndex.includes("| Human Review Status | confirmed |"), "review-confirm should write human review confirmation fields to INDEX.md");
+assert(!fs.readFileSync(lifecycleReviewPath, "utf8").includes("Human Review Confirmation"), "review-confirm should not write a human review confirmation block to review.md");
 
 const staleCompletionTarget = path.join(tmpRoot, "stale-completion-target");
 fs.mkdirSync(staleCompletionTarget);
