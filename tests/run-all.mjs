@@ -14,6 +14,7 @@ const suites = [
   "tests/dashboard-workbench.mjs",
   "tests/template-governance.mjs",
   "tests/review-confirm-git-gate.mjs",
+  "tests/lifecycle/task-index-audit-metadata.mjs",
   "tests/governance-table-boundary.mjs",
   "tests/governance-sync.mjs",
   "tests/governance-generated-indexes.mjs",

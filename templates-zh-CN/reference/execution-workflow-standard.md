@@ -30,11 +30,11 @@
 8. 主动提交已验证的、有意义的中间成果；commit message 应说明变更类型和范围。除非用户明确要求暂不提交、检查失败、dirty 归属不清，或安全边界阻止干净提交，否则不要把已完成切片长期留在未提交状态；延期提交必须写明 no-commit reason、owner 和下一步。
 9. 机械化 Harness 写入优先使用 CLI lifecycle 命令。CLI-owned 写入会加锁、限制 allowlist 并自动提交。`new-task` 可以保留无关 dirty 文件，并只提交本次命令自己的 write scope；但 write scope 重叠 dirty 或无关 staged 文件仍会阻塞命令。其他 lifecycle 命令仍可能要求 clean tree。agent-owned 手工编辑仍需要明确任务提交或延期提交理由。
 10. 把 `visual_map.md` 当作生命周期阶段地图。`init` 阶段准备工作，`execution` 阶段定义实现完成度，`gate` 阶段定义审查、人工确认、lesson routing 和 closeout。只有当前操作者匹配阶段 `Actor` 时，才执行该阶段 `Exit Command`；Agent 不得执行 `human` gate。
-11. 新任务目录的 `brief.md` 末尾必须保留短机器可读 Scaffold Provenance 表格。正常路径是 `Created By: harness new-task`；手工创建只能作为 `manual-exception`，并写清具体原因；历史迁移使用 `historical-backfill`。
+11. 新任务目录必须在 `INDEX.md` 保留机器可读任务审计元数据。正常路径是 `Created By: harness new-task`；手工创建只能作为 `manual-exception`，并写清具体原因；历史迁移使用 `historical-backfill`。
 
 ## 任务包结构
 
-使用 `harness new-task` 创建任务目录，不要手工复制任务文件。CLI 会按所选预算创建文件集，并记录 provenance，供 `harness check` 校验。
+使用 `harness new-task` 创建任务目录，不要手工复制任务文件。CLI 会按所选预算创建文件集，并在 `INDEX.md` 记录任务审计元数据，供 `harness check` 校验。
 
 | 预算 | 必需文件 |
 | --- | --- |
@@ -43,7 +43,7 @@
 | complex | standard 文件，加 `references/INDEX.md`、`artifacts/INDEX.md` |
 | long-running 附加项 | 选择 `--long-running` 时额外创建 `long-running-task-contract.md` |
 
-`INDEX.md` 是任务包导航页。它只指向合同文件和可选索引，不替代这些文件。
+`INDEX.md` 是任务包导航页，也是审计元数据 SSoT。它只指向合同文件和可选索引，不替代这些文件。
 
 可选目录只在触发时创建：
 

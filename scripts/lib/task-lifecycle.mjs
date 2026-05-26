@@ -42,6 +42,7 @@ import { advanceLifecyclePhase, autoRecordNoLessonCandidateDecision } from "./ta
 import { confirmTaskReview as confirmTaskReviewWithContext } from "./task-lifecycle/review-confirm.mjs";
 import { appendProgressLog } from "./task-lifecycle/text-utils.mjs";
 import { buildScaffoldProvenance } from "./task-lifecycle/scaffold-provenance.mjs";
+import { buildCreationTaskAudit } from "./task-audit-metadata.mjs";
 import {
   renderAgentReviewSubmission,
   replaceAgentReviewSubmission,
@@ -217,6 +218,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
     targetInput: presetInputs?.targetInput || targetInput,
     automaticTaskId,
   });
+  const baseTaskAudit = buildCreationTaskAudit(scaffoldProvenance, { projectRoot: target.projectRoot });
   const evaluatedPresetValues = presetPackage ? evaluateTemplateValues(presetPackage, presetInputs.inputs, { taskId: normalizedTaskId, taskTitle, moduleKey: normalizedModuleKey }) : null;
   const presetContext = presetPackage
     ? buildPresetContext({ ...presetPackage, task: { ...(presetPackage.task || {}), kind: presetPackage.task?.kind || "general" } }, {
@@ -286,6 +288,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
           evidenceBundle: presetContext?.evidenceBundle || "",
           longRunning,
           scaffoldProvenance,
+          taskAudit: buildCreationTaskAudit({ ...scaffoldProvenance, templateSource: source }, { projectRoot: target.projectRoot }),
         }),
       );
     }
@@ -320,6 +323,9 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
           ...scaffoldProvenance,
           templateSource: source,
         },
+        taskAudit: destination === "INDEX.md"
+          ? buildCreationTaskAudit({ ...scaffoldProvenance, templateSource: source }, { projectRoot: target.projectRoot })
+          : baseTaskAudit,
       }), presetContext),
     );
   }
@@ -401,6 +407,7 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
     currentState: currentTask?.state || "unknown",
     budget,
     reviewContent: readFileSafe(path.join(taskDir, "review.md")),
+    indexContent: readFileSafe(path.join(taskDir, "INDEX.md")),
     reviewTaskKey: canonicalTaskId,
     projectRoot: target.projectRoot,
     taskDir,

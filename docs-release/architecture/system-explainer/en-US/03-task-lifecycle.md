@@ -106,31 +106,30 @@ flowchart TD
   C3 -->|"no"| E3["❌ Rejected\nHas uncommitted changes"]
   C3 -->|"yes"| Exec["✅ Execute confirmation"]
 
-  Exec --> Write1["Write Human Review Confirmation block\nto review.md"]
-  Write1 --> Write2["Write confirmation record to progress.md"]
-  Write2 --> Commit1["Git commit #1\nchore: confirm review task-123"]
+  Exec --> Write1["Write confirmation audit fields\nto INDEX.md"]
+  Write1 --> Commit1["Git commit #1\nchore: confirm review task-123"]
   Commit1 --> Commit2["Git commit #2\nchore: record review confirmation audit task-123"]
 ```
 
-**Two-commit strategy**: The first commit covers review.md and progress.md; the second
+**Two-commit strategy**: The first commit covers confirmation fields in `INDEX.md`; the second
 commits the final audit metadata. Even if the second commit fails, the first commit has
 already locked in the confirmation record.
 
-**Human Review Confirmation block format** (written to review.md):
+**Task Audit Metadata confirmation fields** (written to `INDEX.md`):
 
 ```markdown
-## Human Review Confirmation
+## Task Audit Metadata
 
 | Field | Value |
 | --- | --- |
+| Human Review Status | confirmed |
 | Confirmation ID | HRC-<timestamp> |
 | Confirmed At | <ISO timestamp> |
 | Reviewer | <git user.name> |
 | Reviewer Email | <git user.email> |
-| Task Key | <canonical task id> |
 | Confirm Text | <task id confirmation> |
 | Evidence Checked | <evidence path> |
-| Commit SHA | <git commit sha> |
+| Review Commit SHA | <git commit sha> |
 | Audit Status | committed |
 ```
 

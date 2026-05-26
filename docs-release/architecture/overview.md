@@ -225,7 +225,7 @@ confirmation. Tasks with missing packets, incomplete evidence, lesson-routing
 work, blocking findings, or historical closeout debt are routed to separate
 lifecycle queues: Missing Materials, Blocked, Lessons, Confirmed / Finalized,
 and Soft-deleted / Superseded. Agent-authored submissions can request review,
-but only a strict `Human Review Confirmation` block marks the task as
+but only committed Task Audit Metadata in `INDEX.md` marks the task as
 `confirmed`.
 
 ## Migration Rails

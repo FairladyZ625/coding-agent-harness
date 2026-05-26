@@ -196,9 +196,10 @@ The reason:
 This boundary wasn't there from the start. Initially the Dashboard workbench review action
 had no Agent/Human distinction. Later, through competitive analysis (Taskr competitive intake),
 "Agent auto-confirming review" was identified as a P0 risk, which led to introducing the
-Git commit gate: `review-confirm` writes a human confirmation block with Git `user.name` /
-`user.email`, and makes two atomic Git commits — the first commits the confirmation itself,
-the second commits an audit record containing the first commit's SHA.
+Git commit gate: `review-confirm` writes human confirmation audit fields with Git
+`user.name` / `user.email` to the task `INDEX.md`, and makes two atomic Git commits:
+the first commits the confirmation fields, and the second commits the final audit
+record containing the first commit's SHA.
 This Git commit is an **auditable human signature** proving a real human reviewed the task.
 
 ### Why derived state isn't stored in files

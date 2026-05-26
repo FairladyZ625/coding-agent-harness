@@ -103,30 +103,29 @@ flowchart TD
   C3 -->|"否"| E3["❌ 拒绝\n有未提交的改动"]
   C3 -->|"是"| Exec["✅ 执行确认"]
 
-  Exec --> Write1["写入 Human Review Confirmation 块\n到 review.md"]
-  Write1 --> Write2["写入确认记录到 progress.md"]
-  Write2 --> Commit1["Git 提交 #1\nchore: confirm review task-123"]
+  Exec --> Write1["写入确认审计字段\n到 INDEX.md"]
+  Write1 --> Commit1["Git 提交 #1\nchore: confirm review task-123"]
   Commit1 --> Commit2["Git 提交 #2\nchore: record review confirmation audit task-123"]
 ```
 
-**两次提交策略**：第一次提交 review.md 和 progress.md，第二次提交最终审计元数据。
+**两次提交策略**：第一次提交 `INDEX.md` 中的确认字段，第二次提交最终审计元数据。
 这样即使第二次提交失败，第一次提交也已经锁定了确认记录。
 
-**Human Review Confirmation 块格式**（写入 review.md）：
+**Task Audit Metadata 确认字段**（写入 `INDEX.md`）：
 
 ```markdown
-## Human Review Confirmation
+## Task Audit Metadata
 
 | Field | Value |
 | --- | --- |
+| Human Review Status | confirmed |
 | Confirmation ID | HRC-<timestamp> |
 | Confirmed At | <ISO timestamp> |
 | Reviewer | <git user.name> |
 | Reviewer Email | <git user.email> |
-| Task Key | <canonical task id> |
 | Confirm Text | <task id confirmation> |
 | Evidence Checked | <evidence path> |
-| Commit SHA | <git commit sha> |
+| Review Commit SHA | <git commit sha> |
 | Audit Status | committed |
 ```
 

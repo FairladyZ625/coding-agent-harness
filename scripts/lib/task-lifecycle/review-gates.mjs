@@ -6,6 +6,7 @@ import {
 import {
   collectReviewRisks,
   isBlockingReviewRisk,
+  parseTaskAuditMetadata,
   parsePhases,
   parseReviewConfirmation,
   readVisualMapContractFile,
@@ -15,7 +16,7 @@ import {
   phaseHasRecordedProgress,
 } from "../phase-kind.mjs";
 
-export function validateLifecycleTransition({ event, currentState, budget, reviewContent = "", reviewTaskKey = "", projectRoot = "", taskDir = "" }) {
+export function validateLifecycleTransition({ event, currentState, budget, reviewContent = "", indexContent = "", reviewTaskKey = "", projectRoot = "", taskDir = "" }) {
   if (event === "task-review" && currentState !== "in_progress") {
     throw new Error(`task-review requires current state in_progress; current state is ${currentState || "unknown"}`);
   }
@@ -28,7 +29,7 @@ export function validateLifecycleTransition({ event, currentState, budget, revie
       const ids = blockingRisks.map((risk) => risk.id || risk.severity).join(", ");
       throw new Error(`Open blocking review findings must be closed before task-complete: ${ids}`);
     }
-    if (!parseReviewConfirmation(reviewContent, { taskKey: reviewTaskKey, projectRoot, taskDir })?.confirmed) {
+    if (!parseReviewConfirmation(reviewContent, { taskKey: reviewTaskKey, taskAudit: parseTaskAuditMetadata(indexContent), projectRoot, taskDir, indexPath: path.join(taskDir, "INDEX.md") })?.confirmed) {
       throw new Error("Human review must be confirmed before task-complete. Run review-confirm first.");
     }
   }

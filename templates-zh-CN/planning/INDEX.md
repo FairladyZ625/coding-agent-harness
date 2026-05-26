@@ -13,6 +13,34 @@ Task Contract: harness-task/v1
 | Long-running | `{{TASK_LONG_RUNNING}}` |
 | Created | {{DATE}} |
 
+## 任务审计元数据
+
+| Field | Value |
+| --- | --- |
+| Created By | {{TASK_AUDIT_CREATED_BY}} |
+| Created At | {{TASK_AUDIT_CREATED_AT}} |
+| Command Shape | {{TASK_AUDIT_COMMAND_SHAPE}} |
+| Budget | {{TASK_AUDIT_BUDGET}} |
+| Template Source | {{TASK_AUDIT_TEMPLATE_SOURCE}} |
+| Task Creator | {{TASK_AUDIT_TASK_CREATOR}} |
+| Task Creator Source | {{TASK_AUDIT_TASK_CREATOR_SOURCE}} |
+| Human Review Status | {{TASK_AUDIT_HUMAN_REVIEW_STATUS}} |
+| Confirmation ID | {{TASK_AUDIT_CONFIRMATION_ID}} |
+| Confirmed At | {{TASK_AUDIT_CONFIRMED_AT}} |
+| Reviewer | {{TASK_AUDIT_REVIEWER}} |
+| Reviewer Email | {{TASK_AUDIT_REVIEWER_EMAIL}} |
+| Confirm Text | {{TASK_AUDIT_CONFIRM_TEXT}} |
+| Evidence Checked | {{TASK_AUDIT_EVIDENCE_CHECKED}} |
+| Review Commit SHA | {{TASK_AUDIT_REVIEW_COMMIT_SHA}} |
+| Audit Source | {{TASK_AUDIT_AUDIT_SOURCE}} |
+| Audit Status | {{TASK_AUDIT_AUDIT_STATUS}} |
+| Exception Reason | {{TASK_AUDIT_EXCEPTION_REASON}} |
+| Message | {{TASK_AUDIT_MESSAGE}} |
+| Migration Status | {{TASK_AUDIT_MIGRATION_STATUS}} |
+| Migrated From | {{TASK_AUDIT_MIGRATED_FROM}} |
+| Legacy Extra Fields | {{TASK_AUDIT_LEGACY_EXTRA_FIELDS}} |
+| Migration Notes | {{TASK_AUDIT_MIGRATION_NOTES}} |
+
 ## 核心合同文件
 
 | 文件 | 用途 |
@@ -31,7 +59,7 @@ standard 和 complex 任务包含以下文件。
 | `execution_strategy.md` | 执行模式、owner、冲突控制和证据策略。 |
 | `findings.md` | 发现、研究记录、已接受风险和未解决问题。 |
 | `lesson_candidates.md` | closeout 前的任务本地 lesson candidate 决策。 |
-| `review.md` | Agent Review Submission、对抗审查和人工确认区域。 |
+| `review.md` | Agent Review Submission、对抗审查、findings、evidence 和 routing。 |
 
 ## 可选索引
 

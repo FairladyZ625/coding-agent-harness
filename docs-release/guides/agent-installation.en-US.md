@@ -219,7 +219,7 @@ Rules:
 - Existing task directories are not overwritten. Renaming or continuing old tasks is a coordinator decision.
 - `task-start`, `task-block`, and `task-complete` only update lifecycle status and logs in `progress.md`.
 - `task-log` only appends execution records. Evidence uses `type:PATH:summary`, for example `command:TARGET:npm-test:passed`.
-- `review-confirm` appends a human review confirmation to `review.md` and a log entry to `progress.md`. It must reject open P0/P1/P2 findings marked `Open: yes` or `Blocks Release: yes`.
+- `review-confirm` writes human review confirmation audit fields to the task `INDEX.md` through gated commits. It must reject open P0/P1/P2 findings marked `Open: yes` or `Blocks Release: yes`.
 - CLI-owned lifecycle and lesson commands auto-commit allowlisted writes in a clean Git root. Dirty state appears in `status` / dashboard warnings and blocks those mechanical commits. Agent-owned manual edits still need proactive commits; deferred commits must record the no-commit reason, owner, and next step.
 - `status --json` keeps old `task.state` for compatibility and adds `lifecycleState`, `reviewStatus`, `closeoutStatus`, and `stateConflicts`. `done` means implementation finished; it does not mean `closed`.
 - For human operation, start the local HTML workbench with `harness dev /path/to/project`. It binds to `127.0.0.1`, chooses a port automatically, opens the browser, and refreshes when docs change. In headless or CI contexts, use `harness dev --no-open /path/to/project`.

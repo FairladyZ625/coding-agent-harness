@@ -191,7 +191,7 @@ export function normalizeTaskId(value) {
   return slug(value || "task");
 }
 
-export function renderTaskTemplate(content, { taskId, title, locale, budget = "standard", moduleKey = "", preset = "none", presetVersion = "", evidenceBundle = "", longRunning = false, scaffoldProvenance = {} }) {
+export function renderTaskTemplate(content, { taskId, title, locale, budget = "standard", moduleKey = "", preset = "none", presetVersion = "", evidenceBundle = "", longRunning = false, scaffoldProvenance = {}, taskAudit = {} }) {
   const date = todayDate();
   const provenance = {
     createdBy: scaffoldProvenance.createdBy || "harness new-task",
@@ -218,6 +218,29 @@ export function renderTaskTemplate(content, { taskId, title, locale, budget = "s
     .replaceAll("{{SCAFFOLD_BUDGET}}", provenance.budget)
     .replaceAll("{{SCAFFOLD_TEMPLATE_SOURCE}}", provenance.templateSource)
     .replaceAll("{{SCAFFOLD_EXCEPTION_REASON}}", provenance.exceptionReason)
+    .replaceAll("{{TASK_AUDIT_CREATED_BY}}", taskAudit["Created By"] || provenance.createdBy)
+    .replaceAll("{{TASK_AUDIT_CREATED_AT}}", taskAudit["Created At"] || provenance.createdAt)
+    .replaceAll("{{TASK_AUDIT_COMMAND_SHAPE}}", taskAudit["Command Shape"] || provenance.command)
+    .replaceAll("{{TASK_AUDIT_BUDGET}}", taskAudit.Budget || provenance.budget)
+    .replaceAll("{{TASK_AUDIT_TEMPLATE_SOURCE}}", taskAudit["Template Source"] || provenance.templateSource)
+    .replaceAll("{{TASK_AUDIT_TASK_CREATOR}}", taskAudit["Task Creator"] || "n/a")
+    .replaceAll("{{TASK_AUDIT_TASK_CREATOR_SOURCE}}", taskAudit["Task Creator Source"] || "git-unavailable")
+    .replaceAll("{{TASK_AUDIT_HUMAN_REVIEW_STATUS}}", taskAudit["Human Review Status"] || "not-confirmed")
+    .replaceAll("{{TASK_AUDIT_CONFIRMATION_ID}}", taskAudit["Confirmation ID"] || "n/a")
+    .replaceAll("{{TASK_AUDIT_CONFIRMED_AT}}", taskAudit["Confirmed At"] || "n/a")
+    .replaceAll("{{TASK_AUDIT_REVIEWER}}", taskAudit.Reviewer || "n/a")
+    .replaceAll("{{TASK_AUDIT_REVIEWER_EMAIL}}", taskAudit["Reviewer Email"] || "n/a")
+    .replaceAll("{{TASK_AUDIT_CONFIRM_TEXT}}", taskAudit["Confirm Text"] || "n/a")
+    .replaceAll("{{TASK_AUDIT_EVIDENCE_CHECKED}}", taskAudit["Evidence Checked"] || "n/a")
+    .replaceAll("{{TASK_AUDIT_REVIEW_COMMIT_SHA}}", taskAudit["Review Commit SHA"] || "n/a")
+    .replaceAll("{{TASK_AUDIT_AUDIT_SOURCE}}", taskAudit["Audit Source"] || "native-index")
+    .replaceAll("{{TASK_AUDIT_AUDIT_STATUS}}", taskAudit["Audit Status"] || "created")
+    .replaceAll("{{TASK_AUDIT_EXCEPTION_REASON}}", taskAudit["Exception Reason"] || provenance.exceptionReason)
+    .replaceAll("{{TASK_AUDIT_MESSAGE}}", taskAudit.Message || "n/a")
+    .replaceAll("{{TASK_AUDIT_MIGRATION_STATUS}}", taskAudit["Migration Status"] || "native")
+    .replaceAll("{{TASK_AUDIT_MIGRATED_FROM}}", taskAudit["Migrated From"] || "n/a")
+    .replaceAll("{{TASK_AUDIT_LEGACY_EXTRA_FIELDS}}", taskAudit["Legacy Extra Fields"] || "{}")
+    .replaceAll("{{TASK_AUDIT_MIGRATION_NOTES}}", taskAudit["Migration Notes"] || "n/a")
     .replaceAll("[simple / standard / complex]", budget)
     .replaceAll("[simple / standard / long-running / module-parallel]", budget)
     .replaceAll("[simple / complex]", budget)
