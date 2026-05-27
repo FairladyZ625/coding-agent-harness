@@ -1,24 +1,29 @@
 import { implementationPhases } from "./phase-kind.mjs";
-export function renderDashboard(status) {
-    const taskCards = status.tasks
-        .map((task) => {
-        const phases = task.phases
-            .map((phase) => `<div class="phase ${escapeHtml(phase.state)} ${escapeHtml(phase.kind || "execution")}">
+
+type AnyRecord = Record<string, any>;
+
+export function renderDashboard(status: AnyRecord): string {
+  const taskCards = (status.tasks as AnyRecord[])
+    .map((task) => {
+      const phases = (task.phases as AnyRecord[])
+        .map(
+          (phase) => `<div class="phase ${escapeHtml(phase.state)} ${escapeHtml(phase.kind || "execution")}">
             <div class="phase-top"><strong>${escapeHtml(phase.id)}</strong><span>${escapeHtml(phase.kind || "execution")} · ${phase.completion}%</span></div>
             <div class="phase-output">${escapeHtml(phase.output)}</div>
             <div class="meter"><i style="width:${phase.completion}%"></i></div>
             <div class="muted">${escapeHtml(phase.state)} · actor ${escapeHtml(phase.actor || "agent")} · evidence ${escapeHtml(phase.evidenceStatus)}</div>
             ${phase.exitCommand ? `<div class="muted">exit ${escapeHtml(phase.exitCommand)}</div>` : ""}
-          </div>`)
-            .join("");
-        const risks = task.risks
-            .map((risk) => `<span class="risk ${risk.open || risk.blocksRelease ? "open" : ""}">${escapeHtml(risk.severity)} ${escapeHtml(risk.summary)}</span>`)
-            .join("");
-        const evidence = task.evidence
-            .map((item) => `<span class="evidence">${escapeHtml(item.type)} · ${escapeHtml(item.summary)}</span>`)
-            .join("");
-        const evidenceMeter = evidenceCompletion(task.phases);
-        return `<section class="task">
+          </div>`,
+        )
+        .join("");
+      const risks = (task.risks as AnyRecord[])
+        .map((risk) => `<span class="risk ${risk.open || risk.blocksRelease ? "open" : ""}">${escapeHtml(risk.severity)} ${escapeHtml(risk.summary)}</span>`)
+        .join("");
+      const evidence = (task.evidence as AnyRecord[])
+        .map((item) => `<span class="evidence">${escapeHtml(item.type)} · ${escapeHtml(item.summary)}</span>`)
+        .join("");
+      const evidenceMeter = evidenceCompletion(task.phases);
+      return `<section class="task">
         <div class="task-head">
           <div><h2>${escapeHtml(task.title)}</h2><p>${escapeHtml(task.path)}</p></div>
           <div class="score">${task.completion}%</div>
@@ -29,19 +34,19 @@ export function renderDashboard(status) {
         <div class="risks">${risks || '<span class="ok">No open visual risk</span>'}</div>
       </section>`;
     })
-        .join("");
-    const chips = status.capabilities
-        .map((capability) => `<span class="chip ${escapeHtml(capability.state)}">${escapeHtml(capability.name)} · ${escapeHtml(capability.state)}</span>`)
-        .join("");
-    const failures = status.checkState.details.failures.map((failure) => `<li>${escapeHtml(failure)}</li>`).join("");
-    const warnings = status.checkState.details.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("");
-    const handoffs = status.handoffs
-        .map((handoff) => `<span class="handoff">${escapeHtml(handoff.state)} · ${escapeHtml(handoff.summary)}</span>`)
-        .join("");
-    const activity = status.recentActivity
-        .map((item) => `<li><strong>${escapeHtml(item.type)}</strong> ${escapeHtml(item.summary)}</li>`)
-        .join("");
-    return `<!doctype html>
+    .join("");
+  const chips = (status.capabilities as AnyRecord[])
+    .map((capability) => `<span class="chip ${escapeHtml(capability.state)}">${escapeHtml(capability.name)} · ${escapeHtml(capability.state)}</span>`)
+    .join("");
+  const failures = (status.checkState.details.failures as unknown[]).map((failure) => `<li>${escapeHtml(failure)}</li>`).join("");
+  const warnings = (status.checkState.details.warnings as unknown[]).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("");
+  const handoffs = (status.handoffs as AnyRecord[])
+    .map((handoff) => `<span class="handoff">${escapeHtml(handoff.state)} · ${escapeHtml(handoff.summary)}</span>`)
+    .join("");
+  const activity = (status.recentActivity as AnyRecord[])
+    .map((item) => `<li><strong>${escapeHtml(item.type)}</strong> ${escapeHtml(item.summary)}</li>`)
+    .join("");
+  return `<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
@@ -81,23 +86,22 @@ export function renderDashboard(status) {
   <section class="panel"><h2>Failures</h2><ul>${failures || "<li>None</li>"}</ul><h2>Warnings</h2><ul>${warnings || "<li>None</li>"}</ul></section>
 </main></body></html>`;
 }
-function escapeHtml(value) {
-    return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;");
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
-function evidenceCompletion(phases = []) {
-    const scored = implementationPhases(phases);
-    if (scored.length === 0)
-        return 0;
-    const score = scored.reduce((sum, phase) => {
-        if (["present", "waived"].includes(String(phase.evidenceStatus)))
-            return sum + 100;
-        if (phase.evidenceStatus === "partial")
-            return sum + 50;
-        return sum;
-    }, 0);
-    return Math.round(score / scored.length);
+
+function evidenceCompletion(phases: AnyRecord[] = []): number {
+  const scored = implementationPhases(phases as any[]);
+  if (scored.length === 0) return 0;
+  const score = scored.reduce((sum, phase) => {
+    if (["present", "waived"].includes(String(phase.evidenceStatus))) return sum + 100;
+    if (phase.evidenceStatus === "partial") return sum + 50;
+    return sum;
+  }, 0);
+  return Math.round(score / scored.length);
 }
