@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "rootDir": ".",
+    "outDir": "tmp/runtime-emit",
+    "declaration": false,
+    "sourceMap": false,
+    "removeComments": false,
+    "skipLibCheck": true
+  },
+  "include": [
+    "scripts/**/*.mts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".worktrees",
+    "tmp",
+    "dist"
+  ]
+}

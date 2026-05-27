@@ -46,6 +46,7 @@
     "CHANGELOG.md",
     "SKILL.md",
     "tsconfig.json",
+    "tsconfig.runtime.json",
     "LICENSE",
     "LICENSE-EXCEPTION.md",
     "references/",

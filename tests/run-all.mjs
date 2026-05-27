@@ -12,6 +12,7 @@ const suites = [
   "tests/import-graph-gate.mjs",
   "tests/snapshot-matrix-tooling.mjs",
   "tests/shared-type-islands.mjs",
+  "tests/runtime-emit-contract.mjs",
   "tests/source-package-boundary.mjs",
   "tests/architecture-health.mjs",
   "tests/cli-help.mjs",
