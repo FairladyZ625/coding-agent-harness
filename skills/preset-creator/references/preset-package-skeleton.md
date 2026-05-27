@@ -33,7 +33,7 @@ task:
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [docs/coding-agent-harness/planning/tasks/**]
     audit: true
     templates:
       taskPlanAppend: templates/task_plan.append.md
@@ -90,7 +90,7 @@ audit:
   evidenceFiles: [preset-audit.json, preset-manifest.json, write-scope.json]
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: docs/coding-agent-harness/planning/tasks/**
     access: write
 ```
 
@@ -173,7 +173,7 @@ task:
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [docs/coding-agent-harness/planning/tasks/**]
     audit: true
     templates:
       taskPlanAppend: templates/task_plan.append.md
@@ -196,7 +196,7 @@ audit:
   evidenceFiles: [preset-audit.json, preset-manifest.json, write-scope.json]
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: docs/coding-agent-harness/planning/tasks/**
     access: write
 ```
 
@@ -267,7 +267,7 @@ Open `references/INDEX.md`, then read these preset-provided references before im
 
 | Reference | Path | Why |
 | --- | --- | --- |
-| REF-001 | TARGET:docs/09-PLANNING/TASKS/<task-folder>/references/upstream-contract.md | [rendered summary] |
+| REF-001 | TARGET:docs/coding-agent-harness/planning/tasks/<task-folder>/references/upstream-contract.md | [rendered summary] |
 ```
 
 The same `REF-001` and exact `TARGET:` path must also appear in `references/INDEX.md`.

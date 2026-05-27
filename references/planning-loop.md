@@ -17,7 +17,7 @@
 `trivial` 不进入 CLI：小到不值得建立任务目录的修改，可以直接执行并在 commit 或交付说明中写清楚原因。
 
 ```
-docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/
+coding-agent-harness/planning/tasks/<YYYY-MM-DD-任务名>/
 ├── task_plan.md    ← 计划：目标、范围、步骤、验收标准
 ├── execution_strategy.md ← 执行策略：模式、subagent、冲突控制、验证深度、handoff
 ├── visual_map.md ← 图表集合：阶段图、架构图、时序图、数据流、状态机、完成度、证据状态
@@ -118,11 +118,11 @@ the same contract.
 
 当项目启用模块并行开发（见 `references/module-parallel-standard.md`）时：
 
-- 任务目录位于模块内：`docs/09-PLANNING/MODULES/<key>/TASKS/<PREFIX>-NN-<name>/`
-- 跨模块基础设施任务位于：`docs/09-PLANNING/MODULES/_shared/TASKS/YYYY-MM-DD-<name>/`
+- 任务目录位于模块内：`coding-agent-harness/planning/modules/<key>/tasks/<PREFIX>-NN-<name>/`
+- 跨模块基础设施任务位于：`coding-agent-harness/planning/modules/_shared/tasks/YYYY-MM-DD-<name>/`
 - task_plan.md 应填写"模块关联"段（Module、Step、Module Plan link）
 - 会话结束时除了更新 progress.md，还需更新 module_plan.md。
-- 模块 worker 不直接写 Module Registry / Harness Ledger / Closeout SSoT。需要总表同步时，在 task_plan.md 或 progress.md 的 `Coordinator Handoff` 段标记 `pending-coordinator-pass`，由 coordinator 串行同步。
+- 模块 worker 不直接写 Module Registry / Harness Ledger / Closeout Index。需要总表同步时，在 task_plan.md 或 progress.md 的 `Coordinator Handoff` 段标记 `pending-coordinator-pass`，由 coordinator 串行同步。
 - coordinator pass 完成后，才更新 Module Registry、Harness Ledger、必要的 Closeout / Regression 表，并把 handoff 标记为 `synced`。
 
 ## 为什么这套东西有效
@@ -214,7 +214,7 @@ standard / complex:
 
 每次状态变更时，必须更新 task-local facts，例如 `progress.md`、`review.md` 或 `lesson_candidates.md`。任务生命周期总表由 lifecycle CLI 或 `harness governance rebuild` 生成，不手工维护 Feature lifecycle 表。
 
-任务完成时，必须在 `docs/Harness-Ledger.md` 中记录本轮 task plan、SSoT、
+任务完成时，必须在 `coding-agent-harness/governance/generated/Harness-Ledger.md` 中记录本轮 task plan、SSoT、
 walkthrough、Lessons 检查等上下文回写结果。
 
 ## Commit Convention
@@ -228,7 +228,7 @@ walkthrough、Lessons 检查等上下文回写结果。
 ```text
 feat: implement task review gate
 
-Harness: TASKS/2026-05-21-task-review-gate
+Harness: tasks/2026-05-21-task-review-gate
 ```
 
 格式：`Harness: <task-id>`，其中 task-id 是 `task-list --json` 输出的 `id` 字段。

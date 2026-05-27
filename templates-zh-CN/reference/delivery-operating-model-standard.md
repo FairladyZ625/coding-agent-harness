@@ -21,8 +21,8 @@
 | 层级 | 负责人 | 主要产物 | 规则 |
 | --- | --- | --- | --- |
 | 路线图 | product / tech lead / owner | roadmap、release plan | 只放阶段目标，不替代任务计划。 |
-| 功能块 | coordinator / feature lead | `docs/09-PLANNING/Delivery-SSoT.md` 或功能 SSoT | 标明 owner、依赖、集成顺序。 |
-| 任务 | task owner | `docs/09-PLANNING/TASKS/<task>/task_plan.md` | 每个任务有目标、范围、证据和 stop condition。 |
+| 功能块 | coordinator / feature lead | `coding-agent-harness/planning/Delivery-SSoT.md` 或功能 SSoT | 标明 owner、依赖、集成顺序。 |
+| 任务 | task owner | `coding-agent-harness/planning/tasks/<task>/task_plan.md` | 每个任务有目标、范围、证据和 stop condition。 |
 | 审查 | reviewer / subagent / human | `review.md` 或 PR review | 按审查路由执行，不只留在聊天里。 |
 | 集成 | coordinator / maintainer | PR、integration branch、release branch | 由集成 owner 决定 merge 顺序和最终 gates。 |
 
@@ -40,7 +40,7 @@
 
 ## 交付单一事实源要求
 
-以下任一条件成立时，必须维护 `docs/09-PLANNING/Delivery-SSoT.md`：
+以下任一条件成立时，必须维护 `coding-agent-harness/planning/Delivery-SSoT.md`：
 
 - 多人或多 agent 并行开发。
 - 多仓或前后端分离协作。

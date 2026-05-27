@@ -16,7 +16,7 @@ CI/CD design must connect the project's real stack to required merge evidence:
 ## 存放位置
 
 ```text
-docs/11-REFERENCE/ci-cd-standard.md
+coding-agent-harness/governance/standards/ci-cd-standard.md
 ```
 
 Workflow files usually live under:

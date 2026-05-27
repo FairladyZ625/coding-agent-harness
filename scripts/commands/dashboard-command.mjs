@@ -6,6 +6,7 @@ import {
   writeDashboardFolder,
   writeDashboardSingleFile,
 } from "../lib/harness-core.mjs";
+import { dashboardWatchRoots } from "../lib/harness-paths.mjs";
 
 export async function runDashboardCommand({ takeFlag, takeOption, targetArg }) {
   const watch = takeFlag("--watch");
@@ -22,6 +23,7 @@ export async function runDashboardCommand({ takeFlag, takeOption, targetArg }) {
       process.exit(2);
     }
     try {
+      assertV2DashboardTarget(targetArg());
       await serveDashboardWorkbench(outDir, targetArg(), { ...opts, host, port });
     } catch (error) {
       console.error(error.message);
@@ -34,10 +36,9 @@ export async function runDashboardCommand({ takeFlag, takeOption, targetArg }) {
       process.exit(2);
     }
     const target = targetArg();
+    assertV2DashboardTarget(target);
     const normalizedTarget = normalizeTarget(target);
-    const watchRoot = normalizedTarget.harness?.version === 2
-      ? normalizedTarget.harness.harnessRoot
-      : path.basename(path.resolve(target)) === "docs" ? path.resolve(target) : path.join(path.resolve(target), "docs");
+    const watchRoots = dashboardWatchRoots(normalizedTarget.harness);
     const regenerate = () => {
       try {
         console.log(writeDashboardFolder(outDir, target, opts));
@@ -48,24 +49,32 @@ export async function runDashboardCommand({ takeFlag, takeOption, targetArg }) {
     };
     regenerate();
     let timer = null;
-    const watcher = fs.watch(watchRoot, { recursive: true }, () => {
+    const watchers = watchRoots.map((watchRoot) => fs.watch(watchRoot, { recursive: true }, () => {
       clearTimeout(timer);
       timer = setTimeout(regenerate, 300);
-    });
+    }));
     const close = () => {
-      watcher.close();
+      for (const watcher of watchers) watcher.close();
       clearTimeout(timer);
       process.exit(0);
     };
     process.on("SIGINT", close);
     process.on("SIGTERM", close);
-    console.log(`watching ${watchRoot}`);
+    console.log(`watching ${watchRoots.join(", ")}`);
     await new Promise(() => {});
   }
+  assertV2DashboardTarget(targetArg());
   if (outDir) {
     console.log(writeDashboardFolder(outDir, targetArg(), opts));
   } else {
     console.log(writeDashboardSingleFile(out, targetArg(), opts));
   }
   process.exit(0);
+}
+
+function assertV2DashboardTarget(target) {
+  const normalizedTarget = normalizeTarget(target);
+  if (normalizedTarget.harness?.version === 2) return;
+  console.error("dashboard requires v2 harness structure; run `harness migrate-structure --plan` then `harness migrate-structure --apply`");
+  process.exit(1);
 }

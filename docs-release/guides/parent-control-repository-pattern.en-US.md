@@ -30,13 +30,13 @@ product-control-repo/
   docs/
     01-GOVERNANCE/
     02-PRODUCT/
-    03-ARCHITECTURE/
-    04-DEVELOPMENT/
-    05-TEST-QA/
-    06-INTEGRATIONS/
-    09-PLANNING/
-    10-WALKTHROUGH/
-    11-REFERENCE/
+    coding-agent-harness/context/architecture/
+    coding-agent-harness/context/development/
+    coding-agent-harness/governance/regression/
+    coding-agent-harness/context/integrations/
+    coding-agent-harness/planning/
+    coding-agent-harness/planning/tasks/<task>/
+    coding-agent-harness/governance/standards/
   tools/
     check-harness.mjs
     internal-ci.mjs
@@ -59,16 +59,16 @@ The parent repository is the control plane.
 It should contain:
 
 - `AGENTS.md`: the single agent startup entrypoint and reading matrix.
-- `docs/03-ARCHITECTURE/repository-topology.md`: repository topology, owners, boundaries, dependency direction.
-- `docs/04-DEVELOPMENT/local-development.md`: cross-repo local startup, integration workflow, dependency setup.
-- `docs/06-INTEGRATIONS/`: cross-service APIs, events, SDKs, databases, permissions, and external contracts.
-- `docs/Harness-Ledger.md`: generated global task lifecycle index from task files.
-- `docs/09-PLANNING/Delivery-SSoT.md`: cross-repo feature blocks, dependencies, and release orchestration.
-- `docs/09-PLANNING/TASKS/`: cross-repo task contracts.
-- `docs/05-TEST-QA/Regression-SSoT.md`: cross-repo regression gates.
-- `docs/05-TEST-QA/Cadence-Ledger.md`: which changes trigger which checks.
-- `docs/10-WALKTHROUGH/`: cross-repo closeout and human confirmation.
-- `docs/11-REFERENCE/`: local standards for using Harness in this project.
+- `coding-agent-harness/context/architecture/repository-topology.md`: repository topology, owners, boundaries, dependency direction.
+- `coding-agent-harness/context/development/local-development.md`: cross-repo local startup, integration workflow, dependency setup.
+- `coding-agent-harness/context/integrations/`: cross-service APIs, events, SDKs, databases, permissions, and external contracts.
+- `coding-agent-harness/governance/generated/Harness-Ledger.md`: generated global task lifecycle index from task files.
+- `coding-agent-harness/planning/Delivery-SSoT.md`: cross-repo feature blocks, dependencies, and release orchestration.
+- `coding-agent-harness/planning/tasks/`: cross-repo task contracts.
+- `coding-agent-harness/governance/regression/Regression-SSoT.md`: cross-repo regression gates.
+- `coding-agent-harness/governance/regression/Cadence-Ledger.md`: which changes trigger which checks.
+- `coding-agent-harness/planning/tasks/<task>/`: cross-repo closeout and human confirmation.
+- `coding-agent-harness/governance/standards/`: local standards for using Harness in this project.
 
 The parent repository should also provide a check command, for example:
 
@@ -138,7 +138,7 @@ Do not let agents start cross-repo tasks from random child repositories. They wi
 Cross-repo tasks should be created in the parent repository:
 
 ```text
-docs/09-PLANNING/TASKS/2026-05-22-example-cross-repo-feature/
+coding-agent-harness/planning/tasks/2026-05-22-example-cross-repo-feature/
   brief.md
   task_plan.md
   execution_strategy.md
@@ -164,7 +164,7 @@ In the parent-control model, the parent repository must document more external c
 
 ### Architecture
 
-`docs/03-ARCHITECTURE/` explains how the system is split across repositories:
+`coding-agent-harness/context/architecture/` explains how the system is split across repositories:
 
 - Repo topology.
 - Service boundaries.
@@ -175,7 +175,7 @@ In the parent-control model, the parent repository must document more external c
 
 ### Development
 
-`docs/04-DEVELOPMENT/` explains cross-repo development:
+`coding-agent-harness/context/development/` explains cross-repo development:
 
 - How to clone or initialize all child repositories.
 - How to install dependencies.
@@ -185,7 +185,7 @@ In the parent-control model, the parent repository must document more external c
 
 ### Integration
 
-`docs/06-INTEGRATIONS/` explains how repositories connect:
+`coding-agent-harness/context/integrations/` explains how repositories connect:
 
 - API contract.
 - SDK contract.
@@ -241,10 +241,10 @@ Avoid:
 To adopt the parent-control model, start with:
 
 - Parent `AGENTS.md` states that this is the control repository.
-- `docs/03-ARCHITECTURE/repository-topology.md` lists all child repositories.
-- `docs/Harness-Ledger.md` is generated from task files as the global task lifecycle index.
-- `docs/09-PLANNING/Delivery-SSoT.md` is maintained only when cross-repo release or block orchestration is needed.
-- `docs/05-TEST-QA/Regression-SSoT.md` defines local, contract, integration, and release gates.
+- `coding-agent-harness/context/architecture/repository-topology.md` lists all child repositories.
+- `coding-agent-harness/governance/generated/Harness-Ledger.md` is generated from task files as the global task lifecycle index.
+- `coding-agent-harness/planning/Delivery-SSoT.md` is maintained only when cross-repo release or block orchestration is needed.
+- `coding-agent-harness/governance/regression/Regression-SSoT.md` defines local, contract, integration, and release gates.
 - Each child repository has only a short local `AGENTS.md`.
 - New cross-repo tasks are created only in the parent repository.
 - Child commits, PRs, and test output are recorded as parent task evidence.

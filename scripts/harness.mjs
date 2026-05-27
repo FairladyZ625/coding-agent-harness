@@ -164,7 +164,7 @@ if (command === "help" || command === "--help" || command === "-h") {
     warnings.push(...boundary.warnings);
   }
 
-  const status = buildStatus(target, { skipLegacyCheck: profile === "source-package", strictLegacy: strict, strict });
+  const status = buildStatus(target, { skipLegacyCheck: profile === "source-package", strictLegacy: strict, strict, allowLegacyTarget: profile === "source-package" });
   failures.push(...status.checkState.details.failures);
   warnings.push(...status.checkState.details.warnings);
 

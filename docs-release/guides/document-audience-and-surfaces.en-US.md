@@ -27,9 +27,9 @@ Release docs explain public methodology and product capability. They do not carr
 | `references/` | Agents and maintainers | Reusable standards such as testing, workflow, review, worktree rules | A project's current schedule |
 | `templates/` | CLI and agents | Files generated into target projects | Evidence from completed work |
 | Target `AGENTS.md` | Agents | Entrypoint, routing, hard rules, reading matrix | Long background essays |
-| Target `docs/09-PLANNING/` and `docs/Harness-Ledger.md` | Agents and project owners | Task plans, generated task lifecycle index, current state | Generic marketing material |
-| Target `docs/05-TEST-QA/` | Agents, QA, human reviewers | Regression SSoT, Cadence Ledger, quality gates | Requirement brainstorm drafts |
-| Target `docs/10-WALKTHROUGH/` | Reviewers and handoff agents | Closeout evidence, residuals, human confirmation | Unverified plans |
+| Target `coding-agent-harness/planning/` and `coding-agent-harness/governance/generated/Harness-Ledger.md` | Agents and project owners | Task plans, generated task lifecycle index, current state | Generic marketing material |
+| Target `coding-agent-harness/governance/regression/` | Agents, QA, human reviewers | Regression SSoT, Cadence Ledger, quality gates | Requirement brainstorm drafts |
+| Target `coding-agent-harness/planning/tasks/<task>/` | Reviewers and handoff agents | Closeout evidence, residuals, human confirmation | Unverified plans |
 
 ## Human-Facing Docs
 
@@ -62,13 +62,13 @@ Agent-facing docs answer:
 Typical files:
 
 - `AGENTS.md`
-- `docs/Harness-Ledger.md`
-- `docs/09-PLANNING/TASKS/<task>/task_plan.md`
-- `docs/09-PLANNING/TASKS/<task>/task_plan.md`
-- `docs/09-PLANNING/TASKS/<task>/progress.md`
-- `docs/05-TEST-QA/Regression-SSoT.md`
-- `docs/10-WALKTHROUGH/<date>-<task>.md`
-- `docs/11-REFERENCE/*.md`
+- `coding-agent-harness/governance/generated/Harness-Ledger.md`
+- `coding-agent-harness/planning/tasks/<task>/task_plan.md`
+- `coding-agent-harness/planning/tasks/<task>/task_plan.md`
+- `coding-agent-harness/planning/tasks/<task>/progress.md`
+- `coding-agent-harness/governance/regression/Regression-SSoT.md`
+- `coding-agent-harness/planning/tasks/<task>/walkthrough.md`
+- `coding-agent-harness/governance/standards/*.md`
 
 Agent-facing docs should be concrete, path-oriented, and checkable. Do not turn them into essays, and do not make agents infer execution contracts from narrative prose.
 

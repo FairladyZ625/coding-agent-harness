@@ -38,7 +38,7 @@ flowchart TB
   CLI["Harness CLI<br/>scripts/harness.mjs"]
   Standards["Standards<br/>references/"]
   Templates["Scaffolds<br/>templates/ + templates-zh-CN/"]
-  Target["Target repository<br/>AGENTS.md + docs/"]
+  Target["Target repository<br/>AGENTS.md + coding-agent-harness/"]
   Scanner["Scanner and validators<br/>status/check"]
   Dashboard["Dashboard / Workbench<br/>HTML + JSON"]
   Human["Human reviewer<br/>approval and inspection"]
@@ -66,15 +66,15 @@ project facts.
 ```mermaid
 flowchart TB
   Entry["AGENTS.md<br/>agent entry and routing"]
-  Registry[".harness-capabilities.json<br/>enabled capabilities"]
+  Registry["coding-agent-harness/harness.yaml<br/>enabled capabilities"]
   Docs["docs/"]
-  Architecture["03-ARCHITECTURE<br/>system facts"]
-  Development["04-DEVELOPMENT<br/>local setup and code map"]
-  QA["05-TEST-QA<br/>regression and cadence"]
-  Integrations["06-INTEGRATIONS<br/>external contracts"]
-  Planning["09-PLANNING<br/>tasks and modules"]
-  Walkthrough["10-WALKTHROUGH<br/>closeout evidence"]
-  Reference["11-REFERENCE<br/>local operating standards"]
+  Architecture["coding-agent-harness/context/architecture<br/>system facts"]
+  Development["coding-agent-harness/context/development<br/>local setup and code map"]
+  QA["coding-agent-harness/governance/regression<br/>regression and cadence"]
+  Integrations["coding-agent-harness/context/integrations<br/>external contracts"]
+  Planning["coding-agent-harness/planning<br/>tasks and modules"]
+  Walkthrough["coding-agent-harness/planning/tasks/<task><br/>closeout evidence"]
+  Reference["coding-agent-harness/governance/standards<br/>local operating standards"]
   Ledger["Harness Ledger / SSoTs / Lessons<br/>long-lived memory"]
 
   Entry --> Docs
@@ -98,8 +98,8 @@ The target repository can be organized in three ways:
 
 | Model | Control surface | Execution surface |
 | --- | --- | --- |
-| Single repo | The same repository owns `AGENTS.md`, `docs/`, code, tests, and closeout. | The same repository. |
-| Independent multi-repo | Each repository owns its own local `AGENTS.md` and `docs/`. | Each repository runs independently. |
+| Single repo | The same repository owns `AGENTS.md`, `coding-agent-harness/`, code, tests, and closeout. | The same repository. |
+| Independent multi-repo | Each repository owns its own local `AGENTS.md` and `coding-agent-harness/`. | Each repository runs independently. |
 | Parent-control repository | A parent repository owns the global Harness control plane. | Child repositories own implementation code and local checks. |
 
 For products split across frontend, backend, SDKs, services, and upstream references,

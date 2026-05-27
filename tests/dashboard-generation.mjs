@@ -310,6 +310,24 @@ assert(!fs.existsSync(rootDashboardPath), "dashboard default generation must not
 const redactionTarget = path.join(tmpRoot, "redaction-target");
 fs.mkdirSync(path.join(redactionTarget, "coding-agent-harness/planning/tasks/path-check"), { recursive: true });
 fs.writeFileSync(path.join(redactionTarget, "AGENTS.md"), "# AGENTS\n");
+fs.writeFileSync(
+  path.join(redactionTarget, "coding-agent-harness/harness.yaml"),
+  [
+    "version: 2",
+    "locale: en-US",
+    "capabilities:",
+    "  - core",
+    "  - dashboard",
+    "structure:",
+    "  harnessRoot: coding-agent-harness",
+    "  planningRoot: coding-agent-harness/planning",
+    "  tasksRoot: coding-agent-harness/planning/tasks",
+    "  modulesRoot: coding-agent-harness/planning/modules",
+    "  governanceRoot: coding-agent-harness/governance",
+    "  generatedRoot: coding-agent-harness/governance/generated",
+    "",
+  ].join("\n"),
+);
 fs.writeFileSync(path.join(redactionTarget, "coding-agent-harness/planning/tasks/path-check/task_plan.md"), "# Path Check\n");
 fs.writeFileSync(
   path.join(redactionTarget, "coding-agent-harness/planning/tasks/path-check/progress.md"),

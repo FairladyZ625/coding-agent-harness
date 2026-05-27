@@ -8,7 +8,7 @@ Coding Agent Harness does not model task state as a single field. The Dashboard 
 - `review.md` stores Agent Review Submission, material findings, and review evidence.
 - `INDEX.md` stores Task Audit Metadata, including task creation and human review confirmation audit fields.
 - `lesson_candidates.md` records lesson candidate decisions and sedimentation routing.
-- `10-WALKTHROUGH/Closeout-SSoT.md` records closeout status and links walkthrough evidence.
+- `coding-agent-harness/governance/generated/Closeout-Index.md` records closeout status and links walkthrough evidence.
 - Tombstone / supersede metadata records whether a task was soft-deleted, merged, archived, or replaced.
 - The scanner derives `lifecycleState`, `reviewStatus`, `closeoutStatus`, `taskQueues[]`, `queueReasons[]`, and `repairPrompt` from those files.
 
@@ -153,11 +153,11 @@ Global governance tables only keep index, state, route, and audit summary. They 
 
 | Layer | Should record | Should not record |
 | --- | --- | --- |
-| Global tables: Harness Ledger, Closeout SSoT, Regression SSoT, Cadence Ledger, Delivery SSoT | Current state, owner, task/module/detail links, regression gate, delivery sequence, closeout or audit summary | Module-internal steps, undecided lesson candidates, full command output, long evidence paragraphs, review transcripts, temporary repair prompts |
+| Global tables: Harness Ledger, Closeout Index, Regression SSoT, Cadence Ledger, Delivery SSoT | Current state, owner, task/module/detail links, regression gate, delivery sequence, closeout or audit summary | Module-internal steps, undecided lesson candidates, full command output, long evidence paragraphs, review transcripts, temporary repair prompts |
 | Module layer: Module Registry, `module_plan.md` | Module boundary, module steps, handoff, current blockers, and local evidence indexes | Final promoted lesson body or cross-module release audit ledger |
 | Task layer: `brief.md`, `task_plan.md`, `progress.md`, `review.md`, `lesson_candidates.md`, `lessons/LC-*.md`, `artifacts/INDEX.md` | Execution detail, evidence, agent review, candidate lessons, task-local lesson detail, repair prompts, and raw artifact routing | Cross-task ledgers or promoted lesson detail bodies |
 
-The checker enforces this boundary for new global table rows. Overloaded rows that already existed before 2026-05-24 are surfaced in Dashboard migration advice as `legacy-report-only`; they are not automatically deleted or bulk-rewritten. New rows that continue placing task/module-local detail in global tables are reported as `governance-table-entropy` failures. Lesson candidates stay in `lesson_candidates.md`; candidates that enter `needs-promotion` must link a task-local `lessons/LC-*.md` detail artifact, and accepted reusable lessons live in `docs/01-GOVERNANCE/lessons/*.md`. The fix is to keep the global summary row and move detail into module/task/detail documents linked from that row.
+The checker enforces this boundary for new global table rows. Overloaded rows that already existed before 2026-05-24 are surfaced in Dashboard migration advice as `legacy-report-only`; they are not automatically deleted or bulk-rewritten. New rows that continue placing task/module-local detail in global tables are reported as `governance-table-entropy` failures. Lesson candidates stay in `lesson_candidates.md`; candidates that enter `needs-promotion` must link a task-local `lessons/LC-*.md` detail artifact, and accepted reusable lessons live in `coding-agent-harness/governance/lessons/*.md`. The fix is to keep the global summary row and move detail into module/task/detail documents linked from that row.
 
 ## Human Confirmation Loop
 

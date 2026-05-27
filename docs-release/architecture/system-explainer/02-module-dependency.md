@@ -86,7 +86,7 @@ flowchart LR
 
 ### ② 任务扫描层
 
-负责读取 `docs/09-PLANNING/TASKS/` 下的所有文件，解析出结构化数据：
+负责读取 `coding-agent-harness/planning/tasks/` 下的所有文件，解析出结构化数据：
 
 ```mermaid
 flowchart TD

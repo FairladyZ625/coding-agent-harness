@@ -37,12 +37,14 @@ export const allowedEvidenceStatus = new Set(["missing", "partial", "present", "
 
 export function normalizeTarget(input = ".") {
   const target = path.resolve(input);
+  const siblingV2Manifest = path.join(path.dirname(target), "coding-agent-harness", "harness.yaml");
   const isDocsRoot =
     path.basename(target) === "docs" &&
-    (fs.existsSync(path.join(target, "09-PLANNING")) || fs.existsSync(path.join(target, "11-REFERENCE")));
+    (fs.existsSync(path.join(target, "09-PLANNING")) || fs.existsSync(path.join(target, "11-REFERENCE")) || fs.existsSync(siblingV2Manifest));
+  const isHarnessRoot = path.basename(target) === "coding-agent-harness" && fs.existsSync(path.join(target, "harness.yaml"));
   const normalized = {
     input: target,
-    projectRoot: isDocsRoot ? path.dirname(target) : target,
+    projectRoot: isDocsRoot || isHarnessRoot ? path.dirname(target) : target,
     docsRoot: isDocsRoot ? target : path.join(target, "docs"),
     docsOnly: isDocsRoot,
   };

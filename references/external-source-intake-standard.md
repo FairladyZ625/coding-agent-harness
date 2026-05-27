@@ -7,10 +7,10 @@
 ## 核心模型
 
 ```text
-外部原始资料 -> source pack 索引 -> digest 摘要 -> 03/04/06 执行投影
+外部原始资料 -> source pack 索引 -> digest 摘要 -> context/{architecture,development,integrations} 执行投影
 ```
 
-`03-ARCHITECTURE`、`04-DEVELOPMENT`、`06-INTEGRATIONS` 不承载外部资料堆。它们只保存已经提炼、可验证、能指导当前仓库开发的事实。
+`coding-agent-harness/context/architecture`、`coding-agent-harness/context/development`、`coding-agent-harness/context/integrations` 不承载外部资料堆。它们只保存已经提炼、可验证、能指导当前仓库开发的事实。
 
 ## Diagnose / Decide 必问条件
 
@@ -32,15 +32,15 @@
 
 | 场景 | 存储方式 |
 | --- | --- |
-| 只有 1-4 个稳定外部文档 | 不必建独立 source pack；在对应 `03/04/06` 的 `Source Evidence` 中链接 |
-| 外部资料超过 5 份、跨多个主题、或会持续增长 | 创建 `docs/04-DEVELOPMENT/external-source-packs/<source-key>/` |
+| 只有 1-4 个稳定外部文档 | 不必建独立 source pack；在对应 `context/{architecture,development,integrations}` 的 `Source Evidence` 中链接 |
+| 外部资料超过 5 份、跨多个主题、或会持续增长 | 创建 `coding-agent-harness/context/development/external-source-packs/<source-key>/` |
 | 资料含敏感信息、密钥、客户数据或不能进仓 | 不复制原文；只记录外部路径、owner、访问条件和摘要 |
 | 资料可入仓 | 可放 `raw/`，但必须经过 digest 后才能投影到执行文档 |
 
 推荐结构：
 
 ```text
-docs/04-DEVELOPMENT/external-source-packs/<source-key>/
+coding-agent-harness/context/development/external-source-packs/<source-key>/
 ├── README.md
 ├── digests/
 ├── raw/
@@ -53,7 +53,7 @@ docs/04-DEVELOPMENT/external-source-packs/<source-key>/
 2. Classify：按 architecture、development、integration、security、operations、product、unknown 分类。
 3. Sanitize：检查密钥、token、客户数据、隐私、内部账号和不可公开链接。
 4. Digest：提炼事实、疑问、不安全假设和证据。
-5. Project：把稳定事实投影到 `03/04/06`。
+5. Project：把稳定事实投影到 `context/{architecture,development,integrations}`。
 6. Verify：尽可能用代码、接口测试、owner 确认或运行证据验证。
 7. Residual：不能确认的内容留在 source pack 或 `Do Not Assume`，不进入执行事实。
 
@@ -61,14 +61,14 @@ docs/04-DEVELOPMENT/external-source-packs/<source-key>/
 
 | 资料内容 | 投影位置 |
 | --- | --- |
-| 服务职责、上下游、owner、数据归属、系统拓扑 | `03-ARCHITECTURE/service-catalog.md` 或 `services/<service-key>.md` |
-| 本仓开发时如何 mock、stub、启动、联调、排查 | `04-DEVELOPMENT/external-context/<service-key>.md` |
-| endpoint、payload、auth、error、event、webhook、SDK、contract test | `06-INTEGRATIONS/<contract>.md` |
+| 服务职责、上下游、owner、数据归属、系统拓扑 | `coding-agent-harness/context/architecture/service-catalog.md` 或 `services/<service-key>.md` |
+| 本仓开发时如何 mock、stub、启动、联调、排查 | `coding-agent-harness/context/development/external-context/<service-key>.md` |
+| endpoint、payload、auth、error、event、webhook、SDK、contract test | `coding-agent-harness/context/integrations/<contract>.md` |
 | 未确认、来源冲突、过期或背景参考 | 留在 source pack README / digest |
 
 ## 禁止事项
 
-- 不把几十份外部文档直接复制到 `03-ARCHITECTURE`、`04-DEVELOPMENT` 或 `06-INTEGRATIONS` 根目录。
+- 不把几十份外部文档直接复制到 `coding-agent-harness/context/architecture`、`coding-agent-harness/context/development` 或 `coding-agent-harness/context/integrations` 根目录。
 - 不把 digest 当成已验证事实。
 - 不在执行文档里保留大段原文、聊天流水或历史会议记录。
 - 不把密钥、token、客户数据、个人隐私或不可公开资料提交进仓。

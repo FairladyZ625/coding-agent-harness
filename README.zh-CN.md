@@ -213,7 +213,7 @@ npx --yes coding-agent-harness <command>
 
 请先诊断项目结构，再给出初始化计划。
 如果项目是微服务、多仓、前后端分仓，或依赖外部系统，请主动询问我是否有外部架构文档、接口文档、流程图、会议纪要、链接或导出包。
-外部资料很多时，请先建立 external-source-packs 索引和摘要，再把稳定结论投影到 03-ARCHITECTURE / 04-DEVELOPMENT / 06-INTEGRATIONS。
+外部资料很多时，请先建立 external-source-packs 索引和摘要，再把稳定结论投影到 coding-agent-harness/context/{architecture,development,integrations}。
 确认后，按照 Diagnose → Decide → Scaffold → Configure → Verify → Deliver 六阶段执行。
 执行初始化时使用：
 npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
@@ -254,7 +254,7 @@ npx --yes coding-agent-harness <command>
 
 请先执行详尽扫描，并给我一个迁移计划：
 1. 检查当前 git 状态、Harness 状态、任务数量、brief 覆盖、visual_map 覆盖、warning/action/residual、strict 状态和 dashboard 可用性。
-2. 如果项目是微服务、多仓、前后端分仓，或依赖外部系统，主动询问我是否有外部资料；资料很多时先建立 external-source-packs 索引和摘要，再投影到 03/04/06。
+2. 如果项目是微服务、多仓、前后端分仓，或依赖外部系统，主动询问我是否有外部资料；资料很多时先建立 external-source-packs 索引和摘要，再投影到 context/{architecture,development,integrations}。
 3. 根据项目证据主动推荐迁移模式：
    - baseline-preserve：先安全接入，只补必要结构和可见性。
    - status-aware-rewrite：按 SSoT、Ledger、progress、review、git 证据重写当前或重新打开的任务。

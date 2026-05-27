@@ -22,8 +22,8 @@ This folder is the system-structure source of truth. It explains what the curren
 ## Boundary
 
 - Put system structure, service responsibility, ownership, and critical flows here.
-- Put payload bodies, endpoint parameters, event schemas, and SDK details in `docs/06-INTEGRATIONS/`.
-- Put local setup, mocks, stubs, and cross-repo debugging notes in `docs/04-DEVELOPMENT/`.
+- Put payload bodies, endpoint parameters, event schemas, and SDK details in `coding-agent-harness/context/integrations/`.
+- Put local setup, mocks, stubs, and cross-repo debugging notes in `coding-agent-harness/context/development/`.
 
 ## Structure Contract
 
@@ -44,6 +44,6 @@ Each `services/<service-key>.md` answers only three questions:
 
 1. What does this service own, including data ownership.
 2. How does it relate to this repository.
-3. Which `04-DEVELOPMENT` and `06-INTEGRATIONS` docs must an agent read before changing this repository.
+3. Which `context/development` and `context/integrations` docs must an agent read before changing this repository.
 
-Do not put interface fields, mock instructions, or temporary debugging notes in `03-ARCHITECTURE`. Those belong in `06-INTEGRATIONS` and `04-DEVELOPMENT`.
+Do not put interface fields, mock instructions, or temporary debugging notes in `context/architecture`. Those belong in `context/integrations` and `context/development`.

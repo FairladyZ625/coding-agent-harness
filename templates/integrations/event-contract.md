@@ -13,7 +13,7 @@ Event
 
 | Service Profile | Development Context | Contract Index | Last Verified | Confidence |
 | --- | --- | --- | --- | --- |
-| `docs/03-ARCHITECTURE/services/<service-key>.md` | `docs/04-DEVELOPMENT/external-context/<service-key>.md` | `docs/06-INTEGRATIONS/README.md` | unknown | low |
+| `coding-agent-harness/context/architecture/services/<service-key>.md` | `coding-agent-harness/context/development/external-context/<service-key>.md` | `coding-agent-harness/context/integrations/README.md` | unknown | low |
 
 ## Topic / Channel
 
@@ -43,4 +43,4 @@ Event
 
 ## Placement Rule
 
-This file describes one event contract only. Put service responsibility in `03-ARCHITECTURE`; put local mock/stub/debug details in `04-DEVELOPMENT`.
+This file describes one event contract only. Put service responsibility in `context/architecture`; put local mock/stub/debug details in `context/development`.

@@ -51,6 +51,14 @@ export function planStructureMigration(targetInput = ".") {
       destination: archiveDestination,
     });
   }
+  const legacyRegistry = path.join(target.projectRoot, ".harness-capabilities.json");
+  if (fs.existsSync(legacyRegistry)) {
+    actions.push({
+      action: "archive-legacy-registry",
+      source: ".harness-capabilities.json",
+      destination: `${v2HarnessRoot}/governance/archive/legacy-governance/.harness-capabilities.json`,
+    });
+  }
   return {
     operation: "migrate-structure",
     target: target.projectRoot,
@@ -72,6 +80,7 @@ export function applyStructureMigration(targetInput = ".", { force = false } = {
   const targetRoot = plan.target;
   const manifestPath = path.join(targetRoot, plan.manifest);
   const applied = [];
+  preflightStructureMigration(plan, { force });
   if (!fs.existsSync(manifestPath) || force) {
     fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
     fs.writeFileSync(manifestPath, renderHarnessManifest({ locale: plan.capabilities.locale, capabilities: plan.capabilities.names }));
@@ -96,6 +105,7 @@ export function applyStructureMigration(targetInput = ".", { force = false } = {
     fs.renameSync(docsRoot, archiveRoot);
     applied.push({ action: "archive-source-root", source: "docs", destination: toPosix(path.relative(targetRoot, archiveRoot)) });
   }
+  archiveLegacyCapabilityRegistry(targetRoot, applied);
   normalizeMigratedModuleTasks(targetRoot, applied, { force });
   scaffoldMissingTaskWalkthroughs(targetRoot, applied);
   return {
@@ -107,6 +117,32 @@ export function applyStructureMigration(targetInput = ".", { force = false } = {
       applied: applied.length,
     },
   };
+}
+
+function preflightStructureMigration(plan, { force = false } = {}) {
+  if (force) return;
+  const conflicts = [];
+  for (const action of plan.actions.filter((entry) => entry.action === "move")) {
+    const source = path.join(plan.target, action.source);
+    const destination = path.join(plan.target, action.destination);
+    if (fs.existsSync(source) && fs.existsSync(destination)) conflicts.push(action.destination);
+  }
+  if (conflicts.length) {
+    throw new Error(`Refusing to overwrite existing v2 destination(s): ${conflicts.join(", ")}`);
+  }
+}
+
+function archiveLegacyCapabilityRegistry(targetRoot, applied) {
+  const registry = path.join(targetRoot, ".harness-capabilities.json");
+  if (!fs.existsSync(registry)) return;
+  const destination = uniqueArchiveFile(targetRoot, `${v2HarnessRoot}/governance/archive/legacy-governance/.harness-capabilities.json`);
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.renameSync(registry, destination);
+  applied.push({
+    action: "archive-legacy-registry",
+    source: ".harness-capabilities.json",
+    destination: toPosix(path.relative(targetRoot, destination)),
+  });
 }
 
 function readLegacyCapabilities(projectRoot) {
@@ -146,6 +182,17 @@ function uniqueArchiveRoot(targetRoot) {
     if (!fs.existsSync(candidate)) return candidate;
   }
   throw new Error("Unable to allocate legacy docs archive directory");
+}
+
+function uniqueArchiveFile(targetRoot, relativeFile) {
+  const parsed = path.parse(path.join(targetRoot, relativeFile));
+  const base = path.join(parsed.dir, parsed.name);
+  for (let index = 0; index < 100; index += 1) {
+    const suffix = index === 0 ? "" : `-${String(index).padStart(2, "0")}`;
+    const candidate = `${base}${suffix}${parsed.ext}`;
+    if (!fs.existsSync(candidate)) return candidate;
+  }
+  throw new Error(`Unable to allocate legacy archive file: ${relativeFile}`);
 }
 
 function normalizeMigratedModuleTasks(targetRoot, applied, { force = false } = {}) {

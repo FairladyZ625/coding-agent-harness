@@ -115,7 +115,7 @@ Each entrypoint also declares `writes` (allowed write path globs) and `reads`
 ```
 writeScopes:
   tasks:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 ```
 
@@ -225,8 +225,6 @@ flowchart TD
   Core --> AdvReview["adversarial-review\nAdversarial review reports\n(alias: review-contract)"]
   Core --> LongRunning["long-running-task\nLong-running task contracts"]
   Core --> Dashboard["dashboard\nLocal HTML Dashboard"]
-  Core --> SafeAdoption["safe-adoption\nSmooth onboarding for legacy projects"]
-
   ModParallel --> SubagentWorker["subagent-worker\nCommit-backed worker handoff protocol"]
 ```
 
@@ -240,7 +238,6 @@ flowchart TD
 | `adversarial-review` | When release, architecture, security, data, or policy risks require independent review artifacts |
 | `long-running-task` | When Agents may run across multiple loops without per-step user confirmation |
 | `dashboard` | When local read-only state visualization is needed |
-| `safe-adoption` | When onboarding v1.0 into an existing harness project without rewriting history |
 
 ### Level 2 — Preset resource declarations (resources)
 

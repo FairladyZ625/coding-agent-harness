@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-  A["📄 Markdown files\n(source files under docs/)"]
+  A["📄 Markdown files\n(source files under coding-agent-harness/)"]
   B["⚙️ Scanner\n(parse + validate)"]
   C["📊 Dashboard\n(HTML + JSON)"]
 
@@ -45,7 +45,7 @@ into structured objects.
 flowchart TD
   CT["collectTasks()"]
 
-  CT --> Discover["listTaskPlanPaths()\nScans two root directories:\n09-PLANNING/TASKS/\n09-PLANNING/MODULES/\nFilters out template and archive directories"]
+  CT --> Discover["listTaskPlanPaths()\nScans two root directories:\ncoding-agent-harness/planning/tasks/\ncoding-agent-harness/planning/modules/\nFilters out template and archive directories"]
 
   Discover --> ReadFiles["For each task directory, reads 9 files:\ntask_plan / brief / progress\nreview / visual_map\nexecution_strategy\nlesson_candidates / findings / context"]
 
@@ -155,13 +155,13 @@ Which files `collectMarkdownDocuments()` collects:
 flowchart TD
   Collect["collectMarkdownDocuments()"]
 
-  Collect --> Fixed["Fixed paths (collected when they exist)\nHarness-Ledger.md\n09-PLANNING/Module-Registry.md\n05-TEST-QA/Regression-SSoT.md\n10-WALKTHROUGH/Closeout-SSoT.md"]
+  Collect --> Fixed["Fixed paths (collected when they exist)\nHarness-Ledger.md\ncoding-agent-harness/planning/Module-Registry.md\ncoding-agent-harness/governance/regression/Regression-SSoT.md\ncoding-agent-harness/governance/generated/Closeout-Index.md"]
 
-  Collect --> Walkthrough["All .md files under 10-WALKTHROUGH/\n(excluding _archive/ and files starting with _)"]
+  Collect --> Walkthrough["All .md files under coding-agent-harness/planning/tasks/<task>/\n(excluding _archive/ and files starting with _)"]
 
   Collect --> TaskDocs["Under each task directory:\nbrief / task_plan / execution_strategy\nvisual_map / lesson_candidates\nprogress / review / findings\nreferences/INDEX.md / artifacts/INDEX.md"]
 
-  Collect --> ModuleDocs["Under 09-PLANNING/MODULES/:\nmodule_plan.md for each module\nbrief.md for each module"]
+  Collect --> ModuleDocs["Under coding-agent-harness/planning/modules/:\nmodule_plan.md for each module\nbrief.md for each module"]
 
   Collect --> Lessons["All .md files under 01-GOVERNANCE/lessons/"]
 ```

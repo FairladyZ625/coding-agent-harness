@@ -68,7 +68,7 @@ flowchart LR
 ```
 
 - **Package**: What you `npm install` — contains the CLI, templates, standards docs, and Preset packages
-- **Target Repo**: Your project, where harness creates a `docs/` tree to record task state
+- **Target Repo**: Your project, where harness creates a `coding-agent-harness/` tree to record task state
 - **Runtime**: The CLI runtime that scans the doc tree, validates compliance, and generates the Dashboard
 - **Human**: Views the Dashboard in a browser, performs review confirmation in the Workbench
 
@@ -110,7 +110,7 @@ flowchart TD
   Harness --> Planning["planning/\nTask directory + module directory"]
   Harness --> Ledger["governance/generated/Harness-Ledger.md\nGlobal ledger (all tasks summarized)"]
   Harness --> Walkthrough["task-local walkthrough.md\nCloseout evidence"]
-  Docs --> Reference["11-REFERENCE/\nLocal operating standards (copied from Package)"]
+  Docs --> Reference["coding-agent-harness/governance/standards/\nLocal operating standards (copied from Package)"]
   Docs --> Governance["01-GOVERNANCE/\nLesson library"]
 ```
 

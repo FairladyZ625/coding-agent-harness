@@ -32,7 +32,7 @@ flowchart TB
   CLI["Harness CLI<br/>scripts/harness.mjs"]
   Standards["标准<br/>references/"]
   Templates["脚手架<br/>templates/ + templates-zh-CN/"]
-  Target["目标仓库<br/>AGENTS.md + docs/"]
+  Target["目标仓库<br/>AGENTS.md + coding-agent-harness/"]
   Scanner["扫描器与校验器<br/>status/check"]
   Dashboard["Dashboard / Workbench<br/>HTML + JSON"]
   Human["人工审查者<br/>批准与检查"]
@@ -58,15 +58,15 @@ flowchart TB
 ```mermaid
 flowchart TB
   Entry["AGENTS.md<br/>Agent 入口与路由"]
-  Registry[".harness-capabilities.json<br/>已启用能力"]
+  Registry["coding-agent-harness/harness.yaml<br/>已启用能力"]
   Docs["docs/"]
-  Architecture["03-ARCHITECTURE<br/>系统事实"]
-  Development["04-DEVELOPMENT<br/>本地设置与代码地图"]
-  QA["05-TEST-QA<br/>回归与节奏"]
-  Integrations["06-INTEGRATIONS<br/>外部契约"]
-  Planning["09-PLANNING<br/>任务与模块"]
-  Walkthrough["10-WALKTHROUGH<br/>收口证据"]
-  Reference["11-REFERENCE<br/>本地运行标准"]
+  Architecture["coding-agent-harness/context/architecture<br/>系统事实"]
+  Development["coding-agent-harness/context/development<br/>本地设置与代码地图"]
+  QA["coding-agent-harness/governance/regression<br/>回归与节奏"]
+  Integrations["coding-agent-harness/context/integrations<br/>外部契约"]
+  Planning["coding-agent-harness/planning<br/>任务与模块"]
+  Walkthrough["coding-agent-harness/planning/tasks/<task><br/>收口证据"]
+  Reference["coding-agent-harness/governance/standards<br/>本地运行标准"]
   Ledger["Harness Ledger / SSoT / Lessons<br/>长期记忆"]
 
   Entry --> Docs
@@ -89,8 +89,8 @@ flowchart TB
 
 | 模式 | 控制面 | 执行面 |
 | --- | --- | --- |
-| 单仓模式 | 同一个仓库管理 `AGENTS.md`、`docs/`、代码、测试和收口。 | 同一个仓库。 |
-| 多仓独立模式 | 每个仓库都有自己的局部 `AGENTS.md` 和 `docs/`。 | 每个仓库独立执行。 |
+| 单仓模式 | 同一个仓库管理 `AGENTS.md`、`coding-agent-harness/`、代码、测试和收口。 | 同一个仓库。 |
+| 多仓独立模式 | 每个仓库都有自己的局部 `AGENTS.md` 和 `coding-agent-harness/`。 | 每个仓库独立执行。 |
 | 主控仓库模式 | 父仓库管理全局 Harness 控制面。 | 子仓库管理实现代码和局部检查。 |
 
 如果一个产品拆成前端、后端、SDK、微服务和上游参考仓库，主控仓库模式可以把 Agent 启动入口、生成的任务生命周期 Ledger、回归状态和收口证据固定在一个地方。详见 `docs-release/guides/repository-operating-models.md` 和 `docs-release/guides/parent-control-repository-pattern.md`。

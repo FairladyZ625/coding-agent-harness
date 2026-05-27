@@ -204,7 +204,7 @@ Every task state change triggers `syncTaskGovernance()`, which atomically update
 sequenceDiagram
   participant CLI as harness CLI
   participant Lock as .harness/locks/governance-sync.lock
-  participant Ledger as docs/Harness-Ledger.md
+  participant Ledger as coding-agent-harness/governance/generated/Harness-Ledger.md
   participant Git
 
   CLI->>Lock: fs.openSync(lockPath, "wx")\n(exclusive write, throws EEXIST if exists)
@@ -223,7 +223,7 @@ filesystem operation. If the file already exists, `openSync` throws `EEXIST` and
 | Operation | How triggered | Write target | Frequency |
 | --- | --- | --- | --- |
 | `syncTaskGovernance` | Automatic (on every state change) | Corresponding row in `Harness-Ledger.md` | High frequency |
-| `rebuildGovernanceIndexes` | Manual (`harness governance rebuild`) | `docs/09-PLANNING/generated/` index tables | Low frequency |
+| `rebuildGovernanceIndexes` | Manual (`harness governance rebuild`) | `coding-agent-harness/governance/generated/` index tables | Low frequency |
 
 ---
 
@@ -283,7 +283,7 @@ governance concern be tracked independently.
 ### Why Tombstone doesn't physically delete the task directory
 
 The document library has no database-level foreign keys. Physical deletion would leave
-orphan references (the Ledger, Closeout SSoT, and other tasks' `Supersedes` fields may
+orphan references (the Ledger, Closeout Index, and other tasks' `Supersedes` fields may
 all point to the deleted task). Tombstone markers let the Soft-deleted / Superseded queue
 provide read-only traceability for "why isn't this task in the active queue".
 

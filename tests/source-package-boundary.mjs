@@ -58,14 +58,16 @@ fs.writeFileSync(path.join(sourceBoundaryTarget, "scripts/test-harness.mjs"), "#
 fs.writeFileSync(path.join(sourceBoundaryTarget, "scripts/smoke-dashboard.mjs"), "#!/usr/bin/env node\n");
 fs.writeFileSync(path.join(sourceBoundaryTarget, "templates/planning/task_plan.md"), "# Task\n");
 fs.writeFileSync(path.join(sourceBoundaryTarget, "AGENTS.md"), "# Local only\n");
+fs.writeFileSync(path.join(sourceBoundaryTarget, "CLAUDE.md"), "# Local only\n");
 fs.writeFileSync(path.join(sourceBoundaryTarget, "docs/private/plan.md"), "# Private\n");
 fs.writeFileSync(path.join(sourceBoundaryTarget, ".harness-private/AGENTS.md"), "# Private harness\n");
 fs.writeFileSync(path.join(sourceBoundaryTarget, "harness-dashboard.html"), "<html>generated dashboard</html>\n");
 spawnSync("git", ["init"], { cwd: sourceBoundaryTarget, encoding: "utf8" });
-spawnSync("git", ["add", "-f", "AGENTS.md", "docs/private/plan.md", ".harness-private/AGENTS.md", "harness-dashboard.html"], { cwd: sourceBoundaryTarget, encoding: "utf8" });
+spawnSync("git", ["add", "-f", "AGENTS.md", "CLAUDE.md", "docs/private/plan.md", ".harness-private/AGENTS.md", "harness-dashboard.html"], { cwd: sourceBoundaryTarget, encoding: "utf8" });
 const sourceBoundaryCheck = run(["check", "--profile", "source-package", sourceBoundaryTarget]);
 assert(sourceBoundaryCheck.status !== 0, "source-package check should reject staged local-only harness files");
 assert(sourceBoundaryCheck.stderr.includes("private local-only file staged: AGENTS.md"), "source-package check should report staged AGENTS.md");
+assert(sourceBoundaryCheck.stderr.includes("private local-only file staged: CLAUDE.md"), "source-package check should report staged CLAUDE.md");
 assert(sourceBoundaryCheck.stderr.includes("private local-only file staged: docs/private/plan.md"), "source-package check should report staged docs/");
 assert(sourceBoundaryCheck.stderr.includes("private local-only file staged: .harness-private/AGENTS.md"), "source-package check should report staged .harness-private/");
 assert(sourceBoundaryCheck.stderr.includes("generated dashboard file tracked in source root: harness-dashboard.html"), "source-package check should report tracked root dashboard output");
@@ -79,6 +81,14 @@ assert(!packedFiles.includes("harness-dashboard.html"), "npm package must not in
 assert(!packedFiles.includes("scripts/test-harness.mjs"), "npm package must not include internal test harness");
 assert(!packedFiles.includes("scripts/smoke-dashboard.mjs"), "npm package must not include internal dashboard smoke script");
 assert(!packedFiles.some((file) => file.startsWith("tests/")), "npm package must not include tests/");
+for (const required of [
+  "scripts/lib/harness-paths.mjs",
+  "scripts/lib/structure-migration.mjs",
+  "templates/planning/walkthrough.md",
+  "examples/minimal-project/coding-agent-harness/harness.yaml",
+]) {
+  assert(packedFiles.includes(required), `npm package must include ${required}`);
+}
 
 const dashboardAssetsDir = path.join(repoRoot, "templates/dashboard/assets");
 const dashboardWriter = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-writer.mjs"), "utf8");

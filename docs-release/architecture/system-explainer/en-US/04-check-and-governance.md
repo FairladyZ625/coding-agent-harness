@@ -70,7 +70,7 @@ Each validator returns `failures` (hard failures, must fix) and `warnings` (soft
 
 ### ① validateCapabilities
 
-Reads `.harness-capabilities.json` and checks:
+Reads `coding-agent-harness/harness.yaml` and checks:
 - Whether declared capabilities are all valid capability names (in the `allowedCapabilities` enum)
 - Whether capability dependencies are all enabled (e.g. `subagent-worker` requires `module-parallel` first)
 - Whether the artifact paths corresponding to capabilities exist
@@ -192,8 +192,8 @@ flowchart TD
   Filter --> Sort["Sort alphabetically by id"]
   Sort --> Gen["Generate governance surfaces"]
 
-  Gen --> TI["docs/09-PLANNING/generated/task-index.md\nSummary index table for all tasks"]
-  Gen --> MI["docs/09-PLANNING/generated/module-index.md\nModule step index table"]
+  Gen --> TI["coding-agent-harness/governance/generated/task-index.md\nSummary index table for all tasks"]
+  Gen --> MI["coding-agent-harness/governance/generated/module-index.md\nModule step index table"]
 
   TI --> Atomic["Atomic write\n(governance-sync lock + git commit)"]
   MI --> Atomic
@@ -214,12 +214,14 @@ full scan on every state change.
 
 ### Why the validator has two levels: failures and warnings
 
-Both levels existed from the start. The design motivation was **migration compatibility**:
-- Newly installed projects (`strict=true`) report failure for missing files and block CI
-- Legacy projects in `safe-adoption` mode report the same missing files as
-  `adoption-needed: ...` warnings without blocking
+Both levels existed from the start. In v2, active target projects are expected to
+run from `coding-agent-harness/harness.yaml`:
+- v2 projects report failures for missing required files and can block CI
+- legacy structures are migration input only; use `migrate-structure --plan` and
+  `migrate-structure --apply` before running normal status/check/dashboard flows
 
-This lets harness gradually tighten standards without breaking existing users.
+This keeps active runtime behavior single-shaped while still giving migration
+commands enough information to produce a cutover plan.
 Three or more levels were never considered — two levels are sufficient to distinguish
 "must fix" from "recommended migration".
 

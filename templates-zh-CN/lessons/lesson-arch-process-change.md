@@ -4,7 +4,7 @@
 
 - **ID**: L-[YYYY-MM-DD-NNN]
 - **日期**: YYYY-MM-DD
-- **来源**: `docs/10-WALKTHROUGH/[walkthrough文件名].md`
+- **来源**: `coding-agent-harness/planning/tasks/<task>/walkthrough.md`
 - **类型**: arch-change / process-change
 - **目标**: [受影响的模块、流程、reference、template 或 checker]
 - **提出者**: [agent session / model / human]

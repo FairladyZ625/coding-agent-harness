@@ -35,7 +35,7 @@ function moduleCard(module) {
   const pageCount = Math.ceil(tasks.length / 8) || 1;
   const visibleTasks = tasks.slice((currentPage - 1) * 8, currentPage * 8);
 
-  const brief = findDocument(`TARGET:coding-agent-harness/planning/modules/${moduleKey}/brief.md`);
+  const brief = findDocument(module.briefPath || `TARGET:coding-agent-harness/planning/modules/${moduleKey}/brief.md`);
 
   let pagerHtml = "";
   if (tasks.length > 8) {

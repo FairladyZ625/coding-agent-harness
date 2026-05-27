@@ -22,7 +22,7 @@
 
 ### 3. 现有文档
 - 有没有 AGENTS.md / CLAUDE.md / COPILOT.md？
-- 有没有 docs/ 目录？结构如何？
+- 有没有 coding-agent-harness/ 目录？结构如何？
 - 有没有 README 以外的开发文档？
 - 有没有架构设计文档？
 - 如果项目属于微服务、多仓或前后端分仓，用户是否有外部服务文档、接口文档、架构图、会议纪要、链接或导出包？
@@ -58,7 +58,7 @@
 - 是否是前后端分仓、app/service 分仓或 program 多仓？
 - 前端 agent 是否只能看到 API 文档 / mock / schema？后端 agent 是否只能看到消费合同？
 - 当前使用敏捷 sprint、kanban 连续流、瀑布 stage-gate，还是个人连续执行？
-- 是否需要 `docs/09-PLANNING/Delivery-SSoT.md` 记录 feature block owner、依赖、集成顺序和 acceptance gates？
+- 是否需要 `coding-agent-harness/planning/Delivery-SSoT.md` 记录 feature block owner、依赖、集成顺序和 acceptance gates？
 
 ### 6b. Repo Governance
 - repo platform 是 GitHub / GitLab / local-only / 其他？
@@ -91,7 +91,7 @@
 | 维度 | 现状 | 评级 |
 |------|------|------|
 | AGENTS.md | [有/无/需改造] | 🟢/🟡/🔴 |
-| docs/ 目录 | [有/无/需改造] | 🟢/🟡/🔴 |
+| coding-agent-harness/ 目录 | [有/无/需改造] | 🟢/🟡/🔴 |
 | Reference 标准 | [有/无/需改造] | 🟢/🟡/🔴 |
 | Planning Loop | [有/无/需改造] | 🟢/🟡/🔴 |
 | Delivery Operating Model | [solo/team/split-repo/program/waterfall/kanban/需确认] | 🟢/🟡/🔴 |
@@ -139,7 +139,7 @@
 
 最小配置：
 - AGENTS.md
-- docs/11-REFERENCE/ 下 2-3 个标准文件
+- coding-agent-harness/governance/standards/ 下 2-3 个标准文件
 - Delivery Operating Model 标准，明确是否为 `solo-orchestrator`
 - Planning task plan / findings / progress / review 模板
 - repo governance / CI-CD 标准和 residual

@@ -7,13 +7,13 @@
 默认位置：
 
 ```text
-docs/10-WALKTHROUGH/YYYY-MM-DD-<feature-name>.md
+coding-agent-harness/planning/tasks/<task>/walkthrough.md
 ```
 
-Closeout SSoT 固定位置：
+Closeout Index 固定位置：
 
 ```text
-docs/10-WALKTHROUGH/Closeout-SSoT.md
+coding-agent-harness/governance/generated/Closeout-Index.md
 ```
 
 ## 何时必须写
@@ -46,13 +46,13 @@ docs/10-WALKTHROUGH/Closeout-SSoT.md
 
 ## 收口单一事实源规则
 
-以下 Harness Ledger row 必须有 Closeout SSoT row：
+以下 Harness Ledger row 必须有 Closeout Index row：
 
 - `closed`
 - `closed-with-residual`
 - `closed-local-only`
 
-Closeout SSoT 中：
+Closeout Index 中：
 
 - walkthrough 列写实际路径，或写受控跳过原因。
 - Lessons 检查列写 `checked-candidate: LC-...`、`queued-promotion: LC-...`、`checked-created: L-YYYY-MM-DD-NNN`，或旧任务兼容的 `checked-none: <reason>`。
@@ -73,7 +73,7 @@ Closeout SSoT 中：
 - 人工审查后，如需沉淀，再由维护命令写 promoted lesson 详情文档。
 - `checked-created:<L-ID>` 必须能追溯到该详情文档。
 
-三个答案都为“没有”时，Closeout SSoT 和 Harness Ledger 仍要记录：
+三个答案都为“没有”时，Closeout Index 和 Harness Ledger 仍要记录：
 
 ```text
 lesson_candidates.md: no-candidate-accepted
@@ -81,4 +81,4 @@ lesson_candidates.md: no-candidate-accepted
 
 ## 收口要求
 
-walkthrough 写完后，必须更新 Closeout SSoT 和 Harness Ledger。涉及回归、CI/CD、repo governance、reference 或 template 的，还要同步对应标准或 SSoT。
+walkthrough 写完后，必须更新 Closeout Index 和 Harness Ledger。涉及回归、CI/CD、repo governance、reference 或 template 的，还要同步对应标准或 SSoT。

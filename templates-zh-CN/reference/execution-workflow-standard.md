@@ -10,7 +10,7 @@
 2. 读取功能 SSoT 或 Delivery SSoT，确认任务状态、owner 和依赖。
 3. 读取 `task_plan.md`，确认目标、范围、证据、stop condition 和允许修改的路径。
 4. 读取 `delivery-operating-model-standard.md`，判断本轮是 solo、team、split-repo、program、waterfall 还是 kanban 交付形态。
-5. 多人、多 agent、多仓、共享文件或阶段交付任务必须更新 `docs/09-PLANNING/Delivery-SSoT.md`。
+5. 多人、多 agent、多仓、共享文件或阶段交付任务必须更新 `coding-agent-harness/planning/Delivery-SSoT.md`。
 6. 判断是否属于长程任务；如属于，按 `long-running-task-standard.md` 补齐合同。
 7. 判断是否需要对抗性审查；如需要，按 `adversarial-review-standard.md` 创建或更新 `review.md`。
 8. planned task 默认需要 closeout review；先读取 `review-routing-standard.md`。

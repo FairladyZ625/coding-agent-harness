@@ -67,7 +67,7 @@ flowchart LR
 ```
 
 - **Package**：你 `npm install` 的那个东西，包含 CLI、模板、标准文档、Preset 包
-- **Target Repo**：你的项目，harness 在里面创建 `docs/` 文档树来记录任务状态
+- **Target Repo**：你的项目，harness 在里面创建 `coding-agent-harness/` 文档树来记录任务状态
 - **Runtime**：CLI 运行时，扫描文档树、验证合规、生成 Dashboard
 - **Human**：浏览器里看 Dashboard，在 Workbench 里做审查确认
 
@@ -109,7 +109,7 @@ flowchart TD
   Harness --> Planning["planning/\n任务目录 + 模块目录"]
   Harness --> Ledger["governance/generated/Harness-Ledger.md\n全局账本（所有任务汇总）"]
   Harness --> Walkthrough["任务本地 walkthrough.md\n收口证据"]
-  Docs --> Reference["11-REFERENCE/\n本地操作标准（从 Package 复制过来）"]
+  Docs --> Reference["coding-agent-harness/governance/standards/\n本地操作标准（从 Package 复制过来）"]
   Docs --> Governance["01-GOVERNANCE/\nLesson 沉淀库"]
 ```
 

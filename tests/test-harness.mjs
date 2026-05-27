@@ -231,7 +231,8 @@ fs.writeFileSync(path.join(legacyContractTarget, "AGENTS.md"), "# AGENTS\n");
 fs.writeFileSync(path.join(legacyContractTarget, "docs/09-PLANNING/TASKS/old/task_plan.md"), "# Old\n");
 fs.writeFileSync(path.join(legacyContractTarget, "docs/09-PLANNING/TASKS/old/progress.md"), "# Progress\n\n## Status\n\nplanned\n");
 const legacyLoose = run(["check", "--profile", "target-project", legacyContractTarget]);
-assert(legacyLoose.status === 0, "legacy contract gaps should be advisory without strict");
+assert(legacyLoose.status !== 0, "legacy target-project checks should fail until migrate-structure is applied");
+assert(legacyLoose.stderr.includes("legacy harness structure is migration input only"), "legacy check failure should route to migrate-structure");
 const legacyStrict = run(["check", "--profile", "target-project", "--strict", legacyContractTarget]);
 assert(legacyStrict.status !== 0, "strict legacy contract gaps should fail");
 
@@ -257,35 +258,27 @@ if (fs.existsSync(mingjingDocs)) {
   const mingjingRepo = path.dirname(mingjingDocs);
   const before = spawnSync("git", ["-C", mingjingRepo, "status", "--short", "--", "docs"], { encoding: "utf8" }).stdout;
   const mingjing = run(["status", "--json", mingjingDocs]);
-  assert(mingjing.status === 0, "mingjing legacy status should be a safe-adoption warning, not a failure");
+  assert(mingjing.status !== 0, "mingjing legacy status should fail until structure migration is applied");
   const status = JSON.parse(mingjing.stdout);
   assert(status.project.docsOnly === true, "mingjing docs target was not detected as docsOnly");
   assert(status.mode === "legacy-compat", "mingjing docs should be legacy-compat without capability registry");
-  assert(status.checkState.status === "warn", "mingjing legacy status should warn");
-  expectPass(["check", "--profile", "target-project", mingjingDocs]);
+  assert(status.checkState.status === "fail", "mingjing legacy status should fail");
+  const mingjingCheck = run(["check", "--profile", "target-project", mingjingDocs]);
+  assert(mingjingCheck.status !== 0, "mingjing legacy target-project check should fail until migration");
   const strictStatus = run(["status", "--json", "--strict", mingjingDocs]);
   const strictCheck = run(["check", "--profile", "target-project", "--strict", mingjingDocs]);
   assert(strictStatus.status !== 0, "mingjing strict status should fail on legacy checker failures");
   assert(strictCheck.status !== 0, "mingjing strict check should fail on legacy checker failures");
   const mingjingDashboard = path.join(tmpRoot, "mingjing-dashboard.html");
-  expectPass(["dashboard", "--out", mingjingDashboard, mingjingDocs]);
-  assert(fs.existsSync(mingjingDashboard), "mingjing dashboard file was not created");
+  const mingjingDashboardResult = run(["dashboard", "--out", mingjingDashboard, mingjingDocs]);
+  assert(mingjingDashboardResult.status !== 0, "mingjing legacy dashboard should fail until migration");
   const mingjingDashboardDir = path.join(tmpRoot, "mingjing-dashboard-folder");
-  expectPass(["dashboard", "--out-dir", mingjingDashboardDir, mingjingDocs]);
-  assert(fs.existsSync(path.join(mingjingDashboardDir, "index.html")), "mingjing dashboard folder index was not created");
-  for (const generated of ["data/status.json", "data/tables.json", "data/documents.json", "data/graph.json", "data/adoption.json", "assets/dashboard-data.js"]) {
-    const content = fs.readFileSync(path.join(mingjingDashboardDir, generated), "utf8");
-    assert(!content.includes("/Users/lizeyu"), `mingjing ${generated} leaked local user path`);
-    assert(!content.includes("file://"), `mingjing ${generated} leaked file URL`);
-  }
-  const mingjingDocuments = JSON.parse(fs.readFileSync(path.join(mingjingDashboardDir, "data/documents.json"), "utf8"));
-  const mingjingTables = JSON.parse(fs.readFileSync(path.join(mingjingDashboardDir, "data/tables.json"), "utf8"));
-  assert(!JSON.stringify(mingjingDocuments.documents.map((doc) => doc.path)).includes("_task-template"), "mingjing documents included task template paths");
-  assert(!JSON.stringify(mingjingTables.tables.map((table) => table.source)).includes("_task-template"), "mingjing tables included task template sources");
-  const mingjingGraph = JSON.parse(fs.readFileSync(path.join(mingjingDashboardDir, "data/graph.json"), "utf8"));
-  assert(mingjingGraph.nodes.some((node) => node.type === "module"), "mingjing graph missing module nodes");
-  assert(mingjingGraph.edges.length > 0, "mingjing graph missing dependency edges");
-  assertGraphIntegrity(mingjingGraph, "mingjing graph");
+  const mingjingDashboardDirResult = run(["dashboard", "--out-dir", mingjingDashboardDir, mingjingDocs]);
+  assert(mingjingDashboardDirResult.status !== 0, "mingjing legacy dashboard folder should fail until migration");
+  const mingjingMigrationPlan = run(["migrate-structure", "--json", "--plan", mingjingDocs]);
+  assert(mingjingMigrationPlan.status === 0, "mingjing legacy docs target should remain readable by migration planning");
+  const plan = JSON.parse(mingjingMigrationPlan.stdout);
+  assert(plan.summary.canApply === true, "mingjing migration plan should include applicable actions");
   const after = spawnSync("git", ["-C", mingjingRepo, "status", "--short", "--", "docs"], { encoding: "utf8" }).stdout;
   assert(before === after, "mingjing docs changed during status/check/dashboard smoke");
 }

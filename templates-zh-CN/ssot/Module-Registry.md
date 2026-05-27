@@ -22,11 +22,11 @@
 
 ## 归档索引
 
-> 完成、取消或合并进其他模块的条目移入 `MODULES/_archive/Module-Registry-archive-YYYY-QN.md`。
+> 完成、取消或合并进其他模块的条目移入 `coding-agent-harness/planning/modules/_archive/Module-Registry-archive-YYYY-QN.md`。
 
 | 归档文件 | 覆盖模块 | 移入日期 | 说明 |
 | --- | --- | --- | --- |
-| `MODULES/_archive/Module-Registry-archive-YYYY-QN.md` | [模块 Key 范围] | YYYY-MM-DD | [说明] |
+| `coding-agent-harness/planning/modules/_archive/Module-Registry-archive-YYYY-QN.md` | [模块 Key 范围] | YYYY-MM-DD | [说明] |
 
 ## 状态说明
 
@@ -45,4 +45,4 @@
 2. 模块状态变化要有对应的 module plan、progress、review 或 evidence 证据。
 3. `ready-for-sync` 不能直接等同完成；协调者同步后才能标记 `completed`。
 4. 写入范围变化必须先更新本表，再让 worker 修改文件。
-5. 模块完成后，收口证据回写 Harness Ledger、Closeout SSoT 和必要的 Feature / Regression SSoT。
+5. 模块完成后，收口证据回写 Harness Ledger、Closeout Index 和必要的 Feature / Regression SSoT。

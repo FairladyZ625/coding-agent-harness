@@ -111,6 +111,22 @@ export function taskLocalWalkthrough(paths, taskDir) {
   return toPosix(path.relative(paths.projectRoot, walkthrough));
 }
 
+export function dashboardWatchRoots(paths) {
+  const roots = paths.version === 2
+    ? [
+        paths.harnessRoot,
+        paths.planningRoot,
+        paths.tasksRoot,
+        paths.modulesRoot,
+        paths.externalRoot,
+        paths.governanceRoot,
+        paths.generatedRoot,
+        paths.regressionRoot,
+      ]
+    : [paths.docsRoot];
+  return dedupeAncestorRoots(roots.filter(Boolean).map((root) => path.resolve(root)).filter((root) => fs.existsSync(root)));
+}
+
 function moduleRefPath(paths, relative) {
   if (paths.version !== 2) return path.join(paths.modulesRoot, relative);
   const [moduleKey, ...taskSegments] = relative.split("/");
@@ -123,8 +139,11 @@ export function toPosix(value) {
 
 function normalizeTargetShape(input = ".") {
   if (input && typeof input === "object" && input.projectRoot) {
-    const projectRoot = path.resolve(input.projectRoot);
-    const directHarnessRoot = findNearestHarnessRoot(path.resolve(input.input || projectRoot));
+    const requestedProjectRoot = path.resolve(input.projectRoot);
+    const directHarnessRoot = findNearestHarnessRoot(path.resolve(input.input || requestedProjectRoot));
+    const projectRoot = directHarnessRoot && requestedProjectRoot === directHarnessRoot
+      ? path.dirname(directHarnessRoot)
+      : requestedProjectRoot;
     return {
       ...input,
       projectRoot,
@@ -133,9 +152,10 @@ function normalizeTargetShape(input = ".") {
     };
   }
   const target = path.resolve(input || ".");
+  const siblingV2Manifest = path.join(path.dirname(target), v2HarnessRoot, "harness.yaml");
   const isDocsRoot =
     path.basename(target) === "docs" &&
-    (fs.existsSync(path.join(target, "09-PLANNING")) || fs.existsSync(path.join(target, "11-REFERENCE")));
+    (fs.existsSync(path.join(target, "09-PLANNING")) || fs.existsSync(path.join(target, "11-REFERENCE")) || fs.existsSync(siblingV2Manifest));
   const directHarnessRoot = !isDocsRoot ? findNearestHarnessRoot(target) : "";
   const projectRoot = isDocsRoot ? path.dirname(target) : directHarnessRoot ? path.dirname(directHarnessRoot) : target;
   return {
@@ -203,4 +223,13 @@ function readHarnessManifest(manifestPath) {
 function isPathInside(child, parent) {
   const relative = path.relative(parent, child);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function dedupeAncestorRoots(roots) {
+  const result = [];
+  for (const root of [...new Set(roots)].sort((a, b) => a.length - b.length)) {
+    if (result.some((parent) => isPathInside(root, parent))) continue;
+    result.push(root);
+  }
+  return result;
 }

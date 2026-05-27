@@ -77,6 +77,11 @@ function collectDashboardDocumentPaths(target, options = {}) {
     addAbsolutePath(path.join(harnessPaths.modulesRoot, "Module-Registry.md"));
     addAbsolutePath(path.join(harnessPaths.regressionRoot, "Regression-SSoT.md"));
     addAbsolutePath(path.join(harnessPaths.regressionRoot, "Cadence-Ledger.md"));
+    for (const generatedRoot of [harnessPaths.generatedRoot, path.join(harnessPaths.planningRoot, "generated")]) {
+      for (const file of walkFiles(generatedRoot)) {
+        if (file.endsWith(".md")) selected.add(file);
+      }
+    }
   }
   if (harnessPaths.version !== 2) {
     for (const relativePath of [
@@ -133,7 +138,10 @@ function collectDashboardDocumentPaths(target, options = {}) {
     if (file.endsWith("module_plan.md")) selected.add(file);
     if (file.endsWith(`${path.sep}brief.md`) && path.dirname(file) !== harnessPaths.modulesRoot) selected.add(file);
   }
-  for (const file of walkFiles(path.join(target.docsRoot, "01-GOVERNANCE/lessons"))) {
+  const lessonsRoot = harnessPaths.version === 2
+    ? path.join(harnessPaths.governanceRoot, "lessons")
+    : path.join(target.docsRoot, "01-GOVERNANCE/lessons");
+  for (const file of walkFiles(lessonsRoot)) {
     if (file.endsWith(".md")) selected.add(file);
   }
   return [...selected]
@@ -150,7 +158,7 @@ function documentKind(source) {
   if (lower.includes("module-registry.md")) return "module-registry";
   if (lower.includes("regression-ssot.md")) return "regression-ssot";
   if (lower.includes("cadence-ledger.md")) return "cadence-ledger";
-  if (/\/01-governance\/lessons\/[^/]+\.md$/i.test(lower)) return "lesson-detail";
+  if (/\/(?:01-governance|governance)\/lessons\/[^/]+\.md$/i.test(lower)) return "lesson-detail";
   if (lower.endsWith("/progress.md")) return "task-progress";
   if (lower.endsWith("/brief.md")) return "task-brief";
   if (lower.endsWith("/review.md")) return "task-review";
@@ -171,7 +179,8 @@ export function collectTables(documents) {
   };
 }
 
-export function collectGraph(status, tables = { tables: [] }) {
+export function collectGraph(status, tables = { tables: [] }, target = null) {
+  const harnessPaths = target?.harness || null;
   const nodes = [];
   const edges = [];
   const seenNodes = new Map();
@@ -227,7 +236,14 @@ export function collectGraph(status, tables = { tables: [] }) {
         const moduleId = `module:${key}`;
         const status = getCell(row.cells, ["Status", "状态"], "unknown");
         const currentStep = getCell(row.cells, ["Current Step", "当前步骤"], "");
-        addNode({ id: moduleId, type: "module", label: getCell(row.cells, ["Name", "Module", "模块名称", "模块"], key), state: status, currentStep });
+        addNode({
+          id: moduleId,
+          type: "module",
+          label: getCell(row.cells, ["Name", "Module", "模块名称", "模块"], key),
+          state: status,
+          currentStep,
+          ...moduleDocumentPaths(target, key),
+        });
         if (currentStep) {
           const stepId = `step:${currentStep}`;
           if (!seenNodes.has(stepId)) addNode({ id: stepId, type: "step", label: currentStep, state: status, module: key });
@@ -236,10 +252,9 @@ export function collectGraph(status, tables = { tables: [] }) {
       }
     }
     if (table.kind === "module-plan") {
-      const moduleMatch = table.source.match(/(?:MODULES|modules)\/([^/]+)\/module_plan\.md$/);
-      const moduleKey = moduleMatch ? moduleMatch[1] : slug(table.source);
+      const moduleKey = moduleKeyFromPlanSource(table.source, target) || slug(table.source);
       const moduleId = `module:${moduleKey}`;
-      addNode({ id: moduleId, type: "module", label: moduleKey, state: "planned" });
+      addNode({ id: moduleId, type: "module", label: moduleKey, state: "planned", ...moduleDocumentPaths(target, moduleKey) });
       for (const row of table.rows) {
         const step = getCell(row.cells, ["Step ID", "步骤 ID"]);
         if (!step) continue;
@@ -258,6 +273,30 @@ export function collectGraph(status, tables = { tables: [] }) {
     }
   }
   return { nodes, edges: edges.filter((edge) => seenNodes.has(edge.from) && seenNodes.has(edge.to)) };
+}
+
+function moduleKeyFromPlanSource(source, target) {
+  if (!target?.projectRoot || !target?.harness?.modulesRoot) {
+    const moduleMatch = source.match(/(?:MODULES|modules)\/([^/]+)\/module_plan\.md$/);
+    return moduleMatch ? moduleMatch[1] : "";
+  }
+  const relativeSource = String(source || "").replace(/^TARGET:/, "");
+  const absoluteSource = path.join(target.projectRoot, relativeSource);
+  const relative = toPosix(path.relative(target.harness.modulesRoot, absoluteSource));
+  const match = relative.match(/^([^/]+)\/module_plan\.md$/);
+  if (match) return match[1];
+  const legacyMatch = source.match(/(?:MODULES|modules)\/([^/]+)\/module_plan\.md$/);
+  return legacyMatch ? legacyMatch[1] : "";
+}
+
+function moduleDocumentPaths(target, moduleKey) {
+  if (!target?.harness?.modulesRoot || !moduleKey) return {};
+  const brief = path.join(target.harness.modulesRoot, moduleKey, "brief.md");
+  const modulePlan = path.join(target.harness.modulesRoot, moduleKey, "module_plan.md");
+  return {
+    ...(fs.existsSync(brief) ? { briefPath: prefixedPath(target, brief) } : {}),
+    ...(fs.existsSync(modulePlan) ? { modulePlanPath: prefixedPath(target, modulePlan) } : {}),
+  };
 }
 
 export function categorizeWarning(message) {
@@ -468,7 +507,7 @@ export function buildDashboardBundle(targetInput, options = {}) {
   });
   const documents = { documents: collectMarkdownDocuments(target, { taskPlanPaths, tasks: status.tasks }) };
   const tables = collectTables(documents.documents);
-  const graph = collectGraph(status, tables);
+  const graph = collectGraph(status, tables, target);
   const adoption = collectAdoption(status);
   const presetCatalog = collectPresetCatalog(targetInput, target, options);
   return sanitizeDeep({ status, tables, documents, graph, adoption, presetCatalog });

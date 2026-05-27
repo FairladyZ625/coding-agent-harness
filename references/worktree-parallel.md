@@ -6,7 +6,7 @@
 
 但 worktree 只是 `solo-orchestrator` 或单仓并行的一种实现。若项目是多人团队、
 前后端分仓、program 多仓或瀑布 stage-gate，必须先读
-`docs/11-REFERENCE/delivery-operating-model-standard.md`，再决定使用 worktree、
+`coding-agent-harness/governance/standards/delivery-operating-model-standard.md`，再决定使用 worktree、
 feature branch、contract branch、release branch 或跨仓 paired PR。
 
 ## 什么时候必须开 worktree
@@ -39,7 +39,7 @@ feature branch、contract branch、release branch 或跨仓 paired PR。
 - `fix/` — Bug 修复
 - `refactor/` — 重构
 - `test/` — 测试相关
-- `docs/` — 文档相关
+- `coding-agent-harness/` — 文档相关
 
 示例：
 - `feat/user-auth-oauth2`
@@ -135,7 +135,7 @@ Coordinator 集成规则：
 
 ## 并发上限
 
-项目必须在 `docs/11-REFERENCE/repo-governance-standard.md` 的 Worktree Concurrency
+项目必须在 `coding-agent-harness/governance/standards/repo-governance-standard.md` 的 Worktree Concurrency
 中定义 max active worktrees、merge ordering rule 和 cleanup owner。
 
 未定义并发上限时，不应启动多 agent 并行开发。

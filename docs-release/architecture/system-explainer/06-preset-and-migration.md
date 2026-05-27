@@ -108,7 +108,7 @@ flowchart LR
 ```
 writeScopes:
   tasks:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 ```
 
@@ -216,8 +216,6 @@ flowchart TD
   Core --> AdvReview["adversarial-review\n对抗审查报告\n（别名：review-contract）"]
   Core --> LongRunning["long-running-task\n长时间运行任务合约"]
   Core --> Dashboard["dashboard\n本地 HTML Dashboard"]
-  Core --> SafeAdoption["safe-adoption\n旧项目平滑接入"]
-
   ModParallel --> SubagentWorker["subagent-worker\ncommit-backed worker 交接协议"]
 ```
 
@@ -231,7 +229,6 @@ flowchart TD
 | `adversarial-review` | 发布、架构、安全、数据或策略风险需要独立审查产物时 |
 | `long-running-task` | Agent 可能跨多个 loop 运行而无需每步用户确认时 |
 | `dashboard` | 需要本地只读状态可视化时 |
-| `safe-adoption` | 将 v1.0 接入已有 harness 项目而不重写历史时 |
 
 ### Level 2 — Preset 资源声明（resources）
 

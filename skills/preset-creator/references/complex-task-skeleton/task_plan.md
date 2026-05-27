@@ -108,4 +108,4 @@ File purposes:
 
 - Global sync owner: coordinator / n/a
 - Global sync status: pending-coordinator-pass / synced / n/a
-- Shared updates needed: [Module Registry / Harness Ledger / Closeout SSoT / Regression SSoT / none]
+- Shared updates needed: [Module Registry / Harness Ledger / Closeout Index / Regression SSoT / none]

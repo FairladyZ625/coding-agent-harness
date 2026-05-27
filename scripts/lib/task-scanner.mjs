@@ -240,7 +240,7 @@ export function taskCutoverCounters(tasks) {
 export function collectTasks(target, { requireGeneratedScaffoldProvenance = false, taskPlanPaths, closeoutContent } = {}) {
   const harnessPaths = target.harness || resolveHarnessPaths(target);
   const paths = taskPlanPaths || listTaskPlanPaths(target);
-  const closeout = closeoutContent ?? readFileSafe(harnessPaths.legacy.closeoutPath);
+  const closeout = closeoutContent ?? (harnessPaths.version === 2 ? "" : readFileSafe(harnessPaths.legacy.closeoutPath));
   return paths.map((taskPlanPath) => {
     const taskDir = path.dirname(taskPlanPath);
     const taskPlan = readFileSafe(taskPlanPath);

@@ -38,7 +38,10 @@ import { buildStatusData } from "./status-builder.mjs";
 import {
   legacyCloseoutFile,
   legacyCompatMode,
+  legacyLedgerFile,
   legacyPath,
+  legacyPlanningRoot,
+  legacyWalkthroughRoot,
   safeAdoptionCapability,
 } from "./harness-paths.mjs";
 export { renderDashboard } from "./status-dashboard-renderer.mjs";
@@ -342,7 +345,7 @@ export function buildStatus(targetInput, options = {}) {
   const legacy = shouldRunLegacy ? runCompatibilityCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
   const contractStrict = Boolean(options.strict) || (capabilityState.registry.mode !== legacyCompatMode && !safeAdoptionMode);
   const taskPlanPaths = listTaskPlanPaths(target);
-  const closeoutContent = readFileSafe(path.join(target.projectRoot, legacyPath(legacyCloseoutFile)));
+  const closeoutContent = target.harness?.version === 2 ? "" : readFileSafe(path.join(target.projectRoot, legacyPath(legacyCloseoutFile)));
   const tasks = collectTasks(target, { requireGeneratedScaffoldProvenance: contractStrict, taskPlanPaths, closeoutContent });
   const reviews = validateReviewSchema(target, { strict: contractStrict });
   const visualMaps = validateVisualMaps(target, { taskPlanPaths });
@@ -353,6 +356,9 @@ export function buildStatus(targetInput, options = {}) {
   const subagentAuthorization = validateSubagentAuthorization(target, { strict: contractStrict });
   const failures = [...capabilityState.failures, ...reviews.failures, ...visualMaps.failures, ...planContracts.failures, ...presetContracts.failures, ...contextDocs.failures, ...governanceBoundaries.failures, ...subagentAuthorization.failures];
   const warnings = [...capabilityState.warnings, ...reviews.warnings, ...visualMaps.warnings, ...planContracts.warnings, ...presetContracts.warnings, ...contextDocs.warnings, ...governanceBoundaries.warnings, ...subagentAuthorization.warnings, ...gitState.warnings];
+  if (target.harness?.version !== 2 && hasLegacyHarnessDocs(target) && !options.allowLegacyTarget) {
+    failures.push("legacy harness structure is migration input only; run `harness migrate-structure --plan` then `harness migrate-structure --apply`");
+  }
   if (legacy.status === "fail") {
     if (options.strictLegacy) failures.push("legacy check failed");
     else warnings.push(`adoption-needed: legacy check failed: ${(legacy.stderr || legacy.stdout).trim()}`);
@@ -385,4 +391,12 @@ export function buildStatus(targetInput, options = {}) {
     tasks,
     validationMode: "validated",
   });
+}
+
+function hasLegacyHarnessDocs(target) {
+  return [
+    path.join(target.projectRoot, legacyPath(legacyPlanningRoot)),
+    path.join(target.projectRoot, legacyPath(legacyWalkthroughRoot)),
+    path.join(target.projectRoot, legacyPath(legacyLedgerFile)),
+  ].some((candidate) => fs.existsSync(candidate));
 }

@@ -105,7 +105,7 @@
 必须先升级为 worker 并补齐 worktree 合同。
 
 如果 review loop 使用 reviewer agent、subagent 或外部审查者，必须在任务目录写
-`review.md`，并按 `docs/11-REFERENCE/adversarial-review-standard.md` 记录 material findings、
+`review.md`，并按 `coding-agent-harness/governance/standards/adversarial-review-standard.md` 记录 material findings、
 no-finding statement、evidence checked 和 residual risk。
 
 ### Evidence Depth
@@ -200,10 +200,10 @@ no-finding statement、evidence checked 和 residual risk。
 
 一个项目安装 harness 后，应做到：
 
-- `AGENTS.md` 的 Task-Type Reading Matrix 指向 `docs/11-REFERENCE/long-running-task-standard.md`
-- `docs/09-PLANNING/TASKS/_task-template/` 包含 long-running task contract 模板
-- `docs/09-PLANNING/TASKS/_task-template/` 包含 `review.md` 模板
-- `docs/11-REFERENCE/adversarial-review-standard.md` 定义 reviewer 报告规范
+- `AGENTS.md` 的 Task-Type Reading Matrix 指向 `coding-agent-harness/governance/standards/long-running-task-standard.md`
+- `coding-agent-harness/planning/tasks/_task-template/` 包含 long-running task contract 模板
+- `coding-agent-harness/planning/tasks/_task-template/` 包含 `review.md` 模板
+- `coding-agent-harness/governance/standards/adversarial-review-standard.md` 定义 reviewer 报告规范
 - `execution-workflow-standard.md` 在开始任务前要求判断是否属于长程任务
 - regression / testing 标准能提供可复查证据，而不是只依赖主观判断
-- `docs/Harness-Ledger.md` 记录长程任务是否完成必要的上下文回写
+- `coding-agent-harness/governance/generated/Harness-Ledger.md` 记录长程任务是否完成必要的上下文回写

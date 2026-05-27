@@ -6,6 +6,7 @@ import {
   assert,
   expectJson,
   expectPass,
+  run,
   tmpRoot,
 } from "./helpers/harness-test-utils.mjs";
 
@@ -17,8 +18,12 @@ fs.writeFileSync(
   path.join(legacyPhaseTableTarget, "docs/09-PLANNING/TASKS/table-active/progress.md"),
   "# Progress\n\n## 阶段状态表\n| Phase | Status | Notes |\n| --- | --- | --- |\n| Phase 1 | Done | ok |\n| Phase 2 | In Progress | active |\n| Phase 3 | Pending | next |\n",
 );
-const legacyPhaseStatus = expectJson(["status", "--json", legacyPhaseTableTarget]);
-assert(legacyPhaseStatus.tasks[0].state === "in_progress", "legacy phase table should infer active task state before structure migration");
+const legacyPhaseStatus = run(["status", "--json", legacyPhaseTableTarget]);
+assert(legacyPhaseStatus.status !== 0, "status should reject active legacy structures before structure migration");
+assert(legacyPhaseStatus.stdout.includes("legacy harness structure is migration input only"), "legacy status failure should route to migrate-structure");
+const legacyPhaseDashboard = run(["dashboard", "--out-dir", path.join(tmpRoot, "legacy-dashboard"), legacyPhaseTableTarget]);
+assert(legacyPhaseDashboard.status !== 0, "dashboard should reject active legacy structures before structure migration");
+assert(legacyPhaseDashboard.stderr.includes("dashboard requires v2 harness structure"), "legacy dashboard failure should route to migrate-structure");
 
 const legacyChineseTarget = path.join(tmpRoot, "legacy-chinese");
 fs.mkdirSync(path.join(legacyChineseTarget, "docs/09-PLANNING/TASKS/old"), { recursive: true });
@@ -29,6 +34,15 @@ assert(legacyChinesePlan.locale === "zh-CN", "migrate-plan should infer zh-CN fr
 assert(
   legacyChinesePlan.nextCommands.some((command) => command.includes(legacyChineseTarget)),
   "migrate-plan should keep executable target paths in CLI output",
+);
+assert(
+  legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-structure --plan")) &&
+  legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-structure --apply")),
+  "migrate-plan should route hard-cutover users to migrate-structure",
+);
+assert(
+  !legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-run")),
+  "migrate-plan should not route hard-cutover users to legacy migrate-run as the next command",
 );
 
 const migrationTarget = path.join(tmpRoot, "structure-migration");
@@ -60,10 +74,21 @@ assert(docsRootPlan.actions.some((action) => action.destination === "coding-agen
 assert(docsRootPlan.capabilities.locale === "zh-CN", "structure plan should preserve legacy registry locale");
 assert(docsRootPlan.capabilities.names.includes("dashboard"), "structure plan should preserve declared capabilities");
 
+const conflictTarget = path.join(tmpRoot, "structure-migration-conflict");
+fs.mkdirSync(path.join(conflictTarget, "docs/03-ARCHITECTURE"), { recursive: true });
+fs.mkdirSync(path.join(conflictTarget, "coding-agent-harness/context/architecture"), { recursive: true });
+fs.writeFileSync(path.join(conflictTarget, "docs/03-ARCHITECTURE/README.md"), "# Legacy Architecture\n");
+fs.writeFileSync(path.join(conflictTarget, "coding-agent-harness/context/architecture/README.md"), "# Existing V2 Architecture\n");
+const conflictApply = run(["migrate-structure", "--json", "--apply", conflictTarget]);
+assert(conflictApply.status !== 0, "migrate-structure should fail before applying when v2 destinations would be overwritten");
+assert(!fs.existsSync(path.join(conflictTarget, "coding-agent-harness/harness.yaml")), "migrate-structure conflict preflight should not leave a partial manifest");
+assert(fs.existsSync(path.join(conflictTarget, "docs/03-ARCHITECTURE/README.md")), "migrate-structure conflict preflight should not move legacy docs");
+
 const applied = expectJson(["migrate-structure", "--json", "--apply", migrationTarget]);
 assert(applied.applied === true, "migrate-structure --apply should report applied true");
 assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/harness.yaml")), "structure migration should write v2 manifest");
 assert(!fs.existsSync(path.join(migrationTarget, "docs")), "structure migration should remove the active legacy docs root");
+assert(!fs.existsSync(path.join(migrationTarget, ".harness-capabilities.json")), "structure migration should remove the active legacy capability registry");
 assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/planning/tasks/old/task_plan.md")), "structure migration should move legacy task plans to v2 tasks root");
 assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/planning/tasks/old/walkthrough.md")), "structure migration should add task-local walkthrough when absent");
 assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/planning/modules/auth/tasks/auth-old/task_plan.md")), "structure migration should normalize legacy module task directories to v2 module tasks");

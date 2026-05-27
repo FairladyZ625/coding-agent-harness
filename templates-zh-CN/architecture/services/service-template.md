@@ -9,7 +9,7 @@ Confidence: low
 
 | Catalog Row | Development Context | Source Pack | Integration Contracts | Last Verified | Confidence |
 | --- | --- | --- | --- | --- | --- |
-| `docs/03-ARCHITECTURE/service-catalog.md` | `docs/04-DEVELOPMENT/external-context/<service-key>.md` | `docs/04-DEVELOPMENT/external-source-packs/<source-key>/README.md` 或 N/A | `docs/06-INTEGRATIONS/<contract>.md` | unknown | low |
+| `coding-agent-harness/context/architecture/service-catalog.md` | `coding-agent-harness/context/development/external-context/<service-key>.md` | `coding-agent-harness/context/development/external-source-packs/<source-key>/README.md` 或 N/A | `coding-agent-harness/context/integrations/<contract>.md` | unknown | low |
 
 ## Responsibility
 
