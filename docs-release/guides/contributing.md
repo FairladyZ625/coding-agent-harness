@@ -18,7 +18,7 @@ Keep pull requests focused on one change family when possible. Documentation, CL
 
 ## Local Setup
 
-Use Node.js 18 or newer. CI runs Node.js 20.
+Use Node.js 24 or newer. CI should run on the minimum supported LTS line.
 
 ```bash
 npm install
