@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+
 export const v2HarnessRoot = "coding-agent-harness";
 export const legacyPlanningRoot = ["docs", "09-PLANNING"];
 export const legacyTaskRoot = [...legacyPlanningRoot, "TASKS"];
@@ -9,10 +10,70 @@ export const legacyLedgerFile = ["docs", "Harness-Ledger.md"];
 export const legacyCloseoutFile = [...legacyWalkthroughRoot, "Closeout-SSoT.md"];
 export const legacyCompatMode = "legacy-compat";
 export const safeAdoptionCapability = "safe-adoption";
-export function legacyPath(...segments) {
+
+export type HarnessManifest = {
+    version: number;
+    locale: string;
+    capabilities: string[];
+    structure: Record<string, string>;
+    harnessRoot?: string;
+    [key: string]: unknown;
+};
+
+export type HarnessTargetInput = string | {
+    projectRoot: string;
+    input?: string;
+    docsRoot?: string;
+    harnessRootCandidate?: string;
+    [key: string]: unknown;
+};
+
+export type NormalizedHarnessTarget = {
+    input?: string;
+    projectRoot: string;
+    docsRoot: string;
+    docsOnly?: boolean;
+    harnessRootCandidate: string;
+    [key: string]: unknown;
+};
+
+export type LegacyHarnessPaths = {
+    docsRoot: string;
+    planningRoot: string;
+    tasksRoot: string;
+    modulesRoot: string;
+    walkthroughRoot: string;
+    ledgerPath: string;
+    closeoutPath: string;
+};
+
+export type ResolvedHarnessPaths = {
+    version: 1 | 2;
+    manifest: HarnessManifest | null;
+    manifestPath: string;
+    input?: string;
+    projectRoot: string;
+    docsRoot: string;
+    docsOnly?: boolean;
+    harnessRoot: string;
+    planningRoot: string;
+    tasksRoot: string;
+    modulesRoot: string;
+    taskRoots: string[];
+    externalRoot: string;
+    governanceRoot: string;
+    generatedRoot: string;
+    regressionRoot: string;
+    ledgerPath: string;
+    closeoutIndexPath: string;
+    legacy: LegacyHarnessPaths;
+};
+
+export function legacyPath(...segments: Array<string | string[]>): string {
     return segments.flat().join("/");
 }
-export function resolveHarnessPaths(targetInput = ".") {
+
+export function resolveHarnessPaths(targetInput: HarnessTargetInput = "."): ResolvedHarnessPaths {
     const target = normalizeTargetShape(targetInput);
     const manifestPath = path.join(target.harnessRootCandidate, "harness.yaml");
     const manifest = readHarnessManifest(manifestPath);
@@ -26,16 +87,18 @@ export function resolveHarnessPaths(targetInput = ".") {
         const governanceRoot = structure.governanceRoot || `${harnessRoot}/governance`;
         const generatedRoot = structure.generatedRoot || `${governanceRoot}/generated`;
         const regressionRoot = structure.regressionRoot || `${governanceRoot}/regression`;
-        const resolved = Object.fromEntries(Object.entries({
-            harnessRoot,
-            planningRoot,
-            tasksRoot,
-            modulesRoot,
-            externalRoot,
-            governanceRoot,
-            generatedRoot,
-            regressionRoot,
-        }).map(([key, value]) => [key, resolveManifestStructurePath(target.projectRoot, key, value)]));
+        const resolved = Object.fromEntries(
+            Object.entries({
+                harnessRoot,
+                planningRoot,
+                tasksRoot,
+                modulesRoot,
+                externalRoot,
+                governanceRoot,
+                generatedRoot,
+                regressionRoot,
+            }).map(([key, value]) => [key, resolveManifestStructurePath(target.projectRoot, key, value)]),
+        ) as Record<"harnessRoot" | "planningRoot" | "tasksRoot" | "modulesRoot" | "externalRoot" | "governanceRoot" | "generatedRoot" | "regressionRoot", string>;
         return {
             version: 2,
             manifest,
@@ -81,53 +144,46 @@ export function resolveHarnessPaths(targetInput = ".") {
         legacy,
     };
 }
-export function taskIdFromDirectory(paths, taskDir) {
+
+export function taskIdFromDirectory(paths: ResolvedHarnessPaths, taskDir: string): string {
     const normalized = path.resolve(taskDir);
     const tasksRoot = path.resolve(paths.tasksRoot);
     const modulesRoot = path.resolve(paths.modulesRoot);
     const externalRoot = paths.externalRoot ? path.resolve(paths.externalRoot) : "";
-    if (isPathInside(normalized, tasksRoot))
-        return `TASKS/${toPosix(path.relative(tasksRoot, normalized))}`;
+    if (isPathInside(normalized, tasksRoot)) return `TASKS/${toPosix(path.relative(tasksRoot, normalized))}`;
     if (isPathInside(normalized, modulesRoot)) {
         const relative = toPosix(path.relative(modulesRoot, normalized));
         const match = relative.match(/^([^/]+)\/tasks\/(.+)$/);
         return match ? `MODULES/${match[1]}/${match[2]}` : `MODULES/${relative}`;
     }
-    if (externalRoot && isPathInside(normalized, externalRoot))
-        return `EXTERNAL/${toPosix(path.relative(externalRoot, normalized))}`;
-    if (paths.version === 1)
-        return toPosix(path.relative(paths.planningRoot, normalized));
+    if (externalRoot && isPathInside(normalized, externalRoot)) return `EXTERNAL/${toPosix(path.relative(externalRoot, normalized))}`;
+    if (paths.version === 1) return toPosix(path.relative(paths.planningRoot, normalized));
     return toPosix(path.relative(paths.projectRoot, normalized));
 }
-export function taskRefPath(paths, raw) {
-    if (/^TASKS\//.test(raw))
-        return path.join(paths.tasksRoot, raw.replace(/^TASKS\//, ""));
-    if (/^MODULES\//.test(raw))
-        return moduleRefPath(paths, raw.replace(/^MODULES\//, ""));
-    if (/^EXTERNAL\//.test(raw) && paths.externalRoot)
-        return path.join(paths.externalRoot, raw.replace(/^EXTERNAL\//, ""));
-    if (/^(tasks|modules|external)\//.test(raw))
-        return path.join(paths.planningRoot, raw);
+
+export function taskRefPath(paths: ResolvedHarnessPaths, raw: string): string {
+    if (/^TASKS\//.test(raw)) return path.join(paths.tasksRoot, raw.replace(/^TASKS\//, ""));
+    if (/^MODULES\//.test(raw)) return moduleRefPath(paths, raw.replace(/^MODULES\//, ""));
+    if (/^EXTERNAL\//.test(raw) && paths.externalRoot) return path.join(paths.externalRoot, raw.replace(/^EXTERNAL\//, ""));
+    if (/^(tasks|modules|external)\//.test(raw)) return path.join(paths.planningRoot, raw);
     return "";
 }
-export function taskLocalWalkthrough(paths, taskDir) {
-    if (paths.version !== 2)
-        return "";
+
+export function taskLocalWalkthrough(paths: ResolvedHarnessPaths, taskDir: string): string {
+    if (paths.version !== 2) return "";
     const walkthrough = path.join(taskDir, "walkthrough.md");
-    if (!fs.existsSync(walkthrough))
-        return "";
-    let stat;
+    if (!fs.existsSync(walkthrough)) return "";
+    let stat: fs.Stats;
     try {
         stat = fs.lstatSync(walkthrough);
-    }
-    catch {
+    } catch {
         return "";
     }
-    if (!stat.isFile() || stat.isSymbolicLink())
-        return "";
+    if (!stat.isFile() || stat.isSymbolicLink()) return "";
     return toPosix(path.relative(paths.projectRoot, walkthrough));
 }
-export function dashboardWatchRoots(paths) {
+
+export function dashboardWatchRoots(paths: ResolvedHarnessPaths): string[] {
     const roots = paths.version === 2
         ? [
             paths.harnessRoot,
@@ -142,24 +198,26 @@ export function dashboardWatchRoots(paths) {
         : [paths.docsRoot];
     return dedupeAncestorRoots(roots.filter(Boolean).map((root) => path.resolve(root)).filter((root) => fs.existsSync(root)));
 }
-export function discoverImplicitHarnessTarget(input = ".") {
+
+export function discoverImplicitHarnessTarget(input = "."): string {
     const root = path.resolve(input || ".");
     const nearest = findNearestHarnessRoot(root);
-    if (nearest)
-        return projectRootForHarnessRoot(nearest);
+    if (nearest) return projectRootForHarnessRoot(nearest);
     const discovered = findProjectHarnessRoot(root, { requireDeclaredProjectRoot: false });
     return discovered ? projectRootForHarnessRoot(discovered) : "";
 }
-function moduleRefPath(paths, relative) {
-    if (paths.version !== 2)
-        return path.join(paths.modulesRoot, relative);
+
+function moduleRefPath(paths: ResolvedHarnessPaths, relative: string): string {
+    if (paths.version !== 2) return path.join(paths.modulesRoot, relative);
     const [moduleKey = "", ...taskSegments] = relative.split("/");
     return taskSegments.length ? path.join(paths.modulesRoot, moduleKey, "tasks", ...taskSegments) : path.join(paths.modulesRoot, moduleKey);
 }
-export function toPosix(value) {
+
+export function toPosix(value: string): string {
     return String(value).split(path.sep).join("/");
 }
-function normalizeTargetShape(input = ".") {
+
+function normalizeTargetShape(input: HarnessTargetInput = "."): NormalizedHarnessTarget {
     if (input && typeof input === "object" && input.projectRoot) {
         const requestedProjectRoot = path.resolve(input.projectRoot);
         const inputPath = path.resolve(input.input || requestedProjectRoot);
@@ -181,7 +239,8 @@ function normalizeTargetShape(input = ".") {
     const siblingV2Manifest = siblingHarnessRoot
         ? path.join(siblingHarnessRoot, "harness.yaml")
         : path.join(docsProjectRoot, v2HarnessRoot, "harness.yaml");
-    const isDocsRoot = path.basename(target) === "docs" &&
+    const isDocsRoot =
+        path.basename(target) === "docs" &&
         (fs.existsSync(path.join(target, "09-PLANNING")) || fs.existsSync(path.join(target, "11-REFERENCE")) || fs.existsSync(siblingV2Manifest));
     const directHarnessRoot = !isDocsRoot ? findNearestHarnessRoot(target) : "";
     const discoveredHarnessRoot = directHarnessRoot || (!isDocsRoot ? findProjectHarnessRoot(target) : siblingHarnessRoot);
@@ -194,44 +253,39 @@ function normalizeTargetShape(input = ".") {
         harnessRootCandidate: discoveredHarnessRoot || path.join(projectRoot, v2HarnessRoot),
     };
 }
-function findNearestHarnessRoot(target) {
+
+function findNearestHarnessRoot(target: string): string {
     let current = target;
     for (let depth = 0; depth < 5; depth += 1) {
-        if (fs.existsSync(path.join(current, "harness.yaml")))
-            return current;
+        if (fs.existsSync(path.join(current, "harness.yaml"))) return current;
         const parent = path.dirname(current);
-        if (parent === current)
-            break;
+        if (parent === current) break;
         current = parent;
     }
     return "";
 }
-function findProjectHarnessRoot(projectRoot, { requireDeclaredProjectRoot = true } = {}) {
+
+function findProjectHarnessRoot(projectRoot: string, { requireDeclaredProjectRoot = true } = {}): string {
     const defaultRoot = path.join(projectRoot, v2HarnessRoot);
-    if (fs.existsSync(path.join(defaultRoot, "harness.yaml")))
-        return defaultRoot;
-    const candidates = [];
+    if (fs.existsSync(path.join(defaultRoot, "harness.yaml"))) return defaultRoot;
+    const candidates: string[] = [];
     const ignored = new Set([".git", "node_modules", "tmp", "dist", "build", ".next", "coverage"]);
-    function visit(dir, depth) {
-        if (depth > 5 || !fs.existsSync(dir))
-            return;
+    function visit(dir: string, depth: number): void {
+        if (depth > 5 || !fs.existsSync(dir)) return;
         if (fs.existsSync(path.join(dir, "harness.yaml")) && (!requireDeclaredProjectRoot || projectRootForHarnessRoot(dir) === projectRoot)) {
             candidates.push(dir);
             return;
         }
         for (const entry of fs.readdirSync(dir)) {
-            if (ignored.has(entry))
-                continue;
+            if (ignored.has(entry)) continue;
             const full = path.join(dir, entry);
-            let stat;
+            let stat: fs.Stats;
             try {
                 stat = fs.lstatSync(full);
-            }
-            catch {
+            } catch {
                 continue;
             }
-            if (stat.isDirectory() && !stat.isSymbolicLink())
-                visit(full, depth + 1);
+            if (stat.isDirectory() && !stat.isSymbolicLink()) visit(full, depth + 1);
         }
     }
     visit(projectRoot, 0);
@@ -243,27 +297,26 @@ function findProjectHarnessRoot(projectRoot, { requireDeclaredProjectRoot = true
     if (unique.length > 1) {
         const shallowestDepth = path.relative(projectRoot, unique[0]).split(path.sep).filter(Boolean).length;
         const shallowest = unique.filter((item) => path.relative(projectRoot, item).split(path.sep).filter(Boolean).length === shallowestDepth);
-        if (shallowest.length === 1)
-            return shallowest[0];
+        if (shallowest.length === 1) return shallowest[0];
         throw new Error(`Multiple v2 harness manifests found at the same nearest depth; pass the intended harness root explicitly: ${shallowest.map((item) => toPosix(path.relative(projectRoot, item))).join(", ")}`);
     }
     return unique[0] || "";
 }
-function projectRootForHarnessRoot(harnessRoot) {
+
+function projectRootForHarnessRoot(harnessRoot: string): string {
     const manifest = readHarnessManifest(path.join(harnessRoot, "harness.yaml"));
     const declaredHarnessRoot = manifest?.structure?.harnessRoot || v2HarnessRoot;
     let current = harnessRoot;
     for (let depth = 0; depth < 10; depth += 1) {
-        if (path.resolve(current, declaredHarnessRoot) === path.resolve(harnessRoot))
-            return current;
+        if (path.resolve(current, declaredHarnessRoot) === path.resolve(harnessRoot)) return current;
         const parent = path.dirname(current);
-        if (parent === current)
-            break;
+        if (parent === current) break;
         current = parent;
     }
     return path.dirname(harnessRoot);
 }
-function legacyPaths(projectRoot) {
+
+function legacyPaths(projectRoot: string): LegacyHarnessPaths {
     const docsRoot = path.join(projectRoot, "docs");
     const planningRoot = path.join(docsRoot, ...legacyPlanningRoot.slice(1));
     return {
@@ -276,24 +329,20 @@ function legacyPaths(projectRoot) {
         closeoutPath: path.join(projectRoot, ...legacyCloseoutFile),
     };
 }
-function readHarnessManifest(manifestPath) {
-    if (!fs.existsSync(manifestPath))
-        return null;
-    const manifest = { version: 2, locale: "en-US", capabilities: [], structure: {} };
+
+function readHarnessManifest(manifestPath: string): HarnessManifest | null {
+    if (!fs.existsSync(manifestPath)) return null;
+    const manifest: HarnessManifest = { version: 2, locale: "en-US", capabilities: [], structure: {} };
     let section = "";
     for (const rawLine of fs.readFileSync(manifestPath, "utf8").split(/\r?\n/)) {
         const line = rawLine.replace(/\s+#.*$/, "");
-        if (!line.trim())
-            continue;
+        if (!line.trim()) continue;
         const top = line.match(/^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/);
         if (top) {
             section = top[1];
-            if (section === "version")
-                manifest.version = Number(top[2]) || 2;
-            else if (section === "locale")
-                manifest.locale = top[2] || "en-US";
-            else if (section !== "structure" && section !== "capabilities")
-                manifest[section] = top[2];
+            if (section === "version") manifest.version = Number(top[2]) || 2;
+            else if (section === "locale") manifest.locale = top[2] || "en-US";
+            else if (section !== "structure" && section !== "capabilities") manifest[section] = top[2];
             continue;
         }
         const listItem = line.match(/^\s*-\s*(.+)$/);
@@ -302,36 +351,33 @@ function readHarnessManifest(manifestPath) {
             continue;
         }
         const nested = line.match(/^\s+([A-Za-z][A-Za-z0-9_-]*):\s*(.+)$/);
-        if (section === "structure" && nested)
-            manifest.structure[nested[1]] = nested[2].trim();
+        if (section === "structure" && nested) manifest.structure[nested[1]] = nested[2].trim();
     }
-    if (!manifest.structure.harnessRoot && manifest.harnessRoot)
-        manifest.structure.harnessRoot = manifest.harnessRoot;
-    if (!manifest.structure.planningRoot && manifest.harnessRoot)
-        manifest.structure.planningRoot = `${manifest.harnessRoot}/planning`;
+    if (!manifest.structure.harnessRoot && manifest.harnessRoot) manifest.structure.harnessRoot = manifest.harnessRoot;
+    if (!manifest.structure.planningRoot && manifest.harnessRoot) manifest.structure.planningRoot = `${manifest.harnessRoot}/planning`;
     return manifest;
 }
-function resolveManifestStructurePath(projectRoot, fieldName, relativePath) {
+
+function resolveManifestStructurePath(projectRoot: string, fieldName: string, relativePath: string): string {
     const raw = String(relativePath || "").trim();
-    if (!raw)
-        throw new Error(`Invalid v2 harness manifest: structure.${fieldName} is empty`);
-    if (path.isAbsolute(raw))
-        throw new Error(`Invalid v2 harness manifest: structure.${fieldName} escapes project root: ${raw}`);
+    if (!raw) throw new Error(`Invalid v2 harness manifest: structure.${fieldName} is empty`);
+    if (path.isAbsolute(raw)) throw new Error(`Invalid v2 harness manifest: structure.${fieldName} escapes project root: ${raw}`);
     const resolved = path.resolve(projectRoot, raw);
     if (!isPathInside(resolved, projectRoot)) {
         throw new Error(`Invalid v2 harness manifest: structure.${fieldName} escapes project root: ${raw}`);
     }
     return resolved;
 }
-function isPathInside(child, parent) {
+
+function isPathInside(child: string, parent: string): boolean {
     const relative = path.relative(parent, child);
     return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
-function dedupeAncestorRoots(roots) {
-    const result = [];
+
+function dedupeAncestorRoots(roots: string[]): string[] {
+    const result: string[] = [];
     for (const root of [...new Set(roots)].sort((a, b) => a.length - b.length)) {
-        if (result.some((parent) => isPathInside(root, parent)))
-            continue;
+        if (result.some((parent) => isPathInside(root, parent))) continue;
         result.push(root);
     }
     return result;
