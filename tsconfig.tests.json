@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "rootDir": ".",
+    "outDir": "tmp/test-emit",
+    "declaration": false,
+    "sourceMap": false,
+    "removeComments": false,
+    "skipLibCheck": true
+  },
+  "include": [
+    "tests/**/*.mts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".worktrees",
+    "tmp",
+    "dist"
+  ]
+}

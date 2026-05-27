@@ -1,36 +1,23 @@
 #!/usr/bin/env node
-
+// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
-import {
-  assert,
-  expectJson,
-  run,
-  tmpRoot,
-} from "./helpers/harness-test-utils.mjs";
-
+import { assert, expectJson, run, tmpRoot, } from "./helpers/harness-test-utils.mjs";
 const target = path.join(tmpRoot, "governance-table-boundary-target");
 fs.mkdirSync(target);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard", target]);
-
 const harnessRoot = path.join(target, "coding-agent-harness");
 fs.mkdirSync(path.join(harnessRoot, "planning", "modules", "dashboard"), { recursive: true });
 fs.mkdirSync(path.join(harnessRoot, "governance", "generated"), { recursive: true });
-fs.writeFileSync(
-  path.join(harnessRoot, "planning", "modules", "dashboard", "module_plan.md"),
-  [
+fs.writeFileSync(path.join(harnessRoot, "planning", "modules", "dashboard", "module_plan.md"), [
     "# Dashboard Module Plan",
     "",
     "| Step ID | Name | Status | Owner / Handoff | Evidence |",
     "| --- | --- | --- | --- | --- |",
     "| DASH-LOCAL-001 | Local drawer parser repair | in-progress | Worker C | keep implementation details here |",
     "",
-  ].join("\n"),
-);
-
-fs.writeFileSync(
-  path.join(harnessRoot, "planning", "Feature-SSoT.md"),
-  [
+].join("\n"));
+fs.writeFileSync(path.join(harnessRoot, "planning", "Feature-SSoT.md"), [
     "# Feature SSoT",
     "",
     "| ID | Feature | User Outcome | Owner | Status | Priority | Task Plan | Acceptance Evidence | Regression Gate | Walkthrough | Residual | Updated |",
@@ -38,12 +25,8 @@ fs.writeFileSync(
     "| PF-OK-001 | Dashboard boundary summary | Overview links to module/task details | Worker C | active | P2 | `coding-agent-harness/planning/tasks/2026-05-24-governance-table-entropy-checker/task_plan.md` | `npm test` | RG-dashboard | pending | none | 2026-05-24 |",
     "| PF-BAD-001 | Module drawer implementation detail | Copy every parser branch, button label, and repair prompt from DASH-LOCAL-001 into this global table so the global SSoT becomes the implementation log | Worker C | active | P2 | `coding-agent-harness/planning/modules/dashboard/module_plan.md` | full local evidence paragraph with execution log and temporary repair prompt | RG-dashboard | pending | none | 2026-05-24 |",
     "",
-  ].join("\n"),
-);
-
-fs.writeFileSync(
-  path.join(harnessRoot, "governance", "generated", "Harness-Ledger.md"),
-  [
+].join("\n"));
+fs.writeFileSync(path.join(harnessRoot, "governance", "generated", "Harness-Ledger.md"), [
     "# Harness Ledger",
     "",
     "| ID | Task or Change | Owner | Status | Plan | Feature or Delivery SSoT | Regression Evidence | Review Evidence | Walkthrough | Lessons Check | Residual | Updated |",
@@ -54,9 +37,7 @@ fs.writeFileSync(
     "| HL-BAD-REGRESSION-EVIDENCE | Real regression column overload | Worker C | active | `coding-agent-harness/planning/tasks/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | command failed with raw output and stack trace copied into the ledger row | `review.md` | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
     "| HL-BAD-REVIEW-EVIDENCE | Real review column overload | Worker C | active | `coding-agent-harness/planning/tasks/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | `npm test` | reviewer transcript copied into the ledger row instead of linking review.md | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
     "",
-  ].join("\n"),
-);
-
+].join("\n"));
 const check = run(["check", "--profile", "target-project", target]);
 assert(check.status !== 0, "new overloaded global table rows should fail target-project check");
 assert(check.stderr.includes("PF-BAD-001"), "Feature SSoT local detail row should be reported as a failure");
@@ -66,7 +47,6 @@ assert(check.stderr.includes("HL-BAD-REVIEW-EVIDENCE"), "Harness Ledger Review E
 assert(!check.stderr.includes("PF-OK-001"), "allowed summary row should not be reported as a failure");
 assert(check.stdout.includes("HL-LEGACY-001"), "legacy overloaded row should be reported as a warning");
 assert(!check.stderr.includes("HL-LEGACY-001"), "legacy overloaded row should not fail the check");
-
 const dashboardDir = path.join(tmpRoot, "governance-table-boundary-dashboard");
 const dashboard = run(["dashboard", "--out-dir", dashboardDir, target]);
 assert(dashboard.status === 0, `dashboard generation should tolerate report-only legacy rows\n${dashboard.stderr}`);
@@ -76,5 +56,4 @@ assert(entropyWarnings.length >= 3, "dashboard adoption data should expose gover
 assert(entropyWarnings.every((warning) => warning.phase === "global-table-boundary"), "entropy warnings should use a stable dashboard phase");
 assert(entropyWarnings.some((warning) => warning.id.includes("HL-LEGACY-001") && warning.status === "legacy-report-only"), "legacy overload should be visible but report-only in dashboard data");
 assert(entropyWarnings.some((warning) => warning.id.includes("PF-BAD-001") && warning.status === "open"), "new violations should be visible as open dashboard warnings");
-
 console.log("Governance table boundary tests passed");

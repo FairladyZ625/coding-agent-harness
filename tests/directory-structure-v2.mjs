@@ -1,27 +1,17 @@
 #!/usr/bin/env node
-
+// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
-import {
-  assert,
-  expectJson,
-  expectPass,
-  run,
-  tmpRoot,
-} from "./helpers/harness-test-utils.mjs";
+import { assert, expectJson, expectPass, run, tmpRoot, } from "./helpers/harness-test-utils.mjs";
 import { taskScannerVersion } from "../scripts/lib/task-review-model.mjs";
 import { normalizeTarget } from "../scripts/lib/core-shared.mjs";
 import { dashboardWatchRoots } from "../scripts/lib/harness-paths.mjs";
-
 const target = path.join(tmpRoot, "directory-structure-v2-target");
 const taskId = "2026-05-27-v2-only-task";
 const taskDir = path.join(target, "coding-agent-harness/planning/tasks", taskId);
-
 fs.mkdirSync(taskDir, { recursive: true });
 fs.mkdirSync(path.join(target, "coding-agent-harness/governance/generated"), { recursive: true });
-fs.writeFileSync(
-  path.join(target, "coding-agent-harness/harness.yaml"),
-  [
+fs.writeFileSync(path.join(target, "coding-agent-harness/harness.yaml"), [
     "version: 2",
     "locale: en-US",
     "capabilities:",
@@ -36,11 +26,8 @@ fs.writeFileSync(
     "  generatedRoot: coding-agent-harness/governance/generated",
     "  walkthrough: task-local",
     "",
-  ].join("\n"),
-);
-fs.writeFileSync(
-  path.join(taskDir, "INDEX.md"),
-  [
+].join("\n"));
+fs.writeFileSync(path.join(taskDir, "INDEX.md"), [
     "# V2 Only Task",
     "",
     "Task Contract: harness-task/v1",
@@ -79,16 +66,13 @@ fs.writeFileSync(
     "| Legacy Extra Fields | {} |",
     "| Migration Notes | n/a |",
     "",
-  ].join("\n"),
-);
+].join("\n"));
 fs.writeFileSync(path.join(taskDir, "brief.md"), "# V2 Only Task Brief\n\n## Goal\n\nProve v2 native task discovery without legacy docs roots. This brief is intentionally long enough to satisfy the material scanner and ensure the fixture tests path behavior rather than weak brief heuristics.\n");
 fs.writeFileSync(path.join(taskDir, "task_plan.md"), "# V2 Only Task\n\nTask Contract: harness-task/v1\n\nSelected budget: standard\n\n## Goal\n\nExercise v2 task discovery.\n");
 fs.writeFileSync(path.join(taskDir, "progress.md"), "# Progress\n\n## Status\n\ndone\n");
 fs.writeFileSync(path.join(taskDir, "execution_strategy.md"), "# Execution Strategy\n\nCoordinator-owned v2 fixture.\n");
 fs.writeFileSync(path.join(taskDir, "findings.md"), "# Findings\n\nNo findings.\n");
-fs.writeFileSync(
-  path.join(taskDir, "visual_map.md"),
-  [
+fs.writeFileSync(path.join(taskDir, "visual_map.md"), [
     "# Visual Map",
     "",
     "Visual Map Contract: v1.0",
@@ -99,11 +83,8 @@ fs.writeFileSync(
     "| --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- |",
     "| V2-01 | execution | none | done | 100 | v2 fixture | command | n/a | agent | present | none | coordinator |",
     "",
-  ].join("\n"),
-);
-fs.writeFileSync(
-  path.join(taskDir, "review.md"),
-  [
+].join("\n"));
+fs.writeFileSync(path.join(taskDir, "review.md"), [
     "# Review",
     "",
     "## Agent Review Submission",
@@ -144,11 +125,8 @@ fs.writeFileSync(
     "",
     "The fixture is complete enough for path discovery regression coverage.",
     "",
-  ].join("\n"),
-);
-fs.writeFileSync(
-  path.join(taskDir, "lesson_candidates.md"),
-  [
+].join("\n"));
+fs.writeFileSync(path.join(taskDir, "lesson_candidates.md"), [
     "# Lesson Candidates",
     "",
     "| Field | Value |",
@@ -162,14 +140,11 @@ fs.writeFileSync(
     "",
     "This fixture is only for v2 structure discovery.",
     "",
-  ].join("\n"),
-);
+].join("\n"));
 fs.writeFileSync(path.join(taskDir, "walkthrough.md"), "# Walkthrough\n\nTask-local v2 walkthrough evidence.\n");
-
 assert(!fs.existsSync(path.join(target, "docs/09-PLANNING")), "fixture must not contain legacy planning root");
 assert(!fs.existsSync(path.join(target, "docs/10-WALKTHROUGH")), "fixture must not contain legacy walkthrough root");
 assert(!fs.existsSync(path.join(target, "docs/Harness-Ledger.md")), "fixture must not contain legacy ledger");
-
 const status = expectJson(["status", "--json", target]);
 assert(status.schemaVersion === 2, "status should preserve schemaVersion 2");
 assert(status.tasks.length === 1, `v2-only status should discover one task, got ${status.tasks.length}`);
@@ -180,14 +155,11 @@ assert(!JSON.stringify(status).includes("docs/09-PLANNING"), "v2 status should n
 const docsAliasStatus = expectJson(["status", "--json", path.join(target, "docs")]);
 assert(docsAliasStatus.mode === "v2-manifest", "v2 target/docs alias should resolve to the sibling project manifest");
 assert(docsAliasStatus.tasks[0].path === `TARGET:coding-agent-harness/planning/tasks/${taskId}`, "v2 target/docs alias should preserve v2 task paths");
-
 const taskList = expectJson(["task-list", "--json", target]);
 assert(taskList.tasks.length === 1, "task-list should discover v2-only task");
-
 const taskIndex = expectJson(["task-index", "--json", target]);
 assert(taskIndex.tasks.length === 1, "task-index should discover v2-only task");
 assert(taskIndex.tasks[0].currentPath === `TARGET:coding-agent-harness/planning/tasks/${taskId}`, "task-index should expose v2 task path");
-
 const dashboardDir = path.join(tmpRoot, "directory-structure-v2-dashboard");
 expectPass(["dashboard", "--out-dir", dashboardDir, target]);
 const dashboardAliasDir = path.join(tmpRoot, "directory-structure-v2-dashboard-docs-alias");
@@ -196,40 +168,27 @@ const dashboardStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data
 const dashboardDocuments = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/documents.json"), "utf8"));
 assert(dashboardStatus.tasks.length === 1, "dashboard status should include v2-only task");
 assert(dashboardDocuments.documents.some((doc) => doc.path === `TARGET:coding-agent-harness/planning/tasks/${taskId}/walkthrough.md`), "dashboard documents should include task-local walkthrough");
-
 fs.mkdirSync(path.join(target, "docs/10-WALKTHROUGH"), { recursive: true });
-fs.writeFileSync(
-  path.join(target, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
-  `| id | task | walkthrough | status |\n| --- | --- | --- | --- |\n| HL-1 | coding-agent-harness/planning/tasks/${taskId}/task_plan.md | docs/10-WALKTHROUGH/legacy.md | closed |\n`,
-);
+fs.writeFileSync(path.join(target, "docs/10-WALKTHROUGH/Closeout-SSoT.md"), `| id | task | walkthrough | status |\n| --- | --- | --- | --- |\n| HL-1 | coding-agent-harness/planning/tasks/${taskId}/task_plan.md | docs/10-WALKTHROUGH/legacy.md | closed |\n`);
 fs.rmSync(path.join(taskDir, "walkthrough.md"), { force: true });
 const legacyCloseoutIgnored = expectJson(["status", "--json", target]);
 const legacyCloseoutTask = legacyCloseoutIgnored.tasks.find((task) => task.id === `TASKS/${taskId}`);
 assert(legacyCloseoutTask.walkthroughPath === "", "v2 status should not read legacy Closeout SSoT walkthrough paths");
 assert(legacyCloseoutTask.closeoutStatus !== "closed", "v2 status should not close tasks from legacy Closeout SSoT rows");
-
 const invalidContextTarget = path.join(tmpRoot, "directory-structure-v2-context-validation");
 expectPass(["init", "--locale", "en-US", "--capabilities", "core", invalidContextTarget]);
 fs.writeFileSync(path.join(invalidContextTarget, "coding-agent-harness/context/architecture/service-catalog.md"), "# Service Catalog\n\n| Service / Component |\n| --- |\n| api |\n");
 const invalidContextStatus = run(["status", "--json", invalidContextTarget]);
 assert(invalidContextStatus.status !== 0, "v2 status should fail when context docs violate the contract");
 const invalidContext = JSON.parse(invalidContextStatus.stdout);
-assert(
-  invalidContext.checkState.details.failures.some((failure) => failure.includes("coding-agent-harness/context/architecture/service-catalog.md missing Context Doc Type")),
-  "v2 context validation should scan manifest-resolved context roots",
-);
-
+assert(invalidContext.checkState.details.failures.some((failure) => failure.includes("coding-agent-harness/context/architecture/service-catalog.md missing Context Doc Type")), "v2 context validation should scan manifest-resolved context roots");
 const invalidCapabilityTarget = path.join(tmpRoot, "directory-structure-v2-capability-validation");
 expectPass(["init", "--locale", "en-US", "--capabilities", "core,module-parallel", invalidCapabilityTarget]);
 fs.rmSync(path.join(invalidCapabilityTarget, "coding-agent-harness/planning/modules/Module-Registry.md"), { force: true });
 const invalidCapabilityStatus = run(["status", "--json", invalidCapabilityTarget]);
 assert(invalidCapabilityStatus.status !== 0, "v2 status should fail when manifest-declared capability artifacts are missing");
 const invalidCapability = JSON.parse(invalidCapabilityStatus.stdout);
-assert(
-  invalidCapability.checkState.details.failures.some((failure) => failure.includes("capability module-parallel missing required artifact: coding-agent-harness/planning/modules/Module-Registry.md")),
-  "v2 capability validation should check manifest-declared artifacts against v2 paths",
-);
-
+assert(invalidCapability.checkState.details.failures.some((failure) => failure.includes("capability module-parallel missing required artifact: coding-agent-harness/planning/modules/Module-Registry.md")), "v2 capability validation should check manifest-declared artifacts against v2 paths");
 const customRootTarget = path.join(tmpRoot, "directory-structure-v2-custom-roots");
 fs.mkdirSync(path.join(customRootTarget, "coding-agent-harness"), { recursive: true });
 fs.mkdirSync(path.join(customRootTarget, "custom-planning/generated"), { recursive: true });
@@ -237,9 +196,7 @@ fs.mkdirSync(path.join(customRootTarget, "custom-modules/alpha"), { recursive: t
 fs.mkdirSync(path.join(customRootTarget, "custom-generated"), { recursive: true });
 fs.mkdirSync(path.join(customRootTarget, "custom-governance/lessons"), { recursive: true });
 fs.mkdirSync(path.join(customRootTarget, "custom-governance/regression"), { recursive: true });
-fs.writeFileSync(
-  path.join(customRootTarget, "coding-agent-harness/harness.yaml"),
-  [
+fs.writeFileSync(path.join(customRootTarget, "coding-agent-harness/harness.yaml"), [
     "version: 2",
     "locale: en-US",
     "capabilities:",
@@ -254,8 +211,7 @@ fs.writeFileSync(
     "  generatedRoot: custom-generated",
     "  regressionRoot: custom-governance/regression",
     "",
-  ].join("\n"),
-);
+].join("\n"));
 fs.writeFileSync(path.join(customRootTarget, "custom-modules/Module-Registry.md"), "# Module Registry\n\n| Key | Name | Status | Current Step |\n| --- | --- | --- | --- |\n| alpha | Alpha | active | A1 |\n");
 fs.writeFileSync(path.join(customRootTarget, "custom-modules/alpha/brief.md"), "# Alpha Brief\n\nCustom module root brief.\n");
 fs.writeFileSync(path.join(customRootTarget, "custom-modules/alpha/module_plan.md"), "# Alpha Plan\n\n| Step ID | Name | Status | Depends On |\n| --- | --- | --- | --- |\n| A1 | Start | active | none |\n");
@@ -277,16 +233,13 @@ assert(alphaModule?.briefPath === "TARGET:custom-modules/alpha/brief.md", "dashb
 const customRoots = dashboardWatchRoots(normalizeTarget(customRootTarget).harness).map((root) => path.relative(customRootTarget, root).split(path.sep).join("/"));
 assert(customRoots.includes("custom-modules"), "dashboard watch roots should include manifest custom modulesRoot");
 assert(customRoots.includes("custom-generated"), "dashboard watch roots should include manifest custom generatedRoot");
-
 const customHarnessRootTarget = path.join(tmpRoot, "directory-structure-v2-custom-harness-root");
 const customHarnessRoot = path.join(customHarnessRootTarget, ".project-control/harness-state");
 const customHarnessTaskId = "custom-harness-root-task";
 const customHarnessTaskDir = path.join(customHarnessRoot, "planning/tasks", customHarnessTaskId);
 fs.mkdirSync(customHarnessTaskDir, { recursive: true });
 fs.mkdirSync(path.join(customHarnessRoot, "governance/generated"), { recursive: true });
-fs.writeFileSync(
-  path.join(customHarnessRoot, "harness.yaml"),
-  [
+fs.writeFileSync(path.join(customHarnessRoot, "harness.yaml"), [
     "version: 2",
     "locale: en-US",
     "capabilities:",
@@ -299,8 +252,7 @@ fs.writeFileSync(
     "  governanceRoot: .project-control/harness-state/governance",
     "  generatedRoot: .project-control/harness-state/governance/generated",
     "",
-  ].join("\n"),
-);
+].join("\n"));
 fs.writeFileSync(path.join(customHarnessTaskDir, "INDEX.md"), "# Custom Harness Root\n\nTask Contract: harness-task/v1\n\n| Field | Value |\n| --- | --- |\n| Task ID | `custom-harness-root-task` |\n| Budget | `simple` |\n| Walkthrough Path | `walkthrough.md` |\n\n## Task Audit Metadata\n\n| Field | Value |\n| --- | --- |\n| Created By | historical-backfill |\n| Created At | 2026-05-27 |\n| Command Shape | custom harness root fixture |\n| Budget | simple |\n| Template Source | tests/directory-structure-v2.mjs |\n| Task Creator | test |\n| Task Creator Source | git-unavailable |\n| Human Review Status | not-confirmed |\n| Confirmation ID | n/a |\n| Confirmed At | n/a |\n| Reviewer | n/a |\n| Reviewer Email | n/a |\n| Confirm Text | n/a |\n| Evidence Checked | n/a |\n| Review Commit SHA | n/a |\n| Audit Source | native-index |\n| Audit Status | created |\n| Exception Reason | n/a |\n| Message | n/a |\n| Migration Status | native |\n| Migrated From | n/a |\n| Legacy Extra Fields | {} |\n| Migration Notes | n/a |\n");
 fs.writeFileSync(path.join(customHarnessTaskDir, "brief.md"), "# Custom Harness Root Brief\n\n## Goal\n\nProve a project can keep its Harness state outside the default repository-root coding-agent-harness folder while preserving project-root relative TARGET paths.\n");
 fs.writeFileSync(path.join(customHarnessTaskDir, "task_plan.md"), "# Custom Harness Root Task\n\nTask Contract: harness-task/v1\n\nSelected budget: simple\n");
@@ -319,16 +271,13 @@ assert(customHarnessManifestAfterAdd.includes("harnessRoot: .project-control/har
 assert(customHarnessManifestAfterAdd.includes("- dashboard"), "add-capability should update capabilities in the custom-root manifest");
 assert(fs.existsSync(path.join(customHarnessRoot, "governance/regression/Regression-SSoT.md")), "add-capability should write scaffold files under the custom harness root");
 assert(!fs.existsSync(path.join(customHarnessRootTarget, "coding-agent-harness")), "add-capability must not recreate the default harness root for custom-root projects");
-
 const nestedHarnessPriorityTarget = path.join(tmpRoot, "directory-structure-v2-nested-priority");
 const topHarnessRoot = path.join(nestedHarnessPriorityTarget, "ops/harness");
 const childProjectRoot = path.join(nestedHarnessPriorityTarget, "packages/child");
 const childHarnessRoot = path.join(childProjectRoot, "coding-agent-harness");
 fs.mkdirSync(path.join(topHarnessRoot, "planning/tasks/top-task"), { recursive: true });
 fs.mkdirSync(path.join(childHarnessRoot, "planning/tasks/child-task"), { recursive: true });
-fs.writeFileSync(
-  path.join(topHarnessRoot, "harness.yaml"),
-  [
+fs.writeFileSync(path.join(topHarnessRoot, "harness.yaml"), [
     "version: 2",
     "locale: en-US",
     "capabilities:",
@@ -340,8 +289,7 @@ fs.writeFileSync(
     "  governanceRoot: ops/harness/governance",
     "  generatedRoot: ops/harness/governance/generated",
     "",
-  ].join("\n"),
-);
+].join("\n"));
 fs.writeFileSync(path.join(childHarnessRoot, "harness.yaml"), "version: 2\nlocale: en-US\ncapabilities:\n  - core\nstructure:\n  harnessRoot: coding-agent-harness\n");
 fs.writeFileSync(path.join(topHarnessRoot, "planning/tasks/top-task/task_plan.md"), "# Top Task\n\nTask Contract: harness-task/v1\n");
 fs.writeFileSync(path.join(topHarnessRoot, "planning/tasks/top-task/INDEX.md"), "# Top Task\n\nTask Contract: harness-task/v1\n\n| Field | Value |\n| --- | --- |\n| Task ID | `top-task` |\n| Budget | `simple` |\n| Walkthrough Path | `walkthrough.md` |\n\n## Task Audit Metadata\n\n| Field | Value |\n| --- | --- |\n| Created By | historical-backfill |\n| Created At | 2026-05-27 |\n| Command Shape | nested harness priority fixture |\n| Budget | simple |\n| Template Source | tests/directory-structure-v2.mjs |\n| Task Creator | test |\n| Task Creator Source | git-unavailable |\n| Human Review Status | not-confirmed |\n| Confirmation ID | n/a |\n| Confirmed At | n/a |\n| Reviewer | n/a |\n| Reviewer Email | n/a |\n| Confirm Text | n/a |\n| Evidence Checked | n/a |\n| Review Commit SHA | n/a |\n| Audit Source | native-index |\n| Audit Status | created |\n| Exception Reason | n/a |\n| Message | n/a |\n| Migration Status | native |\n| Migrated From | n/a |\n| Legacy Extra Fields | {} |\n| Migration Notes | n/a |\n");
@@ -357,12 +305,9 @@ fs.writeFileSync(path.join(childHarnessRoot, "planning/tasks/child-task/task_pla
 const nestedPriorityStatus = expectJson(["status", "--json", nestedHarnessPriorityTarget]);
 assert(nestedPriorityStatus.tasks.some((task) => task.path === "TARGET:ops/harness/planning/tasks/top-task"), "project root discovery should prefer the shallowest harness manifest");
 assert(!nestedPriorityStatus.tasks.some((task) => task.path.includes("packages/child")), "project root discovery should not prefer a deeper child-project harness");
-
 const pathEscapeTarget = path.join(tmpRoot, "directory-structure-v2-path-escape");
 fs.mkdirSync(path.join(pathEscapeTarget, "coding-agent-harness"), { recursive: true });
-fs.writeFileSync(
-  path.join(pathEscapeTarget, "coding-agent-harness/harness.yaml"),
-  [
+fs.writeFileSync(path.join(pathEscapeTarget, "coding-agent-harness/harness.yaml"), [
     "version: 2",
     "locale: en-US",
     "capabilities:",
@@ -375,15 +320,10 @@ fs.writeFileSync(
     "  governanceRoot: coding-agent-harness/governance",
     "  generatedRoot: ../../outside-generated",
     "",
-  ].join("\n"),
-);
+].join("\n"));
 const pathEscapeStatus = run(["status", "--json", pathEscapeTarget]);
 assert(pathEscapeStatus.status !== 0, "v2 status should reject manifest roots outside the project");
-assert(
-  (pathEscapeStatus.stderr || pathEscapeStatus.stdout).includes("escapes project root"),
-  "v2 manifest path rejection should explain the escaped root",
-);
+assert((pathEscapeStatus.stderr || pathEscapeStatus.stdout).includes("escapes project root"), "v2 manifest path rejection should explain the escaped root");
 const pathEscapeGovernance = run(["governance", "rebuild", "--dry-run", pathEscapeTarget]);
 assert(pathEscapeGovernance.status !== 0, "governance rebuild should not report outside-project generated destinations");
-
 console.log("Directory structure v2 tests passed");

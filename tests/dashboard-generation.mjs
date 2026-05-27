@@ -1,35 +1,31 @@
 #!/usr/bin/env node
-
+// @ts-nocheck
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
 import { spawn, spawnSync } from "node:child_process";
 import { buildDashboardBundle } from "../scripts/lib/dashboard-data.mjs";
-
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const node = process.execPath;
 const cli = path.join(repoRoot, "scripts/harness.mjs");
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dashboard-generation-"));
-
 function run(args, options = {}) {
-  return spawnSync(node, [cli, ...args], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    ...options,
-  });
+    return spawnSync(node, [cli, ...args], {
+        cwd: repoRoot,
+        encoding: "utf8",
+        ...options,
+    });
 }
-
 function assert(condition, message) {
-  if (!condition) throw new Error(message);
+    if (!condition)
+        throw new Error(message);
 }
-
 function expectPass(args) {
-  const result = run(args);
-  assert(result.status === 0, `${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
-  return result;
+    const result = run(args);
+    assert(result.status === 0, `${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
+    return result;
 }
-
 const dashboardPath = path.join(tmpRoot, "dashboard.html");
 expectPass(["dashboard", "--out", dashboardPath, "examples/minimal-project"]);
 assert(fs.existsSync(dashboardPath), "dashboard file was not created");
@@ -41,25 +37,24 @@ assert(dashboardHtml.includes("#/tasks"), "dashboard HTML missing task index rou
 assert(dashboardHtml.includes("#/review"), "dashboard HTML missing review queue route");
 assert(dashboardHtml.includes("#/presets"), "dashboard HTML missing preset catalog route");
 assert(dashboardHtml.includes("function reviewQueue()"), "dashboard HTML missing review queue page implementation");
-
 const dashboardDir = path.join(tmpRoot, "dashboard-folder");
 expectPass(["dashboard", "--out-dir", dashboardDir, "examples/minimal-project"]);
 for (const required of [
-  "index.html",
-  "assets/app.css",
-  "assets/app.js",
-  "assets/i18n.js",
-  "assets/markdown-reader.js",
-  "assets/mermaid-renderer.js",
-  "assets/dashboard-data.js",
-  "data/status.json",
-  "data/tables.json",
-  "data/documents.json",
-  "data/graph.json",
-  "data/adoption.json",
-  "data/presetCatalog.json",
+    "index.html",
+    "assets/app.css",
+    "assets/app.js",
+    "assets/i18n.js",
+    "assets/markdown-reader.js",
+    "assets/mermaid-renderer.js",
+    "assets/dashboard-data.js",
+    "data/status.json",
+    "data/tables.json",
+    "data/documents.json",
+    "data/graph.json",
+    "data/adoption.json",
+    "data/presetCatalog.json",
 ]) {
-  assert(fs.existsSync(path.join(dashboardDir, required)), `dashboard folder missing ${required}`);
+    assert(fs.existsSync(path.join(dashboardDir, required)), `dashboard folder missing ${required}`);
 }
 const folderIndex = fs.readFileSync(path.join(dashboardDir, "index.html"), "utf8");
 assert(folderIndex.includes("dashboard-data.js"), "dashboard folder index missing embedded data script");
@@ -201,13 +196,12 @@ assert(dashboardCss.includes("overflow: hidden;"), "document panels must prevent
 assert(dashboardCss.includes("max-width: 100%;"), "markdown and review panels must cap rendered content width");
 assert(dashboardCss.includes("transform: translateX(105%)"), "closed task drawer must not widen the page");
 for (const generated of ["data/status.json", "data/tables.json", "data/documents.json", "data/graph.json", "data/adoption.json", "assets/dashboard-data.js"]) {
-  const content = fs.readFileSync(path.join(dashboardDir, generated), "utf8");
-  assert(!content.includes(repoRoot), `${generated} leaked absolute repo path`);
-  assert(!content.includes("file://"), `${generated} leaked file URL`);
-  assert(!hasLocalAbsolutePath(content), `${generated} leaked local absolute path`);
+    const content = fs.readFileSync(path.join(dashboardDir, generated), "utf8");
+    assert(!content.includes(repoRoot), `${generated} leaked absolute repo path`);
+    assert(!content.includes("file://"), `${generated} leaked file URL`);
+    assert(!hasLocalAbsolutePath(content), `${generated} leaked local absolute path`);
 }
 assert(!JSON.stringify(documents.documents.map((doc) => doc.path)).includes("_task-template"), "documents included task template paths");
-
 const unsafeOut = run(["dashboard", "--out-dir", ".", "examples/minimal-project"]);
 assert(unsafeOut.status !== 0, "dashboard --out-dir . should be refused");
 const unsafeHarnessOut = run(["dashboard", "--out-dir", "examples/minimal-project/coding-agent-harness", "examples/minimal-project"]);
@@ -216,20 +210,14 @@ const unsafeHarnessChildOut = run(["dashboard", "--out-dir", "examples/minimal-p
 assert(unsafeHarnessChildOut.status !== 0, "dashboard --out-dir inside target harness root should be refused");
 const staticWorkbenchFlagDir = path.join(tmpRoot, "static-workbench-flag");
 expectPass(["dashboard", "--out-dir", staticWorkbenchFlagDir, "examples/minimal-project"]);
-assert(
-  fs.readFileSync(path.join(staticWorkbenchFlagDir, "index.html"), "utf8").includes("__HARNESS_WORKBENCH__ = false"),
-  "static dashboard folder should not enable workbench runtime",
-);
-assert(
-  fs.readFileSync(path.join(staticWorkbenchFlagDir, "assets/app.js"), "utf8").includes("staticReadOnly"),
-  "static dashboard app should render a visible read-only runtime boundary",
-);
+assert(fs.readFileSync(path.join(staticWorkbenchFlagDir, "index.html"), "utf8").includes("__HARNESS_WORKBENCH__ = false"), "static dashboard folder should not enable workbench runtime");
+assert(fs.readFileSync(path.join(staticWorkbenchFlagDir, "assets/app.js"), "utf8").includes("staticReadOnly"), "static dashboard app should render a visible read-only runtime boundary");
 const dataOnlyStatusBundle = {
-  status: {
-    checkState: { status: "pass", validationMode: "data-only", failures: 0, warnings: 0 },
-    tasks: [],
-    summary: {},
-  },
+    status: {
+        checkState: { status: "pass", validationMode: "data-only", failures: 0, warnings: 0 },
+        tasks: [],
+        summary: {},
+    },
 };
 const staticStatusStrip = renderStatusStripForRuntime(dataOnlyStatusBundle, { locale: "zh", workbench: false });
 assert(staticStatusStrip.includes("快照状态"), "static data-only dashboard should keep the snapshot status label");
@@ -241,23 +229,23 @@ const presetCatalogTarget = path.join(tmpRoot, "preset-catalog-target");
 const presetCatalogHome = path.join(tmpRoot, "preset-catalog-home");
 fs.cpSync(path.join(repoRoot, "examples/minimal-project"), presetCatalogTarget, { recursive: true });
 writePresetPackage(path.join(presetCatalogTarget, ".coding-agent-harness/presets/project-catalog"), {
-  id: "project-catalog",
-  purpose: "Project catalog preset",
-  kind: "project-catalog-task",
+    id: "project-catalog",
+    purpose: "Project catalog preset",
+    kind: "project-catalog-task",
 });
 writePresetPackage(path.join(presetCatalogHome, ".coding-agent-harness/presets/user-catalog"), {
-  id: "user-catalog",
-  purpose: "User catalog preset",
-  kind: "user-catalog-task",
+    id: "user-catalog",
+    purpose: "User catalog preset",
+    kind: "user-catalog-task",
 });
 writePresetPackage(path.join(presetCatalogHome, ".coding-agent-harness/presets/module"), {
-  id: "module",
-  purpose: "User shadow for bundled module preset",
-  kind: "user-module-shadow-task",
+    id: "module",
+    purpose: "User shadow for bundled module preset",
+    kind: "user-module-shadow-task",
 });
 const presetCatalogDir = path.join(tmpRoot, "preset-catalog-dashboard");
 expectPass(["dashboard", "--out-dir", presetCatalogDir, presetCatalogTarget], {
-  env: { ...process.env, HOME: presetCatalogHome },
+    env: { ...process.env, HOME: presetCatalogHome },
 });
 const layeredCatalog = JSON.parse(fs.readFileSync(path.join(presetCatalogDir, "data/presetCatalog.json"), "utf8"));
 assert(layeredCatalog.summary.project >= 1, "preset catalog should count project presets");
@@ -279,7 +267,6 @@ assert(isolatedHomeCatalog.presets.some((preset) => preset.id === "legacy-migrat
 assert(isolatedHomeCatalog.presets.some((preset) => preset.id === "module" && preset.source === "builtin" && preset.effective === false), "preset catalog should include shadowed builtin layers with isolated home");
 const helpOutput = expectPass(["help"]).stdout;
 assert(helpOutput.includes("harness dev"), "help should advertise harness dev as the daily dynamic workbench entry");
-
 const devRecoveryTarget = path.join(tmpRoot, "dev-recovery-target");
 fs.cpSync(path.join(repoRoot, "examples/minimal-project"), devRecoveryTarget, { recursive: true });
 const devRecoveryOutDir = defaultDevOutDir(devRecoveryTarget);
@@ -287,18 +274,15 @@ fs.rmSync(devRecoveryOutDir, { recursive: true, force: true });
 writeStaleDashboardLikeDirectory(devRecoveryOutDir);
 await expectDevStarts(["dev", "--no-open", "--port", "0", devRecoveryTarget]);
 assert(fs.existsSync(path.join(devRecoveryOutDir, ".harness-dashboard")), "harness dev should recover stale generated dashboard temp dirs by rewriting the marker");
-
 fs.rmSync(devRecoveryOutDir, { recursive: true, force: true });
 writePartialGeneratedDashboardDirectory(devRecoveryOutDir);
 await expectDevStarts(["dev", "--no-open", "--port", "0", devRecoveryTarget]);
 assert(fs.existsSync(path.join(devRecoveryOutDir, ".harness-dashboard")), "harness dev should recover interrupted generated dashboard temp dirs by README signature");
-
 const explicitStaleOutDir = path.join(tmpRoot, "explicit-stale-dashboard");
 writeStaleDashboardLikeDirectory(explicitStaleOutDir);
 const explicitStaleDev = run(["dev", "--no-open", "--out-dir", explicitStaleOutDir, devRecoveryTarget], { timeout: 4000 });
 assert(explicitStaleDev.status !== 0, "harness dev --out-dir should not recover unmarked directories implicitly");
 assert(explicitStaleDev.stderr.includes("Refusing to overwrite non-dashboard directory"), "explicit stale dev output should explain the refusal");
-
 const rootDashboardPath = path.join(repoRoot, "harness-dashboard.html");
 assert(!fs.existsSync(rootDashboardPath), "source package root must not contain tracked generated harness-dashboard.html");
 const defaultDashboard = expectPass(["dashboard", "examples/minimal-project"]).stdout.trim();
@@ -306,13 +290,10 @@ const expectedDefaultDashboard = path.join(repoRoot, "tmp/harness-dashboard.html
 assert(defaultDashboard === expectedDefaultDashboard, "dashboard default output should be tmp/harness-dashboard.html");
 assert(fs.existsSync(expectedDefaultDashboard), "dashboard default output file was not created under tmp/");
 assert(!fs.existsSync(rootDashboardPath), "dashboard default generation must not recreate root harness-dashboard.html");
-
 const redactionTarget = path.join(tmpRoot, "redaction-target");
 fs.mkdirSync(path.join(redactionTarget, "coding-agent-harness/planning/tasks/path-check"), { recursive: true });
 fs.writeFileSync(path.join(redactionTarget, "AGENTS.md"), "# AGENTS\n");
-fs.writeFileSync(
-  path.join(redactionTarget, "coding-agent-harness/harness.yaml"),
-  [
+fs.writeFileSync(path.join(redactionTarget, "coding-agent-harness/harness.yaml"), [
     "version: 2",
     "locale: en-US",
     "capabilities:",
@@ -326,101 +307,86 @@ fs.writeFileSync(
     "  governanceRoot: coding-agent-harness/governance",
     "  generatedRoot: coding-agent-harness/governance/generated",
     "",
-  ].join("\n"),
-);
+].join("\n"));
 fs.writeFileSync(path.join(redactionTarget, "coding-agent-harness/planning/tasks/path-check/task_plan.md"), "# Path Check\n");
-fs.writeFileSync(
-  path.join(redactionTarget, "coding-agent-harness/planning/tasks/path-check/progress.md"),
-  "# Progress\n\n## Status\n\nin_progress\n\ncommand:TARGET:logs/check.txt: touched /tmp/secret and C:\\Users\\name\\secret\n",
-);
+fs.writeFileSync(path.join(redactionTarget, "coding-agent-harness/planning/tasks/path-check/progress.md"), "# Progress\n\n## Status\n\nin_progress\n\ncommand:TARGET:logs/check.txt: touched /tmp/secret and C:\\Users\\name\\secret\n");
 const redactionDir = path.join(tmpRoot, "redaction-dashboard");
 expectPass(["dashboard", "--out-dir", redactionDir, redactionTarget]);
 const redactionData = fs.readFileSync(path.join(redactionDir, "assets/dashboard-data.js"), "utf8");
 assert(redactionData.includes("LOCAL_PATH_REDACTED"), "dashboard data should include redacted local paths");
 assert(!hasLocalAbsolutePath(redactionData), "dashboard data leaked generic local path");
-
 function hasLocalAbsolutePath(content) {
-  return /(?:^|[\s"'(])(?:\/Users\/|\/Volumes\/|\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/home\/|[A-Za-z]:\\)/.test(content);
+    return /(?:^|[\s"'(])(?:\/Users\/|\/Volumes\/|\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/home\/|[A-Za-z]:\\)/.test(content);
 }
-
 function defaultDevOutDir(targetInput) {
-  const target = path.resolve(targetInput || ".");
-  const name = path.basename(target) || "project";
-  const hash = Buffer.from(target).toString("hex").slice(0, 16);
-  return path.join(os.tmpdir(), "coding-agent-harness-dev", `${name}-${hash}`);
+    const target = path.resolve(targetInput || ".");
+    const name = path.basename(target) || "project";
+    const hash = Buffer.from(target).toString("hex").slice(0, 16);
+    return path.join(os.tmpdir(), "coding-agent-harness-dev", `${name}-${hash}`);
 }
-
 function writeStaleDashboardLikeDirectory(outDir) {
-  fs.mkdirSync(path.join(outDir, "assets"), { recursive: true });
-  fs.mkdirSync(path.join(outDir, "data"), { recursive: true });
-  fs.writeFileSync(path.join(outDir, "index.html"), "<!doctype html><title>stale</title>\n");
-  fs.writeFileSync(path.join(outDir, "README.md"), "# stale dashboard\n");
-  fs.writeFileSync(path.join(outDir, "assets/app.js"), "window.__STALE__ = true;\n");
-  fs.writeFileSync(path.join(outDir, "assets/dashboard-data.js"), "window.__HARNESS_DASHBOARD__ = {};\n");
-  fs.writeFileSync(path.join(outDir, "data/status.json"), "{}\n");
+    fs.mkdirSync(path.join(outDir, "assets"), { recursive: true });
+    fs.mkdirSync(path.join(outDir, "data"), { recursive: true });
+    fs.writeFileSync(path.join(outDir, "index.html"), "<!doctype html><title>stale</title>\n");
+    fs.writeFileSync(path.join(outDir, "README.md"), "# stale dashboard\n");
+    fs.writeFileSync(path.join(outDir, "assets/app.js"), "window.__STALE__ = true;\n");
+    fs.writeFileSync(path.join(outDir, "assets/dashboard-data.js"), "window.__HARNESS_DASHBOARD__ = {};\n");
+    fs.writeFileSync(path.join(outDir, "data/status.json"), "{}\n");
 }
-
 function writePartialGeneratedDashboardDirectory(outDir) {
-  fs.mkdirSync(outDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(outDir, "README.md"),
-    "# Harness Dashboard\n\nThis is a read-only static snapshot generated by `harness dashboard --out-dir`.\n",
-  );
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, "README.md"), "# Harness Dashboard\n\nThis is a read-only static snapshot generated by `harness dashboard --out-dir`.\n");
 }
-
 function renderStatusStripForRuntime(bundle, { locale = "zh", workbench = false } = {}) {
-  const element = {
-    innerHTML: "",
-    dataset: {},
-    querySelectorAll() {
-      return [];
-    },
-    addEventListener() {},
-    classList: { add() {}, remove() {}, toggle() {} },
-  };
-  const context = {
-    window: {
-      __HARNESS_DASHBOARD__: bundle,
-      __HARNESS_LOCALE__: locale,
-      __HARNESS_WORKBENCH__: workbench,
-      addEventListener() {},
-      location: { protocol: "http:" },
-      matchMedia() {
-        return { matches: false, addEventListener() {} };
-      },
-    },
-    localStorage: { getItem() { return null; }, setItem() {} },
-    navigator: { language: locale === "zh" ? "zh-CN" : "en-US" },
-    document: {
-      documentElement: { dataset: {} },
-      getElementById() {
-        return element;
-      },
-      querySelectorAll() {
-        return [];
-      },
-      body: element,
-      addEventListener() {},
-    },
-    setInterval() {},
-    clearInterval() {},
-    fetch() {
-      return Promise.resolve({ ok: false });
-    },
-    console,
-  };
-  context.globalThis = context;
-  vm.createContext(context);
-  vm.runInContext(`${dashboardI18n}\n${dashboardApp}`, context);
-  return context.statusStrip();
+    const element = {
+        innerHTML: "",
+        dataset: {},
+        querySelectorAll() {
+            return [];
+        },
+        addEventListener() { },
+        classList: { add() { }, remove() { }, toggle() { } },
+    };
+    const context = {
+        window: {
+            __HARNESS_DASHBOARD__: bundle,
+            __HARNESS_LOCALE__: locale,
+            __HARNESS_WORKBENCH__: workbench,
+            addEventListener() { },
+            location: { protocol: "http:" },
+            matchMedia() {
+                return { matches: false, addEventListener() { } };
+            },
+        },
+        localStorage: { getItem() { return null; }, setItem() { } },
+        navigator: { language: locale === "zh" ? "zh-CN" : "en-US" },
+        document: {
+            documentElement: { dataset: {} },
+            getElementById() {
+                return element;
+            },
+            querySelectorAll() {
+                return [];
+            },
+            body: element,
+            addEventListener() { },
+        },
+        setInterval() { },
+        clearInterval() { },
+        fetch() {
+            return Promise.resolve({ ok: false });
+        },
+        console,
+    };
+    context.globalThis = context;
+    vm.createContext(context);
+    vm.runInContext(`${dashboardI18n}\n${dashboardApp}`, context);
+    return context.statusStrip();
 }
-
 function writePresetPackage(directory, { id, purpose, kind }) {
-  fs.mkdirSync(path.join(directory, "templates"), { recursive: true });
-  fs.writeFileSync(path.join(directory, "templates/task_plan.append.md"), `## ${id}\n\nPreset: {{title}}\n`);
-  fs.writeFileSync(
-    path.join(directory, "preset.yaml"),
-    `id: ${id}
+    fs.mkdirSync(path.join(directory, "templates"), { recursive: true });
+    fs.writeFileSync(path.join(directory, "templates/task_plan.append.md"), `## ${id}\n\nPreset: {{title}}\n`);
+    fs.writeFileSync(path.join(directory, "preset.yaml"), `id: ${id}
 version: 1
 purpose: ${purpose}
 compatibleBudgets: [standard, complex]
@@ -444,43 +410,41 @@ writeScopes:
   taskDocs:
     path: coding-agent-harness/planning/tasks/**
     access: write
-`,
-  );
+`);
 }
-
 function expectDevStarts(args) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(node, [cli, ...args], { cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => {
-      child.kill("SIGTERM");
-      reject(new Error(`${args.join(" ")} did not start\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`));
-    }, 8000);
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-      if (!stdout.includes("harness dev:")) return;
-      clearTimeout(timer);
-      child.kill("SIGTERM");
-      resolve({ stdout, stderr });
+    return new Promise((resolve, reject) => {
+        const child = spawn(node, [cli, ...args], { cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"] });
+        let stdout = "";
+        let stderr = "";
+        const timer = setTimeout(() => {
+            child.kill("SIGTERM");
+            reject(new Error(`${args.join(" ")} did not start\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`));
+        }, 8000);
+        child.stdout.on("data", (chunk) => {
+            stdout += chunk.toString();
+            if (!stdout.includes("harness dev:"))
+                return;
+            clearTimeout(timer);
+            child.kill("SIGTERM");
+            resolve({ stdout, stderr });
+        });
+        child.stderr.on("data", (chunk) => {
+            stderr += chunk.toString();
+        });
+        child.on("exit", (code, signal) => {
+            if (signal === "SIGTERM")
+                return;
+            clearTimeout(timer);
+            reject(new Error(`${args.join(" ")} exited before starting (${code})\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`));
+        });
     });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-    child.on("exit", (code, signal) => {
-      if (signal === "SIGTERM") return;
-      clearTimeout(timer);
-      reject(new Error(`${args.join(" ")} exited before starting (${code})\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`));
-    });
-  });
 }
-
 function assertGraphIntegrity(graph, label) {
-  const nodes = new Set((graph.nodes || []).map((node) => node.id));
-  for (const edge of graph.edges || []) {
-    assert(nodes.has(edge.from), `${label} has dangling edge source ${edge.from}`);
-    assert(nodes.has(edge.to), `${label} has dangling edge target ${edge.to}`);
-  }
+    const nodes = new Set((graph.nodes || []).map((node) => node.id));
+    for (const edge of graph.edges || []) {
+        assert(nodes.has(edge.from), `${label} has dangling edge source ${edge.from}`);
+        assert(nodes.has(edge.to), `${label} has dangling edge target ${edge.to}`);
+    }
 }
-
 console.log("Dashboard generation tests passed");

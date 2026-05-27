@@ -1,50 +1,29 @@
 #!/usr/bin/env node
-
+// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
-import {
-  assert,
-  expectJson,
-  expectPass,
-  run,
-  tmpRoot,
-} from "./helpers/harness-test-utils.mjs";
-
+import { assert, expectJson, expectPass, run, tmpRoot, } from "./helpers/harness-test-utils.mjs";
 const legacyPhaseTableTarget = path.join(tmpRoot, "legacy-phase-table");
 fs.mkdirSync(path.join(legacyPhaseTableTarget, "docs/09-PLANNING/TASKS/table-active"), { recursive: true });
 fs.writeFileSync(path.join(legacyPhaseTableTarget, "AGENTS.md"), "# Legacy Agents\n");
 fs.writeFileSync(path.join(legacyPhaseTableTarget, "docs/09-PLANNING/TASKS/table-active/task_plan.md"), "# Table Active\n");
-fs.writeFileSync(
-  path.join(legacyPhaseTableTarget, "docs/09-PLANNING/TASKS/table-active/progress.md"),
-  "# Progress\n\n## 阶段状态表\n| Phase | Status | Notes |\n| --- | --- | --- |\n| Phase 1 | Done | ok |\n| Phase 2 | In Progress | active |\n| Phase 3 | Pending | next |\n",
-);
+fs.writeFileSync(path.join(legacyPhaseTableTarget, "docs/09-PLANNING/TASKS/table-active/progress.md"), "# Progress\n\n## 阶段状态表\n| Phase | Status | Notes |\n| --- | --- | --- |\n| Phase 1 | Done | ok |\n| Phase 2 | In Progress | active |\n| Phase 3 | Pending | next |\n");
 const legacyPhaseStatus = run(["status", "--json", legacyPhaseTableTarget]);
 assert(legacyPhaseStatus.status !== 0, "status should reject active legacy structures before structure migration");
 assert(legacyPhaseStatus.stdout.includes("legacy harness structure is migration input only"), "legacy status failure should route to migrate-structure");
 const legacyPhaseDashboard = run(["dashboard", "--out-dir", path.join(tmpRoot, "legacy-dashboard"), legacyPhaseTableTarget]);
 assert(legacyPhaseDashboard.status !== 0, "dashboard should reject active legacy structures before structure migration");
 assert(legacyPhaseDashboard.stderr.includes("dashboard requires v2 harness structure"), "legacy dashboard failure should route to migrate-structure");
-
 const legacyChineseTarget = path.join(tmpRoot, "legacy-chinese");
 fs.mkdirSync(path.join(legacyChineseTarget, "docs/09-PLANNING/TASKS/old"), { recursive: true });
 fs.writeFileSync(path.join(legacyChineseTarget, "AGENTS.md"), "# 中文项目\n\n这是旧 harness 项目。\n");
 fs.writeFileSync(path.join(legacyChineseTarget, "docs/09-PLANNING/TASKS/old/task_plan.md"), "# 旧任务\n");
 const legacyChinesePlan = expectJson(["migrate-plan", "--json", legacyChineseTarget]);
 assert(legacyChinesePlan.locale === "zh-CN", "migrate-plan should infer zh-CN from Chinese legacy project text");
-assert(
-  legacyChinesePlan.nextCommands.some((command) => command.includes(legacyChineseTarget)),
-  "migrate-plan should keep executable target paths in CLI output",
-);
-assert(
-  legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-structure --plan")) &&
-  legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-structure --apply")),
-  "migrate-plan should route hard-cutover users to migrate-structure",
-);
-assert(
-  !legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-run")),
-  "migrate-plan should not route hard-cutover users to legacy migrate-run as the next command",
-);
-
+assert(legacyChinesePlan.nextCommands.some((command) => command.includes(legacyChineseTarget)), "migrate-plan should keep executable target paths in CLI output");
+assert(legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-structure --plan")) &&
+    legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-structure --apply")), "migrate-plan should route hard-cutover users to migrate-structure");
+assert(!legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-run")), "migrate-plan should not route hard-cutover users to legacy migrate-run as the next command");
 const migrationTarget = path.join(tmpRoot, "structure-migration");
 const legacyTask = path.join(migrationTarget, "docs/09-PLANNING/TASKS/old");
 const legacyModuleTask = path.join(migrationTarget, "docs/09-PLANNING/MODULES/auth/TASKS/auth-old");
@@ -55,10 +34,7 @@ fs.mkdirSync(path.join(migrationTarget, "docs/09-PLANNING/MODULES/_task-template
 fs.mkdirSync(path.join(migrationTarget, "docs/09-PLANNING/MODULES/_module-template"), { recursive: true });
 fs.mkdirSync(path.join(migrationTarget, "docs/10-WALKTHROUGH"), { recursive: true });
 fs.mkdirSync(path.join(migrationTarget, "docs/11-REFERENCE"), { recursive: true });
-fs.writeFileSync(
-  path.join(migrationTarget, ".harness-capabilities.json"),
-  JSON.stringify({ version: 1, locale: "zh-CN", capabilities: [{ name: "core", state: "configured" }, { name: "dashboard", state: "configured" }, { name: "safe-adoption", state: "configured" }] }, null, 2),
-);
+fs.writeFileSync(path.join(migrationTarget, ".harness-capabilities.json"), JSON.stringify({ version: 1, locale: "zh-CN", capabilities: [{ name: "core", state: "configured" }, { name: "dashboard", state: "configured" }, { name: "safe-adoption", state: "configured" }] }, null, 2));
 fs.writeFileSync(path.join(migrationTarget, "AGENTS.md"), "# Legacy Agents\n\nDO_NOT_OVERWRITE\n");
 fs.writeFileSync(path.join(migrationTarget, "docs/Harness-Ledger.md"), "# Legacy Ledger\n");
 fs.writeFileSync(path.join(migrationTarget, "docs/09-PLANNING/Module-Registry.md"), "# Module Registry\n");
@@ -73,13 +49,11 @@ fs.writeFileSync(path.join(legacyModuleTask, "progress.md"), "# Progress\n\n## S
 fs.writeFileSync(path.join(migrationTarget, "docs/09-PLANNING/TASKS/_task-template/task_plan.md"), "# Legacy Task Template\n");
 fs.writeFileSync(path.join(migrationTarget, "docs/09-PLANNING/MODULES/_task-template/task_plan.md"), "# Legacy Module Task Template\n");
 fs.writeFileSync(path.join(migrationTarget, "docs/09-PLANNING/MODULES/_module-template/module_plan.md"), "# Legacy Module Template\n");
-
 const docsRootPlan = expectJson(["migrate-structure", "--json", "--plan", path.join(migrationTarget, "docs")]);
 assert(docsRootPlan.target === migrationTarget, "migrate-structure should accept a legacy docs/ path and resolve the project root");
 assert(docsRootPlan.actions.some((action) => action.destination === "coding-agent-harness/planning/tasks"), "structure plan should move legacy tasks to v2 tasks root");
 assert(docsRootPlan.capabilities.locale === "zh-CN", "structure plan should preserve legacy registry locale");
 assert(docsRootPlan.capabilities.names.includes("dashboard"), "structure plan should preserve declared capabilities");
-
 const conflictTarget = path.join(tmpRoot, "structure-migration-conflict");
 fs.mkdirSync(path.join(conflictTarget, "docs/03-ARCHITECTURE"), { recursive: true });
 fs.mkdirSync(path.join(conflictTarget, "coding-agent-harness/context/architecture"), { recursive: true });
@@ -89,7 +63,6 @@ const conflictApply = run(["migrate-structure", "--json", "--apply", conflictTar
 assert(conflictApply.status !== 0, "migrate-structure should fail before applying when v2 destinations would be overwritten");
 assert(!fs.existsSync(path.join(conflictTarget, "coding-agent-harness/harness.yaml")), "migrate-structure conflict preflight should not leave a partial manifest");
 assert(fs.existsSync(path.join(conflictTarget, "docs/03-ARCHITECTURE/README.md")), "migrate-structure conflict preflight should not move legacy docs");
-
 const moduleConflictTarget = path.join(tmpRoot, "structure-migration-module-conflict");
 fs.mkdirSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/TASKS/dup"), { recursive: true });
 fs.mkdirSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/tasks/dup"), { recursive: true });
@@ -97,13 +70,12 @@ fs.writeFileSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/
 fs.writeFileSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/tasks/dup/task_plan.md"), "# Existing Lowercase Legacy Dup\n");
 const moduleConflictEntries = fs.readdirSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth"));
 if (moduleConflictEntries.includes("TASKS") && moduleConflictEntries.includes("tasks")) {
-  const moduleConflictApply = run(["migrate-structure", "--json", "--apply", moduleConflictTarget]);
-  assert(moduleConflictApply.status !== 0, "migrate-structure should fail before applying when module TASKS normalization would overwrite v2 tasks");
-  assert(!fs.existsSync(path.join(moduleConflictTarget, "coding-agent-harness/harness.yaml")), "module conflict preflight should not leave a partial manifest");
-  assert(fs.existsSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/TASKS/dup/task_plan.md")), "module conflict preflight should not move legacy module TASKS");
-  assert(fs.existsSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/tasks/dup/task_plan.md")), "module conflict preflight should preserve existing lowercase module task");
+    const moduleConflictApply = run(["migrate-structure", "--json", "--apply", moduleConflictTarget]);
+    assert(moduleConflictApply.status !== 0, "migrate-structure should fail before applying when module TASKS normalization would overwrite v2 tasks");
+    assert(!fs.existsSync(path.join(moduleConflictTarget, "coding-agent-harness/harness.yaml")), "module conflict preflight should not leave a partial manifest");
+    assert(fs.existsSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/TASKS/dup/task_plan.md")), "module conflict preflight should not move legacy module TASKS");
+    assert(fs.existsSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/tasks/dup/task_plan.md")), "module conflict preflight should preserve existing lowercase module task");
 }
-
 const applied = expectJson(["migrate-structure", "--json", "--apply", migrationTarget]);
 assert(applied.applied === true, "migrate-structure --apply should report applied true");
 assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/harness.yaml")), "structure migration should write v2 manifest");
@@ -117,13 +89,9 @@ assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/planning/m
 assert(!fs.existsSync(path.join(migrationTarget, "coding-agent-harness/planning/tasks/_task-template")), "structure migration should remove generated task template directories");
 assert(!fs.existsSync(path.join(migrationTarget, "coding-agent-harness/planning/modules/_task-template")), "structure migration should remove generated module task template directories");
 assert(!fs.existsSync(path.join(migrationTarget, "coding-agent-harness/planning/modules/_module-template")), "structure migration should remove generated module template directories");
-assert(
-  !fs.readdirSync(path.join(migrationTarget, "coding-agent-harness/planning/modules/auth")).includes("TASKS"),
-  "structure migration should remove legacy uppercase module TASKS roots",
-);
+assert(!fs.readdirSync(path.join(migrationTarget, "coding-agent-harness/planning/modules/auth")).includes("TASKS"), "structure migration should remove legacy uppercase module TASKS roots");
 assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/governance/standards/external-source-intake-standard.md")), "structure migration should move reference docs to governance standards");
 assert(applied.actionsApplied.some((action) => action.action === "archive-source-root"), "structure migration should archive the old docs root");
-
 const manifest = fs.readFileSync(path.join(migrationTarget, "coding-agent-harness/harness.yaml"), "utf8");
 assert(manifest.includes("locale: zh-CN"), "structure migration should persist locale in manifest");
 assert(/^\s*-\s*dashboard\s*$/m.test(manifest), "structure migration should persist capabilities in manifest");
@@ -131,7 +99,6 @@ assert(/^\s*-\s*safe-adoption\s*$/m.test(manifest), "structure migration should 
 const archivedBadReview = path.join(migrationTarget, "coding-agent-harness/governance/archive/manual/legacy-task/review.md");
 fs.mkdirSync(path.dirname(archivedBadReview), { recursive: true });
 fs.writeFileSync(archivedBadReview, "# Archived Review\n\nThis archived review intentionally lacks current review schema sections.\n");
-
 const migratedStatus = expectJson(["status", "--json", migrationTarget]);
 assert(migratedStatus.mode === "v2-manifest", "migrated target should run in v2 manifest mode");
 assert(migratedStatus.tasks.some((task) => task.path === "TARGET:coding-agent-harness/planning/tasks/old"), "status should discover migrated v2 task");
@@ -145,5 +112,4 @@ const dashboardStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data
 assert(dashboardStatus.tasks.some((task) => task.path === "TARGET:coding-agent-harness/planning/tasks/old"), "dashboard should display migrated v2 task");
 assert(dashboardStatus.tasks.some((task) => task.path === "TARGET:coding-agent-harness/planning/modules/auth/tasks/auth-old"), "dashboard should display migrated v2 module task");
 assert(!dashboardStatus.checkState.details.warnings.some((warning) => /legacy check failed/i.test(warning)), "v2 migrated dashboard should not run the legacy checker");
-
 console.log("Migration adoption tests passed");
