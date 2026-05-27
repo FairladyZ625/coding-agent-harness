@@ -7,13 +7,13 @@
 默认位置：
 
 ```text
-docs/10-WALKTHROUGH/YYYY-MM-DD-<feature-name>.md
+coding-agent-harness/planning/tasks/<task-id>/walkthrough.md
 ```
 
-Closeout SSoT 固定位置：
+生成的 Closeout Index 固定位置：
 
 ```text
-docs/10-WALKTHROUGH/Closeout-SSoT.md
+coding-agent-harness/governance/generated/Closeout-Index.md
 ```
 
 ## 何时必须写
@@ -23,7 +23,7 @@ docs/10-WALKTHROUGH/Closeout-SSoT.md
 - 产生 review、regression、CI/CD、Lessons 或 Harness Ledger 回写。
 - 用户要求阶段收口或交付总结。
 
-没有 walkthrough 的非平凡任务视为未完整收口；如受控跳过，必须登记原因。
+没有任务本地 walkthrough 的非平凡任务视为未完整收口；如受控跳过，必须在任务 `INDEX.md` 登记原因。
 
 ## 必须包含
 
@@ -34,7 +34,7 @@ docs/10-WALKTHROUGH/Closeout-SSoT.md
 5. **审查结果**：引用 `review.md`，列出 material findings、no-finding 结论和 `accepted-risk`。
 6. **残余风险**：没有残余也要写“无”；有残余则写 owner 和后续路径。
 7. **Lessons 反思**：判断是否有可沉淀的 workflow、reference、checker 或工程规则。
-8. **关联信息**：task plan、SSoT、Regression SSoT、Harness Ledger ID、commit、PR、release。
+8. **关联信息**：task plan、Regression gate、生成的 Harness Ledger ID、commit、PR、release。
 
 ## 写作原则
 
@@ -46,13 +46,13 @@ docs/10-WALKTHROUGH/Closeout-SSoT.md
 
 ## 收口单一事实源规则
 
-以下 Harness Ledger row 必须有 Closeout SSoT row：
+以下任务状态必须能生成 Closeout Index row：
 
 - `closed`
 - `closed-with-residual`
 - `closed-local-only`
 
-Closeout SSoT 中：
+任务 `walkthrough.md` / `INDEX.md` 中：
 
 - walkthrough 列写实际路径，或写受控跳过原因。
 - Lessons 检查列写 `checked-candidate: LC-...`、`queued-promotion: LC-...`、`checked-created: L-YYYY-MM-DD-NNN`，或旧任务兼容的 `checked-none: <reason>`。
@@ -73,7 +73,7 @@ Closeout SSoT 中：
 - 人工审查后，如需沉淀，再由维护命令写 promoted lesson 详情文档。
 - `checked-created:<L-ID>` 必须能追溯到该详情文档。
 
-三个答案都为“没有”时，Closeout SSoT 和 Harness Ledger 仍要记录：
+三个答案都为“没有”时，任务本地 `lesson_candidates.md` 仍要记录：
 
 ```text
 lesson_candidates.md: no-candidate-accepted
@@ -81,4 +81,4 @@ lesson_candidates.md: no-candidate-accepted
 
 ## 收口要求
 
-walkthrough 写完后，必须更新 Closeout SSoT 和 Harness Ledger。涉及回归、CI/CD、repo governance、reference 或 template 的，还要同步对应标准或 SSoT。
+walkthrough 写完后，必须运行 `harness governance rebuild --apply` 刷新 Closeout Index 和 Harness Ledger。涉及回归、CI/CD、repo governance、reference 或 template 的，还要同步对应标准或手写规则文件。

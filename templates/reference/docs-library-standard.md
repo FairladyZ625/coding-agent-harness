@@ -20,16 +20,16 @@ Use these directories as a low-entropy context system:
 
 | Directory | Owns | Must Not Own | Required Schema Signals |
 | --- | --- | --- | --- |
-| `docs/03-ARCHITECTURE/` | system structure, service responsibility, ownership, service catalog, critical flows, ADRs | endpoint payloads, mock instructions, task logs | `Context Doc Type`, `Source Evidence`, `Last Verified`, `Confidence` |
-| `docs/04-DEVELOPMENT/` | local setup, codebase map, external development context, external source packs, mocks, stubs, cross-repo debugging | long-lived architecture facts, API payload contracts, undigested external document dumps | `Context Doc Type`, `Development Use`, `Do Not Assume`, `Mocks / Stubs`, `Source Evidence`, `Last Verified`, `Confidence` |
-| `docs/06-INTEGRATIONS/` | API/event/webhook/SDK/third-party contracts, auth, payloads, errors, contract tests | global topology, service ownership catalog, debugging notes | `Context Doc Type`, `Contract Type`, `Auth`, `Payload`, `Errors`, `Contract Tests`, `Source Evidence`, `Last Verified`, `Confidence` |
+| `coding-agent-harness/context/architecture/` | system structure, service responsibility, ownership, service catalog, critical flows, ADRs | endpoint payloads, mock instructions, task logs | `Context Doc Type`, `Source Evidence`, `Last Verified`, `Confidence` |
+| `coding-agent-harness/context/development/` | local setup, codebase map, external development context, external source packs, mocks, stubs, cross-repo debugging | long-lived architecture facts, API payload contracts, undigested external document dumps | `Context Doc Type`, `Development Use`, `Do Not Assume`, `Mocks / Stubs`, `Source Evidence`, `Last Verified`, `Confidence` |
+| `coding-agent-harness/context/integrations/` | API/event/webhook/SDK/third-party contracts, auth, payloads, errors, contract tests | global topology, service ownership catalog, debugging notes | `Context Doc Type`, `Contract Type`, `Auth`, `Payload`, `Errors`, `Contract Tests`, `Source Evidence`, `Last Verified`, `Confidence` |
 
 Concrete split:
 
-- `03-ARCHITECTURE/service-catalog.md` gives only the service summary and links.
-- `06-INTEGRATIONS/<service>-api-contract.md` owns payload bodies, auth, errors, and contract tests.
-- `04-DEVELOPMENT/external-context/<service>.md` owns mocks, stubs, unsafe assumptions, and debug notes.
-- `04-DEVELOPMENT/external-source-packs/` owns external source indexes, digests, and projection status only; final facts must be written back to `03/04/06`.
+- `context/architecture/service-catalog.md` gives only the service summary and links.
+- `context/integrations/<service>-api-contract.md` owns payload bodies, auth, errors, and contract tests.
+- `context/development/external-context/<service>.md` owns mocks, stubs, unsafe assumptions, and debug notes.
+- `context/development/external-source-packs/` owns external source indexes, digests, and projection status only; final facts must be written back to `context/architecture`, `context/development`, or `context/integrations`.
 
 ## External Source Intake
 

@@ -10,7 +10,9 @@ import {
 export function planCreateTaskChanges({ target, directory, normalizedModuleKey, normalizedLocale, normalizedBudget, longRunning, presetContext }) {
   const changes = [];
   if (normalizedModuleKey) {
-    const moduleDirectory = path.dirname(directory);
+    const moduleDirectory = target.structureVersion === 2
+      ? path.join(target.modulesRoot, normalizedModuleKey)
+      : path.dirname(directory);
     for (const [destination, source] of moduleTemplateFiles({ locale: normalizedLocale })) {
       const destinationPath = path.join(moduleDirectory, destination);
       if (fs.existsSync(destinationPath)) continue;
@@ -21,7 +23,7 @@ export function planCreateTaskChanges({ target, directory, normalizedModuleKey, 
       });
     }
   }
-  for (const [destination, source] of appendLongRunningContractFile(taskFilesForBudget({ budget: normalizedBudget, locale: normalizedLocale }), {
+  for (const [destination, source] of appendLongRunningContractFile(taskFilesForBudget({ budget: normalizedBudget, locale: normalizedLocale, structureVersion: target.structureVersion }), {
     locale: normalizedLocale,
     longRunning,
   })) {

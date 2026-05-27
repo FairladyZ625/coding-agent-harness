@@ -16,7 +16,7 @@ Define the standard lifecycle for non-trivial work from intake through planning,
 8. Use CLI lifecycle commands for mechanical Harness writes whenever available. CLI-owned writes use locked, allowlisted auto-commit. `new-task` may preserve unrelated dirty files while committing only its own write scope; overlapping dirty paths or unrelated staged files still block the command. Other lifecycle commands may still require a clean tree. Agent-owned manual edits still need an explicit task commit or deferred-commit rationale.
 9. Treat `visual_map.md` as the lifecycle phase map. `init` phases prepare work, `execution` phases define implementation completion, and `gate` phases define review, human confirmation, lesson routing, and closeout. Follow a phase `Exit Command` only when its `Actor` matches the current operator; agents must not perform `human` gates.
 10. New task directories must carry machine-readable Task Audit Metadata in `INDEX.md`. The normal path is `Created By: harness new-task`; manual creation is allowed only as `manual-exception` with a concrete reason, and historical migration must use `historical-backfill`.
-11. Close the loop by updating walkthrough, SSoT, regression, ledger, or docs artifacts when the work changes durable project knowledge. New non-simple tasks should keep `lesson_candidates.md` reviewable before human review confirmation.
+11. Close the loop by updating task-local `walkthrough.md`, regression rules, or docs artifacts when the work changes durable project knowledge. Run `harness governance rebuild --apply` to refresh generated ledger and closeout projections. New non-simple tasks should keep `lesson_candidates.md` reviewable before human review confirmation.
 
 ## Task Package Structure
 
@@ -24,7 +24,7 @@ Use `harness new-task` instead of hand-copying task files. The CLI creates the s
 
 | Budget | Required Files |
 | --- | --- |
-| simple | `INDEX.md`, `brief.md`, `task_plan.md`, `visual_map.md`, `progress.md` |
+| simple | `INDEX.md`, `brief.md`, `task_plan.md`, `visual_map.md`, `progress.md`, `walkthrough.md` |
 | standard | simple files plus `execution_strategy.md`, `findings.md`, `lesson_candidates.md`, `review.md` |
 | complex | standard files plus `references/INDEX.md`, `artifacts/INDEX.md` |
 | long-running add-on | `long-running-task-contract.md` when `--long-running` is selected |

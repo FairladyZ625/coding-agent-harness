@@ -1,7 +1,7 @@
 import { localizedTemplateSource, longRunningTaskContractFile, visualMapFile, lessonCandidatesFile } from "../core-shared.mjs";
 
-export function taskTemplateFiles({ locale = "en-US" } = {}) {
-  return [
+export function taskTemplateFiles({ locale = "en-US", structureVersion = 1 } = {}) {
+  const files = [
     ["INDEX.md", "templates/planning/INDEX.md"],
     ["brief.md", "templates/planning/brief.md"],
     ["task_plan.md", "templates/planning/task_plan.md"],
@@ -11,17 +11,21 @@ export function taskTemplateFiles({ locale = "en-US" } = {}) {
     [lessonCandidatesFile, "templates/planning/lesson_candidates.md"],
     ["progress.md", "templates/planning/progress.md"],
     ["review.md", "templates/planning/review.md"],
-  ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
+  ];
+  if (structureVersion === 2) files.push(["walkthrough.md", "templates/planning/walkthrough.md"]);
+  return files.map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
 }
 
-export function simpleTaskTemplateFiles({ locale = "en-US" } = {}) {
-  return [
+export function simpleTaskTemplateFiles({ locale = "en-US", structureVersion = 1 } = {}) {
+  const files = [
     ["INDEX.md", "templates/planning/INDEX.md"],
     ["brief.md", "templates/planning/brief.md"],
     ["task_plan.md", "templates/planning/task_plan.md"],
     [visualMapFile, "templates/planning/visual_map.simple.md"],
     ["progress.md", "templates/planning/progress.md"],
-  ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
+  ];
+  if (structureVersion === 2) files.push(["walkthrough.md", "templates/planning/walkthrough.md"]);
+  return files.map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
 }
 
 export function optionalTaskTemplateFiles({ locale = "en-US" } = {}) {
@@ -41,10 +45,10 @@ export function moduleTemplateFiles({ locale = "en-US" } = {}) {
   ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
 }
 
-export function taskFilesForBudget({ budget, locale }) {
-  if (budget === "simple") return simpleTaskTemplateFiles({ locale });
-  if (budget === "complex") return [...taskTemplateFiles({ locale }), ...optionalTaskTemplateFiles({ locale })];
-  return taskTemplateFiles({ locale });
+export function taskFilesForBudget({ budget, locale, structureVersion = 1 }) {
+  if (budget === "simple") return simpleTaskTemplateFiles({ locale, structureVersion });
+  if (budget === "complex") return [...taskTemplateFiles({ locale, structureVersion }), ...optionalTaskTemplateFiles({ locale })];
+  return taskTemplateFiles({ locale, structureVersion });
 }
 
 export function appendLongRunningContractFile(files, { locale, longRunning }) {

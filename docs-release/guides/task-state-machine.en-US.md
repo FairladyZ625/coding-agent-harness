@@ -8,7 +8,7 @@ Coding Agent Harness does not model task state as a single field. The Dashboard 
 - `review.md` stores Agent Review Submission, material findings, and review evidence.
 - `INDEX.md` stores Task Audit Metadata, including task creation and human review confirmation audit fields.
 - `lesson_candidates.md` records lesson candidate decisions and sedimentation routing.
-- `10-WALKTHROUGH/Closeout-SSoT.md` records closeout status and links walkthrough evidence.
+- Task-local `walkthrough.md` records closeout evidence; `governance/generated/Closeout-Index.md` is the generated index.
 - Tombstone / supersede metadata records whether a task was soft-deleted, merged, archived, or replaced.
 - The scanner derives `lifecycleState`, `reviewStatus`, `closeoutStatus`, `taskQueues[]`, `queueReasons[]`, and `repairPrompt` from those files.
 
@@ -58,7 +58,7 @@ flowchart TB
   Index["INDEX.md<br/>Task Audit Metadata"]
   Review["review.md<br/>Agent Review Submission + findings + evidence"]
   Lessons["lesson_candidates.md<br/>decision + sedimentation route"]
-  Closeout["Closeout-SSoT.md<br/>closeout row + walkthrough"]
+  Closeout["task-local walkthrough.md<br/>generated Closeout-Index"]
   Tombstone["tombstone / supersede metadata"]
   Scanner["scanner"]
 
@@ -81,7 +81,7 @@ flowchart TB
 | --- | --- | --- |
 | `task.state` | `progress.md` | Raw execution stage. |
 | `reviewStatus` | `INDEX.md` Task Audit Metadata + `review.md` findings/submission | Separates missing review, agent-submitted review, blockers, and human confirmation. |
-| `closeoutStatus` | `Closeout-SSoT.md` | Separates missing, pending, and closed closeout. |
+| `closeoutStatus` | task-local `walkthrough.md` + generated Closeout Index | Separates missing, pending, and closed closeout. |
 | `lifecycleState` | scanner-derived | Main Dashboard lifecycle meaning. |
 | `taskQueues[]` | scanner-derived | Which lifecycle queues include the task. A task can be visible in more than one governance queue. |
 | `queueReasons[]` | scanner-derived | Why the task entered a queue, including source file, field, and repair action. |

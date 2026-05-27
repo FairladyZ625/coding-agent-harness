@@ -174,7 +174,7 @@ export function syncTaskGovernance(target, task, { event = "new-task", state = "
 
 export function syncModuleStepGovernance(target, { moduleKey, stepId, state, dryRun = false } = {}) {
   const changes = [];
-  const ledgerPath = path.join(target.docsRoot, "Harness-Ledger.md");
+  const ledgerPath = target.ledgerPath;
   const ledgerRelative = toPosix(path.relative(target.projectRoot, ledgerPath));
   ensureFileFromTemplate(ledgerPath, "templates/ledger/Harness-Ledger.md", { dryRun });
   if (!dryRun) {
@@ -186,7 +186,7 @@ export function syncModuleStepGovernance(target, { moduleKey, stepId, state, dry
       `Module ${moduleKey} step ${stepId}`,
       state === "done" ? "review" : state === "in-progress" ? "active" : state,
       "none",
-      `docs/09-PLANNING/MODULES/${moduleKey}/module_plan.md`,
+      modulePlanRelative(target, moduleKey),
       "n/a",
       "checked-none:module-step",
       "pending",
@@ -204,7 +204,7 @@ export function governanceRelativePaths(changes) {
 }
 
 function syncLedgerRow(target, task, { event, state, message, planPath, reviewPath, dryRun }) {
-  const ledgerPath = path.join(target.docsRoot, "Harness-Ledger.md");
+  const ledgerPath = target.ledgerPath;
   ensureFileFromTemplate(ledgerPath, "templates/ledger/Harness-Ledger.md", { dryRun });
   const relative = toPosix(path.relative(target.projectRoot, ledgerPath));
   if (!dryRun) {
@@ -229,17 +229,19 @@ function syncLedgerRow(target, task, { event, state, message, planPath, reviewPa
 }
 
 function syncModuleRegistryRow(target, task, { state, planPath, dryRun }) {
-  const registryPath = path.join(target.docsRoot, "09-PLANNING/Module-Registry.md");
+  const registryPath = target.structureVersion === 2
+    ? path.join(target.planningRoot, "modules/Module-Registry.md")
+    : path.join(target.planningRoot, "Module-Registry.md");
   ensureFileFromTemplate(registryPath, "templates/ssot/Module-Registry.md", { dryRun });
   const relative = toPosix(path.relative(target.projectRoot, registryPath));
   if (!dryRun) {
     const content = readFileSafe(registryPath);
     const moduleKey = task.module;
-    const modulePlan = `docs/09-PLANNING/MODULES/${moduleKey}/module_plan.md`;
+    const modulePlan = modulePlanRelative(target, moduleKey);
     const row = [
       `M-${moduleKey.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}`,
       moduleKey,
-      `docs/09-PLANNING/MODULES/${moduleKey}/**`,
+      moduleGlobRelative(target, moduleKey),
       "coordinator",
       state === "planned" ? "reserved" : mapModuleState(state),
       `codex/${moduleKey}`,
@@ -280,7 +282,7 @@ export function moduleGeneratedIndexSurfaces(target, tasks = collectTasks(target
     const moduleTasks = (tasks || [])
       .filter((task) => task.module === moduleKey)
       .sort((a, b) => String(stripDatePrefix(a.shortId || a.id)).localeCompare(String(stripDatePrefix(b.shortId || b.id))));
-    const moduleDir = path.join(target.docsRoot, "09-PLANNING/MODULES", moduleKey);
+    const moduleDir = path.join(target.modulesRoot, moduleKey);
     const modulePlanPath = path.join(moduleDir, "module_plan.md");
     const moduleVisualPath = path.join(moduleDir, visualMapFile);
     const stepRows = moduleTasks.map((task, index) => {
@@ -304,6 +306,18 @@ export function moduleGeneratedIndexSurfaces(target, tasks = collectTasks(target
     });
   }
   return surfaces;
+}
+
+function modulePlanRelative(target, moduleKey) {
+  return target.structureVersion === 2
+    ? `coding-agent-harness/planning/modules/${moduleKey}/module_plan.md`
+    : `docs/09-PLANNING/MODULES/${moduleKey}/module_plan.md`;
+}
+
+function moduleGlobRelative(target, moduleKey) {
+  return target.structureVersion === 2
+    ? `coding-agent-harness/planning/modules/${moduleKey}/**`
+    : `docs/09-PLANNING/MODULES/${moduleKey}/**`;
 }
 
 function collectModuleTasks(target, moduleKey, task) {

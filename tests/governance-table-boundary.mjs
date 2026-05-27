@@ -76,4 +76,25 @@ assert(entropyWarnings.every((warning) => warning.phase === "global-table-bounda
 assert(entropyWarnings.some((warning) => warning.id.includes("HL-LEGACY-001") && warning.status === "legacy-report-only"), "legacy overload should be visible but report-only in dashboard data");
 assert(entropyWarnings.some((warning) => warning.id.includes("PF-BAD-001") && warning.status === "open"), "new violations should be visible as open dashboard warnings");
 
+const v2Target = path.join(tmpRoot, "governance-table-boundary-v2-target");
+fs.mkdirSync(v2Target);
+expectJson(["init", "--structure", "v2", "--locale", "en-US", "--capabilities", "core,dashboard", v2Target]);
+const generatedRoot = path.join(v2Target, "coding-agent-harness/governance/generated");
+fs.mkdirSync(generatedRoot, { recursive: true });
+fs.writeFileSync(
+  path.join(generatedRoot, "Harness-Ledger.md"),
+  [
+    "# Harness Ledger",
+    "",
+    "| ID | Task or Change | Owner | Status | Plan | Feature or Delivery SSoT | Regression Evidence | Review Evidence | Walkthrough | Lessons Check | Residual | Updated |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| HL-V2-BAD-001 | V2 overloaded row | Worker C | active | `coding-agent-harness/planning/tasks/v2/task_plan.md` | F-001 | Execution log: command failed and raw output copied with stack trace and temporary repair prompt. | reviewer transcript pasted inline | pending | checked-none | none | 2026-05-26 |",
+    "",
+  ].join("\n"),
+);
+const v2Check = run(["check", "--profile", "target-project", v2Target]);
+assert(v2Check.status !== 0, "v2 generated governance tables should be checked for entropy");
+assert(v2Check.stderr.includes("coding-agent-harness/governance/generated/Harness-Ledger.md"), "v2 governance entropy should report the generated ledger path");
+assert(v2Check.stderr.includes("HL-V2-BAD-001"), "v2 governance entropy should report the overloaded ledger row");
+
 console.log("Governance table boundary tests passed");

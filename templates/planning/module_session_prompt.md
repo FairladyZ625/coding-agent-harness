@@ -39,7 +39,7 @@ Do not edit shared SSoT files, coordinator-owned integration files, or unrelated
 
 ## Shared Sync Rule
 
-Do not update Module Registry, Harness Ledger, Closeout SSoT, Regression SSoT, or Cadence Ledger from a worker session unless the coordinator assigned the shared lock.
+Do not update Module Registry, generated Harness Ledger, task-local walkthrough closeout, Regression SSoT, or Cadence Ledger from a worker session unless the coordinator assigned the shared lock.
 
 ## Stop Rule
 

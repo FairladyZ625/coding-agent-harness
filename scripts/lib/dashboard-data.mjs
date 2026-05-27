@@ -58,24 +58,36 @@ export function collectMarkdownDocuments(target, options = {}) {
 function collectDashboardDocumentPaths(target, options = {}) {
   const selected = new Set();
   const partial = new Map();
-  const addDocsPath = (relativePath) => {
-    const file = path.join(target.docsRoot, relativePath);
+  const addProjectPath = (relativePath) => {
+    const file = path.join(target.projectRoot, relativePath);
     if (fs.existsSync(file)) selected.add(file);
   };
-  for (const relativePath of [
-    "Harness-Ledger.md",
-    "09-PLANNING/Module-Registry.md",
-    "05-TEST-QA/Regression-SSoT.md",
-    "05-TEST-QA/Cadence-Ledger.md",
-    "10-WALKTHROUGH/Closeout-SSoT.md",
-  ]) {
-    addDocsPath(relativePath);
+  const fixedDocuments = target.structureVersion === 2
+    ? [
+        toPosix(path.relative(target.projectRoot, target.ledgerPath)),
+        toPosix(path.relative(target.projectRoot, target.closeoutIndexPath)),
+        "coding-agent-harness/planning/generated/task-index.md",
+        "coding-agent-harness/planning/modules/Module-Registry.md",
+        "coding-agent-harness/governance/regression/Regression-SSoT.md",
+        "coding-agent-harness/governance/regression/Cadence-Ledger.md",
+      ]
+    : [
+        "docs/Harness-Ledger.md",
+        "docs/09-PLANNING/Module-Registry.md",
+        "docs/05-TEST-QA/Regression-SSoT.md",
+        "docs/05-TEST-QA/Cadence-Ledger.md",
+        "docs/10-WALKTHROUGH/Closeout-SSoT.md",
+      ];
+  for (const relativePath of fixedDocuments) {
+    addProjectPath(relativePath);
   }
-  for (const file of walkFiles(path.join(target.docsRoot, "10-WALKTHROUGH"))) {
-    if (!file.endsWith(".md")) continue;
-    if (file.includes(`${path.sep}_archive${path.sep}`)) continue;
-    if (path.basename(file).startsWith("_")) continue;
-    selected.add(file);
+  if (target.structureVersion !== 2) {
+    for (const file of walkFiles(path.join(target.docsRoot, "10-WALKTHROUGH"))) {
+      if (!file.endsWith(".md")) continue;
+      if (file.includes(`${path.sep}_archive${path.sep}`)) continue;
+      if (path.basename(file).startsWith("_")) continue;
+      selected.add(file);
+    }
   }
   const tasksByPlanPath = new Map((options.tasks || []).map((task) => [
     path.join(target.projectRoot, String(task.taskPlanPath || "").replace(/^TARGET:/, "")),
@@ -90,7 +102,7 @@ function collectDashboardDocumentPaths(target, options = {}) {
     const historicalClosed = !active && task?.closeoutStatus === "closed";
     const documentNames = historicalClosed
       ? ["brief.md"]
-      : ["brief.md", "task_plan.md", "execution_strategy.md", visualMapFile, legacyVisualRoadmapFile, lessonCandidatesFile, longRunningTaskContractFile, "progress.md", "review.md", "findings.md"];
+      : ["INDEX.md", "brief.md", "task_plan.md", "execution_strategy.md", visualMapFile, legacyVisualRoadmapFile, lessonCandidatesFile, longRunningTaskContractFile, "progress.md", "review.md", "findings.md", "walkthrough.md"];
     for (const fileName of documentNames) {
       const file = path.join(taskDir, fileName);
       if (fs.existsSync(file)) {
@@ -111,11 +123,12 @@ function collectDashboardDocumentPaths(target, options = {}) {
       }
     }
   }
-  for (const file of walkFiles(path.join(target.docsRoot, "09-PLANNING/MODULES"))) {
+  for (const file of walkFiles(target.modulesRoot)) {
     if (file.endsWith("module_plan.md")) selected.add(file);
-    if (/09-PLANNING[\\/]+MODULES[\\/]+[^\\/]+[\\/]brief\.md$/.test(file)) selected.add(file);
+    if (new RegExp(`${escapeRegExp(target.modulesRoot)}[\\\\/][^\\\\/]+[\\\\/]brief\\.md$`).test(file)) selected.add(file);
   }
-  for (const file of walkFiles(path.join(target.docsRoot, "01-GOVERNANCE/lessons"))) {
+  const lessonsRoot = target.structureVersion === 2 ? path.join(target.governanceRoot, "lessons") : path.join(target.docsRoot, "01-GOVERNANCE/lessons");
+  for (const file of walkFiles(lessonsRoot)) {
     if (file.endsWith(".md")) selected.add(file);
   }
   return [...selected]
@@ -126,9 +139,14 @@ function collectDashboardDocumentPaths(target, options = {}) {
     .map((file) => ({ file, ...(partial.get(file) || {}) }));
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function documentKind(source) {
   const lower = source.toLowerCase();
   if (lower.includes("harness-ledger.md")) return "harness-ledger";
+  if (lower.endsWith("/task-index.md")) return "task-index";
   if (lower.includes("module-registry.md")) return "module-registry";
   if (lower.includes("regression-ssot.md")) return "regression-ssot";
   if (lower.includes("cadence-ledger.md")) return "cadence-ledger";

@@ -270,8 +270,14 @@ export function validateContextDocs(target, { strict = true } = {}) {
     if (strict) failures.push(message);
     else warnings.push(`adoption-needed: ${message}`);
   };
-  const contextRoots = ["03-ARCHITECTURE", "04-DEVELOPMENT", "06-INTEGRATIONS"];
-  const files = contextRoots.flatMap((root) => walkFiles(path.join(target.docsRoot, root))).filter((file) => file.endsWith(".md"));
+  const contextRoots = target.structureVersion === 2
+    ? [
+        path.join(target.harnessRoot, "context/architecture"),
+        path.join(target.harnessRoot, "context/development"),
+        path.join(target.harnessRoot, "context/integrations"),
+      ]
+    : ["03-ARCHITECTURE", "04-DEVELOPMENT", "06-INTEGRATIONS"].map((root) => path.join(target.docsRoot, root));
+  const files = contextRoots.flatMap((root) => walkFiles(root)).filter((file) => file.endsWith(".md"));
   for (const file of files) {
     if (file.includes(`${path.sep}_archive${path.sep}`)) continue;
     const relative = toPosix(path.relative(target.projectRoot, file));
@@ -281,7 +287,7 @@ export function validateContextDocs(target, { strict = true } = {}) {
     if (!contentHasAny(content, [/Source Evidence/i, "来源证据"])) report(`${relative} missing Source Evidence field`);
     if (!/Last Verified:\s*\S+|Last Verified\s*\|/i.test(content) && !/最近验证[：:]\s*\S+|最近验证\s*\|/.test(content)) report(`${relative} missing Last Verified field`);
     if (!/Confidence:\s*(high|medium|low|unknown)|Confidence\s*\|/i.test(content) && !/信心[：:]\s*(high|medium|low|unknown|高|中|低|未知)|信心\s*\|/.test(content)) report(`${relative} missing Confidence field`);
-    if (/03-ARCHITECTURE\/service-catalog\.md$/.test(relative)) {
+    if (/(?:03-ARCHITECTURE|context\/architecture)\/service-catalog\.md$/.test(relative)) {
       for (const [column, ...aliases] of [
         ["Service / Component", "服务 / 组件"],
         ["Interfaces", "接口"],
@@ -292,7 +298,7 @@ export function validateContextDocs(target, { strict = true } = {}) {
         if (!contentHasAny(content, [column, ...aliases])) report(`${relative} service catalog missing column: ${column}`);
       }
     }
-    if (/04-DEVELOPMENT\/external-context\/[^/]+\.md$/.test(relative)) {
+    if (/(?:04-DEVELOPMENT|context\/development)\/external-context\/[^/]+\.md$/.test(relative)) {
       for (const [heading, ...aliases] of [
         ["Development Use", "开发用途"],
         ["Do Not Assume", "不要假设"],
@@ -301,7 +307,7 @@ export function validateContextDocs(target, { strict = true } = {}) {
         if (!contentHasAny(content, [heading, ...aliases])) report(`${relative} external context missing section: ${heading}`);
       }
     }
-    if (/06-INTEGRATIONS\/(?:[^/_][^/]*|third-party\/[^/_][^/]*)\.md$/.test(relative)) {
+    if (/(?:06-INTEGRATIONS|context\/integrations)\/(?:[^/_][^/]*|third-party\/[^/_][^/]*)\.md$/.test(relative)) {
       for (const [heading, ...aliases] of [
         ["Contract Type", "合同类型"],
         ["Auth", "认证"],
@@ -326,7 +332,7 @@ export function buildStatus(targetInput, options = {}) {
   const legacy = shouldRunLegacy ? runLegacyCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
   const contractStrict = Boolean(options.strict) || (capabilityState.registry.mode !== "legacy-compat" && !safeAdoptionMode);
   const taskPlanPaths = listTaskPlanPaths(target);
-  const closeoutContent = readFileSafe(path.join(target.docsRoot, "10-WALKTHROUGH/Closeout-SSoT.md"));
+  const closeoutContent = readFileSafe(target.closeoutIndexPath);
   const tasks = collectTasks(target, { requireGeneratedScaffoldProvenance: contractStrict, taskPlanPaths, closeoutContent });
   const reviews = validateReviewSchema(target, { strict: contractStrict });
   const visualMaps = validateVisualMaps(target, { taskPlanPaths });

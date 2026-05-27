@@ -15,6 +15,7 @@ const suites = [
   "tests/template-governance.mjs",
   "tests/review-confirm-git-gate.mjs",
   "tests/lifecycle/task-index-audit-metadata.mjs",
+  "tests/directory-structure-v2.mjs",
   "tests/governance-table-boundary.mjs",
   "tests/governance-sync.mjs",
   "tests/governance-generated-indexes.mjs",

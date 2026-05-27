@@ -67,14 +67,27 @@ import {
 
 function taskRoot(target, taskId, { moduleKey = "" } = {}) {
   const normalizedTaskId = normalizeTaskId(taskId);
-  if (moduleKey) return path.join(target.docsRoot, "09-PLANNING/MODULES", normalizeTaskId(moduleKey), normalizedTaskId);
-  return path.join(target.docsRoot, "09-PLANNING/TASKS", normalizedTaskId);
+  if (moduleKey) {
+    const moduleRoot = path.join(target.modulesRoot, normalizeTaskId(moduleKey));
+    return target.structureVersion === 2
+      ? path.join(moduleRoot, "tasks", normalizedTaskId)
+      : path.join(moduleRoot, normalizedTaskId);
+  }
+  return path.join(target.tasksRoot, normalizedTaskId);
 }
 
 export function resolveTaskDirectory(target, taskRef) {
-  const raw = String(taskRef || "").replace(/^docs\/09-PLANNING\//, "").replace(/^\/+/, "");
+  const raw = String(taskRef || "")
+    .replace(/^docs\/09-PLANNING\//, "")
+    .replace(/^coding-agent-harness\/planning\//, "")
+    .replace(/^planning\//, "")
+    .replace(/^\/+/, "");
   if (!raw) throw new Error("Missing task id");
-  const direct = raw.startsWith("TASKS/") || raw.startsWith("MODULES/") ? path.join(target.docsRoot, "09-PLANNING", raw) : "";
+  const direct = /^(TASKS|MODULES|EXTERNAL)\//.test(raw)
+    ? directPlanningPath(target, raw)
+    : /^(tasks|modules|external)\//.test(raw)
+      ? path.join(target.planningRoot, raw)
+      : "";
   if (direct && fs.existsSync(path.join(direct, "task_plan.md"))) return direct;
   const normalized = normalizeTaskId(raw);
   const candidates = listTaskPlanPaths(target)
@@ -106,6 +119,12 @@ export function resolveTaskDirectory(target, taskRef) {
   const legacy = taskRoot(target, normalized);
   if (fs.existsSync(path.join(legacy, "task_plan.md"))) return legacy;
   throw new Error(`Task not found: ${taskRef}`);
+}
+
+function directPlanningPath(target, raw) {
+  if (target.structureVersion !== 2) return path.join(target.planningRoot, raw);
+  const [head, ...rest] = raw.split("/");
+  return path.join(target.planningRoot, head.toLowerCase(), ...rest);
 }
 
 function findTaskByDirectory(target, taskDir) {
@@ -263,7 +282,9 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
   const governanceContext = beginGovernanceSync(target, { operation: `new-task ${normalizedTaskId}`, dryRun, allowDirtyWorktree: true, allowedRelativePaths: plannedWriteScopes });
   try {
   if (normalizedModuleKey) {
-    const moduleDirectory = path.dirname(directory);
+    const moduleDirectory = target.structureVersion === 2
+      ? path.join(target.modulesRoot, normalizedModuleKey)
+      : path.dirname(directory);
     for (const [destination, source] of moduleTemplateFiles({ locale: normalizedLocale })) {
       const destinationPath = path.join(moduleDirectory, destination);
       if (fs.existsSync(destinationPath)) continue;
@@ -293,7 +314,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
       );
     }
   }
-  const files = appendLongRunningContractFile(taskFilesForBudget({ budget: normalizedBudget, locale: normalizedLocale }), {
+  const files = appendLongRunningContractFile(taskFilesForBudget({ budget: normalizedBudget, locale: normalizedLocale, structureVersion: target.structureVersion }), {
     locale: normalizedLocale,
     longRunning,
   });
@@ -441,6 +462,17 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
       allowedPaths.push(toPosix(path.relative(target.projectRoot, reviewPath)));
       const lessonDecisionPath = autoRecordNoLessonCandidateDecision(target, taskDir);
       if (lessonDecisionPath) allowedPaths.push(lessonDecisionPath);
+    }
+    if (event === "task-complete" && target.structureVersion === 2) {
+      const walkthroughPath = path.join(taskDir, "walkthrough.md");
+      if (fs.existsSync(walkthroughPath)) {
+        const walkthrough = readFileSafe(walkthroughPath);
+        const nextWalkthrough = /(?:^|\n)\s*(?:Closeout Status|收口状态)\s*:/i.test(walkthrough)
+          ? walkthrough.replace(/(^|\n)\s*(?:Closeout Status|收口状态)\s*:[^\n]*/i, "$1Closeout Status: closed")
+          : `${walkthrough.trimEnd()}\n\nCloseout Status: closed\n`;
+        fs.writeFileSync(walkthroughPath, nextWalkthrough.endsWith("\n") ? nextWalkthrough : `${nextWalkthrough}\n`);
+        allowedPaths.push(toPosix(path.relative(target.projectRoot, walkthroughPath)));
+      }
     }
     const task =
       findTaskByDirectory(target, taskDir) ||

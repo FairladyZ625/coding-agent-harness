@@ -38,16 +38,60 @@ export function normalizeTarget(input = ".") {
   const isDocsRoot =
     path.basename(target) === "docs" &&
     (fs.existsSync(path.join(target, "09-PLANNING")) || fs.existsSync(path.join(target, "11-REFERENCE")));
+  const directV2Root = !isDocsRoot ? findNearestHarnessRoot(target) : "";
+  const projectRoot = isDocsRoot ? path.dirname(target) : directV2Root ? path.dirname(directV2Root) : target;
+  const legacyDocsRoot = isDocsRoot ? target : path.join(projectRoot, "docs");
+  const v2Root = directV2Root || path.join(projectRoot, "coding-agent-harness");
+  const v2ManifestPath = path.join(v2Root, "harness.yaml");
+  const isV2 = !isDocsRoot && fs.existsSync(v2ManifestPath);
+  const harnessRoot = isV2 ? v2Root : legacyDocsRoot;
+  const planningRoot = isV2 ? path.join(harnessRoot, "planning") : path.join(harnessRoot, "09-PLANNING");
+  const tasksRoot = isV2 ? path.join(planningRoot, "tasks") : path.join(planningRoot, "TASKS");
+  const modulesRoot = isV2 ? path.join(planningRoot, "modules") : path.join(planningRoot, "MODULES");
+  const externalRoot = isV2 ? path.join(planningRoot, "external") : "";
+  const governanceRoot = isV2 ? path.join(harnessRoot, "governance") : harnessRoot;
+  const generatedRoot = isV2 ? path.join(governanceRoot, "generated") : planningRoot;
+  const regressionRoot = isV2 ? path.join(governanceRoot, "regression") : path.join(harnessRoot, "05-TEST-QA");
+  const closeoutIndexPath = isV2 ? path.join(generatedRoot, "Closeout-Index.md") : path.join(harnessRoot, "10-WALKTHROUGH/Closeout-SSoT.md");
+  const ledgerPath = isV2 ? path.join(generatedRoot, "Harness-Ledger.md") : path.join(harnessRoot, "Harness-Ledger.md");
   return {
     input: target,
-    projectRoot: isDocsRoot ? path.dirname(target) : target,
-    docsRoot: isDocsRoot ? target : path.join(target, "docs"),
+    projectRoot,
+    docsRoot: harnessRoot,
+    harnessRoot,
+    harnessRootRelative: toPosix(path.relative(projectRoot, harnessRoot)) || ".",
+    legacyDocsRoot,
+    planningRoot,
+    tasksRoot,
+    modulesRoot,
+    externalRoot,
+    governanceRoot,
+    generatedRoot,
+    regressionRoot,
+    closeoutIndexPath,
+    ledgerPath,
+    structureVersion: isV2 ? 2 : 1,
+    structureState: isV2 ? "v2" : "legacy",
     docsOnly: isDocsRoot,
   };
 }
 
+function findNearestHarnessRoot(target) {
+  let current = target;
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (fs.existsSync(path.join(current, "harness.yaml"))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return "";
+}
+
 export function projectPresetRoot(targetInput = ".") {
-  return path.join(normalizeTarget(targetInput).projectRoot, ".coding-agent-harness/presets");
+  const target = normalizeTarget(targetInput);
+  return target.structureVersion === 2
+    ? path.join(target.harnessRoot, "presets")
+    : path.join(target.projectRoot, ".coding-agent-harness/presets");
 }
 
 export function toPosix(value) {

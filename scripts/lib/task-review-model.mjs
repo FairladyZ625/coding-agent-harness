@@ -233,7 +233,9 @@ export function deriveTaskQueues({ id, title, state, budget, reviewStatus, revie
     pushReason({
       code: "review-closeout-materials-incomplete",
       queue: "missing-materials",
-      sourcePath: "TARGET:docs/10-WALKTHROUGH/Closeout-SSoT.md",
+      sourcePath: target.structureVersion === 2
+        ? `TARGET:${toPosix(path.relative(target.projectRoot, taskDir))}/walkthrough.md`
+        : "TARGET:docs/10-WALKTHROUGH/Closeout-SSoT.md",
       message: "Agent review was submitted, but closeout materials are not ready for human confirmation.",
     });
   }

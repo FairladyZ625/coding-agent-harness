@@ -56,8 +56,8 @@ One sentence describing what changed and why it matters.
 
 | Artifact | Link |
 | --- | --- |
-| Task plan | docs/09-PLANNING/TASKS/.../task_plan.md |
+| Task plan | task-local `task_plan.md` |
 | Feature or Delivery SSoT | F-000 or D-000 |
-| Harness Ledger | HL-YYYY-MM-DD-001 |
-| Closeout SSoT | CO-YYYY-MM-DD-001 |
+| Generated Harness Ledger | HL-YYYY-MM-DD-001 |
+| Generated Closeout Index | CO-YYYY-MM-DD-001 |
 | Pull request or commit | link or hash |

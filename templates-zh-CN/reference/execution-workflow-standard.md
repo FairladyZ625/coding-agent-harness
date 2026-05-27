@@ -10,7 +10,7 @@
 2. 读取功能 SSoT 或 Delivery SSoT，确认任务状态、owner 和依赖。
 3. 读取 `task_plan.md`，确认目标、范围、证据、stop condition 和允许修改的路径。
 4. 读取 `delivery-operating-model-standard.md`，判断本轮是 solo、team、split-repo、program、waterfall 还是 kanban 交付形态。
-5. 多人、多 agent、多仓、共享文件或阶段交付任务必须更新 `docs/09-PLANNING/Delivery-SSoT.md`。
+5. 多人、多 agent、多仓、共享文件或阶段交付任务必须更新 `coding-agent-harness/planning/Delivery-Plan.md`。
 6. 判断是否属于长程任务；如属于，按 `long-running-task-standard.md` 补齐合同。
 7. 判断是否需要对抗性审查；如需要，按 `adversarial-review-standard.md` 创建或更新 `review.md`。
 8. planned task 默认需要 closeout review；先读取 `review-routing-standard.md`。
@@ -38,7 +38,7 @@
 
 | 预算 | 必需文件 |
 | --- | --- |
-| simple | `INDEX.md`、`brief.md`、`task_plan.md`、`visual_map.md`、`progress.md` |
+| simple | `INDEX.md`、`brief.md`、`task_plan.md`、`visual_map.md`、`progress.md`、`walkthrough.md` |
 | standard | simple 文件，加 `execution_strategy.md`、`findings.md`、`lesson_candidates.md`、`review.md` |
 | complex | standard 文件，加 `references/INDEX.md`、`artifacts/INDEX.md` |
 | long-running 附加项 | 选择 `--long-running` 时额外创建 `long-running-task-contract.md` |
@@ -62,10 +62,10 @@ Preset 包不能新增或替换根级 base scaffold 文档。Preset 只能追加
 4. 更新 Regression SSoT 和 Cadence Ledger（如适用）。
 5. 确认 `review.md` 没有 open P0/P1 finding；material P2 已修复或写为 `accepted-risk` 并路由。
 6. planned task 必须完成 closeout review，或写明 `skipped-with-reason`。
-7. 写 walkthrough，引用 task plan、review、证据、residual、Regression SSoT 和 commit。
+7. 写任务本地 `walkthrough.md`，引用 task plan、review、证据、residual、Regression gates 和 commit。
 8. 确认当前 `visual_map.md` lifecycle gate 已执行，或已记录 blocker。
 9. 执行 Lessons 检查：新任务默认先写 `lesson_candidates.md` 并交给人工审查；人工标记后可记录 `queued-promotion`，再由维护命令写 promoted lesson 详情文档。没有可复用候选时记录 `no-candidate-accepted`；旧任务兼容可记录 `checked-none: <reason>`。
-10. 最后更新 Harness Ledger，因为它记录本轮上下文维护的最终状态。
+10. 最后运行 `harness governance rebuild --apply`，刷新 Harness Ledger 和 Closeout Index 这类生成投影。
 11. 完成 commit / PR / release note，并确认本任务工作区没有未解释的遗留改动。
 12. 如使用 worker，coordinator 集成 worker commit 后运行最终 gates，并记录 integration evidence。
 13. 如使用 worktree，按 `worktree-standard.md` 清理或记录保留原因。

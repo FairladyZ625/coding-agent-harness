@@ -13,17 +13,18 @@ Define the closeout walkthrough that converts implementation work into durable p
 5. Lessons that change future behavior must first be routed through `lesson_candidates.md`; candidates marked `needs-promotion` must link a task-local `lessons/LC-*.md` detail artifact before a follow-up task or promotion tries to preserve them.
 6. Walkthroughs must be written from the final integrated state, not from a single worker's partial view.
 7. If work is incomplete, the walkthrough must identify the next safe action and stop reason.
+8. In v2 projects, write the walkthrough inside the task package as `walkthrough.md`; global closeout and ledger files are generated projections.
 
 ## Required Artifacts
 
-- Walkthrough record with date, owner, task, changed surfaces, and links.
+- Task-local `walkthrough.md` record with date, owner, task, changed surfaces, and links.
 - Evidence summary with checks run and checks not run.
 - Review summary with material findings and disposition.
 - Residual risk section.
 - Lesson or follow-up section.
 - Lesson candidate decision: `checked-candidate:<LC-ID>`, `queued-promotion:<LC-ID>`, `checked-created:<L-ID>`, or legacy `checked-none:<reason>`.
 - Source lesson detail link for any queued or promoted candidate.
-- Links to updated SSoT, Regression SSoT, or Harness Ledger entries when applicable.
+- Links to updated regression gates or generated Harness Ledger entries when applicable.
 
 ## Closeout Expectations
 

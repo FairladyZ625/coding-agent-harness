@@ -14,9 +14,12 @@ export function buildTaskIndex(targetInput) {
   const tasks = collectTasks(target);
   assertUniqueTaskKeys(tasks);
   return {
-    schemaVersion: "task-index/v1",
+    schemaVersion: target.structureVersion === 2 ? "task-index/v2" : "task-index/v1",
     scannerVersion: taskScannerVersion,
     sourceRoot: "TARGET:.",
+    harnessRoot: `TARGET:${target.harnessRootRelative}`,
+    planningRoot: `TARGET:${toPosix(path.relative(target.projectRoot, target.planningRoot))}`,
+    generatedRoot: `TARGET:${toPosix(path.relative(target.projectRoot, target.generatedRoot))}`,
     generatedAt: new Date().toISOString(),
     sourceFileHashes: Object.fromEntries(tasks.map((task) => [task.taskKey || task.id, hashTaskSources(target, task)])),
     tasks: tasks.map((task) => ({
@@ -39,7 +42,11 @@ export function buildTaskIndex(targetInput) {
       closeoutStatus: task.closeoutStatus || "",
       walkthroughPath: task.walkthroughPath || "",
       module: task.module || "",
+      namespace: task.namespace || "main",
+      taskRootKind: task.taskRootKind || (task.module ? "module-task" : "project-task"),
+      packageRole: task.packageRole || "local",
       inferredModule: task.inferredModule || "",
+      shortId: task.shortId || "",
       completion: task.completion || 0,
       lessonCandidateStatus: task.lessonCandidateStatus || "",
       lessonCandidateRows: task.lessonCandidateRows || [],
@@ -55,8 +62,46 @@ export function buildTaskIndex(targetInput) {
       deletionState: task.deletionState || "active",
       hiddenByDefault: task.hiddenByDefault === true,
       repairPrompt: task.repairPrompt || "",
+      repairActions: repairActions(task),
+      documentRefs: documentRefs(task),
     })),
   };
+}
+
+function documentRefs(task) {
+  return [
+    ["index", task.path ? `${task.path}/INDEX.md` : ""],
+    ["brief", task.briefPath],
+    ["task-plan", task.taskPlanPath],
+    ["execution-strategy", task.executionStrategyPath],
+    ["visual-map", task.visualMapPath],
+    ["progress", task.progressPath],
+    ["findings", task.findingsPath],
+    ["review", task.reviewPath],
+    ["lesson-candidates", task.lessonCandidatePath],
+    ["walkthrough", task.walkthroughPath],
+  ].filter(([, refPath]) => refPath).map(([kind, refPath]) => ({ kind, path: refPath }));
+}
+
+function repairActions(task) {
+  const actions = [];
+  for (const issue of task.materialIssues || []) {
+    actions.push({
+      kind: "material",
+      code: issue.code || "material-issue",
+      sourcePath: issue.sourcePath || task.path || "",
+      message: issue.message || String(issue),
+    });
+  }
+  for (const reason of task.queueReasons || []) {
+    actions.push({
+      kind: "queue",
+      code: reason.code || "queue-reason",
+      sourcePath: reason.sourcePath || task.path || "",
+      message: reason.message || String(reason),
+    });
+  }
+  return actions;
 }
 
 function residual(task) {
@@ -81,7 +126,7 @@ function assertUniqueTaskKeys(tasks) {
 function hashTaskSources(target, task) {
   const hash = crypto.createHash("sha256");
   const taskRoot = path.join(target.projectRoot, String(task.path || "").replace(/^TARGET:/, ""));
-  for (const fileName of ["task_plan.md", "brief.md", "visual_map.md", "progress.md", "review.md", "findings.md", "lesson_candidates.md", "long-running-task-contract.md"]) {
+  for (const fileName of ["INDEX.md", "task_plan.md", "brief.md", "visual_map.md", "progress.md", "review.md", "findings.md", "lesson_candidates.md", "walkthrough.md", "long-running-task-contract.md"]) {
     const filePath = path.join(taskRoot, fileName);
     if (!fs.existsSync(filePath)) continue;
     hash.update(toPosix(path.relative(target.projectRoot, filePath)));

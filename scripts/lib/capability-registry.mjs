@@ -8,7 +8,6 @@ import {
   normalizeTarget,
   toPosix,
   exists,
-  existsInDocs,
   readFileSafe,
   readJsonSafe,
   readBundledTemplate,
@@ -176,15 +175,23 @@ function validateDashboardAssetAssembly(root, manifestName, assetName, driftMess
 
 export function detectCapabilities(target) {
   const detected = new Set(["core"]);
-  if (existsInDocs(target, "09-PLANNING/Module-Registry.md")) detected.add("module-parallel");
-  if (existsInDocs(target, "11-REFERENCE/adversarial-review-standard.md")) detected.add("adversarial-review");
+  if (exists(target, capabilityArtifactPath(target, "docs/09-PLANNING/Module-Registry.md"))) detected.add("module-parallel");
+  if (exists(target, capabilityArtifactPath(target, "docs/11-REFERENCE/adversarial-review-standard.md"))) detected.add("adversarial-review");
   if (
-    existsInDocs(target, "11-REFERENCE/long-running-task-standard.md") ||
-    existsInDocs(target, "09-PLANNING/TASKS/_task-template/long-running-task-contract.md")
+    exists(target, capabilityArtifactPath(target, "docs/11-REFERENCE/long-running-task-standard.md")) ||
+    exists(target, capabilityArtifactPath(target, "docs/09-PLANNING/TASKS/_task-template/long-running-task-contract.md"))
   ) {
     detected.add("long-running-task");
   }
   return [...detected];
+}
+
+function capabilityArtifactPath(target, artifact) {
+  if (target.structureVersion !== 2) return artifact;
+  if (artifact === "docs/09-PLANNING") return "coding-agent-harness/planning";
+  if (artifact === "docs/09-PLANNING/TASKS") return "coding-agent-harness/planning/tasks";
+  if (artifact === "docs/09-PLANNING/MODULES") return "coding-agent-harness/planning/modules";
+  return mapV2InitDestination(artifact);
 }
 
 export function buildInstallReport({ target, locale, capabilities, changes, dryRun = false, operation = "init" }) {
@@ -400,8 +407,9 @@ export function validateCapabilities(target) {
     }
     if (registry.mode === "declared-capability") {
       for (const artifact of capabilityDefinitions[capability.name].artifacts) {
-        if (!exists(target, artifact)) {
-          failures.push(`capability ${capability.name} missing required artifact: ${artifact}`);
+        const artifactPath = capabilityArtifactPath(target, artifact);
+        if (!exists(target, artifactPath)) {
+          failures.push(`capability ${capability.name} missing required artifact: ${artifactPath}`);
         }
       }
     }
@@ -419,7 +427,7 @@ export function validateCapabilities(target) {
 }
 
 
-export function plannedInitFiles(capabilities = ["core"], { locale = "en-US" } = {}) {
+export function plannedInitFiles(capabilities = ["core"], { locale = "en-US", structureVersion = 1 } = {}) {
   const files = [
     ["AGENTS.md", "templates/AGENTS.md.template"],
     ["CLAUDE.md", "templates/CLAUDE.md.template"],
@@ -471,15 +479,50 @@ export function plannedInitFiles(capabilities = ["core"], { locale = "en-US" } =
     files.push(["docs/09-PLANNING/MODULES/_task-template/findings.md", "templates/planning/findings.md"]);
     files.push(["docs/09-PLANNING/MODULES/_task-template/progress.md", "templates/planning/progress.md"]);
     files.push(["docs/09-PLANNING/MODULES/_task-template/review.md", "templates/planning/review.md"]);
+    if (structureVersion === 2) {
+      files.push(["docs/09-PLANNING/MODULES/_task-template/walkthrough.md", "templates/planning/walkthrough.md"]);
+    }
   }
   if (capabilities.includes("long-running-task")) {
     files.push(["docs/09-PLANNING/TASKS/_task-template/long-running-task-contract.md", "templates/planning/long-running-task-contract.md"]);
   }
-  return files.map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
+  if (structureVersion === 2) {
+    files.push(["docs/09-PLANNING/TASKS/_task-template/walkthrough.md", "templates/planning/walkthrough.md"]);
+  }
+  return files
+    .map(([destination, source]) => [structureVersion === 2 ? mapV2InitDestination(destination) : destination, localizedTemplateSource(source, locale)])
+    .filter(([destination]) => !(structureVersion === 2 && isV2GeneratedSeed(destination)))
+    .filter(([destination]) => Boolean(destination));
 }
 
-export function writeInitFiles(targetInput, capabilities, { dryRun = true, locale = "en-US", addNpmScripts = false } = {}) {
-  const target = normalizeTarget(targetInput);
+function isV2GeneratedSeed(destination) {
+  return [
+    "coding-agent-harness/governance/generated/Harness-Ledger.md",
+    "coding-agent-harness/governance/generated/Closeout-Index.md",
+  ].includes(destination);
+}
+
+function mapV2InitDestination(destination) {
+  if (destination === "docs/Harness-Ledger.md") return "coding-agent-harness/governance/generated/Harness-Ledger.md";
+  if (destination === "docs/10-WALKTHROUGH/Closeout-SSoT.md") return "coding-agent-harness/governance/generated/Closeout-Index.md";
+  if (destination === "docs/10-WALKTHROUGH/_walkthrough-template.md") return "coding-agent-harness/governance/standards/walkthrough-template.md";
+  if (destination.startsWith("docs/11-REFERENCE/")) return destination.replace("docs/11-REFERENCE/", "coding-agent-harness/governance/standards/");
+  if (destination.startsWith("docs/05-TEST-QA/")) return destination.replace("docs/05-TEST-QA/", "coding-agent-harness/governance/regression/");
+  if (destination.startsWith("docs/03-ARCHITECTURE/")) return destination.replace("docs/03-ARCHITECTURE/", "coding-agent-harness/context/architecture/");
+  if (destination.startsWith("docs/04-DEVELOPMENT/")) return destination.replace("docs/04-DEVELOPMENT/", "coding-agent-harness/context/development/");
+  if (destination.startsWith("docs/06-INTEGRATIONS/")) return destination.replace("docs/06-INTEGRATIONS/", "coding-agent-harness/context/integrations/");
+  if (destination.startsWith("docs/09-PLANNING/TASKS/")) return destination.replace("docs/09-PLANNING/TASKS/", "coding-agent-harness/planning/tasks/");
+  if (destination.startsWith("docs/09-PLANNING/MODULES/")) return destination.replace("docs/09-PLANNING/MODULES/", "coding-agent-harness/planning/modules/");
+  if (destination === "docs/09-PLANNING/Module-Registry.md") return "coding-agent-harness/planning/modules/Module-Registry.md";
+  if (destination === "docs/09-PLANNING/Delivery-SSoT.md") return "coding-agent-harness/planning/Delivery-Plan.md";
+  return destination;
+}
+
+export function writeInitFiles(targetInput, capabilities, { dryRun = true, locale = "en-US", addNpmScripts = false, structure = "legacy" } = {}) {
+  const requestedStructure = String(structure || "legacy").trim().toLowerCase();
+  if (!["legacy", "v1", "v2"].includes(requestedStructure)) throw new Error(`Unknown init structure: ${structure}`);
+  const structureVersion = requestedStructure === "v2" ? 2 : 1;
+  let target = normalizeTarget(targetInput);
   const normalizedCapabilities = [...new Set(capabilities.map(normalizeCapabilityName))];
   const normalizedLocale = normalizeLocale(locale);
   const existingRegistry = readCapabilityRegistry(target);
@@ -493,8 +536,19 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true, local
       throw new Error("Existing capability registry differs from requested init capabilities; use add-capability instead.");
     }
   }
-  const planned = plannedInitFiles(normalizedCapabilities, { locale: normalizedLocale });
+  const planned = plannedInitFiles(normalizedCapabilities, { locale: normalizedLocale, structureVersion });
   const changes = [];
+  if (structureVersion === 2) {
+    const destination = "coding-agent-harness/harness.yaml";
+    const destinationPath = path.join(target.projectRoot, destination);
+    const existsAlready = fs.existsSync(destinationPath);
+    changes.push({ destination, source: "harness-root/v2", action: existsAlready ? "skip-existing" : dryRun ? "would-create" : "create" });
+    if (!dryRun && !existsAlready) {
+      fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+      fs.writeFileSync(destinationPath, renderHarnessManifest({ locale: normalizedLocale }));
+      target = normalizeTarget(targetInput);
+    }
+  }
   for (const [destination, source] of planned) {
     const destinationPath = path.join(target.projectRoot, destination);
     const sourcePath = path.join(repoRoot, source);
@@ -502,7 +556,7 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true, local
     changes.push({ destination, source, action: existsAlready ? "skip-existing" : dryRun ? "would-create" : "create" });
     if (!dryRun && !existsAlready) {
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
-      fs.copyFileSync(sourcePath, destinationPath);
+      fs.writeFileSync(destinationPath, renderInitTemplate(fs.readFileSync(sourcePath, "utf8"), { structureVersion }));
     }
   }
   if (addNpmScripts) {
@@ -519,7 +573,43 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true, local
   }
   const presetSeed = seedBundledPresets({ scope: "project", targetInput: target.projectRoot, dryRun });
   const report = buildInstallReport({ target, locale: normalizedLocale, capabilities: normalizedCapabilities, changes, dryRun, operation: "init" });
-  return { target, capabilities: normalizedCapabilities, locale: normalizedLocale, changes, presetSeed, nextCommands: initNextCommands(), report };
+  return { target, structureVersion, capabilities: normalizedCapabilities, locale: normalizedLocale, changes, presetSeed, nextCommands: initNextCommands(), report };
+}
+
+function renderInitTemplate(content, { structureVersion }) {
+  if (structureVersion === 2) return content;
+  return String(content)
+    .replaceAll("coding-agent-harness/governance/generated/Harness-Ledger.md", "docs/Harness-Ledger.md")
+    .replaceAll("coding-agent-harness/governance/generated/Closeout-Index.md", "docs/10-WALKTHROUGH/Closeout-SSoT.md")
+    .replaceAll("coding-agent-harness/governance/standards/", "docs/11-REFERENCE/")
+    .replaceAll("coding-agent-harness/context/architecture/", "docs/03-ARCHITECTURE/")
+    .replaceAll("coding-agent-harness/context/development/", "docs/04-DEVELOPMENT/")
+    .replaceAll("coding-agent-harness/context/integrations/", "docs/06-INTEGRATIONS/")
+    .replaceAll("coding-agent-harness/governance/regression/", "docs/05-TEST-QA/")
+    .replaceAll("coding-agent-harness/planning/tasks/", "docs/09-PLANNING/TASKS/")
+    .replaceAll("coding-agent-harness/planning/modules/Module-Registry.md", "docs/09-PLANNING/Module-Registry.md")
+    .replaceAll("coding-agent-harness/planning/modules/", "docs/09-PLANNING/MODULES/")
+    .replaceAll("coding-agent-harness/planning/Delivery-Plan.md", "docs/09-PLANNING/Delivery-SSoT.md")
+    .replaceAll("coding-agent-harness/governance/lessons/", "docs/01-GOVERNANCE/lessons/")
+    .replaceAll("coding-agent-harness/tmp/", "docs/99-TMP/");
+}
+
+function renderHarnessManifest({ locale }) {
+  return [
+    "schemaVersion: harness-root/v2",
+    "structureVersion: 2",
+    "harnessRoot: coding-agent-harness",
+    "profile: solo-project",
+    "cutoverState: v2",
+    "legacyRoots:",
+    "  - docs",
+    "createdByPackage:",
+    "  name: coding-agent-harness",
+    "  resolvedFrom: local-or-npx",
+    `createdAt: ${new Date().toISOString()}`,
+    `locale: ${locale}`,
+    "",
+  ].join("\n");
 }
 
 function initNextCommands() {
@@ -567,7 +657,7 @@ export function addCapability(targetInput, capabilityName, { dryRun = true, loca
   }
   if (!capabilityMap.has(normalizedCapability)) capabilityMap.set(normalizedCapability, { name: normalizedCapability, state: "scaffolded" });
   const next = { version: 1, locale: normalizedLocale, capabilities: [...capabilityMap.values()] };
-  const scaffold = plannedInitFiles([...capabilityMap.keys()], { locale: normalizedLocale });
+  const scaffold = plannedInitFiles([...capabilityMap.keys()], { locale: normalizedLocale, structureVersion: target.structureVersion });
   const changes = [];
   for (const [destination, source] of scaffold) {
     const destinationPath = path.join(target.projectRoot, destination);
@@ -576,7 +666,7 @@ export function addCapability(targetInput, capabilityName, { dryRun = true, loca
     changes.push({ destination, source, action: existsAlready ? "skip-existing" : dryRun ? "would-create" : "create" });
     if (!dryRun && !existsAlready) {
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
-      fs.copyFileSync(sourcePath, destinationPath);
+      fs.writeFileSync(destinationPath, renderInitTemplate(fs.readFileSync(sourcePath, "utf8"), { structureVersion: target.structureVersion }));
     }
   }
   if (!dryRun) {

@@ -11,6 +11,7 @@ Task Contract: harness-task/v1
 | Preset | `{{TASK_PRESET}}` |
 | Module | `{{TASK_MODULE}}` |
 | Long-running | `{{TASK_LONG_RUNNING}}` |
+| Walkthrough Path | `walkthrough.md` |
 | Created | {{DATE}} |
 
 ## Task Audit Metadata
@@ -49,6 +50,7 @@ Task Contract: harness-task/v1
 | `task_plan.md` | Current task goal, scope, selected budget, acceptance, and operating decisions. |
 | `visual_map.md` | Phase map, evidence status, next lifecycle commands, and supporting diagrams. |
 | `progress.md` | Execution log, verification evidence, decisions, and handoff notes. |
+| `walkthrough.md` | Task-local closeout evidence and handoff record. |
 
 ## Standard Task Files
 

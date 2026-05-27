@@ -16,8 +16,8 @@ const globalTableSpecs = [
 export function validateGovernanceTableBoundaries(target) {
   const failures = [];
   const warnings = [];
-  for (const spec of globalTableSpecs) {
-    const file = path.join(target.docsRoot, spec.relativePath);
+  for (const spec of tableSpecsForTarget(target)) {
+    const file = spec.file;
     if (!fs.existsSync(file)) continue;
     const relative = toPosix(path.relative(target.projectRoot, file));
     for (const table of parseAllMarkdownTables(readFileSafe(file), relative, spec.key)) {
@@ -40,6 +40,23 @@ export function validateGovernanceTableBoundaries(target) {
     }
   }
   return { failures, warnings };
+}
+
+function tableSpecsForTarget(target) {
+  if (target.structureVersion !== 2) {
+    return globalTableSpecs.map((spec) => ({
+      ...spec,
+      file: path.join(target.docsRoot, spec.relativePath),
+    }));
+  }
+  return [
+    { key: "feature-ssot", file: path.join(target.planningRoot, "Feature-SSoT.md"), allowed: "index-state-route-summary", evaluate: evaluateFeatureRow },
+    { key: "delivery-plan", file: path.join(target.planningRoot, "Delivery-Plan.md"), allowed: "index-state-route-summary", evaluate: evaluateFeatureRow },
+    { key: "harness-ledger", file: target.ledgerPath, allowed: "task-audit-summary-route", evaluate: evaluateLedgerRow },
+    { key: "closeout-index", file: target.closeoutIndexPath, allowed: "closeout-index-review-route-summary", evaluate: evaluateCloseoutRow },
+    { key: "regression-ssot", file: path.join(target.regressionRoot, "Regression-SSoT.md"), allowed: "gate-index-current-state", evaluate: evaluateRegressionRow },
+    { key: "cadence-ledger", file: path.join(target.regressionRoot, "Cadence-Ledger.md"), allowed: "trigger-rule-and-batch-summary", evaluate: evaluateCadenceRow },
+  ];
 }
 
 function evaluateFeatureRow(row) {

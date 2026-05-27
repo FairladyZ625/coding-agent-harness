@@ -11,6 +11,7 @@ Task Contract: harness-task/v1
 | Preset | `{{TASK_PRESET}}` |
 | Module | `{{TASK_MODULE}}` |
 | Long-running | `{{TASK_LONG_RUNNING}}` |
+| Walkthrough Path | `walkthrough.md` |
 | Created | {{DATE}} |
 
 ## 任务审计元数据
@@ -49,6 +50,7 @@ Task Contract: harness-task/v1
 | `task_plan.md` | 当前任务目标、范围、所选预算、验收标准和执行决策。 |
 | `visual_map.md` | 阶段图、证据状态、下一步生命周期命令和支持性图表。 |
 | `progress.md` | 执行日志、验证证据、决策和交接记录。 |
+| `walkthrough.md` | 任务本地收口证据和交接记录。 |
 
 ## 标准任务文件
 

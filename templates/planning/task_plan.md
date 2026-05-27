@@ -69,4 +69,4 @@ Rationale: [why this budget fits this task]
 
 - Global sync owner: coordinator / n/a
 - Global sync status: pending-coordinator-pass / synced / n/a
-- Shared updates needed: [Module Registry / Harness Ledger / Closeout SSoT / Regression SSoT / none]
+- Shared updates needed: [Module Registry / generated Harness Ledger / task-local walkthrough / Regression SSoT / none]

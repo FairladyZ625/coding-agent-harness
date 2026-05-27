@@ -84,7 +84,7 @@ Usage:
   harness status [--json] [--strict] [target]
   harness dev [--no-open] [--out-dir folder] [--host 127.0.0.1] [--port n] [target]
   harness dashboard [--out file.html] [--out-dir folder] [--workbench] [--host 127.0.0.1] [--port n] [target]
-  harness init [--dry-run] [--locale zh-CN|en-US] [--capabilities core,dashboard] [--add-npm-scripts] [target]
+  harness init [--dry-run] [--structure legacy|v2] [--locale zh-CN|en-US] [--capabilities core,dashboard] [--add-npm-scripts] [target]
   harness add-capability <name> [--dry-run] [--locale zh-CN|en-US] [target]
   harness migrate-plan [--json] [--limit n] [target]
   harness migrate-task-audit-index [--plan] [--apply] [--json] [target]
@@ -204,11 +204,12 @@ if (command === "help" || command === "--help" || command === "-h") {
 } else if (command === "init") {
   const dryRun = takeFlag("--dry-run");
   const addNpmScripts = takeFlag("--add-npm-scripts");
+  const structure = takeOption("--structure", "legacy");
   const locale = await resolveInitLocale(takeOption("--locale", ""));
   const capabilities = takeOption("--capabilities", "core").split(",").map((item) => item.trim()).filter(Boolean);
   try {
-    const result = writeInitFiles(targetArg(), capabilities, { dryRun, locale, addNpmScripts });
-    console.log(JSON.stringify({ dryRun, locale: result.locale, capabilities: result.capabilities, changes: result.changes, presetSeed: result.presetSeed, nextCommands: result.nextCommands, report: result.report }, null, 2));
+    const result = writeInitFiles(targetArg(), capabilities, { dryRun, locale, addNpmScripts, structure });
+    console.log(JSON.stringify({ dryRun, structureVersion: result.structureVersion, locale: result.locale, capabilities: result.capabilities, changes: result.changes, presetSeed: result.presetSeed, nextCommands: result.nextCommands, report: result.report }, null, 2));
   } catch (error) {
     console.error(error.message);
     process.exit(1);

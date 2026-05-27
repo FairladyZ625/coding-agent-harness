@@ -146,10 +146,8 @@ export function isActiveTaskState(state) {
 }
 
 export function listTaskPlanPaths(target) {
-  const taskRoots = [
-    path.join(target.docsRoot, "09-PLANNING/TASKS"),
-    path.join(target.docsRoot, "09-PLANNING/MODULES"),
-  ];
+  const taskRoots = [target.tasksRoot, target.modulesRoot];
+  if (target.externalRoot) taskRoots.push(target.externalRoot);
   return taskRoots
     .flatMap(walkFiles)
     .filter((file) => file.endsWith("task_plan.md"))
@@ -159,7 +157,19 @@ export function listTaskPlanPaths(target) {
 }
 
 export function taskIdForDirectory(target, taskDir) {
-  return toPosix(path.relative(path.join(target.docsRoot, "09-PLANNING"), taskDir));
+  if (target.structureVersion === 2) {
+    const normalizedTaskDir = path.resolve(taskDir);
+    if (normalizedTaskDir.startsWith(path.resolve(target.tasksRoot) + path.sep)) {
+      return `TASKS/${toPosix(path.relative(target.tasksRoot, taskDir))}`;
+    }
+    if (normalizedTaskDir.startsWith(path.resolve(target.modulesRoot) + path.sep)) {
+      return `MODULES/${toPosix(path.relative(target.modulesRoot, taskDir))}`;
+    }
+    if (target.externalRoot && normalizedTaskDir.startsWith(path.resolve(target.externalRoot) + path.sep)) {
+      return `EXTERNAL/${toPosix(path.relative(target.externalRoot, taskDir))}`;
+    }
+  }
+  return toPosix(path.relative(target.planningRoot, taskDir));
 }
 
 export function inferTaskClassification({ id, title, relative, explicitModule, legacyCandidate = false }) {
@@ -231,7 +241,7 @@ export function taskCutoverCounters(tasks) {
 
 export function collectTasks(target, { requireGeneratedScaffoldProvenance = false, taskPlanPaths, closeoutContent } = {}) {
   const paths = taskPlanPaths || listTaskPlanPaths(target);
-  const closeout = closeoutContent ?? readFileSafe(path.join(target.docsRoot, "10-WALKTHROUGH/Closeout-SSoT.md"));
+  const closeout = closeoutContent ?? readFileSafe(target.closeoutIndexPath);
   return paths.map((taskPlanPath) => {
     const taskDir = path.dirname(taskPlanPath);
     const taskPlan = readFileSafe(taskPlanPath);
@@ -284,7 +294,7 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
       progressPath,
     });
     const reviewStatus = taskReviewStatus({ reviewContent: review, risks, confirmation: reviewConfirmation, submission: reviewSubmission });
-    const closeoutInfo = taskCloseoutInfo(target, taskPlanPath, closeout);
+    const closeoutInfo = taskCloseoutInfo(target, taskPlanPath, closeout, { taskDir, indexContent });
     const effectiveCloseoutStatus = budget === "simple" && stateInfo.state === "done" && completion === 100
       ? "closed"
       : closeoutInfo.status;
@@ -356,6 +366,9 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
       reviewPath: `TARGET:${toPosix(path.relative(target.projectRoot, reviewPath))}`,
       findingsPath: `TARGET:${toPosix(path.relative(target.projectRoot, findingsPath))}`,
       module: explicitModule,
+      namespace: taskNamespace(target, taskDir, id),
+      taskRootKind: taskRootKind(target, taskDir, id),
+      packageRole: "local",
       inferredModule: classification.module,
       classificationSource: classification.source,
       classificationBucket: classification.bucket,
@@ -464,7 +477,8 @@ function formatEvidenceBundle(value) {
   return normalized ? `TARGET:${normalized}` : "";
 }
 
-function taskCloseoutInfo(target, taskPlanPath, closeout) {
+function taskCloseoutInfo(target, taskPlanPath, closeout, { taskDir = "", indexContent = "" } = {}) {
+  if (target.structureVersion === 2) return taskLocalWalkthroughInfo(target, taskDir, indexContent);
   if (!closeout.trim()) return { status: "missing", walkthroughPath: "" };
   const docsRelative = `docs/${toPosix(path.relative(target.docsRoot, taskPlanPath))}`;
   const projectRelative = toPosix(path.relative(target.projectRoot, taskPlanPath));
@@ -475,6 +489,63 @@ function taskCloseoutInfo(target, taskPlanPath, closeout) {
   const walkthroughPath = extractWalkthroughPath(target, line);
   const status = /\b(closed|complete|completed|done|skipped-with-reason|skipped|已关闭|已完成|跳过)\b/i.test(line) ? "closed" : "pending";
   return { status, walkthroughPath };
+}
+
+function taskLocalWalkthroughInfo(target, taskDir, indexContent) {
+  if (!taskDir) return { status: "missing", walkthroughPath: "" };
+  const taskRoot = path.resolve(taskDir);
+  const candidates = [];
+  const explicit = extractIndexWalkthroughPath(indexContent);
+  if (explicit) {
+    const explicitPath = path.resolve(taskDir, explicit);
+    if (explicitPath === taskRoot || explicitPath.startsWith(`${taskRoot}${path.sep}`)) candidates.push(explicitPath);
+  }
+  candidates.push(path.join(taskDir, "walkthrough.md"));
+  candidates.push(path.join(taskDir, "Workthrough.md"));
+  const walkthroughDir = path.join(taskDir, "walkthrough");
+  if (fs.existsSync(walkthroughDir)) {
+    for (const file of walkFiles(walkthroughDir).filter((entry) => /\.md$/i.test(entry))) candidates.push(file);
+  }
+  const existing = [...new Set(candidates)].filter((file) => isTaskWalkthroughFile(taskRoot, file));
+  if (existing.length === 0) return { status: "missing", walkthroughPath: "" };
+  const preferred = existing[0];
+  const relative = toPosix(path.relative(target.projectRoot, preferred));
+  const content = readFileSafe(preferred);
+  const status = /(?:^|\n)\s*(?:Closeout Status|收口状态)\s*:\s*(?:closed|已关闭)\s*(?:\n|$)/i.test(content) ? "closed" : "pending";
+  return { status, walkthroughPath: relative };
+}
+
+function isTaskWalkthroughFile(taskRoot, file) {
+  const resolved = path.resolve(file);
+  if (!resolved.startsWith(`${taskRoot}${path.sep}`)) return false;
+  if (!/\.md$/i.test(resolved)) return false;
+  try {
+    return fs.lstatSync(resolved).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function extractIndexWalkthroughPath(content) {
+  const line = String(content || "").split(/\r?\n/).find((entry) => /\|\s*Walkthrough Path\s*\|/i.test(entry));
+  if (!line) return "";
+  const cells = line.split("|").map((cell) => cell.trim()).filter(Boolean);
+  const value = cells[1] || "";
+  return value.replace(/^`|`$/g, "").replace(/^\.?\//, "");
+}
+
+function taskNamespace(target, taskDir, id) {
+  if (target.structureVersion !== 2 || !target.externalRoot) return "main";
+  const normalizedTaskDir = path.resolve(taskDir);
+  const externalRoot = path.resolve(target.externalRoot);
+  if (!normalizedTaskDir.startsWith(externalRoot + path.sep)) return "main";
+  return String(id).split("/")[1] || "external";
+}
+
+function taskRootKind(target, taskDir, id) {
+  if (String(id).startsWith("EXTERNAL/")) return "external-task";
+  if (String(id).startsWith("MODULES/")) return "module-task";
+  return "project-task";
 }
 
 function extractWalkthroughPath(target, closeoutLine) {
