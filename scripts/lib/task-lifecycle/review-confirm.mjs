@@ -4,6 +4,7 @@ import {
   lessonCandidatesFile,
   nowTimestamp,
   readFileSafe,
+  toPosix,
 } from "../core-shared.mjs";
 import {
   parseTaskAuditMetadata,
@@ -64,7 +65,7 @@ export function confirmTaskReview({ target, taskDir, findTaskByDirectory }, { re
     "Reviewer": reviewer || identity.name || "Human Reviewer",
     "Reviewer Email": identity.email || "n/a",
     "Confirm Text": markdownCell(confirmText),
-    "Evidence Checked": evidence || `TARGET:docs/09-PLANNING/${canonicalTaskId}/review.md`,
+    "Evidence Checked": evidence || `TARGET:${toPosix(path.relative(target.projectRoot, reviewPath))}`,
     "Review Commit SHA": commitSha,
     "Audit Source": "native-index",
     "Audit Status": auditStatus,
@@ -91,10 +92,9 @@ export function confirmTaskReview({ target, taskDir, findTaskByDirectory }, { re
 
 function assertTaskDirectoryInsidePlanning(target, taskDir) {
   const realTaskDir = fs.realpathSync(taskDir);
-  const allowedRoots = [
-    path.join(target.docsRoot, "09-PLANNING/TASKS"),
-    path.join(target.docsRoot, "09-PLANNING/MODULES"),
-  ].filter(fs.existsSync).map((root) => fs.realpathSync(root));
+  const allowedRoots = (target.harness?.taskRoots || [])
+    .filter(fs.existsSync)
+    .map((root) => fs.realpathSync(root));
   if (!allowedRoots.some((root) => realTaskDir === root || realTaskDir.startsWith(`${root}${path.sep}`))) {
     throw new Error(`Task directory outside planning root: ${taskIdForDirectory(target, taskDir)}`);
   }

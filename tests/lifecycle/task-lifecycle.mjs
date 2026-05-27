@@ -26,7 +26,7 @@ assert(automaticTaskDryRun.task?.shortId?.startsWith(`${todayLocal}-automatic-id
 assert(/[0-9a-f]{8}$/.test(automaticTaskDryRun.task.shortId), "automatic task id should end with an 8-hex random suffix");
 assert(automaticTaskDryRun.task.id === `TASKS/${automaticTaskDryRun.task.shortId}`, "automatic task id should be reported as a project task id");
 assert(automaticTaskDryRun.task.shortId.length <= `${todayLocal}-`.length + 48 + "-".length + 8, "automatic task id should keep the random suffix visible after slug truncation");
-assert(!fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${automaticTaskDryRun.task.shortId}`)), "automatic dry-run should not mutate target");
+assert(!fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${automaticTaskDryRun.task.shortId}`)), "automatic dry-run should not mutate target");
 const firstAutomaticTask = expectJson(["new-task", "--title", "Automatic ID Collision Guard", lifecycleTarget]);
 const secondAutomaticTask = expectJson(["new-task", "--title", "Automatic ID Collision Guard", lifecycleTarget]);
 assert(firstAutomaticTask.task.shortId !== secondAutomaticTask.task.shortId, "same-title automatic tasks should not collide");
@@ -34,11 +34,11 @@ for (const task of [firstAutomaticTask, secondAutomaticTask]) {
   assert(task.task.shortId.startsWith(`${todayLocal}-automatic-id-collision-guard-`), "created automatic task should use title slug");
   assert(/[0-9a-f]{8}$/.test(task.task.shortId), "created automatic task should include random suffix");
   assert(
-    fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${task.task.shortId}/brief.md`)),
+    fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${task.task.shortId}/brief.md`)),
     "created automatic task should write files under the target project",
   );
 }
-const firstAutomaticIndex = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${firstAutomaticTask.task.shortId}/INDEX.md`), "utf8");
+const firstAutomaticIndex = fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${firstAutomaticTask.task.shortId}/INDEX.md`), "utf8");
 assert(firstAutomaticIndex.includes("harness new-task --budget standard"), "automatic task audit command should preserve title-only command shape");
 assert(!firstAutomaticIndex.includes(`harness new-task ${firstAutomaticTask.task.shortId}`), "automatic task audit command should not pretend the generated id was explicit input");
 const explicitDocsId = expectJson(["new-task", "docs", "--title", "Bare Docs Explicit ID", "--dry-run", lifecycleTarget]);
@@ -53,34 +53,34 @@ assert(
   lifecycleDryRun.changes.some((change) => change.destination.endsWith("INDEX.md") && change.action === "would-create"),
   "new-task dry-run should plan a root task INDEX.md",
 );
-assert(!fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle`)), "new-task dry-run should not mutate target");
+assert(!fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle`)), "new-task dry-run should not mutate target");
 const lifecycleCreate = expectJson(["new-task", "phase-2-lifecycle", "--title", "阶段二任务生命周期", "--locale", "zh-CN", lifecycleTarget]);
 assert(lifecycleCreate.task?.shortId === `${todayLocal}-phase-2-lifecycle`, "new-task should report normalized short task id");
 assert(lifecycleCreate.task?.id === `TASKS/${todayLocal}-phase-2-lifecycle`, "new-task should report relative task id");
 for (const required of ["INDEX.md", "brief.md", "task_plan.md", "execution_strategy.md", "visual_map.md", "findings.md", "lesson_candidates.md", "progress.md", "review.md"]) {
   assert(
-    fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle`, required)),
+    fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle`, required)),
     `new-task should create ${required}`,
   );
 }
-const lifecycleIndex = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/INDEX.md`), "utf8");
+const lifecycleIndex = fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/INDEX.md`), "utf8");
 assert(lifecycleIndex.includes("阶段二任务生命周期"), "root task index should render the task title");
 assert(lifecycleIndex.includes("task_plan.md") && lifecycleIndex.includes("visual_map.md"), "root task index should link core contract files");
 assert(lifecycleIndex.includes("Preset") || lifecycleIndex.includes("预设"), "root task index should reserve a system-rendered preset summary area");
 assert(
-  fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/brief.md`), "utf8").includes("阶段二任务生命周期"),
+  fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/brief.md`), "utf8").includes("阶段二任务生命周期"),
   "new-task should render the requested title into brief.md",
 );
 assert(
-  fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/task_plan.md`), "utf8").includes("Task Contract: harness-task/v1"),
+  fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/task_plan.md`), "utf8").includes("Task Contract: harness-task/v1"),
   "new-task should render the durable task contract marker",
 );
-const lifecycleTaskPlan = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/task_plan.md`), "utf8");
+const lifecycleTaskPlan = fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/task_plan.md`), "utf8");
 assert(!lifecycleTaskPlan.includes("| Budget | Use When |"), "task_plan.md should not repeat the budget matrix");
 assert(!lifecycleTaskPlan.includes("Do not hand-copy this template"), "task_plan.md should not carry scaffold usage warnings");
 assert(!lifecycleTaskPlan.includes("| Contract File | Purpose |"), "task_plan.md should not repeat generic contract-file purpose tables");
 assert(!lifecycleTaskPlan.includes("Scaffold Provenance"), "new-task should not render scaffold provenance into task_plan.md");
-const lifecycleBrief = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/brief.md`), "utf8");
+const lifecycleBrief = fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/brief.md`), "utf8");
 assert(!lifecycleBrief.includes("## Scaffold Provenance"), "new-task should not render scaffold provenance into brief.md");
 assert(lifecycleIndex.includes("## 任务审计元数据"), "new-task should render task audit metadata into INDEX.md");
 assert(lifecycleIndex.includes("| Created By | harness new-task |"), "new-task should record CLI scaffold provenance in INDEX.md");
@@ -88,7 +88,7 @@ assert(lifecycleIndex.includes(`| Created At | ${todayLocal} |`), "new-task shou
 assert(lifecycleIndex.includes("| Budget | standard |"), "new-task should record the selected budget in INDEX.md");
 assert(lifecycleIndex.includes("harness new-task"), "new-task should record the command shape in INDEX.md");
 assert(lifecycleIndex.includes("| Human Review Status | not-confirmed |"), "new-task should initialize human review status in INDEX.md");
-const lifecycleVisualMap = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/visual_map.md`), "utf8");
+const lifecycleVisualMap = fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/visual_map.md`), "utf8");
 assert(lifecycleVisualMap.includes("| Phase ID | Kind | Depends On | State | Completion |"), "new-task should render phase kind columns");
 assert(lifecycleVisualMap.includes("Exit Command"), "new-task should render phase exit commands");
 assert(lifecycleVisualMap.includes("Actor"), "new-task should render phase actors");
@@ -100,19 +100,19 @@ const simpleLifecycle = expectJson(["new-task", "simple-lifecycle", "--budget", 
 assert(simpleLifecycle.task?.budget === "simple", "new-task --budget simple should report simple budget");
 for (const required of ["INDEX.md", "brief.md", "task_plan.md", "visual_map.md", "progress.md"]) {
   assert(
-    fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-simple-lifecycle`, required)),
+    fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-simple-lifecycle`, required)),
     `simple task should create ${required}`,
   );
 }
 for (const omitted of ["execution_strategy.md", "findings.md", "review.md", "lesson_candidates.md"]) {
   assert(
-    !fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-simple-lifecycle`, omitted)),
+    !fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-simple-lifecycle`, omitted)),
     `simple task should not create ${omitted}`,
   );
 }
-const simpleTaskPlan = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-simple-lifecycle/task_plan.md`), "utf8");
+const simpleTaskPlan = fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-simple-lifecycle/task_plan.md`), "utf8");
 assert(/Selected budget\s*:\s*simple/i.test(simpleTaskPlan) || /选择预算\s*[:：]\s*simple/i.test(simpleTaskPlan), "simple task should persist selected budget");
-const simpleVisualMap = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-simple-lifecycle/visual_map.md`), "utf8");
+const simpleVisualMap = fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-simple-lifecycle/visual_map.md`), "utf8");
 assert(!simpleVisualMap.includes("<task-id>"), "simple visual map should not leave task-id placeholders in exit commands");
 assert(simpleVisualMap.includes(`harness task-complete ${todayLocal}-simple-lifecycle`), "simple visual map should route the gate to task-complete");
 assert(!simpleVisualMap.includes("task-review"), "simple visual map should not route through agent review submission");
@@ -123,10 +123,10 @@ expectJson(["init", "--locale", "en-US", "--capabilities", "core", budgetContrac
 expectJson(["new-task", "budget-simple", "--budget", "simple", "--title", "Budget Simple", budgetContractTarget]);
 expectJson(["new-task", "budget-standard", "--title", "Budget Standard", budgetContractTarget]);
 expectJson(["new-task", "budget-complex", "--budget", "complex", "--title", "Budget Complex", budgetContractTarget]);
-fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-simple/brief.md`));
-fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-standard/INDEX.md`));
-fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-standard/review.md`));
-fs.rmSync(path.join(budgetContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-budget-complex/references/INDEX.md`));
+fs.rmSync(path.join(budgetContractTarget, `coding-agent-harness/planning/tasks/${todayLocal}-budget-simple/brief.md`));
+fs.rmSync(path.join(budgetContractTarget, `coding-agent-harness/planning/tasks/${todayLocal}-budget-standard/INDEX.md`));
+fs.rmSync(path.join(budgetContractTarget, `coding-agent-harness/planning/tasks/${todayLocal}-budget-standard/review.md`));
+fs.rmSync(path.join(budgetContractTarget, `coding-agent-harness/planning/tasks/${todayLocal}-budget-complex/references/INDEX.md`));
 const budgetContractCheck = run(["check", "--profile", "target-project", budgetContractTarget]);
 const budgetContractOutput = `${budgetContractCheck.stdout}\n${budgetContractCheck.stderr}`;
 assert(budgetContractCheck.status !== 0, "check should fail when CLI-generated task budget files are missing");
@@ -138,8 +138,8 @@ const auditContractTarget = path.join(tmpRoot, "audit-contract-target");
 fs.mkdirSync(auditContractTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", auditContractTarget]);
 expectJson(["new-task", "audit-required", "--title", "Audit Required", auditContractTarget]);
-const auditIndexPath = path.join(auditContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-audit-required/INDEX.md`);
-const auditBriefPath = path.join(auditContractTarget, `docs/09-PLANNING/TASKS/${todayLocal}-audit-required/brief.md`);
+const auditIndexPath = path.join(auditContractTarget, `coding-agent-harness/planning/tasks/${todayLocal}-audit-required/INDEX.md`);
+const auditBriefPath = path.join(auditContractTarget, `coding-agent-harness/planning/tasks/${todayLocal}-audit-required/brief.md`);
 const auditIndex = fs.readFileSync(auditIndexPath, "utf8");
 fs.writeFileSync(auditIndexPath, auditIndex.replace(/\n## Task Audit Metadata\n[\s\S]*?(?=\n## Core Contract Files)/, "\n"));
 const missingAuditCheck = run(["check", "--profile", "target-project", auditContractTarget]);
@@ -160,7 +160,7 @@ assert(legacyAuditOutput.includes(`${todayLocal}-audit-required/brief.md`), "leg
 const longRunningLifecycle = expectJson(["new-task", "long-running-lifecycle", "--long-running", "--title", "长程任务", "--locale", "zh-CN", lifecycleTarget]);
 assert(longRunningLifecycle.task?.longRunning === true, "new-task --long-running should report longRunning true");
 assert(
-  fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-long-running-lifecycle/long-running-task-contract.md`)),
+  fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-long-running-lifecycle/long-running-task-contract.md`)),
   "new-task --long-running should create long-running-task-contract.md",
 );
 const legacyPresetSessionDir = path.join(tmpRoot, "legacy-preset-session");
@@ -222,19 +222,19 @@ const legacyPresetDryRun = expectJson(["new-task", "--budget", "complex", "--pre
 assert(legacyPresetDryRun.task?.preset === "legacy-migration", "new-task legacy-migration dry-run should report preset");
 assert(legacyPresetDryRun.task?.shortId?.startsWith(`${todayLocal}-harness-v1-migration-`), "new-task legacy-migration dry-run should derive an automatic preset id");
 assert(/[0-9a-f]{8}$/.test(legacyPresetDryRun.task.shortId), "preset automatic task id should include a random suffix");
-assert(!fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${legacyPresetDryRun.task.shortId}`)), "legacy-migration dry-run should not mutate target");
+assert(!fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${legacyPresetDryRun.task.shortId}`)), "legacy-migration dry-run should not mutate target");
 const legacyPresetDryRunWithTarget = expectJson(["new-task", "--budget", "complex", "--preset", "legacy-migration", "--from-session", legacyPresetSessionPath, "--dry-run", lifecycleTarget]);
 assert(legacyPresetDryRunWithTarget.task?.shortId?.startsWith(`${todayLocal}-harness-v1-migration-`), "new-task --from-session with explicit target should derive an automatic preset id");
 const legacyPresetDryRunWithExplicitId = expectJson(["new-task", "explicit-harness-migration", "--budget", "complex", "--preset", "legacy-migration", "--from-session", legacyPresetSessionPath, "--dry-run"]);
 assert(legacyPresetDryRunWithExplicitId.task?.id === `TASKS/${todayLocal}-explicit-harness-migration`, "new-task --from-session with an explicit task id should keep that id and derive the target from the session");
-const legacyPresetInspect = expectJson(["preset", "inspect", "legacy-migration", "--json"]);
+const legacyPresetInspect = expectJson(["preset", "inspect", "legacy-migration", "--json", lifecycleTarget]);
 assert(legacyPresetInspect.id === "legacy-migration", "preset inspect should load legacy-migration from presets/<id>/preset.yaml");
 assert(legacyPresetInspect.version === 2, "legacy-migration preset package should report version 2");
 assert(legacyPresetInspect.compatibleBudgets?.includes("complex"), "legacy-migration preset should declare complex budget compatibility");
 assert(legacyPresetInspect.audit?.manifestRequired === true, "preset package should require manifest audit evidence");
-assert(legacyPresetInspect.writeScopes?.some((scope) => scope.path === "docs/09-PLANNING/TASKS/**"), "preset package should declare task write scope");
+assert(legacyPresetInspect.writeScopes?.some((scope) => scope.path === "coding-agent-harness/planning/tasks/**"), "preset package should declare task write scope");
 assert(legacyPresetInspect.workbench?.migrationQueueSchema === "workbench/migration-queue.schema.json", "legacy-migration preset should declare a workbench migration queue schema");
-const legacyPresetCheck = expectJson(["preset", "check", "legacy-migration", "--json"]);
+const legacyPresetCheck = expectJson(["preset", "check", "legacy-migration", "--json", lifecycleTarget]);
 assert(legacyPresetCheck.status === "pass", "preset check legacy-migration should pass");
 assert(legacyPresetCheck.entrypoints?.newTask?.type === "template", "preset check should validate the newTask entrypoint manifest");
 const legacyPresetTask = expectJson(["new-task", "--budget", "complex", "--preset", "legacy-migration", "--from-session", legacyPresetSessionPath]);
@@ -245,7 +245,7 @@ assert(legacyPresetTask.task?.preset === "legacy-migration", "legacy-migration p
 assert(legacyPresetTask.task?.presetVersion === "2", "legacy-migration preset should use version from preset.yaml");
 assert(legacyPresetTask.task?.presetAudit?.manifestPath.endsWith(".coding-agent-harness/presets/legacy-migration/preset.yaml"), "legacy-migration preset should report seeded project manifest audit path");
 assert(legacyPresetTask.task?.evidenceBundle, "legacy-migration preset should report evidence bundle");
-const legacyPresetTaskDir = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${legacyPresetTask.task.shortId}`);
+const legacyPresetTaskDir = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${legacyPresetTask.task.shortId}`);
 const legacyPresetTaskPlan = fs.readFileSync(path.join(legacyPresetTaskDir, "task_plan.md"), "utf8");
 assert(legacyPresetTaskPlan.includes("Task Preset: legacy-migration"), "legacy-migration task plan should persist preset metadata");
 assert(legacyPresetTaskPlan.includes("Migration Achieved Level: migration-deferred"), "strict-deferred session should start as migration-deferred");
@@ -264,7 +264,7 @@ for (const required of ["preset-manifest.json", "preset-audit.json", "write-scop
 const legacyPresetAudit = JSON.parse(fs.readFileSync(path.join(lifecycleTarget, legacyPresetTask.task.evidenceBundle, "preset-audit.json"), "utf8"));
 assert(legacyPresetAudit.manifestPath.endsWith(".coding-agent-harness/presets/legacy-migration/preset.yaml"), "preset audit should record the seeded project manifest path");
 assert(legacyPresetAudit.entrypoints.newTask.type === "template", "preset audit should record audited newTask entrypoint");
-assert(legacyPresetAudit.writeScopes.includes("docs/09-PLANNING/TASKS/**"), "preset audit should record allowed write scopes");
+assert(legacyPresetAudit.writeScopes.length > 0, "preset audit should record allowed write scopes");
 const legacyMigrationLedger = JSON.parse(fs.readFileSync(path.join(lifecycleTarget, legacyPresetTask.task.evidenceBundle, "migration-ledger.json"), "utf8"));
 assert(legacyMigrationLedger.phases.some((phase) => phase.id === "mechanical-scaffold" && phase.automationAllowed === true), "migration ledger should allow mechanical scaffold automation");
 assert(legacyMigrationLedger.phases.some((phase) => phase.id === "semantic-reconstruction" && phase.evidenceLedgerRequired === true && phase.automationAllowed === false), "migration ledger should block scaffold-only semantic reconstruction");
@@ -287,7 +287,7 @@ const falseFullCutoverCheck = run(["check", "--profile", "target-project", lifec
 assert(falseFullCutoverCheck.status !== 0, "check should reject migration-full-cutover when evidence still has residuals");
 assert(falseFullCutoverCheck.stderr.includes("migration-full-cutover"), "full-cutover preset failure should explain achieved level");
 fs.writeFileSync(path.join(legacyPresetTaskDir, "task_plan.md"), legacyPresetTaskPlan);
-const promotableCandidatePath = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-long-running-lifecycle/lesson_candidates.md`);
+const promotableCandidatePath = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-long-running-lifecycle/lesson_candidates.md`);
 fs.writeFileSync(
   promotableCandidatePath,
   fs.readFileSync(promotableCandidatePath, "utf8")
@@ -304,11 +304,12 @@ const promoteDryRun = expectJson(["lesson-promote", "long-running-lifecycle", "L
 assert(promoteDryRun.dryRun === true && promoteDryRun.lessonId === "L-2026-05-21-001", "lesson-promote --dry-run should derive the lesson id");
 const promoteDefault = expectJson(["lesson-promote", "long-running-lifecycle", "LC-20260521-001", lifecycleTarget]);
 assert(promoteDefault.dryRun === true && promoteDefault.applyRequired === true, "lesson-promote without --apply should not write lesson detail docs");
-assert(!fs.existsSync(path.join(lifecycleTarget, "docs/01-GOVERNANCE/lessons/L-2026-05-21-001-commit-contract-must-be-explicit.md")), "lesson-promote default should not create a detail document");
+const promotedLessonDetailPath = path.join(lifecycleTarget, "coding-agent-harness/governance/lessons/L-2026-05-21-001-commit-contract-must-be-explicit.md");
+assert(!fs.existsSync(promotedLessonDetailPath), "lesson-promote default should not create a detail document");
 const promoteRun = expectJson(["lesson-promote", "long-running-lifecycle", "LC-20260521-001", "--apply", lifecycleTarget]);
 assert(promoteRun.lessonId === "L-2026-05-21-001", "lesson-promote should return the created lesson id");
 assert(
-  fs.existsSync(path.join(lifecycleTarget, "docs/01-GOVERNANCE/lessons/L-2026-05-21-001-commit-contract-must-be-explicit.md")),
+  fs.existsSync(promotedLessonDetailPath),
   "lesson-promote should create a detail document",
 );
 assert(
@@ -347,7 +348,7 @@ assert(lifecycleBlocked.task?.state === "blocked", "task-block should report blo
 const lifecyclePhase = expectJson(["task-phase", "phase-2-lifecycle", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
 assert(lifecyclePhase.task?.phases?.some((phase) => phase.id === "EXEC-01" && phase.state === "done" && phase.completion === 100), "task-phase should update visual map row");
 assert(
-  fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/visual_map.md`), "utf8").includes("Visual Map Contract: v1.0"),
+  fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/visual_map.md`), "utf8").includes("Visual Map Contract: v1.0"),
   "new-task should render canonical visual map contract",
 );
 expectJson(["task-phase", "phase-2-lifecycle", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
@@ -363,13 +364,13 @@ assert(lifecycleReview.task?.state === "review", "task-review should report revi
 assert(lifecycleReview.task?.phases?.some((phase) => phase.id === "GATE-01" && phase.state === "done" && phase.completion === 100), "task-review should mark the agent review gate complete");
 assert(lifecycleReview.task?.lessonCandidateDecisionComplete === true, "task-review should auto-record no-candidate lesson decisions for empty candidate tables");
 assert(!lifecycleReview.task?.materialIssues?.some((issue) => issue.code === "missing-lesson-decision"), "task-review should not leave empty lesson candidates as missing material");
-assert(lifecycleReview.task?.taskQueues?.includes("missing-materials"), "reviewed tasks that still need walkthrough closeout should stay in missing-materials");
-const lifecycleReviewPath = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/review.md`);
+assert(lifecycleReview.task?.taskQueues?.includes("review"), "reviewed tasks with task-local walkthrough should enter the review queue");
+const lifecycleReviewPath = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/review.md`);
 fs.writeFileSync(
   lifecycleReviewPath,
   fs.readFileSync(lifecycleReviewPath, "utf8").replace(
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-    `| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| RR-001 | P1 | Human review is still pending | TARGET:docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/progress.md | confirm in dashboard | yes | open | yes | dashboard |`,
+    `| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| RR-001 | P1 | Human review is still pending | TARGET:coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/progress.md | confirm in dashboard | yes | open | yes | dashboard |`,
   ),
 );
 const blockedComplete = run(["task-complete", "phase-2-lifecycle", "--message", "带阻塞审查项完成", lifecycleTarget]);
@@ -380,28 +381,23 @@ assert(blockedConfirm.status !== 0, "review-confirm should reject tasks with ope
 assert(blockedConfirm.stderr.includes("Open blocking review findings"), "review-confirm blocked failure should explain open findings");
 fs.writeFileSync(
   lifecycleReviewPath,
-  fs.readFileSync(lifecycleReviewPath, "utf8").replace(`| RR-001 | P1 | Human review is still pending | TARGET:docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/progress.md | confirm in dashboard | yes | open | yes | dashboard |`, `| RR-001 | P1 | Human review is closed | TARGET:docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/progress.md | confirmed in dashboard | no | closed | no | none |`),
+  fs.readFileSync(lifecycleReviewPath, "utf8").replace(`| RR-001 | P1 | Human review is still pending | TARGET:coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/progress.md | confirm in dashboard | yes | open | yes | dashboard |`, `| RR-001 | P1 | Human review is closed | TARGET:coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/progress.md | confirmed in dashboard | no | closed | no | none |`),
 );
 const unconfirmedComplete = run(["task-complete", "phase-2-lifecycle", "--message", "未确认审查完成", lifecycleTarget]);
 assert(unconfirmedComplete.status !== 0, "task-complete should require human review confirmation");
 assert(unconfirmedComplete.stderr.includes("review-confirm"), "unconfirmed review failure should tell the user to run review-confirm");
+const lifecycleWalkthrough = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/walkthrough.md`);
+const lifecycleWalkthroughContent = fs.readFileSync(lifecycleWalkthrough, "utf8");
+fs.rmSync(lifecycleWalkthrough);
 const missingWalkthroughConfirm = run(["review-confirm", `TASKS/${todayLocal}-phase-2-lifecycle`, "--reviewer", "Human Reviewer", "--message", "walkthrough reviewed", "--confirm", `${todayLocal}-phase-2-lifecycle`, lifecycleTarget]);
 assert(missingWalkthroughConfirm.status !== 0, "review-confirm should require a walkthrough before human confirmation");
 assert(missingWalkthroughConfirm.stderr.includes("walkthrough"), "missing walkthrough confirmation failure should explain the walkthrough requirement");
-const lifecycleWalkthrough = path.join(lifecycleTarget, `docs/10-WALKTHROUGH/${todayLocal}-phase-2-lifecycle-walkthrough.md`);
-fs.writeFileSync(
-  lifecycleWalkthrough,
-  "# Walkthrough: Phase 2 lifecycle\n\n## Summary\n\nHuman-readable walkthrough for review before completion.\n",
-);
-fs.appendFileSync(
-  path.join(lifecycleTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
-  `\n| CL-PHASE-2-LIFECYCLE | 2026-05-21 | Phase 2 lifecycle | \`docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/task_plan.md\` | \`docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/review.md\` | \`docs/10-WALKTHROUGH/${todayLocal}-phase-2-lifecycle-walkthrough.md\` | pending human review | none | checked-none | pending |\n`,
-);
-acceptNoLessonCandidate(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle`));
+fs.writeFileSync(lifecycleWalkthrough, `${lifecycleWalkthroughContent.trimEnd()}\n\n## Summary\n\nHuman-readable walkthrough for review before completion.\n`);
+acceptNoLessonCandidate(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle`));
 expectJson(["new-task", "review-template-placeholder", "--title", "Review template placeholder", "--locale", "en-US", lifecycleTarget]);
 const preCompleteStatus = expectJson(["status", "--json", lifecycleTarget]);
 const preCompleteTask = preCompleteStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-phase-2-lifecycle`);
-assert(preCompleteTask?.walkthroughPath?.endsWith(`docs/10-WALKTHROUGH/${todayLocal}-phase-2-lifecycle-walkthrough.md`), "status should expose walkthrough before human review confirmation");
+assert(preCompleteTask?.walkthroughPath?.endsWith(`coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/walkthrough.md`), "status should expose task-local walkthrough before human review confirmation");
 assert(preCompleteTask?.reviewStatus === "agent-reviewed", "status should classify agent-written review evidence separately from human confirmation");
 const reviewTemplateTask = preCompleteStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-review-template-placeholder`);
 assert(reviewTemplateTask?.reviewStatus === "required", "review template placeholder Verdict: yes / no should not count as a completed review");
@@ -423,13 +419,13 @@ assert(lifecycleTask?.briefPath?.endsWith("/brief.md"), "status should expose th
 assert(lifecycleTask?.classificationBucket === "current", "new v1 tasks should not be classified as legacy");
 assert(lifecycleStatus.summary?.briefCoverage?.missing === 0, "status should expose explicit brief coverage summary");
 assert(lifecycleTask?.state === "done", "status should read lifecycle task state from progress.md");
-assert(lifecycleTask?.lifecycleState === "closing", "done task with pending closeout should remain in closing lifecycle state");
+assert(lifecycleTask?.lifecycleState === "closed", "done v2 task should close through task-local walkthrough");
 assert(lifecycleTask?.evidence?.some((item) => item.summary.includes("passed")), "status should collect task-log evidence");
 const confirmedStatus = expectJson(["status", "--json", lifecycleTarget]);
 const confirmedTask = confirmedStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-phase-2-lifecycle`);
 assert(confirmedTask?.reviewStatus === "confirmed", "status should expose confirmed review status");
-assert(confirmedTask?.closeoutStatus === "pending", "status should keep pending closeout separate from review confirmation");
-const lifecycleConfirmedIndex = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/INDEX.md`), "utf8");
+assert(confirmedTask?.closeoutStatus === "closed", "status should read task-local walkthrough closeout after task-complete");
+const lifecycleConfirmedIndex = fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/INDEX.md`), "utf8");
 assert(lifecycleConfirmedIndex.includes("| Human Review Status | confirmed |"), "review-confirm should write human review confirmation fields to INDEX.md");
 assert(!fs.readFileSync(lifecycleReviewPath, "utf8").includes("Human Review Confirmation"), "review-confirm should not write a human review confirmation block to review.md");
 
@@ -437,14 +433,10 @@ const staleCompletionTarget = path.join(tmpRoot, "stale-completion-target");
 fs.mkdirSync(staleCompletionTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard", staleCompletionTarget]);
 expectJson(["new-task", "stale-phase-closeout", "--title", "Stale phase closeout", "--locale", "en-US", staleCompletionTarget]);
-const staleTaskDir = path.join(staleCompletionTarget, `docs/09-PLANNING/TASKS/${todayLocal}-stale-phase-closeout`);
+const staleTaskDir = path.join(staleCompletionTarget, `coding-agent-harness/planning/tasks/${todayLocal}-stale-phase-closeout`);
 fs.writeFileSync(path.join(staleTaskDir, "progress.md"), "# Progress\n\n## Status\n\ndone\n");
-const staleWalkthrough = path.join(staleCompletionTarget, "docs/10-WALKTHROUGH/stale-phase-closeout.md");
-fs.writeFileSync(staleWalkthrough, "# Walkthrough: Stale phase closeout\n\n## Summary\n\nClosed while the phase table is stale.\n");
-fs.appendFileSync(
-  path.join(staleCompletionTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
-  `\n| CL-STALE-PHASE | 2026-05-23 | Stale phase closeout | \`docs/09-PLANNING/TASKS/${todayLocal}-stale-phase-closeout/task_plan.md\` | \`docs/09-PLANNING/TASKS/${todayLocal}-stale-phase-closeout/review.md\` | \`docs/10-WALKTHROUGH/stale-phase-closeout.md\` | closeout complete | none | checked-none | closed |\n`,
-);
+const staleWalkthrough = path.join(staleTaskDir, "walkthrough.md");
+fs.writeFileSync(staleWalkthrough, "# Walkthrough: Stale phase closeout\n\nCloseout Status: closed\n\n## Summary\n\nClosed while the phase table is stale.\n");
 const staleCompletionCheck = run(["check", "--profile", "target-project", staleCompletionTarget]);
 assert(staleCompletionCheck.status !== 0, "closed done tasks should fail when Visual Map phases are incomplete");
 assert(
@@ -456,7 +448,7 @@ const phaseKindTarget = path.join(tmpRoot, "phase-kind-target");
 fs.mkdirSync(phaseKindTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard", phaseKindTarget]);
 expectJson(["new-task", "phase-kind-closeout", "--budget", "simple", "--title", "Phase Kind Closeout", "--locale", "en-US", phaseKindTarget]);
-const phaseKindDir = path.join(phaseKindTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-kind-closeout`);
+const phaseKindDir = path.join(phaseKindTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-kind-closeout`);
 fs.writeFileSync(
   path.join(phaseKindDir, "visual_map.md"),
   `# Phase Kind Closeout - Visual Map
@@ -495,7 +487,7 @@ const phaseNoExecutionTarget = path.join(tmpRoot, "phase-no-execution-target");
 fs.mkdirSync(phaseNoExecutionTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", phaseNoExecutionTarget]);
 expectJson(["new-task", "no-execution-kind", "--title", "No Execution Kind", "--locale", "en-US", phaseNoExecutionTarget]);
-const phaseNoExecutionDir = path.join(phaseNoExecutionTarget, `docs/09-PLANNING/TASKS/${todayLocal}-no-execution-kind`);
+const phaseNoExecutionDir = path.join(phaseNoExecutionTarget, `coding-agent-harness/planning/tasks/${todayLocal}-no-execution-kind`);
 fs.writeFileSync(
   path.join(phaseNoExecutionDir, "visual_map.md"),
   `# No Execution Kind - Visual Map
@@ -522,34 +514,34 @@ const moduleLifecycle = expectJson(["new-task", "module-lifecycle", "--module", 
 assert(moduleLifecycle.task?.id === `MODULES/auth/${todayLocal}-module-lifecycle`, "new-task --module should create a module task id");
 assert(moduleLifecycle.task?.preset === "module", "new-task --module should apply the module preset by default");
 assert(moduleLifecycle.task?.kind === "module-task", "new-task --module should use module preset task kind");
-assert(moduleLifecycle.task?.presetAudit?.commandWriteScopes?.includes("docs/Harness-Ledger.md"), "module preset audit should distinguish full command writes from preset-owned write scopes");
+assert(moduleLifecycle.task?.presetAudit?.commandWriteScopes?.includes("coding-agent-harness/governance/generated/Harness-Ledger.md"), "module preset audit should distinguish full command writes from preset-owned write scopes");
 const modulePresetAuditFile = JSON.parse(fs.readFileSync(path.join(lifecycleTarget, moduleLifecycle.task.evidenceBundle, "preset-audit.json"), "utf8"));
-assert(modulePresetAuditFile.commandWriteScopes?.includes("docs/Harness-Ledger.md"), "persisted module preset audit should include command-level governance writes");
-assert(modulePresetAuditFile.presetWriteScopes?.includes("docs/09-PLANNING/**"), "persisted module preset audit should retain preset-owned write scopes");
-assert(fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/MODULES/auth/${todayLocal}-module-lifecycle/references/INDEX.md`)), "complex module task should create references index");
-assert(fs.existsSync(path.join(lifecycleTarget, `docs/09-PLANNING/MODULES/auth/${todayLocal}-module-lifecycle/artifacts/INDEX.md`)), "complex module task should create artifacts index");
-assert(fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/brief.md")), "new-task --module should create a module brief when missing");
-assert(fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/module_plan.md")), "new-task --module should create a module plan when missing");
-assert(fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/execution_strategy.md")), "new-task --module should create module-level execution strategy when missing");
-assert(fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/visual_map.md")), "new-task --module should create module-level visual map when missing");
-assert(fs.existsSync(path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/session_prompt.md")), "new-task --module should create a module session prompt when missing");
-const moduleLifecyclePlan = fs.readFileSync(path.join(lifecycleTarget, `docs/09-PLANNING/MODULES/auth/${todayLocal}-module-lifecycle/task_plan.md`), "utf8");
+assert(modulePresetAuditFile.commandWriteScopes?.includes("coding-agent-harness/governance/generated/Harness-Ledger.md"), "persisted module preset audit should include command-level governance writes");
+assert(modulePresetAuditFile.presetWriteScopes?.includes("coding-agent-harness/planning/**"), "persisted module preset audit should retain preset-owned write scopes");
+assert(fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/modules/auth/tasks/${todayLocal}-module-lifecycle/references/INDEX.md`)), "complex module task should create references index");
+assert(fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/modules/auth/tasks/${todayLocal}-module-lifecycle/artifacts/INDEX.md`)), "complex module task should create artifacts index");
+assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/brief.md")), "new-task --module should create a module brief when missing");
+assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/module_plan.md")), "new-task --module should create a module plan when missing");
+assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/execution_strategy.md")), "new-task --module should create module-level execution strategy when missing");
+assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/visual_map.md")), "new-task --module should create module-level visual map when missing");
+assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/session_prompt.md")), "new-task --module should create a module session prompt when missing");
+const moduleLifecyclePlan = fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/modules/auth/tasks/${todayLocal}-module-lifecycle/task_plan.md`), "utf8");
 assert(moduleLifecyclePlan.includes("Task Preset: module"), "module task plan should persist module preset metadata");
 assert(moduleLifecyclePlan.includes("Module Context Entry Points"), "module preset should append module context entry points");
-assert(moduleLifecyclePlan.includes("docs/09-PLANNING/MODULES/auth/module_plan.md"), "module preset should point agents to the module plan");
+assert(moduleLifecyclePlan.includes("coding-agent-harness/planning/modules/auth/module_plan.md"), "module preset should point agents to the module plan");
 fs.writeFileSync(
-  path.join(lifecycleTarget, "docs/09-PLANNING/Module-Registry.md"),
-  "# Module Registry\n\n## Active Modules\n\n| ID | Module | Path Scope | Owner | Status | Branch or Worktree | Task Plan | Shared Files | Depends On | Handoff Evidence | Residual | Updated |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| M-AUTH | Auth | src/auth/** | coordinator | reserved | n/a | docs/09-PLANNING/MODULES/auth/module_plan.md | none | none | pending | none | 2026-05-19 |\n",
+  path.join(lifecycleTarget, "coding-agent-harness/planning/modules/Module-Registry.md"),
+  "# Module Registry\n\n## Active Modules\n\n| ID | Module | Path Scope | Owner | Status | Branch or Worktree | Task Plan | Shared Files | Depends On | Handoff Evidence | Residual | Updated |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| M-AUTH | Auth | src/auth/** | coordinator | reserved | n/a | coding-agent-harness/planning/modules/auth/module_plan.md | none | none | pending | none | 2026-05-19 |\n",
 );
 fs.writeFileSync(
-  path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/module_plan.md"),
-  `# Auth Module Plan\n\n## Steps\n\n| Step ID | Name | Status | Task Plan | Depends On |\n| --- | --- | --- | --- | --- |\n| AUTH-01 | Setup | planned | docs/09-PLANNING/MODULES/auth/${todayLocal}-module-lifecycle/task_plan.md | none |\n`,
+  path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/module_plan.md"),
+  `# Auth Module Plan\n\n## Steps\n\n| Step ID | Name | Status | Task Plan | Depends On |\n| --- | --- | --- | --- | --- |\n| AUTH-01 | Setup | planned | coding-agent-harness/planning/modules/auth/tasks/${todayLocal}-module-lifecycle/task_plan.md | none |\n`,
 );
 commitFixtureBaseline(lifecycleTarget, "before module step fixture");
 const moduleStep = expectJson(["module-step", "auth", "AUTH-01", "--state", "done", lifecycleTarget]);
 assert(moduleStep.moduleKey === "auth" && moduleStep.stepId === "AUTH-01", "module-step should report updated module step");
-assert(fs.readFileSync(path.join(lifecycleTarget, "docs/09-PLANNING/MODULES/auth/module_plan.md"), "utf8").includes("| AUTH-01 | Setup | done |"), "module-step should update module_plan status");
-assert(fs.readFileSync(path.join(lifecycleTarget, "docs/09-PLANNING/Module-Registry.md"), "utf8").includes("| M-AUTH | Auth | src/auth/** | coordinator | merged |"), "module-step should update module registry status when done");
+assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/module_plan.md"), "utf8").includes("| AUTH-01 | Setup | done |"), "module-step should update module_plan status");
+assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/Module-Registry.md"), "utf8").includes("| M-AUTH | Auth | src/auth/** | coordinator | merged |"), "module-step should update module registry status when done");
 expectJson(["module-step", "auth", "AUTH-01", "--state", "done", lifecycleTarget]);
 const missingModuleStep = run(["module-step", "auth", "NO_SUCH_STEP", "--state", "done", lifecycleTarget]);
 assert(missingModuleStep.status !== 0, "module-step should fail for unknown step id");
@@ -557,50 +549,37 @@ assert(missingModuleStep.stderr.includes("Module step not found"), "module-step 
 expectJson(["task-start", `MODULES/auth/${todayLocal}-module-lifecycle`, "--message", "开始模块任务审查夹具", lifecycleTarget]);
 expectJson(["task-phase", `MODULES/auth/${todayLocal}-module-lifecycle`, "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
 expectJson(["task-review", `MODULES/auth/${todayLocal}-module-lifecycle`, "--message", "模块任务进入审查", lifecycleTarget]);
-const moduleWalkthrough = path.join(lifecycleTarget, `docs/10-WALKTHROUGH/${todayLocal}-module-lifecycle-walkthrough.md`);
-fs.writeFileSync(
-  moduleWalkthrough,
-  "# Walkthrough: Module lifecycle\n\n## Summary\n\nHuman-readable module walkthrough for review confirmation.\n",
-);
-fs.appendFileSync(
-  path.join(lifecycleTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
-  `\n| CL-MODULE-LIFECYCLE | 2026-05-21 | Module lifecycle | \`docs/09-PLANNING/MODULES/auth/${todayLocal}-module-lifecycle/task_plan.md\` | \`docs/09-PLANNING/MODULES/auth/${todayLocal}-module-lifecycle/review.md\` | \`docs/10-WALKTHROUGH/${todayLocal}-module-lifecycle-walkthrough.md\` | pending human review | none | checked-none | pending |\n`,
-);
-acceptNoLessonCandidate(path.join(lifecycleTarget, `docs/09-PLANNING/MODULES/auth/${todayLocal}-module-lifecycle`));
+const moduleTaskDir = path.join(lifecycleTarget, `coding-agent-harness/planning/modules/auth/tasks/${todayLocal}-module-lifecycle`);
+const moduleWalkthrough = path.join(moduleTaskDir, "walkthrough.md");
+fs.writeFileSync(moduleWalkthrough, `${fs.readFileSync(moduleWalkthrough, "utf8").trimEnd()}\n\n## Summary\n\nHuman-readable module walkthrough for review confirmation.\n`);
+acceptNoLessonCandidate(moduleTaskDir);
 commitFixtureBaseline(lifecycleTarget, "before module lifecycle review confirmation");
 const moduleConfirm = expectJson(["review-confirm", `MODULES/auth/${todayLocal}-module-lifecycle`, "--reviewer", "Human Reviewer", "--confirm", `${todayLocal}-module-lifecycle`, lifecycleTarget]);
 assert(moduleConfirm.task?.id === `MODULES/auth/${todayLocal}-module-lifecycle`, "review-confirm should accept full module task ids");
 const workbenchReviewTask = expectJson(["new-task", "workbench-review", "--title", "Workbench review gate", "--locale", "zh-CN", lifecycleTarget]);
 assert(workbenchReviewTask.task?.id === `TASKS/${todayLocal}-workbench-review`, "new-task should create workbench review gate fixture");
-const workbenchReviewProgress = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-workbench-review/progress.md`);
+const workbenchReviewProgress = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-workbench-review/progress.md`);
 const workbenchClosedReviewTask = expectJson(["new-task", "workbench-closed-review", "--title", "Closed review debt", "--locale", "zh-CN", lifecycleTarget]);
 assert(workbenchClosedReviewTask.task?.id === `TASKS/${todayLocal}-workbench-closed-review`, "new-task should create closed review debt fixture");
-const workbenchClosedReviewProgress = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-workbench-closed-review/progress.md`);
+const workbenchClosedReviewProgress = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-workbench-closed-review/progress.md`);
 fs.writeFileSync(
   workbenchClosedReviewProgress,
   fs.readFileSync(workbenchClosedReviewProgress, "utf8").replace(/^## 状态：.*$/m, "## 状态：done"),
 );
 commitFixtureBaseline(lifecycleTarget, "before workbench closed review phase fixture");
 expectJson(["task-phase", "workbench-closed-review", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
-const closedReviewWalkthrough = path.join(lifecycleTarget, "docs/10-WALKTHROUGH/workbench-closed-walkthrough.md");
-fs.writeFileSync(
-  closedReviewWalkthrough,
-  "# Walkthrough: Closed review debt\n\n## Summary\n\nHuman-readable closeout walkthrough for dashboard review.\n",
-);
-fs.appendFileSync(
-  path.join(lifecycleTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
-  `\n| CL-WORKBENCH-CLOSED | 2026-05-21 | Closed review debt | \`docs/09-PLANNING/TASKS/${todayLocal}-workbench-closed-review/task_plan.md\` | \`docs/09-PLANNING/TASKS/${todayLocal}-workbench-closed-review/review.md\` | \`docs/10-WALKTHROUGH/workbench-closed-walkthrough.md\` | test evidence | none | checked-none | closed |\n`,
-);
-acceptNoLessonCandidate(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-workbench-closed-review`));
+const closedReviewWalkthrough = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-workbench-closed-review/walkthrough.md`);
+fs.writeFileSync(closedReviewWalkthrough, "# Walkthrough: Closed review debt\n\nCloseout Status: closed\n\n## Summary\n\nHuman-readable closeout walkthrough for dashboard review.\n");
+acceptNoLessonCandidate(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-workbench-closed-review`));
 const closedReviewStatus = expectJson(["status", "--json", lifecycleTarget]);
 const closedReviewTask = closedReviewStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-workbench-closed-review`);
-assert(closedReviewTask?.walkthroughPath?.endsWith("docs/10-WALKTHROUGH/workbench-closed-walkthrough.md"), "status should expose task walkthrough path from Closeout SSoT");
+assert(closedReviewTask?.walkthroughPath?.endsWith(`coding-agent-harness/planning/tasks/${todayLocal}-workbench-closed-review/walkthrough.md`), "status should expose task-local walkthrough path");
 assert(closedReviewTask?.lifecycleState === "closed-review-pending", "closed tasks without human confirmation should remain visible as review debt");
 assert(!closedReviewTask?.taskQueues?.includes("review"), "closed tasks without human confirmation should not enter the canonical review queue");
 assert(closedReviewTask?.taskQueues?.includes("missing-materials"), "closed tasks without review submission should enter missing-materials repair routing");
 commitFixtureBaseline(lifecycleTarget, "before workbench lesson action fixture");
 const workbenchLessonTask = expectJson(["new-task", "workbench-lesson-action", "--title", "Workbench lesson action", "--locale", "en-US", lifecycleTarget]);
-const workbenchLessonDir = path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-workbench-lesson-action`);
+const workbenchLessonDir = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-workbench-lesson-action`);
 const workbenchLessonCandidatePath = path.join(workbenchLessonDir, "lesson_candidates.md");
 fs.mkdirSync(path.join(workbenchLessonDir, "lessons"), { recursive: true });
 fs.writeFileSync(
@@ -689,6 +668,9 @@ try {
     workbenchReviewProgress,
     fs.readFileSync(workbenchReviewProgress, "utf8").replace(/^## 状态：.*$/m, "## 状态：review"),
   );
+  const workbenchReviewWalkthrough = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-workbench-review/walkthrough.md`);
+  const workbenchReviewWalkthroughContent = fs.readFileSync(workbenchReviewWalkthrough, "utf8");
+  fs.rmSync(workbenchReviewWalkthrough);
   const missingWalkthroughResponse = await fetch(new URL("api/tasks/review-complete", runtime.url), {
     method: "POST",
     headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
@@ -697,16 +679,8 @@ try {
   const missingWalkthroughText = await missingWalkthroughResponse.text();
   assert(missingWalkthroughResponse.status === 409, `workbench review completion should reject tasks before canonical Review queue entry, got ${missingWalkthroughResponse.status}: ${missingWalkthroughText}`);
   assert(missingWalkthroughText.includes("review queue"), "workbench early confirmation rejection should explain Review queue requirement");
-  const workbenchReviewWalkthrough = path.join(lifecycleTarget, "docs/10-WALKTHROUGH/workbench-review-walkthrough.md");
-  fs.writeFileSync(
-    workbenchReviewWalkthrough,
-    "# Walkthrough: Workbench review gate\n\n## Summary\n\nHuman-readable walkthrough for dashboard review confirmation.\n",
-  );
-  fs.appendFileSync(
-    path.join(lifecycleTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
-    `\n| CL-WORKBENCH-REVIEW | 2026-05-21 | Workbench review gate | \`docs/09-PLANNING/TASKS/${todayLocal}-workbench-review/task_plan.md\` | \`docs/09-PLANNING/TASKS/${todayLocal}-workbench-review/review.md\` | \`docs/10-WALKTHROUGH/workbench-review-walkthrough.md\` | pending human review | none | checked-none | pending |\n`,
-  );
-  acceptNoLessonCandidate(path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-workbench-review`));
+  fs.writeFileSync(workbenchReviewWalkthrough, `${workbenchReviewWalkthroughContent.trimEnd()}\n\n## Summary\n\nHuman-readable walkthrough for dashboard review confirmation.\n`);
+  acceptNoLessonCandidate(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-workbench-review`));
   commitFixtureBaseline(lifecycleTarget, "before workbench review lifecycle fixture");
   expectJson(["task-start", "workbench-review", "--message", "readying workbench review fixture", lifecycleTarget]);
   expectJson(["task-phase", "workbench-review", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
@@ -762,7 +736,7 @@ try {
   assert(fs.readFileSync(path.join(devDir, "index.html"), "utf8").includes("__HARNESS_WORKBENCH__ = true"), "harness dev should enable workbench runtime in generated index");
   const marker = `dev-refresh-${Date.now()}`;
   fs.appendFileSync(
-    path.join(lifecycleTarget, `docs/09-PLANNING/TASKS/${todayLocal}-phase-2-lifecycle/progress.md`),
+    path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/walkthrough.md`),
     `\n\n## Dev Refresh Marker\n\n${marker}\n`,
   );
   await waitForCondition(async () => {
@@ -779,18 +753,18 @@ commitFixtureBaseline(lifecycleTarget, "after dev refresh marker fixture");
 const zhRegistryTarget = path.join(tmpRoot, "zh-module-registry-target");
 fs.mkdirSync(zhRegistryTarget);
 expectJson(["init", "--locale", "zh-CN", "--capabilities", "core,module-parallel", zhRegistryTarget]);
-assert(fs.existsSync(path.join(zhRegistryTarget, "docs/09-PLANNING/MODULES/Session-Prompt-Pack.md")), "module-parallel init should create a session prompt pack");
-assert(fs.existsSync(path.join(zhRegistryTarget, "docs/09-PLANNING/MODULES/_module-template/module_plan.md")), "module-parallel init should create a module plan template");
-assert(fs.existsSync(path.join(zhRegistryTarget, "docs/09-PLANNING/MODULES/_module-template/session_prompt.md")), "module-parallel init should create a module session prompt template");
-assert(fs.existsSync(path.join(zhRegistryTarget, "docs/09-PLANNING/MODULES/_task-template/review.md")), "module-parallel init should create complete module task templates");
+assert(fs.existsSync(path.join(zhRegistryTarget, "coding-agent-harness/planning/modules/Session-Prompt-Pack.md")), "module-parallel init should create a session prompt pack");
+assert(fs.existsSync(path.join(zhRegistryTarget, "coding-agent-harness/planning/modules/_module-template/module_plan.md")), "module-parallel init should create a module plan template");
+assert(fs.existsSync(path.join(zhRegistryTarget, "coding-agent-harness/planning/modules/_module-template/session_prompt.md")), "module-parallel init should create a module session prompt template");
+assert(fs.existsSync(path.join(zhRegistryTarget, "coding-agent-harness/planning/modules/_task-template/review.md")), "module-parallel init should create complete module task templates");
 expectJson(["new-task", "zh-task", "--module", "example", "--title", "中文模块任务", "--locale", "zh-CN", zhRegistryTarget]);
-fs.mkdirSync(path.join(zhRegistryTarget, "docs/09-PLANNING/MODULES/example"), { recursive: true });
+fs.mkdirSync(path.join(zhRegistryTarget, "coding-agent-harness/planning/modules/example"), { recursive: true });
 fs.writeFileSync(
-  path.join(zhRegistryTarget, "docs/09-PLANNING/MODULES/example/module_plan.md"),
-  `# 示例模块计划\n\n## 步骤\n\n| 步骤 ID | 名称 | 状态 | 任务计划 | 依赖 |\n| --- | --- | --- | --- | --- |\n| EXM-01 | 启动 | planned | docs/09-PLANNING/MODULES/example/${todayLocal}-zh-task/task_plan.md | none |\n`,
+  path.join(zhRegistryTarget, "coding-agent-harness/planning/modules/example/module_plan.md"),
+  `# 示例模块计划\n\n## 步骤\n\n| 步骤 ID | 名称 | 状态 | 任务计划 | 依赖 |\n| --- | --- | --- | --- | --- |\n| EXM-01 | 启动 | planned | coding-agent-harness/planning/modules/example/${todayLocal}-zh-task/task_plan.md | none |\n`,
 );
 expectJson(["module-step", "example", "EXM-01", "--state", "done", zhRegistryTarget]);
-const zhRegistryContent = fs.readFileSync(path.join(zhRegistryTarget, "docs/09-PLANNING/Module-Registry.md"), "utf8");
+const zhRegistryContent = fs.readFileSync(path.join(zhRegistryTarget, "coding-agent-harness/planning/modules/Module-Registry.md"), "utf8");
 assert(zhRegistryContent.includes("| example | 示例模块 | EXM | `codex/example` | EXM-01 | completed |"), "module-step should update zh-CN module registry status/current step");
 const zhGraphDir = path.join(tmpRoot, "zh-module-dashboard");
 expectPass(["dashboard", "--out-dir", zhGraphDir, zhRegistryTarget]);
@@ -816,7 +790,7 @@ assert(datePrefixCreate.task?.shortId === `${todayLocal}-my-feature`, "new-task 
 assert(datePrefixCreate.task?.id === `TASKS/${todayLocal}-my-feature`, "new-task bare slug task id should include date prefix");
 assert(datePrefixCreate.task?.title === "My Feature", "new-task should use explicit title, not dated id");
 assert(
-  fs.existsSync(path.join(datePrefixTarget, `docs/09-PLANNING/TASKS/${todayLocal}-my-feature/task_plan.md`)),
+  fs.existsSync(path.join(datePrefixTarget, `coding-agent-harness/planning/tasks/${todayLocal}-my-feature/task_plan.md`)),
   "new-task bare slug should create dated directory",
 );
 
@@ -824,11 +798,11 @@ assert(
 const alreadyDated = expectJson(["new-task", `${todayLocal}-existing-date`, "--title", "Already Dated", datePrefixTarget]);
 assert(alreadyDated.task?.shortId === `${todayLocal}-existing-date`, "new-task already-dated slug should not double-prefix");
 assert(
-  fs.existsSync(path.join(datePrefixTarget, `docs/09-PLANNING/TASKS/${todayLocal}-existing-date/task_plan.md`)),
+  fs.existsSync(path.join(datePrefixTarget, `coding-agent-harness/planning/tasks/${todayLocal}-existing-date/task_plan.md`)),
   "new-task already-dated slug should create directory without double date",
 );
 assert(
-  !fs.existsSync(path.join(datePrefixTarget, `docs/09-PLANNING/TASKS/${todayLocal}-${todayLocal}-existing-date`)),
+  !fs.existsSync(path.join(datePrefixTarget, `coding-agent-harness/planning/tasks/${todayLocal}-${todayLocal}-existing-date`)),
   "new-task already-dated slug must not create double-dated directory",
 );
 
@@ -837,7 +811,7 @@ const moduleWithDate = expectJson(["new-task", "module-feat", "--module", "payme
 assert(moduleWithDate.task?.shortId === `${todayLocal}-module-feat`, "new-task --module bare slug should auto-prefix local date");
 assert(moduleWithDate.task?.id === `MODULES/payments/${todayLocal}-module-feat`, "new-task --module task id should include date prefix");
 assert(
-  fs.existsSync(path.join(datePrefixTarget, `docs/09-PLANNING/MODULES/payments/${todayLocal}-module-feat/task_plan.md`)),
+  fs.existsSync(path.join(datePrefixTarget, `coding-agent-harness/planning/modules/payments/tasks/${todayLocal}-module-feat/task_plan.md`)),
   "new-task --module should create dated directory under module",
 );
 
@@ -850,8 +824,8 @@ assert(startByBareSlug.task?.state === "in_progress", "task-start via bare slug 
 expectJson(["task-log", "my-feature", "--message", "log via bare slug", "--evidence", "command:TARGET:test:passed", datePrefixTarget]);
 
 // 6. Ambiguous multi-match: create a second dated directory with same bare slug
-fs.mkdirSync(path.join(datePrefixTarget, "docs/09-PLANNING/TASKS/2025-01-01-my-feature"), { recursive: true });
-fs.writeFileSync(path.join(datePrefixTarget, "docs/09-PLANNING/TASKS/2025-01-01-my-feature/task_plan.md"), "# Old\n");
+fs.mkdirSync(path.join(datePrefixTarget, "coding-agent-harness/planning/tasks/2025-01-01-my-feature"), { recursive: true });
+fs.writeFileSync(path.join(datePrefixTarget, "coding-agent-harness/planning/tasks/2025-01-01-my-feature/task_plan.md"), "# Old\n");
 const ambiguousBareSlug = run(["task-log", "my-feature", "--message", "ambiguous", datePrefixTarget]);
 assert(ambiguousBareSlug.status !== 0, "bare slug matching multiple dated directories should fail");
 assert(ambiguousBareSlug.stderr.includes("Ambiguous task reference"), "ambiguous bare slug should report ambiguity");

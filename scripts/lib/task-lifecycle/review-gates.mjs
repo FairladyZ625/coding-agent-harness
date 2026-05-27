@@ -55,7 +55,7 @@ export function validateReviewEntryGate(taskDir, budget) {
 export function validateHumanReviewConfirmation({ task, budget }) {
   if (budget === "simple") return;
   if (!task?.walkthroughPath) {
-    throw new Error("Human review confirmation requires a walkthrough linked from Closeout SSoT before review-confirm.");
+    throw new Error("Human review confirmation requires task-local walkthrough.md before review-confirm.");
   }
   const queueState = task?.reviewQueueState || "not-in-queue";
   if (queueState !== "ready-to-confirm") {

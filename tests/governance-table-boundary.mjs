@@ -13,10 +13,11 @@ const target = path.join(tmpRoot, "governance-table-boundary-target");
 fs.mkdirSync(target);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard", target]);
 
-const docsRoot = path.join(target, "docs");
-fs.mkdirSync(path.join(docsRoot, "09-PLANNING", "MODULES", "dashboard"), { recursive: true });
+const harnessRoot = path.join(target, "coding-agent-harness");
+fs.mkdirSync(path.join(harnessRoot, "planning", "modules", "dashboard"), { recursive: true });
+fs.mkdirSync(path.join(harnessRoot, "governance", "generated"), { recursive: true });
 fs.writeFileSync(
-  path.join(docsRoot, "09-PLANNING", "MODULES", "dashboard", "module_plan.md"),
+  path.join(harnessRoot, "planning", "modules", "dashboard", "module_plan.md"),
   [
     "# Dashboard Module Plan",
     "",
@@ -28,30 +29,30 @@ fs.writeFileSync(
 );
 
 fs.writeFileSync(
-  path.join(docsRoot, "09-PLANNING", "Feature-SSoT.md"),
+  path.join(harnessRoot, "planning", "Feature-SSoT.md"),
   [
     "# Feature SSoT",
     "",
     "| ID | Feature | User Outcome | Owner | Status | Priority | Task Plan | Acceptance Evidence | Regression Gate | Walkthrough | Residual | Updated |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-    "| PF-OK-001 | Dashboard boundary summary | Overview links to module/task details | Worker C | active | P2 | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker/task_plan.md` | `npm test` | RG-dashboard | pending | none | 2026-05-24 |",
-    "| PF-BAD-001 | Module drawer implementation detail | Copy every parser branch, button label, and repair prompt from DASH-LOCAL-001 into this global table so the global SSoT becomes the implementation log | Worker C | active | P2 | `docs/09-PLANNING/MODULES/dashboard/module_plan.md` | full local evidence paragraph with execution log and temporary repair prompt | RG-dashboard | pending | none | 2026-05-24 |",
+    "| PF-OK-001 | Dashboard boundary summary | Overview links to module/task details | Worker C | active | P2 | `coding-agent-harness/planning/tasks/2026-05-24-governance-table-entropy-checker/task_plan.md` | `npm test` | RG-dashboard | pending | none | 2026-05-24 |",
+    "| PF-BAD-001 | Module drawer implementation detail | Copy every parser branch, button label, and repair prompt from DASH-LOCAL-001 into this global table so the global SSoT becomes the implementation log | Worker C | active | P2 | `coding-agent-harness/planning/modules/dashboard/module_plan.md` | full local evidence paragraph with execution log and temporary repair prompt | RG-dashboard | pending | none | 2026-05-24 |",
     "",
   ].join("\n"),
 );
 
 fs.writeFileSync(
-  path.join(docsRoot, "Harness-Ledger.md"),
+  path.join(harnessRoot, "governance", "generated", "Harness-Ledger.md"),
   [
     "# Harness Ledger",
     "",
     "| ID | Task or Change | Owner | Status | Plan | Feature or Delivery SSoT | Regression Evidence | Review Evidence | Walkthrough | Lessons Check | Residual | Updated |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-    "| HL-OK-001 | Boundary checker | Worker C | active | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | `npm test` | `review.md` | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
-    "| HL-LEGACY-001 | Legacy overloaded row | Worker A | closed | `docs/09-PLANNING/TASKS/legacy/task_plan.md` | F-old | Legacy execution log: step one copied all output, step two pasted reviewer transcript, step three included temporary repair prompt for a previous task. This predates the checker cutoff and should be reported only. | `review.md` | old | checked-none: old row | none | 2026-05-20 |",
-    "| HL-BAD-001 | New overloaded row | Worker C | active | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | Execution log: first command failed, second command printed a long stack trace, copied raw evidence paragraph, and temporary repair prompt for the agent to paste back into the task. | `review.md` | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
-    "| HL-BAD-REGRESSION-EVIDENCE | Real regression column overload | Worker C | active | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | command failed with raw output and stack trace copied into the ledger row | `review.md` | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
-    "| HL-BAD-REVIEW-EVIDENCE | Real review column overload | Worker C | active | `docs/09-PLANNING/TASKS/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | `npm test` | reviewer transcript copied into the ledger row instead of linking review.md | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
+    "| HL-OK-001 | Boundary checker | Worker C | active | `coding-agent-harness/planning/tasks/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | `npm test` | `review.md` | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
+    "| HL-LEGACY-001 | Legacy overloaded row | Worker A | closed | `coding-agent-harness/planning/tasks/legacy/task_plan.md` | F-old | Legacy execution log: step one copied all output, step two pasted reviewer transcript, step three included temporary repair prompt for a previous task. This predates the checker cutoff and should be reported only. | `review.md` | old | checked-none: old row | none | 2026-05-20 |",
+    "| HL-BAD-001 | New overloaded row | Worker C | active | `coding-agent-harness/planning/tasks/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | Execution log: first command failed, second command printed a long stack trace, copied raw evidence paragraph, and temporary repair prompt for the agent to paste back into the task. | `review.md` | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
+    "| HL-BAD-REGRESSION-EVIDENCE | Real regression column overload | Worker C | active | `coding-agent-harness/planning/tasks/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | command failed with raw output and stack trace copied into the ledger row | `review.md` | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
+    "| HL-BAD-REVIEW-EVIDENCE | Real review column overload | Worker C | active | `coding-agent-harness/planning/tasks/2026-05-24-governance-table-entropy-checker/task_plan.md` | F-001 | `npm test` | reviewer transcript copied into the ledger row instead of linking review.md | pending | checked-none: no reusable lesson | none | 2026-05-24 |",
     "",
   ].join("\n"),
 );

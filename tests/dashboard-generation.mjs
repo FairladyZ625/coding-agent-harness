@@ -210,10 +210,10 @@ assert(!JSON.stringify(documents.documents.map((doc) => doc.path)).includes("_ta
 
 const unsafeOut = run(["dashboard", "--out-dir", ".", "examples/minimal-project"]);
 assert(unsafeOut.status !== 0, "dashboard --out-dir . should be refused");
-const unsafeDocsOut = run(["dashboard", "--out-dir", "examples/minimal-project/docs", "examples/minimal-project"]);
-assert(unsafeDocsOut.status !== 0, "dashboard --out-dir target docs should be refused");
-const unsafeDocsChildOut = run(["dashboard", "--out-dir", "examples/minimal-project/docs/generated-dashboard", "examples/minimal-project"]);
-assert(unsafeDocsChildOut.status !== 0, "dashboard --out-dir inside target docs should be refused");
+const unsafeHarnessOut = run(["dashboard", "--out-dir", "examples/minimal-project/coding-agent-harness", "examples/minimal-project"]);
+assert(unsafeHarnessOut.status !== 0, "dashboard --out-dir target harness root should be refused");
+const unsafeHarnessChildOut = run(["dashboard", "--out-dir", "examples/minimal-project/coding-agent-harness/generated-dashboard", "examples/minimal-project"]);
+assert(unsafeHarnessChildOut.status !== 0, "dashboard --out-dir inside target harness root should be refused");
 const staticWorkbenchFlagDir = path.join(tmpRoot, "static-workbench-flag");
 expectPass(["dashboard", "--out-dir", staticWorkbenchFlagDir, "examples/minimal-project"]);
 assert(
@@ -308,11 +308,11 @@ assert(fs.existsSync(expectedDefaultDashboard), "dashboard default output file w
 assert(!fs.existsSync(rootDashboardPath), "dashboard default generation must not recreate root harness-dashboard.html");
 
 const redactionTarget = path.join(tmpRoot, "redaction-target");
-fs.mkdirSync(path.join(redactionTarget, "docs/09-PLANNING/TASKS/path-check"), { recursive: true });
+fs.mkdirSync(path.join(redactionTarget, "coding-agent-harness/planning/tasks/path-check"), { recursive: true });
 fs.writeFileSync(path.join(redactionTarget, "AGENTS.md"), "# AGENTS\n");
-fs.writeFileSync(path.join(redactionTarget, "docs/09-PLANNING/TASKS/path-check/task_plan.md"), "# Path Check\n");
+fs.writeFileSync(path.join(redactionTarget, "coding-agent-harness/planning/tasks/path-check/task_plan.md"), "# Path Check\n");
 fs.writeFileSync(
-  path.join(redactionTarget, "docs/09-PLANNING/TASKS/path-check/progress.md"),
+  path.join(redactionTarget, "coding-agent-harness/planning/tasks/path-check/progress.md"),
   "# Progress\n\n## Status\n\nin_progress\n\ncommand:TARGET:logs/check.txt: touched /tmp/secret and C:\\Users\\name\\secret\n",
 );
 const redactionDir = path.join(tmpRoot, "redaction-dashboard");
@@ -412,7 +412,7 @@ task:
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
     templates:
       taskPlanAppend: templates/task_plan.append.md
@@ -424,7 +424,7 @@ audit:
   evidenceFiles: [preset-audit.json]
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
   );

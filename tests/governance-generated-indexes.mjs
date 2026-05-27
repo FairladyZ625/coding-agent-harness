@@ -25,15 +25,15 @@ const second = expectJson(["new-task", "generated-index-beta", "--title", "Gener
 assert(first.governance?.commit?.committed === true, "new-task should leave governance committed");
 assert(second.governance?.commit?.committed === true, "second new-task should leave governance committed");
 
-const featurePath = path.join(target, "docs/09-PLANNING/Feature-SSoT.md");
-const privateFeaturePath = path.join(target, "docs/09-PLANNING/Private-Feature-SSoT.md");
-const ledgerPath = path.join(target, "docs/Harness-Ledger.md");
+const featurePath = path.join(target, "coding-agent-harness/planning/Feature-SSoT.md");
+const privateFeaturePath = path.join(target, "coding-agent-harness/planning/Private-Feature-SSoT.md");
+const ledgerPath = path.join(target, "coding-agent-harness/governance/generated/Harness-Ledger.md");
 assert(!fs.existsSync(featurePath), "core init should not create Feature SSoT for generated task lifecycle state");
 assert(!fs.existsSync(privateFeaturePath), "core init should not create Private Feature SSoT for generated task lifecycle state");
-fs.writeFileSync(featurePath, "# Feature SSoT\n\n| ID | Feature | Status | Task Plan |\n| --- | --- | --- | --- |\n| F-STALE | stale feature | active | docs/09-PLANNING/TASKS/stale/task_plan.md |\n");
-fs.writeFileSync(privateFeaturePath, "# Private Feature SSoT\n\n| ID | 状态 | Feature | 负责人 | 当前产物 | 备注 |\n| --- | --- | --- | --- | --- | --- |\n| PF-STALE | active | stale private feature | coordinator | `docs/09-PLANNING/TASKS/stale/task_plan.md` | stale |\n");
-fs.appendFileSync(ledgerPath, "\n| HL-STALE | stale ledger | coordinator | active | docs/09-PLANNING/TASKS/stale/task_plan.md | F-STALE | pending | pending | pending | pending | stale | 2026-01-01 |\n");
-git(target, ["add", "docs/09-PLANNING/Feature-SSoT.md", "docs/09-PLANNING/Private-Feature-SSoT.md", "docs/Harness-Ledger.md"]);
+fs.writeFileSync(featurePath, "# Feature SSoT\n\n| ID | Feature | Status | Task Plan |\n| --- | --- | --- | --- |\n| F-STALE | stale feature | active | coding-agent-harness/planning/tasks/stale/task_plan.md |\n");
+fs.writeFileSync(privateFeaturePath, "# Private Feature SSoT\n\n| ID | 状态 | Feature | 负责人 | 当前产物 | 备注 |\n| --- | --- | --- | --- | --- | --- |\n| PF-STALE | active | stale private feature | coordinator | `coding-agent-harness/planning/tasks/stale/task_plan.md` | stale |\n");
+fs.appendFileSync(ledgerPath, "\n| HL-STALE | stale ledger | coordinator | active | coding-agent-harness/planning/tasks/stale/task_plan.md | F-STALE | pending | pending | pending | pending | stale | 2026-01-01 |\n");
+git(target, ["add", "coding-agent-harness/planning/Feature-SSoT.md", "coding-agent-harness/planning/Private-Feature-SSoT.md", "coding-agent-harness/governance/generated/Harness-Ledger.md"]);
 git(target, ["commit", "-m", "add stale generated table rows"]);
 
 const dryRun = expectJson(["governance", "rebuild", "--dry-run", "--archive", target]);
@@ -56,9 +56,9 @@ assert(!ledgerAfter.includes("HL-STALE"), "generated Harness Ledger should remov
 assert(ledgerAfter.includes("| ID | Scope | Module | Task | State | Queues | Plan | Review | Lessons Check | Closeout | Residual | Updated |"), "generated Harness Ledger should use canonical lifecycle schema");
 assert(ledgerAfter.includes(`${todayLocal}-generated-index-beta/task_plan.md`), "generated Harness Ledger should include scanned beta task");
 assert(rebuilt.archiveDir, "archive rebuild should report archive directory");
-assert(fs.existsSync(path.join(target, rebuilt.archiveDir, "docs/09-PLANNING/Feature-SSoT.md")), "archive should preserve old Feature SSoT before rewriting");
-assert(fs.existsSync(path.join(target, rebuilt.archiveDir, "docs/09-PLANNING/Private-Feature-SSoT.md")), "archive should preserve old Private Feature SSoT before rewriting");
-assert(fs.existsSync(path.join(target, rebuilt.archiveDir, "docs/Harness-Ledger.md")), "archive should preserve old Harness Ledger before rewriting");
+assert(fs.existsSync(path.join(target, rebuilt.archiveDir, "coding-agent-harness/planning/Feature-SSoT.md")), "archive should preserve old Feature SSoT before rewriting");
+assert(fs.existsSync(path.join(target, rebuilt.archiveDir, "coding-agent-harness/planning/Private-Feature-SSoT.md")), "archive should preserve old Private Feature SSoT before rewriting");
+assert(fs.existsSync(path.join(target, rebuilt.archiveDir, "coding-agent-harness/governance/generated/Harness-Ledger.md")), "archive should preserve old Harness Ledger before rewriting");
 assert(git(target, ["status", "--short"]).stdout.trim() === "", "governance rebuild should leave git clean");
 
 const secondRebuild = expectJson(["governance", "rebuild", "--archive", "--apply", target]);
@@ -95,7 +95,7 @@ const noMatch = expectJson(["task-list", "--json", "--search", "does-not-exist",
 assert(noMatch.tasks.length === 0, "task-list filters should return empty results on no match");
 
 const pipeTitle = expectJson(["new-task", "module-pipe-title", "--module", "pipe", "--title", "Pipe | Title", target]);
-const pipeVisual = fs.readFileSync(path.join(target, "docs/09-PLANNING/MODULES/pipe/visual_map.md"), "utf8");
+const pipeVisual = fs.readFileSync(path.join(target, "coding-agent-harness/planning/modules/pipe/visual_map.md"), "utf8");
 const incrementalLedger = fs.readFileSync(ledgerPath, "utf8");
 assert(pipeVisual.includes("Pipe \\| Title"), "generated module visual map should escape table pipes in task titles");
 assert(incrementalLedger.includes("| module | pipe |"), "new-task --module ledger row should expose module scope and key");
@@ -113,7 +113,7 @@ assert(!rebuiltLedger.includes(`F-${todayLocal}-module-pipe-title`), "rebuilt Ha
 assert(!rebuiltLedger.includes(`PF-${todayLocal}-module-pipe-title`), "rebuilt Harness Ledger should not route module task rows to hidden private module-local Feature rows");
 assert(pipeTitle.governance?.commit?.committed === true, "module pipe title fixture should commit governance indexes");
 
-const strategyPath = path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-generated-index-alpha/execution_strategy.md`);
+const strategyPath = path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-generated-index-alpha/execution_strategy.md`);
 let strategy = fs.readFileSync(strategyPath, "utf8");
 strategy = strategy.replace(
   "| Would a worker subagent materially help? | no / ask-user / already-authorized | [parallel slice, independent implementation, focused investigation, or not useful] | If ask-user, ask directly: \"This task is suitable for a worker subagent. Do you authorize me to assign one worker subagent to modify only [scope] in [worktree/branch] while I coordinate and review the result?\" |",

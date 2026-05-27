@@ -18,6 +18,18 @@ import {
   userPresetRootForHome,
 } from "./core-shared.mjs";
 import { listBundledPresetIds, seedBundledPresets } from "./preset-registry.mjs";
+import {
+  legacyCloseoutFile,
+  legacyCompatMode,
+  legacyLedgerFile,
+  legacyModuleRoot,
+  legacyPath,
+  legacyPlanningRoot,
+  legacyTaskRoot,
+  legacyWalkthroughRoot,
+  safeAdoptionCapability,
+  v2HarnessRoot,
+} from "./harness-paths.mjs";
 
 export const capabilityDefinitions = {
   core: {
@@ -25,35 +37,35 @@ export const capabilityDefinitions = {
     selectWhen: "Always install. This is the required document kernel.",
     default: true,
     dependencies: [],
-    artifacts: ["docs/09-PLANNING"],
+    artifacts: [legacyPath(legacyPlanningRoot)],
   },
   "module-parallel": {
     description: "Module registry, module plans, session prompts, and worker handoff.",
     selectWhen: "Use only when the project has two or more independent modules that need parallel ownership.",
     default: false,
     dependencies: ["core"],
-    artifacts: ["docs/09-PLANNING/Module-Registry.md", "docs/09-PLANNING/MODULES"],
+    artifacts: [legacyPath(legacyPlanningRoot, "Module-Registry.md"), legacyPath(legacyModuleRoot)],
   },
   "subagent-worker": {
     description: "Commit-backed worker handoff protocol for code-changing subagents.",
     selectWhen: "Use only when code-changing subagents will work in dedicated worktrees with commit-backed handoff.",
     default: false,
     dependencies: ["module-parallel"],
-    artifacts: ["docs/09-PLANNING/MODULES"],
+    artifacts: [legacyPath(legacyModuleRoot)],
   },
   "adversarial-review": {
     description: "Machine-gateable adversarial review reports and verifier output contract.",
     selectWhen: "Use when release, architecture, security, data, or strategy risk requires an independent review artifact.",
     default: false,
     dependencies: ["core"],
-    artifacts: ["docs/09-PLANNING/TASKS"],
+    artifacts: [legacyPath(legacyTaskRoot)],
   },
   "long-running-task": {
     description: "Long-running task contract with review cadence and stop conditions.",
     selectWhen: "Use when agents may run across many loops without user confirmation after every step.",
     default: false,
     dependencies: ["core"],
-    artifacts: ["docs/09-PLANNING/TASKS/_task-template/long-running-task-contract.md"],
+    artifacts: [legacyPath(legacyTaskRoot, "_task-template/long-running-task-contract.md")],
   },
   "dashboard": {
     description: "Read-only HTML dashboard generated from harness status JSON.",
@@ -62,7 +74,7 @@ export const capabilityDefinitions = {
     dependencies: ["core"],
     artifacts: [],
   },
-  "safe-adoption": {
+  [safeAdoptionCapability]: {
     description: "Legacy compatibility and assisted capability adoption.",
     selectWhen: "Use when adopting v1.0 into an existing harness project without rewriting history.",
     default: false,
@@ -85,10 +97,23 @@ export const userInstallTargets = {
 };
 
 export function readCapabilityRegistry(target) {
+  if (target.harness?.version === 2 && target.harness.manifest) {
+    return {
+      mode: "v2-manifest",
+      path: target.harness.manifestPath,
+      capabilities: (target.harness.manifest.capabilities || ["core"]).map((name) => ({
+        name: normalizeCapabilityName(name),
+        state: "configured",
+      })),
+      locale: normalizeLocale(target.harness.manifest.locale),
+      raw: target.harness.manifest,
+      errors: [],
+    };
+  }
   const registryPath = path.join(target.projectRoot, ".harness-capabilities.json");
   if (!fs.existsSync(registryPath)) {
     return {
-      mode: "legacy-compat",
+      mode: legacyCompatMode,
       path: registryPath,
       capabilities: [{ name: "core", state: "configured" }],
       locale: "en-US",
@@ -176,6 +201,12 @@ function validateDashboardAssetAssembly(root, manifestName, assetName, driftMess
 
 export function detectCapabilities(target) {
   const detected = new Set(["core"]);
+  if (target.harness?.version === 2) {
+    if (fs.existsSync(path.join(target.harness.modulesRoot, "Module-Registry.md"))) detected.add("module-parallel");
+    if (fs.existsSync(path.join(target.harness.governanceRoot, "standards/adversarial-review-standard.md"))) detected.add("adversarial-review");
+    if (fs.existsSync(path.join(target.harness.tasksRoot, "_task-template/long-running-task-contract.md"))) detected.add("long-running-task");
+    return [...detected];
+  }
   if (existsInDocs(target, "09-PLANNING/Module-Registry.md")) detected.add("module-parallel");
   if (existsInDocs(target, "11-REFERENCE/adversarial-review-standard.md")) detected.add("adversarial-review");
   if (
@@ -398,8 +429,8 @@ export function validateCapabilities(target) {
     for (const dependency of capabilityDefinitions[capability.name].dependencies) {
       if (!byName.has(dependency)) failures.push(`capability ${capability.name} missing dependency: ${dependency}`);
     }
-    if (registry.mode === "declared-capability") {
-      for (const artifact of capabilityDefinitions[capability.name].artifacts) {
+    if (registry.mode === "declared-capability" || registry.mode === "v2-manifest") {
+      for (const artifact of capabilityArtifactsForTarget(target, capability.name)) {
         if (!exists(target, artifact)) {
           failures.push(`capability ${capability.name} missing required artifact: ${artifact}`);
         }
@@ -411,11 +442,31 @@ export function validateCapabilities(target) {
     for (const capability of detected) {
       if (!byName.has(capability)) warnings.push(`orphan capability artifact detected without declaration: ${capability}`);
     }
-  } else {
-    warnings.push("legacy-compat mode: no .harness-capabilities.json; adoption suggestion is available");
+  } else if (registry.mode === legacyCompatMode) {
+    warnings.push(`${legacyCompatMode} mode: no .harness-capabilities.json; adoption suggestion is available`);
   }
 
   return { registry, detected, failures, warnings };
+}
+
+function capabilityArtifactsForTarget(target, capabilityName) {
+  if (target.harness?.version !== 2) return capabilityDefinitions[capabilityName].artifacts;
+  const relative = (absolutePath) => toPosix(path.relative(target.projectRoot, absolutePath));
+  const paths = target.harness;
+  switch (capabilityName) {
+    case "core":
+      return [relative(paths.planningRoot)];
+    case "module-parallel":
+      return [relative(path.join(paths.modulesRoot, "Module-Registry.md")), relative(paths.modulesRoot)];
+    case "subagent-worker":
+      return [relative(paths.modulesRoot)];
+    case "adversarial-review":
+      return [relative(paths.tasksRoot)];
+    case "long-running-task":
+      return [relative(path.join(paths.tasksRoot, "_task-template/long-running-task-contract.md"))];
+    default:
+      return capabilityDefinitions[capabilityName].artifacts;
+  }
 }
 
 
@@ -423,63 +474,63 @@ export function plannedInitFiles(capabilities = ["core"], { locale = "en-US" } =
   const files = [
     ["AGENTS.md", "templates/AGENTS.md.template"],
     ["CLAUDE.md", "templates/CLAUDE.md.template"],
-    ["docs/Harness-Ledger.md", "templates/ledger/Harness-Ledger.md"],
-    ["docs/03-ARCHITECTURE/README.md", "templates/architecture/README.md"],
-    ["docs/03-ARCHITECTURE/Architecture-SSoT.md", "templates/architecture/Architecture-SSoT.md"],
-    ["docs/03-ARCHITECTURE/local-repo-context.md", "templates/architecture/local-repo-context.md"],
-    ["docs/03-ARCHITECTURE/system-map.md", "templates/architecture/system-map.md"],
-    ["docs/03-ARCHITECTURE/service-catalog.md", "templates/architecture/service-catalog.md"],
-    ["docs/03-ARCHITECTURE/critical-flows.md", "templates/architecture/critical-flows.md"],
-    ["docs/03-ARCHITECTURE/services/_service-template.md", "templates/architecture/services/service-template.md"],
-    ["docs/04-DEVELOPMENT/README.md", "templates/development/README.md"],
-    ["docs/04-DEVELOPMENT/local-setup.md", "templates/development/local-setup.md"],
-    ["docs/04-DEVELOPMENT/codebase-map.md", "templates/development/codebase-map.md"],
-    ["docs/04-DEVELOPMENT/external-context/_service-template.md", "templates/development/external-context/service-template.md"],
-    ["docs/04-DEVELOPMENT/external-source-packs/README.md", "templates/development/external-source-packs/README.md"],
-    ["docs/04-DEVELOPMENT/external-source-packs/_digest-template.md", "templates/development/external-source-packs/digest-template.md"],
-    ["docs/04-DEVELOPMENT/stubs-and-mocks.md", "templates/development/stubs-and-mocks.md"],
-    ["docs/04-DEVELOPMENT/cross-repo-debugging.md", "templates/development/cross-repo-debugging.md"],
-    ["docs/06-INTEGRATIONS/README.md", "templates/integrations/README.md"],
-    ["docs/06-INTEGRATIONS/_api-contract-template.md", "templates/integrations/api-contract.md"],
-    ["docs/06-INTEGRATIONS/_event-contract-template.md", "templates/integrations/event-contract.md"],
-    ["docs/06-INTEGRATIONS/_webhook-contract-template.md", "templates/integrations/webhook-contract.md"],
-    ["docs/06-INTEGRATIONS/third-party/_vendor-template.md", "templates/integrations/third-party/vendor-template.md"],
-    ["docs/09-PLANNING/TASKS/_task-template/brief.md", "templates/planning/brief.md"],
-    ["docs/09-PLANNING/TASKS/_task-template/task_plan.md", "templates/planning/task_plan.md"],
-    ["docs/09-PLANNING/TASKS/_task-template/execution_strategy.md", "templates/planning/execution_strategy.md"],
-    [`docs/09-PLANNING/TASKS/_task-template/${visualMapFile}`, "templates/planning/visual_map.md"],
-    ["docs/09-PLANNING/TASKS/_task-template/findings.md", "templates/planning/findings.md"],
-    ["docs/09-PLANNING/TASKS/_task-template/progress.md", "templates/planning/progress.md"],
-    ["docs/09-PLANNING/TASKS/_task-template/review.md", "templates/planning/review.md"],
-    ["docs/05-TEST-QA/Regression-SSoT.md", "templates/ssot/Regression-SSoT.md"],
-    ["docs/05-TEST-QA/Cadence-Ledger.md", "templates/regression/Cadence-Ledger.md"],
-    ["docs/10-WALKTHROUGH/_walkthrough-template.md", "templates/walkthrough/walkthrough-template.md"],
-    ["docs/10-WALKTHROUGH/Closeout-SSoT.md", "templates/walkthrough/Closeout-SSoT.md"],
-    ["docs/11-REFERENCE/external-source-intake-standard.md", "templates/reference/external-source-intake-standard.md"],
+    [`${v2HarnessRoot}/context/architecture/README.md`, "templates/architecture/README.md"],
+    [`${v2HarnessRoot}/context/architecture/Architecture-SSoT.md`, "templates/architecture/Architecture-SSoT.md"],
+    [`${v2HarnessRoot}/context/architecture/local-repo-context.md`, "templates/architecture/local-repo-context.md"],
+    [`${v2HarnessRoot}/context/architecture/system-map.md`, "templates/architecture/system-map.md"],
+    [`${v2HarnessRoot}/context/architecture/service-catalog.md`, "templates/architecture/service-catalog.md"],
+    [`${v2HarnessRoot}/context/architecture/critical-flows.md`, "templates/architecture/critical-flows.md"],
+    [`${v2HarnessRoot}/context/architecture/services/_service-template.md`, "templates/architecture/services/service-template.md"],
+    [`${v2HarnessRoot}/context/development/README.md`, "templates/development/README.md"],
+    [`${v2HarnessRoot}/context/development/local-setup.md`, "templates/development/local-setup.md"],
+    [`${v2HarnessRoot}/context/development/codebase-map.md`, "templates/development/codebase-map.md"],
+    [`${v2HarnessRoot}/context/development/external-context/_service-template.md`, "templates/development/external-context/service-template.md"],
+    [`${v2HarnessRoot}/context/development/external-source-packs/README.md`, "templates/development/external-source-packs/README.md"],
+    [`${v2HarnessRoot}/context/development/external-source-packs/_digest-template.md`, "templates/development/external-source-packs/digest-template.md"],
+    [`${v2HarnessRoot}/context/development/stubs-and-mocks.md`, "templates/development/stubs-and-mocks.md"],
+    [`${v2HarnessRoot}/context/development/cross-repo-debugging.md`, "templates/development/cross-repo-debugging.md"],
+    [`${v2HarnessRoot}/context/integrations/README.md`, "templates/integrations/README.md"],
+    [`${v2HarnessRoot}/context/integrations/_api-contract-template.md`, "templates/integrations/api-contract.md"],
+    [`${v2HarnessRoot}/context/integrations/_event-contract-template.md`, "templates/integrations/event-contract.md"],
+    [`${v2HarnessRoot}/context/integrations/_webhook-contract-template.md`, "templates/integrations/webhook-contract.md"],
+    [`${v2HarnessRoot}/context/integrations/third-party/_vendor-template.md`, "templates/integrations/third-party/vendor-template.md"],
+    [`${v2HarnessRoot}/planning/tasks/_task-template/brief.md`, "templates/planning/brief.md"],
+    [`${v2HarnessRoot}/planning/tasks/_task-template/task_plan.md`, "templates/planning/task_plan.md"],
+    [`${v2HarnessRoot}/planning/tasks/_task-template/execution_strategy.md`, "templates/planning/execution_strategy.md"],
+    [`${v2HarnessRoot}/planning/tasks/_task-template/${visualMapFile}`, "templates/planning/visual_map.md"],
+    [`${v2HarnessRoot}/planning/tasks/_task-template/findings.md`, "templates/planning/findings.md"],
+    [`${v2HarnessRoot}/planning/tasks/_task-template/progress.md`, "templates/planning/progress.md"],
+    [`${v2HarnessRoot}/planning/tasks/_task-template/review.md`, "templates/planning/review.md"],
+    [`${v2HarnessRoot}/planning/tasks/_task-template/walkthrough.md`, "templates/planning/walkthrough.md"],
+    [`${v2HarnessRoot}/governance/regression/Regression-SSoT.md`, "templates/ssot/Regression-SSoT.md"],
+    [`${v2HarnessRoot}/governance/regression/Cadence-Ledger.md`, "templates/regression/Cadence-Ledger.md"],
+    [`${v2HarnessRoot}/governance/standards/walkthrough-template.md`, "templates/walkthrough/walkthrough-template.md"],
+    [`${v2HarnessRoot}/governance/standards/external-source-intake-standard.md`, "templates/reference/external-source-intake-standard.md"],
   ];
   if (capabilities.includes("module-parallel")) {
-    files.push(["docs/09-PLANNING/Module-Registry.md", "templates/ssot/Module-Registry.md"]);
-    files.push(["docs/09-PLANNING/MODULES/Session-Prompt-Pack.md", "templates/planning/module_session_prompt.md"]);
-    files.push(["docs/09-PLANNING/MODULES/_module-template/brief.md", "templates/planning/module_brief.md"]);
-    files.push(["docs/09-PLANNING/MODULES/_module-template/module_plan.md", "templates/planning/module_plan.md"]);
-    files.push(["docs/09-PLANNING/MODULES/_module-template/execution_strategy.md", "templates/planning/execution_strategy.md"]);
-    files.push([`docs/09-PLANNING/MODULES/_module-template/${visualMapFile}`, "templates/planning/visual_map.md"]);
-    files.push(["docs/09-PLANNING/MODULES/_module-template/session_prompt.md", "templates/planning/module_session_prompt.md"]);
-    files.push(["docs/09-PLANNING/MODULES/_task-template/task_plan.md", "templates/planning/task_plan.md"]);
-    files.push(["docs/09-PLANNING/MODULES/_task-template/execution_strategy.md", "templates/planning/execution_strategy.md"]);
-    files.push([`docs/09-PLANNING/MODULES/_task-template/${visualMapFile}`, "templates/planning/visual_map.md"]);
-    files.push(["docs/09-PLANNING/MODULES/_task-template/findings.md", "templates/planning/findings.md"]);
-    files.push(["docs/09-PLANNING/MODULES/_task-template/progress.md", "templates/planning/progress.md"]);
-    files.push(["docs/09-PLANNING/MODULES/_task-template/review.md", "templates/planning/review.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/Module-Registry.md`, "templates/ssot/Module-Registry.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/Session-Prompt-Pack.md`, "templates/planning/module_session_prompt.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/_module-template/brief.md`, "templates/planning/module_brief.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/_module-template/module_plan.md`, "templates/planning/module_plan.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/_module-template/execution_strategy.md`, "templates/planning/execution_strategy.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/_module-template/${visualMapFile}`, "templates/planning/visual_map.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/_module-template/session_prompt.md`, "templates/planning/module_session_prompt.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/_task-template/task_plan.md`, "templates/planning/task_plan.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/_task-template/execution_strategy.md`, "templates/planning/execution_strategy.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/_task-template/${visualMapFile}`, "templates/planning/visual_map.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/_task-template/findings.md`, "templates/planning/findings.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/_task-template/progress.md`, "templates/planning/progress.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/_task-template/review.md`, "templates/planning/review.md"]);
+    files.push([`${v2HarnessRoot}/planning/modules/_task-template/walkthrough.md`, "templates/planning/walkthrough.md"]);
   }
   if (capabilities.includes("long-running-task")) {
-    files.push(["docs/09-PLANNING/TASKS/_task-template/long-running-task-contract.md", "templates/planning/long-running-task-contract.md"]);
+    files.push([`${v2HarnessRoot}/planning/tasks/_task-template/long-running-task-contract.md`, "templates/planning/long-running-task-contract.md"]);
   }
   return files.map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
 }
 
 export function writeInitFiles(targetInput, capabilities, { dryRun = true, locale = "en-US", addNpmScripts = false } = {}) {
-  const target = normalizeTarget(targetInput);
+  let target = normalizeTarget(targetInput);
   const normalizedCapabilities = [...new Set(capabilities.map(normalizeCapabilityName))];
   const normalizedLocale = normalizeLocale(locale);
   const existingRegistry = readCapabilityRegistry(target);
@@ -495,6 +546,15 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true, local
   }
   const planned = plannedInitFiles(normalizedCapabilities, { locale: normalizedLocale });
   const changes = [];
+  const manifestDestination = `${v2HarnessRoot}/harness.yaml`;
+  const manifestPath = path.join(target.projectRoot, manifestDestination);
+  const manifestExists = fs.existsSync(manifestPath);
+  changes.push({ destination: manifestDestination, source: "harness-root/v2", action: manifestExists ? "skip-existing" : dryRun ? "would-create" : "create" });
+  if (!dryRun && !manifestExists) {
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.writeFileSync(manifestPath, renderHarnessManifest({ locale: normalizedLocale, capabilities: normalizedCapabilities }));
+    target = normalizeTarget(target.projectRoot);
+  }
   for (const [destination, source] of planned) {
     const destinationPath = path.join(target.projectRoot, destination);
     const sourcePath = path.join(repoRoot, source);
@@ -508,18 +568,27 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true, local
   if (addNpmScripts) {
     changes.push(...writeNpmScripts(target, { dryRun }));
   }
-  const registry = {
-    version: 1,
-    locale: normalizedLocale,
-    capabilities: normalizedCapabilities.map((name) => ({ name, state: "scaffolded" })),
-  };
-  if (!dryRun) {
-    const registryPath = path.join(target.projectRoot, ".harness-capabilities.json");
-    if (!fs.existsSync(registryPath)) fs.writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
-  }
   const presetSeed = seedBundledPresets({ scope: "project", targetInput: target.projectRoot, dryRun });
   const report = buildInstallReport({ target, locale: normalizedLocale, capabilities: normalizedCapabilities, changes, dryRun, operation: "init" });
   return { target, capabilities: normalizedCapabilities, locale: normalizedLocale, changes, presetSeed, nextCommands: initNextCommands(), report };
+}
+
+function renderHarnessManifest({ locale, capabilities }) {
+  return [
+    "version: 2",
+    `locale: ${locale}`,
+    "capabilities:",
+    ...capabilities.map((capability) => `  - ${capability}`),
+    "structure:",
+    `  harnessRoot: ${v2HarnessRoot}`,
+    `  planningRoot: ${v2HarnessRoot}/planning`,
+    `  tasksRoot: ${v2HarnessRoot}/planning/tasks`,
+    `  modulesRoot: ${v2HarnessRoot}/planning/modules`,
+    `  externalRoot: ${v2HarnessRoot}/planning/external`,
+    `  governanceRoot: ${v2HarnessRoot}/governance`,
+    `  generatedRoot: ${v2HarnessRoot}/governance/generated`,
+    "",
+  ].join("\n");
 }
 
 function initNextCommands() {
@@ -566,7 +635,7 @@ export function addCapability(targetInput, capabilityName, { dryRun = true, loca
     if (!capabilityMap.has(dependency)) capabilityMap.set(dependency, { name: dependency, state: "scaffolded" });
   }
   if (!capabilityMap.has(normalizedCapability)) capabilityMap.set(normalizedCapability, { name: normalizedCapability, state: "scaffolded" });
-  const next = { version: 1, locale: normalizedLocale, capabilities: [...capabilityMap.values()] };
+  const nextCapabilities = [...capabilityMap.keys()];
   const scaffold = plannedInitFiles([...capabilityMap.keys()], { locale: normalizedLocale });
   const changes = [];
   for (const [destination, source] of scaffold) {
@@ -580,8 +649,18 @@ export function addCapability(targetInput, capabilityName, { dryRun = true, loca
     }
   }
   if (!dryRun) {
-    fs.writeFileSync(path.join(target.projectRoot, ".harness-capabilities.json"), `${JSON.stringify(next, null, 2)}\n`);
+    const manifestPath = target.harness.version === 2
+      ? target.manifestPath
+      : path.join(target.projectRoot, v2HarnessRoot, "harness.yaml");
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.writeFileSync(manifestPath, renderHarnessManifest({ locale: normalizedLocale, capabilities: nextCapabilities }));
   }
   const report = buildInstallReport({ target, locale: normalizedLocale, capabilities: [...capabilityMap.keys()], changes, dryRun, operation: "add-capability" });
-  return { target, dryRun, registry: next, changes, report };
+  return {
+    target,
+    dryRun,
+    registry: { version: 2, locale: normalizedLocale, capabilities: nextCapabilities.map((name) => ({ name, state: "configured" })) },
+    changes,
+    report,
+  };
 }

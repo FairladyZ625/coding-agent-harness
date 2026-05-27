@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { readBundledTemplate, readFileSafe, readJsonSafe, repoRoot, todayDate, toPosix, visualMapFile } from "./core-shared.mjs";
 import { collectTasks } from "./task-scanner.mjs";
 import { appendMarkdownTableRow, firstColumn, fitMarkdownTableRow, splitMarkdownRow, upsertMarkdownTableRow } from "./markdown-utils.mjs";
+import { resolveHarnessPaths } from "./harness-paths.mjs";
 
 export class GovernanceSyncError extends Error {
   constructor(message, { code = "governance-sync-failed", details = {}, recovery = [] } = {}) {
@@ -174,11 +175,13 @@ export function syncTaskGovernance(target, task, { event = "new-task", state = "
 
 export function syncModuleStepGovernance(target, { moduleKey, stepId, state, dryRun = false } = {}) {
   const changes = [];
-  const ledgerPath = path.join(target.docsRoot, "Harness-Ledger.md");
+  const harnessPaths = activeHarnessPaths(target);
+  const ledgerPath = harnessPaths.ledgerPath;
   const ledgerRelative = toPosix(path.relative(target.projectRoot, ledgerPath));
   ensureFileFromTemplate(ledgerPath, "templates/ledger/Harness-Ledger.md", { dryRun });
   if (!dryRun) {
     const content = readFileSafe(ledgerPath);
+    const modulePlan = toPosix(path.relative(target.projectRoot, path.join(harnessPaths.modulesRoot, moduleKey, "module_plan.md")));
     const row = [
       `HL-${todayDate().replaceAll("-", "")}-${Date.now().toString().slice(-6)}`,
       "module",
@@ -186,7 +189,7 @@ export function syncModuleStepGovernance(target, { moduleKey, stepId, state, dry
       `Module ${moduleKey} step ${stepId}`,
       state === "done" ? "review" : state === "in-progress" ? "active" : state,
       "none",
-      `docs/09-PLANNING/MODULES/${moduleKey}/module_plan.md`,
+      modulePlan,
       "n/a",
       "checked-none:module-step",
       "pending",
@@ -204,7 +207,7 @@ export function governanceRelativePaths(changes) {
 }
 
 function syncLedgerRow(target, task, { event, state, message, planPath, reviewPath, dryRun }) {
-  const ledgerPath = path.join(target.docsRoot, "Harness-Ledger.md");
+  const ledgerPath = activeHarnessPaths(target).ledgerPath;
   ensureFileFromTemplate(ledgerPath, "templates/ledger/Harness-Ledger.md", { dryRun });
   const relative = toPosix(path.relative(target.projectRoot, ledgerPath));
   if (!dryRun) {
@@ -229,17 +232,19 @@ function syncLedgerRow(target, task, { event, state, message, planPath, reviewPa
 }
 
 function syncModuleRegistryRow(target, task, { state, planPath, dryRun }) {
-  const registryPath = path.join(target.docsRoot, "09-PLANNING/Module-Registry.md");
+  const harnessPaths = activeHarnessPaths(target);
+  const registryPath = path.join(harnessPaths.modulesRoot, "Module-Registry.md");
   ensureFileFromTemplate(registryPath, "templates/ssot/Module-Registry.md", { dryRun });
   const relative = toPosix(path.relative(target.projectRoot, registryPath));
   if (!dryRun) {
     const content = readFileSafe(registryPath);
     const moduleKey = task.module;
-    const modulePlan = `docs/09-PLANNING/MODULES/${moduleKey}/module_plan.md`;
+    const moduleDirRelative = toPosix(path.relative(target.projectRoot, path.join(harnessPaths.modulesRoot, moduleKey)));
+    const modulePlan = `${moduleDirRelative}/module_plan.md`;
     const row = [
       `M-${moduleKey.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}`,
       moduleKey,
-      `docs/09-PLANNING/MODULES/${moduleKey}/**`,
+      `${moduleDirRelative}/**`,
       "coordinator",
       state === "planned" ? "reserved" : mapModuleState(state),
       `codex/${moduleKey}`,
@@ -274,13 +279,14 @@ function syncModuleGeneratedIndexes(target, moduleKey, { task = null, dryRun = f
 }
 
 export function moduleGeneratedIndexSurfaces(target, tasks = collectTasks(target)) {
+  const harnessPaths = activeHarnessPaths(target);
   const modules = [...new Set((tasks || []).map((task) => task.module).filter(Boolean))].sort();
   const surfaces = [];
   for (const moduleKey of modules) {
     const moduleTasks = (tasks || [])
       .filter((task) => task.module === moduleKey)
       .sort((a, b) => String(stripDatePrefix(a.shortId || a.id)).localeCompare(String(stripDatePrefix(b.shortId || b.id))));
-    const moduleDir = path.join(target.docsRoot, "09-PLANNING/MODULES", moduleKey);
+    const moduleDir = path.join(harnessPaths.modulesRoot, moduleKey);
     const modulePlanPath = path.join(moduleDir, "module_plan.md");
     const moduleVisualPath = path.join(moduleDir, visualMapFile);
     const stepRows = moduleTasks.map((task, index) => {
@@ -449,6 +455,10 @@ function mapModuleState(state) {
   if (state === "done") return "merged";
   if (state === "blocked") return "blocked";
   return "reserved";
+}
+
+function activeHarnessPaths(target) {
+  return target.harness || resolveHarnessPaths(target);
 }
 
 export function inspectGit(root) {

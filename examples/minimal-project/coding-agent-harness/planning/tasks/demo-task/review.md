@@ -14,7 +14,7 @@ No material finding for this example.
 
 | Evidence ID | Type | Path | Summary |
 | --- | --- | --- | --- |
-| E-001 | review | TARGET:docs/09-PLANNING/TASKS/demo-task/task_plan.md | Visual roadmap table exists |
+| E-001 | review | TARGET:coding-agent-harness/planning/tasks/demo-task/task_plan.md | Visual map table exists |
 
 ## Findings
 

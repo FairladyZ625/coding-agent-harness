@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  normalizeTarget,
   serveDashboardWorkbench,
   writeDashboardFolder,
   writeDashboardSingleFile,
@@ -33,7 +34,10 @@ export async function runDashboardCommand({ takeFlag, takeOption, targetArg }) {
       process.exit(2);
     }
     const target = targetArg();
-    const docsRoot = path.basename(path.resolve(target)) === "docs" ? path.resolve(target) : path.join(path.resolve(target), "docs");
+    const normalizedTarget = normalizeTarget(target);
+    const watchRoot = normalizedTarget.harness?.version === 2
+      ? normalizedTarget.harness.harnessRoot
+      : path.basename(path.resolve(target)) === "docs" ? path.resolve(target) : path.join(path.resolve(target), "docs");
     const regenerate = () => {
       try {
         console.log(writeDashboardFolder(outDir, target, opts));
@@ -44,7 +48,7 @@ export async function runDashboardCommand({ takeFlag, takeOption, targetArg }) {
     };
     regenerate();
     let timer = null;
-    const watcher = fs.watch(docsRoot, { recursive: true }, () => {
+    const watcher = fs.watch(watchRoot, { recursive: true }, () => {
       clearTimeout(timer);
       timer = setTimeout(regenerate, 300);
     });
@@ -55,7 +59,7 @@ export async function runDashboardCommand({ takeFlag, takeOption, targetArg }) {
     };
     process.on("SIGINT", close);
     process.on("SIGTERM", close);
-    console.log(`watching ${docsRoot}`);
+    console.log(`watching ${watchRoot}`);
     await new Promise(() => {});
   }
   if (outDir) {

@@ -7,6 +7,7 @@ export * from "./check-profiles.mjs";
 export * from "./dashboard-data.mjs";
 export * from "./dashboard-workbench.mjs";
 export * from "./migration-planner.mjs";
+export * from "./structure-migration.mjs";
 export * from "./preset-registry.mjs";
 export * from "./governance-index-generator.mjs";
 export * from "./task-lifecycle.mjs";

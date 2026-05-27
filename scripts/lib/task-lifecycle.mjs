@@ -40,7 +40,7 @@ import { getColumn, firstColumn, updateMarkdownTableRow } from "./markdown-utils
 import { validateLifecycleTransition, validateReviewEntryGate } from "./task-lifecycle/review-gates.mjs";
 import { advanceLifecyclePhase, autoRecordNoLessonCandidateDecision } from "./task-lifecycle/phase-sync.mjs";
 import { confirmTaskReview as confirmTaskReviewWithContext } from "./task-lifecycle/review-confirm.mjs";
-import { appendProgressLog } from "./task-lifecycle/text-utils.mjs";
+import { appendProgressLog, markWalkthroughClosed } from "./task-lifecycle/text-utils.mjs";
 import { buildScaffoldProvenance } from "./task-lifecycle/scaffold-provenance.mjs";
 import { buildCreationTaskAudit } from "./task-audit-metadata.mjs";
 import {
@@ -55,6 +55,7 @@ import {
 import {
   planCreateTaskChanges,
   refreshPresetCommandAudit,
+  resolveImplicitCreateTarget,
 } from "./task-lifecycle/create-task-helpers.mjs";
 import {
   beginGovernanceSync,
@@ -64,17 +65,27 @@ import {
   syncModuleStepGovernance,
   syncTaskGovernance,
 } from "./governance-sync.mjs";
+import { taskRefPath } from "./harness-paths.mjs";
 
 function taskRoot(target, taskId, { moduleKey = "" } = {}) {
   const normalizedTaskId = normalizeTaskId(taskId);
-  if (moduleKey) return path.join(target.docsRoot, "09-PLANNING/MODULES", normalizeTaskId(moduleKey), normalizedTaskId);
-  return path.join(target.docsRoot, "09-PLANNING/TASKS", normalizedTaskId);
+  if (moduleKey) {
+    const moduleRoot = path.join(target.harness.modulesRoot, normalizeTaskId(moduleKey));
+    return target.harness.version === 2
+      ? path.join(moduleRoot, "tasks", normalizedTaskId)
+      : path.join(moduleRoot, normalizedTaskId);
+  }
+  return path.join(target.harness.tasksRoot, normalizedTaskId);
 }
 
 export function resolveTaskDirectory(target, taskRef) {
-  const raw = String(taskRef || "").replace(/^docs\/09-PLANNING\//, "").replace(/^\/+/, "");
+  const raw = String(taskRef || "")
+    .replace(/^coding-agent-harness\/planning\//, "")
+    .replace(/^planning\//, "")
+    .replace(new RegExp(`^${legacyPlanningPrefix()}\\/`), "")
+    .replace(/^\/+/, "");
   if (!raw) throw new Error("Missing task id");
-  const direct = raw.startsWith("TASKS/") || raw.startsWith("MODULES/") ? path.join(target.docsRoot, "09-PLANNING", raw) : "";
+  const direct = directTaskRefPath(target, raw);
   if (direct && fs.existsSync(path.join(direct, "task_plan.md"))) return direct;
   const normalized = normalizeTaskId(raw);
   const candidates = listTaskPlanPaths(target)
@@ -106,6 +117,14 @@ export function resolveTaskDirectory(target, taskRef) {
   const legacy = taskRoot(target, normalized);
   if (fs.existsSync(path.join(legacy, "task_plan.md"))) return legacy;
   throw new Error(`Task not found: ${taskRef}`);
+}
+
+function directTaskRefPath(target, raw) {
+  return taskRefPath(target.harness, raw);
+}
+
+function legacyPlanningPrefix() {
+  return "docs\\/09-PLANNING";
 }
 
 function findTaskByDirectory(target, taskDir) {
@@ -186,10 +205,11 @@ function resolveTaskIdentity({ target, taskId, title, presetPackage, moduleKey, 
 
 export function createTask(targetInput, taskId, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard", longRunning = false, preset = "", fromSession = "", presetArgs = [], automaticTaskId = false } = {}) {
   const requestedPreset = preset || (moduleKey ? "module" : "");
-  const normalizedPreset = normalizeTaskPresetInput(requestedPreset, { targetInput });
-  const presetPackage = normalizedPreset === "none" ? null : readPresetPackage(normalizedPreset, { targetInput });
-  const presetInputs = presetPackage ? resolvePresetInputs(presetPackage, { cliArgs: presetArgs, fromSession, targetInput }) : null;
-  const target = normalizeTarget(presetInputs?.targetInput || targetInput);
+  const presetTargetInput = resolveImplicitCreateTarget(targetInput, fromSession);
+  const normalizedPreset = normalizeTaskPresetInput(requestedPreset, { targetInput: presetTargetInput });
+  const presetPackage = normalizedPreset === "none" ? null : readPresetPackage(normalizedPreset, { targetInput: presetTargetInput });
+  const presetInputs = presetPackage ? resolvePresetInputs(presetPackage, { cliArgs: presetArgs, fromSession, targetInput: presetTargetInput }) : null;
+  const target = normalizeTarget(presetInputs?.targetInput || presetTargetInput || targetInput);
   if (presetInputs?.targetInput && targetInput && targetInput !== "." && path.resolve(targetInput) !== path.resolve(presetInputs.targetInput)) {
     throw new Error(`--from-session target mismatch: session target is ${presetInputs.targetInput}`);
   }
@@ -263,7 +283,9 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
   const governanceContext = beginGovernanceSync(target, { operation: `new-task ${normalizedTaskId}`, dryRun, allowDirtyWorktree: true, allowedRelativePaths: plannedWriteScopes });
   try {
   if (normalizedModuleKey) {
-    const moduleDirectory = path.dirname(directory);
+    const moduleDirectory = target.harness.version === 2
+      ? path.join(target.harness.modulesRoot, normalizedModuleKey)
+      : path.dirname(directory);
     for (const [destination, source] of moduleTemplateFiles({ locale: normalizedLocale })) {
       const destinationPath = path.join(moduleDirectory, destination);
       if (fs.existsSync(destinationPath)) continue;
@@ -442,6 +464,12 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
       const lessonDecisionPath = autoRecordNoLessonCandidateDecision(target, taskDir);
       if (lessonDecisionPath) allowedPaths.push(lessonDecisionPath);
     }
+    if (event === "task-complete" && target.harness.version === 2) {
+      const walkthroughPath = path.join(taskDir, "walkthrough.md");
+      const currentWalkthrough = readFileSafe(walkthroughPath) || `# Walkthrough: ${canonicalTaskId}\n`;
+      fs.writeFileSync(walkthroughPath, markWalkthroughClosed(currentWalkthrough));
+      allowedPaths.push(toPosix(path.relative(target.projectRoot, walkthroughPath)));
+    }
     const task =
       findTaskByDirectory(target, taskDir) ||
       {
@@ -465,6 +493,7 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
     releaseGovernanceSync(governanceContext);
   }
 }
+
 
 export function confirmTaskReview(targetInput, taskId, { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "" } = {}) {
   const target = normalizeTarget(targetInput);
@@ -520,7 +549,7 @@ export function updateModuleStep(targetInput, moduleKey, stepId, { state = "" } 
   const normalizedModuleKey = normalizeTaskId(moduleKey);
   const normalizedState = String(state || "done").toLowerCase().replaceAll("_", "-");
   if (!["planned", "in-progress", "done", "blocked", "superseded"].includes(normalizedState)) throw new Error(`Invalid module step state: ${state}`);
-  const modulePlanPath = path.join(target.docsRoot, "09-PLANNING/MODULES", normalizedModuleKey, "module_plan.md");
+  const modulePlanPath = path.join(target.harness.modulesRoot, normalizedModuleKey, "module_plan.md");
   if (!fs.existsSync(modulePlanPath)) throw new Error(`Module plan not found: ${normalizedModuleKey}`);
   let content = readFileSafe(modulePlanPath);
   const stepUpdate = updateMarkdownTableRow(content, /^(Step ID|步骤 ID)$/i, (header, row) => {
@@ -537,7 +566,7 @@ export function updateModuleStep(targetInput, moduleKey, stepId, { state = "" } 
     content = stepUpdate.content;
     fs.writeFileSync(modulePlanPath, content);
 
-    const registryPath = path.join(target.docsRoot, "09-PLANNING/Module-Registry.md");
+    const registryPath = path.join(target.harness.modulesRoot, "Module-Registry.md");
     if (fs.existsSync(registryPath)) {
       let registry = readFileSafe(registryPath);
       const registryUpdate = updateMarkdownTableRow(registry, /^(ID|模块 Key)$/i, (header, row) => {

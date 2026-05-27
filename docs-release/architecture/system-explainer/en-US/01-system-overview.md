@@ -103,17 +103,18 @@ flowchart TD
   REPO["📁 Target Repo\nYour project repository"]
 
   REPO --> Entry["AGENTS.md\nAgent entry point and routing\n(tells Agents where to find context)"]
-  REPO --> Caps[".harness-capabilities.json\nWhich capability modules are enabled"]
-  REPO --> Docs["docs/\nDoc tree (harness workspace)"]
+  REPO --> Manifest["coding-agent-harness/harness.yaml\nEnabled capabilities and structure"]
+  REPO --> Harness["coding-agent-harness/\nHarness workspace"]
+  REPO --> Docs["docs/\nReference docs and project standards"]
 
-  Docs --> Planning["09-PLANNING/\nTask directory + module directory"]
-  Docs --> Ledger["Harness-Ledger.md\nGlobal ledger (all tasks summarized)"]
-  Docs --> Walkthrough["10-WALKTHROUGH/\nCloseout evidence and Closeout SSoT"]
+  Harness --> Planning["planning/\nTask directory + module directory"]
+  Harness --> Ledger["governance/generated/Harness-Ledger.md\nGlobal ledger (all tasks summarized)"]
+  Harness --> Walkthrough["task-local walkthrough.md\nCloseout evidence"]
   Docs --> Reference["11-REFERENCE/\nLocal operating standards (copied from Package)"]
   Docs --> Governance["01-GOVERNANCE/\nLesson library"]
 ```
 
-Each task corresponds to a directory under `docs/09-PLANNING/TASKS/<task-id>/`,
+Each task corresponds to a directory under `coding-agent-harness/planning/tasks/<task-id>/`,
 containing files like `task_plan.md`, `progress.md`, `visual_map.md`, `review.md`, etc.
 
 ### What the Runtime does
@@ -138,14 +139,14 @@ caching no intermediate state (except file watching in `harness dev`).
 
 | Concept | One-line explanation | Where |
 | --- | --- | --- |
-| **Task** | A unit of work with a lifecycle | `docs/09-PLANNING/TASKS/<id>/` |
+| **Task** | A unit of work with a lifecycle | `coding-agent-harness/planning/tasks/<id>/` |
 | **Budget** | Task complexity: `simple` / `standard` / `complex`, determines gate strictness | `task_plan.md` |
 | **Phase** | An execution phase in the Visual Map, with state and completion | `visual_map.md` |
-| **Capability** | Optional feature module, e.g. `dashboard`, `adversarial-review` | `.harness-capabilities.json` |
+| **Capability** | Optional feature module, e.g. `dashboard`, `module-parallel` | `coding-agent-harness/harness.yaml` |
 | **Review Gate** | A review gate that blocks task completion, requires human confirmation to pass | `review.md` |
-| **Governance Sync** | Atomic operation that auto-updates the global ledger on task state changes | `Harness-Ledger.md` |
+| **Governance Sync** | Atomic operation that auto-updates the global ledger on task state changes | `coding-agent-harness/governance/generated/Harness-Ledger.md` |
 | **Preset** | A reusable task method package, e.g. `legacy-migration`, `module` | `presets/<id>/` |
-| **Lesson** | Reusable knowledge distilled from a task | `docs/01-GOVERNANCE/lessons/` |
+| **Lesson** | Reusable knowledge distilled from a task | `coding-agent-harness/governance/lessons/` |
 | **Tombstone** | Marker for soft-deleted / merged / superseded tasks | Special block in `task_plan.md` |
 | **lifecycleState** | Queue classification derived from task state + review state combined | Derived at runtime, not stored in files |
 

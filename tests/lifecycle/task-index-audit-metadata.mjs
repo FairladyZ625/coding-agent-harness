@@ -29,15 +29,15 @@ function read(taskDir, file) {
   return fs.readFileSync(path.join(taskDir, file), "utf8");
 }
 
+function taskDirFor(target, task) {
+  return path.join(target, String(task.path).replace(/^TARGET:/, ""));
+}
+
 function prepareConfirmedTask(target, name) {
   const created = expectJson(["new-task", name, "--title", name, "--locale", "en-US", target]);
-  const taskDir = path.join(target, `docs/09-PLANNING/${created.task.id}`);
-  const walkthroughPath = path.join(target, `docs/10-WALKTHROUGH/${name}-walkthrough.md`);
+  const taskDir = taskDirFor(target, created.task);
+  const walkthroughPath = path.join(taskDir, "walkthrough.md");
   fs.writeFileSync(walkthroughPath, `# Walkthrough: ${name}\n\n## Summary\n\nReview fixture.\n`);
-  fs.appendFileSync(
-    path.join(target, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
-    `\n| CL-${name.toUpperCase().replace(/[^A-Z0-9]/g, "-")} | ${todayLocal} | ${name} | \`docs/09-PLANNING/${created.task.id}/task_plan.md\` | \`docs/09-PLANNING/${created.task.id}/review.md\` | \`docs/10-WALKTHROUGH/${name}-walkthrough.md\` | pending human review | none | checked-none | pending |\n`,
-  );
   acceptNoLessonCandidate(taskDir);
   expectJson(["task-start", name, "--message", "start", target]);
   expectJson(["task-phase", name, "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
@@ -55,7 +55,7 @@ fs.mkdirSync(auditTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard", auditTarget]);
 
 const created = expectJson(["new-task", "index-audit-new-task", "--title", "INDEX audit new task", "--locale", "en-US", auditTarget]);
-const createdDir = path.join(auditTarget, `docs/09-PLANNING/${created.task.id}`);
+const createdDir = taskDirFor(auditTarget, created.task);
 const createdIndex = read(createdDir, "INDEX.md");
 const createdBrief = read(createdDir, "brief.md");
 const createdReview = read(createdDir, "review.md");
@@ -101,14 +101,14 @@ assert(read(confirmTask.taskDir, "review.md") === beforeConfirmReview, "review-c
 assert(read(confirmTask.taskDir, "progress.md") === beforeConfirmProgress, "review-confirm should not mutate progress.md");
 for (const sha of [confirmPayload.audit.commitSha, confirmPayload.audit.auditCommitSha]) {
   const files = expectGit(auditTarget, ["show", "--name-only", "--format=", sha]).stdout.trim().split(/\r?\n/).filter(Boolean);
-  assert(files.length === 1 && files[0] === `docs/09-PLANNING/${confirmTask.id}/INDEX.md`, `review-confirm commit ${sha} should change only task INDEX.md`);
+  assert(files.length === 1 && files[0] === `coding-agent-harness/planning/tasks/${confirmTask.shortId}/INDEX.md`, `review-confirm commit ${sha} should change only task INDEX.md, got ${files.join(", ")}`);
 }
 
 const migrationTarget = path.join(tmpRoot, "task-index-audit-migration-target");
 fs.mkdirSync(migrationTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", migrationTarget]);
 const legacy = expectJson(["new-task", "legacy-audit", "--title", "Legacy audit", "--locale", "en-US", migrationTarget]);
-const legacyDir = path.join(migrationTarget, `docs/09-PLANNING/${legacy.task.id}`);
+const legacyDir = taskDirFor(migrationTarget, legacy.task);
 const legacyIndexPath = path.join(legacyDir, "INDEX.md");
 fs.writeFileSync(legacyIndexPath, fs.readFileSync(legacyIndexPath, "utf8").replace("| Legacy Extra Fields | {} |", '| Legacy Extra Fields | {"Existing":"keep"} |'));
 fs.appendFileSync(
@@ -134,13 +134,13 @@ assert(!read(legacyDir, "brief.md").includes("## Scaffold Provenance"), "migrati
 assert(!read(legacyDir, "review.md").includes("## Human Review Confirmation"), "migration should remove legacy Human Review Confirmation block");
 
 const looseLegacy = expectJson(["new-task", "legacy-loose-review", "--title", "Legacy loose review", "--locale", "en-US", migrationTarget]);
-const looseLegacyDir = path.join(migrationTarget, `docs/09-PLANNING/${looseLegacy.task.id}`);
+const looseLegacyDir = taskDirFor(migrationTarget, looseLegacy.task);
 fs.appendFileSync(
   path.join(looseLegacyDir, "review.md"),
-  `\n## Human Review Confirmation\n\nReviewer: Coordinator adversarial review\n\n| Confirmed At | Reviewer | Message | Evidence |\n| --- | --- | --- | --- |\n| 2026-05-21 02:02 | Coordinator adversarial review | Human review confirmed | TARGET:docs/09-PLANNING/${looseLegacy.task.id}/review.md |\n`,
+  `\n## Human Review Confirmation\n\nReviewer: Coordinator adversarial review\n\n| Confirmed At | Reviewer | Message | Evidence |\n| --- | --- | --- | --- |\n| 2026-05-21 02:02 | Coordinator adversarial review | Human review confirmed | ${looseLegacy.task.reviewPath} |\n`,
 );
 const pendingLegacy = expectJson(["new-task", "legacy-pending-review", "--title", "Legacy pending review", "--locale", "en-US", migrationTarget]);
-const pendingLegacyDir = path.join(migrationTarget, `docs/09-PLANNING/${pendingLegacy.task.id}`);
+const pendingLegacyDir = taskDirFor(migrationTarget, pendingLegacy.task);
 fs.appendFileSync(
   path.join(pendingLegacyDir, "review.md"),
   `\n## Human Review Confirmation\n\n| Field | Value |\n| --- | --- |\n| Confirmation ID | pending-human |\n| Confirmed At | pending |\n| Reviewer | pending |\n| Reviewer Email | pending |\n| Task Key | ${pendingLegacy.task.shortId} |\n| Confirm Text | pending |\n| Evidence Checked | pending |\n| Commit SHA | pending |\n| Audit Status | ready-for-pr |\n`,
@@ -157,7 +157,7 @@ assert(pendingIndex.includes("| Human Review Status | not-confirmed |"), "pendin
 assert(!read(pendingLegacyDir, "review.md").includes("## Human Review Confirmation"), "pending legacy review block should be removed after migration");
 
 const malformed = expectJson(["new-task", "legacy-malformed", "--title", "Legacy malformed", "--locale", "en-US", migrationTarget]);
-const malformedDir = path.join(migrationTarget, `docs/09-PLANNING/${malformed.task.id}`);
+const malformedDir = taskDirFor(migrationTarget, malformed.task);
 fs.appendFileSync(
   path.join(malformedDir, "review.md"),
   `\n## Human Review Confirmation\n\n| Field | Value |\n| --- | --- |\n| Confirmation ID | HRC-20260526020202 |\n| Confirmed At | 2026-05-26T02:02:02+08:00 |\n| Reviewer | Partial Reviewer |\n`,
@@ -170,7 +170,7 @@ const invalidStatusTarget = path.join(tmpRoot, "task-index-audit-invalid-status-
 fs.mkdirSync(invalidStatusTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", invalidStatusTarget]);
 const invalidStatus = expectJson(["new-task", "legacy-invalid-status", "--title", "Legacy invalid status", "--locale", "en-US", invalidStatusTarget]);
-const invalidStatusDir = path.join(invalidStatusTarget, `docs/09-PLANNING/${invalidStatus.task.id}`);
+const invalidStatusDir = taskDirFor(invalidStatusTarget, invalidStatus.task);
 fs.appendFileSync(
   path.join(invalidStatusDir, "review.md"),
   `\n## Human Review Confirmation\n\n| Field | Value |\n| --- | --- |\n| Confirmation ID | HRC-20260526030303 |\n| Confirmed At | 2026-05-26T03:03:03+08:00 |\n| Reviewer | Invalid Status Reviewer |\n| Reviewer Email | invalid-status@example.invalid |\n| Task Key | ${invalidStatus.task.id} |\n| Confirm Text | ${invalidStatus.task.shortId} |\n| Evidence Checked | command:test |\n| Commit SHA | 1234567890abcdef1234567890abcdef12345678 |\n| Audit Status | ready-for-pr |\n`,
@@ -183,7 +183,7 @@ const invalidIndexTarget = path.join(tmpRoot, "task-index-audit-invalid-index-ta
 fs.mkdirSync(invalidIndexTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", invalidIndexTarget]);
 const invalidIndex = expectJson(["new-task", "invalid-index-audit", "--title", "Invalid INDEX audit", "--locale", "en-US", invalidIndexTarget]);
-const invalidIndexPath = path.join(invalidIndexTarget, `docs/09-PLANNING/${invalidIndex.task.id}`, "INDEX.md");
+const invalidIndexPath = path.join(taskDirFor(invalidIndexTarget, invalidIndex.task), "INDEX.md");
 fs.writeFileSync(
   invalidIndexPath,
   fs.readFileSync(invalidIndexPath, "utf8")

@@ -18,6 +18,13 @@ import {
 
 const { taskMigrationClassification, requiresCanonicalVisualMap } = await import("../scripts/lib/harness-core.mjs");
 
+function readHarnessManifestText(target) {
+  return fs.readFileSync(path.join(target, "coding-agent-harness/harness.yaml"), "utf8");
+}
+
+function manifestHasCapability(target, capability) {
+  return new RegExp(`^\\s*-\\s*${capability}\\s*$`, "m").test(readHarnessManifestText(target));
+}
 
 assert(taskMigrationClassification("unknown", "legacy-only") === "unknown-needs-human", "unknown legacy-only task should require human classification");
 assert(taskMigrationClassification("done", "not-needed") === "historical-no-map-needed", "done task with not-needed visual map should not require migration action");
@@ -41,8 +48,8 @@ assert(dryRun.dryRun === true, "init dry-run did not report dryRun true");
 assert(dryRun.locale === "zh-CN", "init dry-run did not preserve zh-CN locale");
 assert(dryRun.nextCommands?.some((command) => command.includes("coding-agent-harness dev")), "init output should recommend harness dev as the next human dashboard command");
 assert(
-  dryRun.changes.filter((change) => change.destination.startsWith("docs/11-REFERENCE/")).every((change) => change.destination === "docs/11-REFERENCE/external-source-intake-standard.md"),
-  "init scaffold should only copy the external source intake standard as a core reference",
+  dryRun.changes.some((change) => change.destination === "coding-agent-harness/governance/standards/external-source-intake-standard.md"),
+  "init scaffold should copy the external source intake standard into v2 governance standards",
 );
 assert(
   dryRun.changes.some((change) => change.source === "templates-zh-CN/planning/task_plan.md"),
@@ -81,15 +88,16 @@ assert(zhInit.report?.capabilities?.some((capability) => capability.name === "co
 assert(zhInit.report?.capabilities?.some((capability) => capability.name === "dashboard" && capability.selected === true), "install report should mark selected capabilities");
 assert(zhInit.report?.agentInstructions?.some((item) => item.includes("--locale")), "install report should remind agents to pass --locale explicitly");
 assert(zhInit.nextCommands?.some((command) => command.includes("coding-agent-harness dev")), "init should print a dev workbench next command");
-const zhRegistry = JSON.parse(fs.readFileSync(path.join(zhInitTarget, ".harness-capabilities.json"), "utf8"));
-assert(zhRegistry.locale === "zh-CN", "init should persist zh-CN locale");
+const zhManifest = readHarnessManifestText(zhInitTarget);
+assert(zhManifest.includes("locale: zh-CN"), "init should persist zh-CN locale");
+assert(manifestHasCapability(zhInitTarget, "dashboard"), "init should persist selected dashboard capability");
 assert(fs.readFileSync(path.join(zhInitTarget, "AGENTS.md"), "utf8").includes("项目概况"), "zh-CN init should write Chinese AGENTS.md");
-assert(fs.existsSync(path.join(zhInitTarget, "docs/11-REFERENCE/external-source-intake-standard.md")), "zh-CN init should create external source intake standard");
+assert(fs.existsSync(path.join(zhInitTarget, "coding-agent-harness/governance/standards/external-source-intake-standard.md")), "zh-CN init should create external source intake standard");
 assert(
-  fs.readFileSync(path.join(zhInitTarget, "docs/04-DEVELOPMENT/external-source-packs/README.md"), "utf8").includes("外部资料包索引"),
+  fs.readFileSync(path.join(zhInitTarget, "coding-agent-harness/context/development/external-source-packs/README.md"), "utf8").includes("外部资料包索引"),
   "zh-CN init should create localized external source pack registry",
 );
-const zhReviewTemplate = fs.readFileSync(path.join(zhInitTarget, "docs/09-PLANNING/TASKS/_task-template/review.md"), "utf8");
+const zhReviewTemplate = fs.readFileSync(path.join(zhInitTarget, "coding-agent-harness/planning/tasks/_task-template/review.md"), "utf8");
 assert(zhReviewTemplate.includes("| ID | Severity | Finding | Evidence Checked | Required Action | Open | Disposition | Blocks Release | Follow-up |"), "zh-CN review template should preserve checker table headers");
 const zhInitCheck = expectJson(["status", "--json", zhInitTarget]);
 assert(zhInitCheck.checkState.status === "pass", "core+dashboard init should pass status check without safe-adoption");
@@ -131,11 +139,11 @@ const enInitTarget = path.join(tmpRoot, "en-init-target");
 fs.mkdirSync(enInitTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard", enInitTarget]);
 assert(
-  fs.readFileSync(path.join(enInitTarget, "docs/11-REFERENCE/external-source-intake-standard.md"), "utf8").includes("External Source Intake Standard"),
+  fs.readFileSync(path.join(enInitTarget, "coding-agent-harness/governance/standards/external-source-intake-standard.md"), "utf8").includes("External Source Intake Standard"),
   "en-US init should create English external source intake standard",
 );
 assert(
-  fs.readFileSync(path.join(enInitTarget, "docs/04-DEVELOPMENT/external-source-packs/README.md"), "utf8").includes("External Source Packs"),
+  fs.readFileSync(path.join(enInitTarget, "coding-agent-harness/context/development/external-source-packs/README.md"), "utf8").includes("External Source Packs"),
   "en-US init should create English external source pack registry",
 );
 const enInitStatus = expectJson(["status", "--json", enInitTarget]);
@@ -145,10 +153,10 @@ assert(enInitStatus.checkState.warnings === 0, "en-US core+dashboard init should
 const capTarget = path.join(tmpRoot, "cap-target");
 fs.mkdirSync(capTarget);
 expectPass(["add-capability", "dashboard", capTarget]);
-const registry = JSON.parse(fs.readFileSync(path.join(capTarget, ".harness-capabilities.json"), "utf8"));
-assert(registry.locale === "en-US", "add-capability registry missing default locale");
-assert(registry.capabilities.some((capability) => capability.name === "dashboard"), "add-capability missing dashboard");
-assert(registry.capabilities.some((capability) => capability.name === "core"), "add-capability missing dependency core");
+const capManifest = readHarnessManifestText(capTarget);
+assert(capManifest.includes("locale: en-US"), "add-capability manifest missing default locale");
+assert(manifestHasCapability(capTarget, "dashboard"), "add-capability missing dashboard");
+assert(manifestHasCapability(capTarget, "core"), "add-capability missing dependency core");
 const addReport = expectJson(["add-capability", "dashboard", "--dry-run", capTarget]);
 assert(addReport.report?.capabilities?.some((capability) => capability.name === "dashboard"), "add-capability output should include install report");
 
@@ -182,8 +190,8 @@ assert(missingDoctor.status !== 0, "doctor-user should fail for missing agent in
 const zhCapTarget = path.join(tmpRoot, "zh-cap-target");
 fs.mkdirSync(zhCapTarget);
 expectPass(["add-capability", "dashboard", "--locale", "zh-CN", zhCapTarget]);
-const zhCapRegistry = JSON.parse(fs.readFileSync(path.join(zhCapTarget, ".harness-capabilities.json"), "utf8"));
-assert(zhCapRegistry.locale === "zh-CN", "add-capability should support zh-CN locale for legacy targets");
+const zhCapManifest = readHarnessManifestText(zhCapTarget);
+assert(zhCapManifest.includes("locale: zh-CN"), "add-capability should support zh-CN locale for uninitialized targets");
 assert(fs.readFileSync(path.join(zhCapTarget, "AGENTS.md"), "utf8").includes("项目概况"), "zh-CN add-capability should write Chinese templates");
 
 const mismatch = run(["init", "--capabilities", "core,module-parallel", capTarget]);

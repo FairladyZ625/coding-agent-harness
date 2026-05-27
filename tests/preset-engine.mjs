@@ -88,7 +88,7 @@ task:
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
     templates:
       taskPlanAppend: templates/task_plan.append.md
@@ -116,7 +116,7 @@ audit:
   evidenceFiles: [preset-audit.json, preset-manifest.json, write-scope.json]
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -190,7 +190,7 @@ task:
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
     templates:
       taskPlanAppend: templates/task_plan.append.md
@@ -207,7 +207,7 @@ audit:
   evidenceFiles: [preset-audit.json]
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -222,7 +222,7 @@ assert(projectInspect.purpose === "Project-level review task preset", "preset in
 assert(path.isAbsolute(projectInspect.manifestPath), "project preset manifest path should be absolute for agent discovery");
 const projectCreated = expectJson(["new-task", "project-review-task", "--budget", "standard", "--preset", "project-review", "--topic", "Module context", target], { env });
 assert(projectCreated.task.kind === "project-review-task", "new-task should resolve project-level preset manifests");
-const projectTaskPlan = fs.readFileSync(path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-project-review-task/task_plan.md`), "utf8");
+const projectTaskPlan = fs.readFileSync(path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-project-review-task/task_plan.md`), "utf8");
 assert(projectTaskPlan.includes("Topic: Module context"), "project-level preset should render declared project preset templates");
 
 const projectFlagSource = path.join(tmpRoot, "project-flag-preset");
@@ -240,7 +240,7 @@ task:
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
     templates:
       taskPlanAppend: templates/task_plan.append.md
@@ -257,7 +257,7 @@ audit:
   evidenceFiles: [preset-audit.json]
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -265,7 +265,7 @@ fs.writeFileSync(path.join(projectFlagSource, "templates/task_plan.append.md"), 
 expectJson(["preset", "install", projectFlagSource, "--project", "--force", "--json", target], { env });
 const projectFlagCreated = expectJson(["new-task", "project-flag-task", "--budget", "standard", "--preset", "project-flag", "--quick", target], { env });
 assert(projectFlagCreated.task.kind === "project-flag-task", "new-task should resolve project-level presets when the preset input is a boolean flag");
-const projectFlagTaskPlan = fs.readFileSync(path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-project-flag-task/task_plan.md`), "utf8");
+const projectFlagTaskPlan = fs.readFileSync(path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-project-flag-task/task_plan.md`), "utf8");
 assert(projectFlagTaskPlan.includes("Quick: true"), "project-level boolean flag preset input should render without consuming the target path");
 
 const missingInput = run(["new-task", "custom-review-task", "--budget", "standard", "--preset", "custom-review", target], { env });
@@ -276,7 +276,7 @@ const created = expectJson(["new-task", "custom-review-task", "--budget", "stand
 assert(created.task.kind === "review-task", "custom preset should set task kind from manifest");
 assert(created.task.preset === "custom-review", "custom preset should report preset id");
 assert(created.task.evidenceBundle, "custom preset should report evidence bundle");
-const customTaskDir = path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-custom-review-task`);
+const customTaskDir = path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-custom-review-task`);
 const customTaskPlan = fs.readFileSync(path.join(customTaskDir, "task_plan.md"), "utf8");
 assert(customTaskPlan.includes("Task Preset: custom-review"), "generic preset engine should persist preset metadata");
 assert(customTaskPlan.includes("Task Kind: review-task"), "generic preset engine should persist manifest task kind");
@@ -317,7 +317,7 @@ task:
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 inputs:
   service:
@@ -367,7 +367,7 @@ audit:
   evidenceFiles: [preset-audit.json, preset-manifest.json, write-scope.json]
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -382,7 +382,7 @@ expectJson(["preset", "install", contextSource, "--force", "--json"], { env });
 const firstContextTask = expectJson(["new-task", "payment-api", "--budget", "complex", "--preset", "context-bundle", "--service", "payment-service", "--title", "Payment API integration", target], { env });
 const secondContextTask = expectJson(["new-task", "refund-api", "--budget", "complex", "--preset", "context-bundle", "--service", "payment-service", "--title", "Refund API integration", target], { env });
 for (const taskName of ["payment-api", "refund-api"]) {
-  const taskDir = path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-${taskName}`);
+  const taskDir = path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-${taskName}`);
   const taskPlan = fs.readFileSync(path.join(taskDir, "task_plan.md"), "utf8");
   assert(taskPlan.includes("Upstream Service: payment-service"), `${taskName} should persist preset metadata`);
   assert(taskPlan.includes("## Preset Required Reads"), `${taskName} should tell agents to read preset-provided references`);
@@ -399,7 +399,7 @@ for (const taskName of ["payment-api", "refund-api"]) {
   assert(artifactIndex.includes("ART-001") && artifactIndex.includes("Shared fixture packet &#124; copied by the preset."), `${taskName} should index shared artifacts and escape Markdown table cells`);
 }
 const pipeContextTask = expectJson(["new-task", "pipe-api", "--budget", "complex", "--preset", "context-bundle", "--service", "payment | service", "--title", "Pipe API integration", target], { env });
-const pipeTaskDir = path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-pipe-api`);
+const pipeTaskDir = path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-pipe-api`);
 const pipeReferenceIndex = fs.readFileSync(path.join(pipeTaskDir, "references/INDEX.md"), "utf8");
 const pipeTaskPlan = fs.readFileSync(path.join(pipeTaskDir, "task_plan.md"), "utf8");
 assert(pipeReferenceIndex.includes("payment &#124; service"), "resource index rows should escape CLI-derived pipe characters");
@@ -412,28 +412,28 @@ assert(contextTaskIndex.tasks.some((task) => task.id === `TASKS/${todayLocal}-re
 assert(contextTaskIndex.tasks.some((task) => task.id === `TASKS/${todayLocal}-pipe-api` && task.preset === "context-bundle"), "task-index should include pipe context preset task");
 assert(firstContextTask.task.evidenceBundle !== secondContextTask.task.evidenceBundle, "each preset-created task should retain an independent audit/evidence bundle");
 assert(pipeContextTask.task.evidenceBundle !== firstContextTask.task.evidenceBundle, "pipe context task should retain an independent audit/evidence bundle");
-const generatedReferencePath = path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-payment-api/references/upstream-contract.md`);
+const generatedReferencePath = path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-payment-api/references/upstream-contract.md`);
 const generatedReferenceContent = fs.readFileSync(generatedReferencePath, "utf8");
 fs.unlinkSync(generatedReferencePath);
 const missingGeneratedReference = run(["check", "--profile", "target-project", target], { env });
 assert(missingGeneratedReference.status !== 0, "target check should fail when a preset-declared reference file is missing");
 assert(`${missingGeneratedReference.stdout}\n${missingGeneratedReference.stderr}`.includes("context-bundle preset resource missing"), "missing preset resource failure should name the preset contract");
 fs.writeFileSync(generatedReferencePath, generatedReferenceContent);
-const generatedReferenceIndexPath = path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-payment-api/references/INDEX.md`);
+const generatedReferenceIndexPath = path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-payment-api/references/INDEX.md`);
 const generatedReferenceIndexContent = fs.readFileSync(generatedReferenceIndexPath, "utf8");
 fs.writeFileSync(generatedReferenceIndexPath, generatedReferenceIndexContent.split(/\r?\n/).filter((line) => !line.includes("| REF-001 |")).join("\n"));
 const missingGeneratedReferenceIndex = run(["check", "--profile", "target-project", target], { env });
 assert(missingGeneratedReferenceIndex.status !== 0, "target check should fail when a preset-declared reference index row is missing");
 assert(`${missingGeneratedReferenceIndex.stdout}\n${missingGeneratedReferenceIndex.stderr}`.includes("context-bundle preset reference index missing REF-001"), "missing preset reference index failure should name the resource id");
 fs.writeFileSync(generatedReferenceIndexPath, generatedReferenceIndexContent);
-const generatedArtifactIndexPath = path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-payment-api/artifacts/INDEX.md`);
+const generatedArtifactIndexPath = path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-payment-api/artifacts/INDEX.md`);
 const generatedArtifactIndexContent = fs.readFileSync(generatedArtifactIndexPath, "utf8");
 fs.writeFileSync(generatedArtifactIndexPath, generatedArtifactIndexContent.split(/\r?\n/).filter((line) => !line.includes("| ART-001 |")).join("\n"));
 const missingGeneratedArtifactIndex = run(["check", "--profile", "target-project", target], { env });
 assert(missingGeneratedArtifactIndex.status !== 0, "target check should fail when a preset-declared artifact index row is missing");
 assert(`${missingGeneratedArtifactIndex.stdout}\n${missingGeneratedArtifactIndex.stderr}`.includes("context-bundle preset artifact index missing ART-001"), "missing preset artifact index failure should name the resource id");
 fs.writeFileSync(generatedArtifactIndexPath, generatedArtifactIndexContent);
-const generatedTaskPlanPath = path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-payment-api/task_plan.md`);
+const generatedTaskPlanPath = path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-payment-api/task_plan.md`);
 const generatedTaskPlanContent = fs.readFileSync(generatedTaskPlanPath, "utf8");
 fs.writeFileSync(generatedTaskPlanPath, generatedTaskPlanContent.replace(/\| REF-001 \| TARGET:[^|]+ \| [^|\n]+ \|/, "| REF-001 | references/INDEX.md | Mentioned without the concrete reference path |"));
 const missingRequiredReadPath = run(["check", "--profile", "target-project", target], { env });
@@ -454,14 +454,14 @@ task:
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 audit:
   manifestRequired: true
   evidenceFiles: [preset-audit.json]
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -477,7 +477,7 @@ fs.mkdirSync(currentTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", currentTarget], { env });
 const createdInCurrent = expectJson(["new-task", "current-review-task", "--budget", "standard", "--preset", "custom-review", "--subject", "Current directory target"], { env, cwd: currentTarget });
 assert(createdInCurrent.task.id === `TASKS/${todayLocal}-current-review-task`, "custom preset inputs without an explicit target should use the current directory");
-const currentTaskPlan = fs.readFileSync(path.join(currentTarget, `docs/09-PLANNING/TASKS/${todayLocal}-current-review-task/task_plan.md`), "utf8");
+const currentTaskPlan = fs.readFileSync(path.join(currentTarget, `coding-agent-harness/planning/tasks/${todayLocal}-current-review-task/task_plan.md`), "utf8");
 assert(currentTaskPlan.includes("Subject: Current directory target"), "custom preset input values should not be mistaken for target paths");
 
 const badIdSource = path.join(tmpRoot, "bad-id-preset");
@@ -491,13 +491,13 @@ compatibleBudgets: [standard]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -519,7 +519,7 @@ compatibleBudgets: [standard]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
     templates:
       taskPlanAppend: templates/missing.md
@@ -527,7 +527,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -546,14 +546,14 @@ compatibleBudgets: [standard]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 audit:
   manifestRequired: true
   evidenceFiles: [../../victim-review.md]
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -572,7 +572,7 @@ compatibleBudgets: [standard]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 inputs:
   note:
@@ -592,7 +592,7 @@ audit:
   evidenceFiles: [preset-audit.json]
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -613,7 +613,7 @@ compatibleBudgets: [standard]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 evidence:
   bundleDir: artifacts/preset
@@ -622,7 +622,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -641,7 +641,7 @@ compatibleBudgets: [complex]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 resources:
   references:
@@ -659,7 +659,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -683,7 +683,7 @@ compatibleBudgets: [complex]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 resources:
   references:
@@ -699,7 +699,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -719,13 +719,13 @@ compatibleBudgets: [standard]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -751,13 +751,13 @@ compatibleBudgets: [standard]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -783,7 +783,7 @@ compatibleBudgets: [complex]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 resources:
   references:
@@ -799,7 +799,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -820,7 +820,7 @@ compatibleBudgets: [complex]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 resources:
   references:
@@ -844,7 +844,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -865,7 +865,7 @@ compatibleBudgets: [complex]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 resources:
   references:
@@ -889,7 +889,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -909,7 +909,7 @@ compatibleBudgets: [complex]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 resources:
   references:
@@ -925,7 +925,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -944,7 +944,7 @@ compatibleBudgets: [complex]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 resources:
   references:
@@ -960,7 +960,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -979,7 +979,7 @@ compatibleBudgets: [complex]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 resources:
   references:
@@ -995,7 +995,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -1015,7 +1015,7 @@ compatibleBudgets: [complex]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 resources:
   references:
@@ -1031,7 +1031,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -1051,7 +1051,7 @@ compatibleBudgets: [complex]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
 resources:
   references:
@@ -1067,7 +1067,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -1091,13 +1091,13 @@ compatibleBudgets: [standard]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS]
+    writes: [coding-agent-harness/planning/tasks]
     audit: true
 audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS
+    path: coding-agent-harness/planning/tasks
     access: write
 `,
 );
@@ -1118,7 +1118,7 @@ compatibleBudgets: [standard]
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
     templates:
       index: templates/INDEX.md
@@ -1126,7 +1126,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -1154,7 +1154,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -1182,7 +1182,7 @@ audit:
   manifestRequired: true
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
 );
@@ -1200,7 +1200,7 @@ expectPass(["preset", "check", "standard-task"], { env });
 const standardTask = expectJson(["new-task", "standard-task-fixture", "--preset", "standard-task", "--title", "Standard Task Fixture", target], { env });
 assert(standardTask.task.preset === "standard-task", "second builtin preset should work through the generic engine");
 assert(fs.existsSync(path.join(target, standardTask.task.evidenceBundle, "preset-audit.json")), "second builtin preset should generate audit evidence");
-const standardTaskPlan = fs.readFileSync(path.join(target, `docs/09-PLANNING/TASKS/${todayLocal}-standard-task-fixture/task_plan.md`), "utf8");
+const standardTaskPlan = fs.readFileSync(path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-standard-task-fixture/task_plan.md`), "utf8");
 assert(standardTaskPlan.includes("Preset Title | Standard Task Fixture"), "second builtin preset should render the global task title through task.title");
 
 console.log("Preset engine tests passed");

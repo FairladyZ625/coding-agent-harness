@@ -12,6 +12,6 @@ Read these module-level entry points before changing shared module behavior. Con
 
 | Reference | Path | Why / When |
 | --- | --- | --- |
-| Module brief | docs/09-PLANNING/MODULES/{{moduleKey}}/brief.md | Start here for the module purpose and current scope. |
-| Module plan | docs/09-PLANNING/MODULES/{{moduleKey}}/module_plan.md | Use this for module steps, active task links, and handoff state. |
-| Module visual map | docs/09-PLANNING/MODULES/{{moduleKey}}/visual_map.md | Inspect when the change affects module sequencing or dependencies. |
+| Module brief | coding-agent-harness/planning/modules/{{moduleKey}}/brief.md | Start here for the module purpose and current scope. |
+| Module plan | coding-agent-harness/planning/modules/{{moduleKey}}/module_plan.md | Use this for module steps, active task links, and handoff state. |
+| Module visual map | coding-agent-harness/planning/modules/{{moduleKey}}/visual_map.md | Inspect when the change affects module sequencing or dependencies. |

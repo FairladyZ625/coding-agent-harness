@@ -32,7 +32,7 @@ assert(status.summary.fullCutoverEligible === false, "data-only status must not 
 
 const invalidReviewTarget = copyMinimalProject("invalid-review-dashboard");
 fs.writeFileSync(
-  path.join(invalidReviewTarget, "docs/09-PLANNING/TASKS/demo-task/review.md"),
+  path.join(invalidReviewTarget, "coding-agent-harness/planning/tasks/demo-task/review.md"),
   "# Broken Review\n\nThis intentionally lacks required review sections.\n",
 );
 const bundle = buildDashboardBundle(invalidReviewTarget);
@@ -58,29 +58,26 @@ assert(
 const closeoutTargetPath = copyMinimalProject("cached-closeout-target");
 const closeoutTarget = normalizeTarget(closeoutTargetPath);
 const taskPlanPaths = listTaskPlanPaths(closeoutTarget);
-const closeoutContent = "| Task | Status |\n| --- | --- |\n| `docs/09-PLANNING/TASKS/demo-task/task_plan.md` | closed |\n";
+const closeoutContent = "| Task | Status |\n| --- | --- |\n| `coding-agent-harness/planning/tasks/demo-task/task_plan.md` | closed |\n";
 const tasks = collectTasks(closeoutTarget, { taskPlanPaths, closeoutContent });
 assert(tasks.length === 1, "collectTasks should accept precomputed task plan paths");
 assert(tasks[0].closeoutStatus === "closed", "collectTasks should use provided closeoutContent instead of rereading the closeout file per task");
 
 const historicalDashboardTarget = copyMinimalProject("historical-dashboard-target");
 fs.writeFileSync(
-  path.join(historicalDashboardTarget, "docs/09-PLANNING/TASKS/demo-task/progress.md"),
+  path.join(historicalDashboardTarget, "coding-agent-harness/planning/tasks/demo-task/progress.md"),
   "# Demo Task - Progress\n\n## Status\n\ndone\n",
 );
+const historicalTaskDir = path.join(historicalDashboardTarget, "coding-agent-harness/planning/tasks/demo-task");
 fs.writeFileSync(
-  path.join(historicalDashboardTarget, "docs/09-PLANNING/TASKS/demo-task/visual_map.md"),
-  fs.readFileSync(path.join(historicalDashboardTarget, "docs/09-PLANNING/TASKS/demo-task/visual_map.md"), "utf8").replace("| P2 | P1 | planned | 0 |", "| P2 | P1 | done | 100 |").replace("| P2 | P1 | done | 100 | Example verification | command | missing |", "| P2 | P1 | done | 100 | Example verification | command | present |"),
+  path.join(historicalTaskDir, "visual_map.md"),
+  fs.readFileSync(path.join(historicalTaskDir, "visual_map.md"), "utf8").replace("| P2 | P1 | planned | 0 |", "| P2 | P1 | done | 100 |").replace("| P2 | P1 | done | 100 | Example verification | command | missing |", "| P2 | P1 | done | 100 | Example verification | command | present |"),
 );
-fs.mkdirSync(path.join(historicalDashboardTarget, "docs/10-WALKTHROUGH"), { recursive: true });
-fs.mkdirSync(path.join(historicalDashboardTarget, "docs/09-PLANNING/TASKS/demo-task/references"), { recursive: true });
-fs.mkdirSync(path.join(historicalDashboardTarget, "docs/09-PLANNING/TASKS/demo-task/artifacts"), { recursive: true });
-fs.writeFileSync(path.join(historicalDashboardTarget, "docs/09-PLANNING/TASKS/demo-task/references/INDEX.md"), "# References\n\nheavy reference index\n");
-fs.writeFileSync(path.join(historicalDashboardTarget, "docs/09-PLANNING/TASKS/demo-task/artifacts/INDEX.md"), "# Artifacts\n\nheavy artifact index\n");
-fs.writeFileSync(
-  path.join(historicalDashboardTarget, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
-  "| Task | Status |\n| --- | --- |\n| `docs/09-PLANNING/TASKS/demo-task/task_plan.md` | closed |\n",
-);
+fs.mkdirSync(path.join(historicalTaskDir, "references"), { recursive: true });
+fs.mkdirSync(path.join(historicalTaskDir, "artifacts"), { recursive: true });
+fs.writeFileSync(path.join(historicalTaskDir, "references/INDEX.md"), "# References\n\nheavy reference index\n");
+fs.writeFileSync(path.join(historicalTaskDir, "artifacts/INDEX.md"), "# Artifacts\n\nheavy artifact index\n");
+fs.writeFileSync(path.join(historicalTaskDir, "walkthrough.md"), "# Demo Task Walkthrough\n\nCloseout Status: closed\n");
 const historicalBundle = buildDashboardBundle(historicalDashboardTarget);
 const historicalDocs = historicalBundle.documents.documents.filter((document) => document.path.includes("/demo-task/"));
 assert(historicalDocs.some((document) => document.path.endsWith("/brief.md") && document.partial === true), "closed historical tasks should keep a partial brief document");

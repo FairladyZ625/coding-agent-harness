@@ -49,6 +49,7 @@ Task Contract: harness-task/v1
 | `task_plan.md` | Current task goal, scope, selected budget, acceptance, and operating decisions. |
 | `visual_map.md` | Phase map, evidence status, next lifecycle commands, and supporting diagrams. |
 | `progress.md` | Execution log, verification evidence, decisions, and handoff notes. |
+| `walkthrough.md` | Task-local closeout summary, verification, review disposition, residual risk, and links. |
 
 ## Standard Task Files
 

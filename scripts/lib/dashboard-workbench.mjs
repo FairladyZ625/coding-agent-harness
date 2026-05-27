@@ -186,7 +186,7 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
   const actualPort = typeof address === "object" && address ? address.port : port;
   const url = `http://${host}:${actualPort}/`;
   let watcher = null;
-  if (autoRefresh) watcher = startPollingWatch(target.docsRoot, regenerate);
+  if (autoRefresh) watcher = startPollingWatch(dashboardWatchRoot(target), regenerate);
   console.log(`${label}: ${url} csrf=${csrfToken} outDir=${outputDir}`);
   if (open) openBrowser(url);
 
@@ -237,6 +237,10 @@ function startPollingWatch(root, regenerate) {
       }
     }, 250);
   }, 1000);
+}
+
+function dashboardWatchRoot(target) {
+  return target.harness?.version === 2 ? target.harness.harnessRoot : target.docsRoot;
 }
 
 function latestTreeMtime(root) {

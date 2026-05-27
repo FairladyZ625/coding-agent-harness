@@ -83,7 +83,7 @@ fs.mkdirSync(target);
 expectJson(["init", "--locale", "zh-CN", "--capabilities", "core,dashboard", target]);
 
 const authAudit = expectJson(["new-task", "subagent-auth-audit", "--title", "Subagent Auth Audit", "--locale", "en-US", target]);
-const authAuditDir = path.join(target, "docs/09-PLANNING/TASKS", `${todayLocal}-subagent-auth-audit`);
+const authAuditDir = taskDirectory(authAudit);
 const authStrategyPath = path.join(authAuditDir, "execution_strategy.md");
 let authStrategy = fs.readFileSync(authStrategyPath, "utf8");
 assert(authStrategy.includes("## Subagent Authorization"), "execution strategy should record subagent authorization state");
@@ -113,7 +113,7 @@ const created = expectJson([
   target,
 ]);
 const taskId = created.task.id;
-const taskDir = path.join(target, "docs/09-PLANNING/TASKS", `${todayLocal}-queue-ready`);
+const taskDir = taskDirectory(created);
 const reviewPath = path.join(taskDir, "review.md");
 const progressPath = path.join(taskDir, "progress.md");
 const lessonPath = path.join(taskDir, "lesson_candidates.md");
@@ -140,12 +140,7 @@ assert(afterSubmitReview.includes("## Agent Review Submission"), "task-review sh
 assert(afterSubmitReview.includes("| Task Key |"), "Agent Review Submission should include Task Key");
 assert(!afterSubmitReview.includes("| Confirmation ID | HRC-"), "task-review must not write a completed Human Review Confirmation block");
 
-const walkthrough = path.join(target, "docs/10-WALKTHROUGH", `${todayLocal}-queue-ready-walkthrough.md`);
-fs.writeFileSync(walkthrough, "# Queue Ready Walkthrough\n\nEvidence reviewed.\n");
-fs.appendFileSync(
-  path.join(target, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
-  `\n| CL-QUEUE-READY | 2026-05-23 | Queue Ready | \`docs/09-PLANNING/${taskId}/task_plan.md\` | \`docs/09-PLANNING/${taskId}/review.md\` | \`docs/10-WALKTHROUGH/${todayLocal}-queue-ready-walkthrough.md\` | pending human review | none | checked-none | pending |\n`,
-);
+fs.appendFileSync(path.join(taskDir, "walkthrough.md"), "\n## Evidence\n\nEvidence reviewed.\n");
 
 let readyStatus = expectJson(["status", "--json", target]);
 let readyTask = readyStatus.tasks.find((task) => task.id === taskId);
@@ -211,7 +206,7 @@ fs.writeFileSync(
     )
     .replace(
       "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-      "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| R-中文 | P1 | 仍有阻塞 | TARGET:docs/09-PLANNING/TASKS/x/review.md | 修复后再确认 | 是 | open | 是 | agent |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| R-中文 | P1 | 仍有阻塞 | TARGET:coding-agent-harness/planning/tasks/x/review.md | 修复后再确认 | 是 | open | 是 | agent |",
     ),
 );
 const blockedStatusResult = run(["status", "--json", target]);
@@ -245,7 +240,7 @@ assert(confirmationIndex.includes("| Audit Status | committed |"), "INDEX Human 
 assert(!fs.readFileSync(reviewPath, "utf8").includes("## Human Review Confirmation"), "review-confirm should not write Human Review Confirmation to review.md");
 
 const lessonTask = expectJson(["new-task", "queue-lesson", "--title", "Queue Lesson", "--locale", "en-US", "--long-running", target]);
-const lessonDir = path.join(target, "docs/09-PLANNING/TASKS", `${todayLocal}-queue-lesson`);
+const lessonDir = taskDirectory(lessonTask);
 expectJson(["task-start", "queue-lesson", "--message", "implementation started", target]);
 expectJson(["task-phase", "queue-lesson", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
 fs.writeFileSync(
@@ -326,11 +321,7 @@ fs.writeFileSync(
 );
 commitFixtureBaseline(target, "before queue lesson review");
 expectJson(["task-review", "queue-lesson", "--message", "ready except lesson promotion", "--evidence", "command:TARGET:npm-test:passed", target]);
-fs.appendFileSync(
-  path.join(target, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
-  `\n| CL-QUEUE-LESSON | 2026-05-23 | Queue Lesson | \`docs/09-PLANNING/${lessonTask.task.id}/task_plan.md\` | \`docs/09-PLANNING/${lessonTask.task.id}/review.md\` | \`docs/10-WALKTHROUGH/${todayLocal}-queue-lesson-walkthrough.md\` | pending human review | none | checked-none | pending |\n`,
-);
-fs.writeFileSync(path.join(target, "docs/10-WALKTHROUGH", `${todayLocal}-queue-lesson-walkthrough.md`), "# Queue Lesson Walkthrough\n\nEvidence reviewed.\n");
+fs.appendFileSync(path.join(lessonDir, "walkthrough.md"), "\n## Evidence\n\nEvidence reviewed.\n");
 const lessonStatus = expectJson(["status", "--json", target]);
 const lessonStatusTask = lessonStatus.tasks.find((task) => task.id === lessonTask.task.id);
 assert(lessonStatusTask.taskQueues.includes("lessons"), "needs-promotion lesson work should enter Lessons queue");
@@ -343,7 +334,7 @@ assert(lessonStatusTask.lessonCandidateRows[0].followUpTask === "pending", "less
 const lessonSedimentDryRun = expectJson(["lesson-sediment", lessonTask.task.id, "LC-QUEUE-LESSON", "--dry-run", target]);
 assert(lessonSedimentDryRun.dryRun === true, "lesson-sediment --dry-run should not mutate files");
 assert(lessonSedimentDryRun.prompt.includes("Source candidate: LC-QUEUE-LESSON"), "lesson-sediment should produce copyable prompt");
-assert(lessonSedimentDryRun.prompt.includes("Detail artifact: TARGET:docs/09-PLANNING/TASKS"), "lesson-sediment prompt should link task-local lesson detail artifact");
+assert(lessonSedimentDryRun.prompt.includes("Detail artifact: TARGET:coding-agent-harness/planning/tasks"), "lesson-sediment prompt should link task-local lesson detail artifact");
 const lessonSedimentationPreset = expectJson(["preset", "inspect", "lesson-sedimentation", "--json"]);
 assert(lessonSedimentationPreset.id === "lesson-sedimentation", "lesson-sedimentation preset should be inspectable");
 assert(expectJson(["preset", "check", "lesson-sedimentation", "--json"]).status === "pass", "lesson-sedimentation preset check should pass");
@@ -355,8 +346,8 @@ assert(fs.existsSync(path.join(target, lessonSediment.followUpTask.path.replace(
 const followUpBrief = fs.readFileSync(path.join(target, lessonSediment.followUpTask.path.replace(/^TARGET:/, ""), "brief.md"), "utf8");
 assert(followUpBrief.includes("## 创建日期"), "lesson-sediment should create follow-up tasks using the target registry locale");
 const followUpTaskPlan = fs.readFileSync(path.join(target, lessonSediment.followUpTask.path.replace(/^TARGET:/, ""), "task_plan.md"), "utf8");
-assert(followUpTaskPlan.includes(`| Source Lesson Candidates | TARGET:docs/09-PLANNING/${lessonTask.task.id}/lesson_candidates.md |`), "lesson-sediment context should link the source lesson_candidates.md file");
-assert(followUpTaskPlan.includes(`| Source Lesson Detail | TARGET:docs/09-PLANNING/${lessonTask.task.id}/lessons/LC-QUEUE-LESSON.md |`), "lesson-sediment context should link the source detail artifact");
+assert(followUpTaskPlan.includes(`| Source Lesson Candidates | TARGET:coding-agent-harness/planning/tasks/${todayLocal}-queue-lesson/lesson_candidates.md |`), "lesson-sediment context should link the source lesson_candidates.md file");
+assert(followUpTaskPlan.includes(`| Source Lesson Detail | TARGET:coding-agent-harness/planning/tasks/${todayLocal}-queue-lesson/lessons/LC-QUEUE-LESSON.md |`), "lesson-sediment context should link the source detail artifact");
 assert(followUpTaskPlan.includes("The Lessons queue needs a durable detail artifact"), "lesson-sediment context should summarize the source detail artifact");
 assert(followUpTaskPlan.includes("| Original Candidate Row |"), "lesson-sediment context should preserve the original candidate row");
 assert(followUpTaskPlan.includes("Review Summary"), "lesson-sediment context should include source review summary");
@@ -368,7 +359,7 @@ assert(lessonConfirm.status !== 0, "review-confirm should reject tasks that are 
 assert(lessonConfirm.stderr.includes("Review queue"), "Lessons queue confirmation failure should mention Review queue gate");
 
 const superseded = expectJson(["new-task", "queue-superseded", "--title", "Queue Superseded", "--locale", "en-US", target]);
-const supersededDir = path.join(target, "docs/09-PLANNING/TASKS", `${todayLocal}-queue-superseded`);
+const supersededDir = taskDirectory(superseded);
 fs.appendFileSync(
   path.join(supersededDir, "task_plan.md"),
   [
@@ -413,7 +404,7 @@ assert(commandSupersedeStatus.tasks.find((task) => task.id === newSupersede.task
 
 const taskIndex = expectJson(["task-index", "--json", target]);
 const indexedReady = taskIndex.tasks.find((task) => task.taskKey === taskId);
-assert(taskIndex.schemaVersion === "task-index/v1", "task-index should expose generated index schema");
+assert(taskIndex.schemaVersion === "task-index/v2", "task-index should expose generated index schema");
 assert(taskIndex.scannerVersion, "task-index should record scanner version");
 assert(taskIndex.sourceFileHashes[taskId], "task-index should hash source task files");
 assert(indexedReady.queues.includes("confirmed"), "task-index should include normalized queues");
@@ -424,7 +415,7 @@ expectPass(["check", "--profile", "target-project", target]);
 const duplicateA = expectJson(["new-task", "queue-duplicate-a", "--title", "Queue Duplicate A", "--locale", "en-US", target]);
 const duplicateB = expectJson(["new-task", "queue-duplicate-b", "--title", "Queue Duplicate B", "--locale", "en-US", target]);
 for (const duplicate of [duplicateA, duplicateB]) {
-  const duplicateDir = path.join(target, "docs/09-PLANNING/TASKS", path.basename(duplicate.task.path));
+  const duplicateDir = taskDirectory(duplicate);
   fs.appendFileSync(path.join(duplicateDir, "task_plan.md"), "\nTask Key: TASKS/duplicate-task-key\n");
 }
 const duplicateIndex = run(["task-index", "--json", target]);
@@ -437,6 +428,10 @@ function replaceHumanConfirmationSection(content, replacement) {
   const pattern = /^##\s*(?:Human Review Confirmation|人工审查确认)\s*$[\s\S]*?(?=^##\s+|(?![\s\S]))/im;
   if (pattern.test(source)) return `${source.replace(pattern, replacement.trimEnd())}\n`;
   return `${source}\n\n${replacement.trimEnd()}\n`;
+}
+
+function taskDirectory(result) {
+  return path.join(target, result.task.path.replace(/^TARGET:/, ""));
 }
 
 function commitFixtureBaseline(targetRoot, message) {

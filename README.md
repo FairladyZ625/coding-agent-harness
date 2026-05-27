@@ -84,6 +84,9 @@ context in every prompt, put it in a preset and create each task with
 
 Harness ships bundled presets, `harness init` seeds them into the target project,
 and teams can add project-local presets under `.coding-agent-harness/presets/`.
+This dotdir is a preset overlay exception: operational task state lives under
+`coding-agent-harness/`, while preset packages keep their existing overlay root
+so user and project preset precedence remains stable across upgrades.
 The `preset-creator` Skill is for authoring these preset packages; the Harness
 CLI is what checks, installs, lists, and applies them.
 
@@ -160,6 +163,8 @@ The npm install seeds bundled presets into `~/.coding-agent-harness/presets/`.
 `harness init` also seeds those presets into the target project at
 `.coding-agent-harness/presets/`, so agents can discover stable task methods
 with `harness preset list --json`.
+The `.coding-agent-harness/presets/` location is intentionally retained for
+preset overlays; it is not a legacy task-state directory.
 
 Agents must not silently run a global install. They may run `npm install -g coding-agent-harness` only after the user explicitly approves changing the global npm environment. Without that approval, keep using `npx --yes coding-agent-harness ...`.
 

@@ -55,6 +55,12 @@ import {
   taskReviewStatus,
   taskScannerVersion,
 } from "./task-review-model.mjs";
+import {
+  resolveHarnessPaths,
+  safeAdoptionCapability,
+  taskIdFromDirectory,
+  taskLocalWalkthrough,
+} from "./harness-paths.mjs";
 export {
   parseTaskBudget,
   parseTaskContractInfo,
@@ -146,10 +152,8 @@ export function isActiveTaskState(state) {
 }
 
 export function listTaskPlanPaths(target) {
-  const taskRoots = [
-    path.join(target.docsRoot, "09-PLANNING/TASKS"),
-    path.join(target.docsRoot, "09-PLANNING/MODULES"),
-  ];
+  const harnessPaths = target.harness || resolveHarnessPaths(target);
+  const taskRoots = harnessPaths.taskRoots;
   return taskRoots
     .flatMap(walkFiles)
     .filter((file) => file.endsWith("task_plan.md"))
@@ -159,7 +163,7 @@ export function listTaskPlanPaths(target) {
 }
 
 export function taskIdForDirectory(target, taskDir) {
-  return toPosix(path.relative(path.join(target.docsRoot, "09-PLANNING"), taskDir));
+  return taskIdFromDirectory(target.harness || resolveHarnessPaths(target), taskDir);
 }
 
 export function inferTaskClassification({ id, title, relative, explicitModule, legacyCandidate = false }) {
@@ -173,7 +177,7 @@ export function inferTaskClassification({ id, title, relative, explicitModule, l
   const text = `${id} ${title} ${relative}`.toLowerCase();
   const rules = [
     ["dashboard", /dashboard|visibility|cockpit|console|ui|frontend|view|页面|看板|驾驶舱/],
-    ["migration", /migration|migrate|adoption|legacy|safe-adoption|迁移|历史|兼容/],
+    ["migration", new RegExp(`migration|migrate|adoption|legacy|${escapeRegExp(safeAdoptionCapability)}|迁移|历史|兼容`)],
     ["task-lifecycle", /task|phase|lifecycle|planning|计划|任务|阶段/],
     ["review-quality", /review|finding|evidence|qa|test|regression|审查|证据|回归|测试/],
     ["release-docs", /docs-release|readme|guide|install|playbook|文档|安装|指南/],
@@ -186,6 +190,10 @@ export function inferTaskClassification({ id, title, relative, explicitModule, l
     source: match ? "inferred" : "fallback",
     bucket: legacyCandidate ? "legacy" : "current",
   };
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export function assessBriefQuality(content, { source = "missing" } = {}) {
@@ -230,8 +238,9 @@ export function taskCutoverCounters(tasks) {
 }
 
 export function collectTasks(target, { requireGeneratedScaffoldProvenance = false, taskPlanPaths, closeoutContent } = {}) {
+  const harnessPaths = target.harness || resolveHarnessPaths(target);
   const paths = taskPlanPaths || listTaskPlanPaths(target);
-  const closeout = closeoutContent ?? readFileSafe(path.join(target.docsRoot, "10-WALKTHROUGH/Closeout-SSoT.md"));
+  const closeout = closeoutContent ?? readFileSafe(harnessPaths.legacy.closeoutPath);
   return paths.map((taskPlanPath) => {
     const taskDir = path.dirname(taskPlanPath);
     const taskPlan = readFileSafe(taskPlanPath);
@@ -465,6 +474,14 @@ function formatEvidenceBundle(value) {
 }
 
 function taskCloseoutInfo(target, taskPlanPath, closeout) {
+  const localWalkthrough = taskLocalWalkthrough(target.harness || resolveHarnessPaths(target), path.dirname(taskPlanPath));
+  if (localWalkthrough) {
+    const content = readFileSafe(path.join(target.projectRoot, localWalkthrough));
+    const status = /^Closeout Status\s*:\s*(closed|complete|completed|done|已关闭|已完成)\s*$/im.test(content)
+      ? "closed"
+      : "pending";
+    return { status, walkthroughPath: localWalkthrough };
+  }
   if (!closeout.trim()) return { status: "missing", walkthroughPath: "" };
   const docsRelative = `docs/${toPosix(path.relative(target.docsRoot, taskPlanPath))}`;
   const projectRelative = toPosix(path.relative(target.projectRoot, taskPlanPath));
