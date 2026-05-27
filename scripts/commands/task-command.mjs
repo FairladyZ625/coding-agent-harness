@@ -294,7 +294,7 @@ function splitPresetArgsAndPositionals(values, presetPackage) {
 }
 
 function isPathLikePositional(value) {
-  return value === "." || value === ".." || value.startsWith("/") || value.startsWith("~/") || value.includes("/") || value.includes("\\");
+  return value === "." || value === ".." || value.startsWith("/") || value.startsWith("~/") || /^\.[^./\\]/.test(value) || value.includes("/") || value.includes("\\");
 }
 
 function resolveNewTaskPositionals(positionals) {

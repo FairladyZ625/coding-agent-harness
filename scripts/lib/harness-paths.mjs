@@ -141,6 +141,14 @@ export function dashboardWatchRoots(paths) {
   return dedupeAncestorRoots(roots.filter(Boolean).map((root) => path.resolve(root)).filter((root) => fs.existsSync(root)));
 }
 
+export function discoverImplicitHarnessTarget(input = ".") {
+  const root = path.resolve(input || ".");
+  const nearest = findNearestHarnessRoot(root);
+  if (nearest) return projectRootForHarnessRoot(nearest);
+  const discovered = findProjectHarnessRoot(root, { requireDeclaredProjectRoot: false });
+  return discovered ? projectRootForHarnessRoot(discovered) : "";
+}
+
 function moduleRefPath(paths, relative) {
   if (paths.version !== 2) return path.join(paths.modulesRoot, relative);
   const [moduleKey, ...taskSegments] = relative.split("/");
@@ -199,14 +207,14 @@ function findNearestHarnessRoot(target) {
   return "";
 }
 
-function findProjectHarnessRoot(projectRoot) {
+function findProjectHarnessRoot(projectRoot, { requireDeclaredProjectRoot = true } = {}) {
   const defaultRoot = path.join(projectRoot, v2HarnessRoot);
   if (fs.existsSync(path.join(defaultRoot, "harness.yaml"))) return defaultRoot;
   const candidates = [];
   const ignored = new Set([".git", "node_modules", "tmp", "dist", "build", ".next", "coverage"]);
   function visit(dir, depth) {
     if (depth > 5 || !fs.existsSync(dir)) return;
-    if (fs.existsSync(path.join(dir, "harness.yaml")) && projectRootForHarnessRoot(dir) === projectRoot) {
+    if (fs.existsSync(path.join(dir, "harness.yaml")) && (!requireDeclaredProjectRoot || projectRootForHarnessRoot(dir) === projectRoot)) {
       candidates.push(dir);
       return;
     }

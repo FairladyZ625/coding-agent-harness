@@ -6,6 +6,7 @@ import {
   moduleTemplateFiles,
   taskFilesForBudget,
 } from "./template-files.mjs";
+import { discoverImplicitHarnessTarget } from "../harness-paths.mjs";
 
 export function planCreateTaskChanges({ target, directory, normalizedModuleKey, normalizedLocale, normalizedBudget, longRunning, presetContext }) {
   const changes = [];
@@ -79,5 +80,5 @@ export function targetInputFromSessionFile(fromSession) {
 export function resolveImplicitCreateTarget(targetInput, fromSession) {
   const sessionTarget = targetInputFromSessionFile(fromSession);
   if (targetInput && targetInput !== ".") return targetInput;
-  return sessionTarget || targetInput || "";
+  return sessionTarget || discoverImplicitHarnessTarget(targetInput || ".") || targetInput || "";
 }

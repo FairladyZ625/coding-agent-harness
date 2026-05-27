@@ -43,6 +43,29 @@ assert(firstAutomaticIndex.includes("harness new-task --budget standard"), "auto
 assert(!firstAutomaticIndex.includes(`harness new-task ${firstAutomaticTask.task.shortId}`), "automatic task audit command should not pretend the generated id was explicit input");
 const explicitDocsId = expectJson(["new-task", "docs", "--title", "Bare Docs Explicit ID", "--dry-run", lifecycleTarget]);
 assert(explicitDocsId.task?.shortId === `${todayLocal}-docs`, "bare explicit task ids should stay explicit even if they look like local directories");
+const hiddenManifestWorkspace = path.join(tmpRoot, "hidden-manifest-workspace");
+const hiddenManifestRoot = path.join(hiddenManifestWorkspace, ".harness-private", "coding-agent-harness");
+fs.mkdirSync(hiddenManifestRoot, { recursive: true });
+fs.writeFileSync(path.join(hiddenManifestRoot, "harness.yaml"), `version: 2
+locale: zh-CN
+capabilities:
+  - core
+structure:
+  harnessRoot: coding-agent-harness
+  planningRoot: coding-agent-harness/planning
+  tasksRoot: coding-agent-harness/planning/tasks
+  modulesRoot: coding-agent-harness/planning/modules
+  externalRoot: coding-agent-harness/planning/external
+  governanceRoot: coding-agent-harness/governance
+  generatedRoot: coding-agent-harness/governance/generated
+`);
+const hiddenTargetAutomatic = expectJson(["new-task", "--title", "Hidden Target Automatic"], { cwd: hiddenManifestWorkspace });
+assert(hiddenTargetAutomatic.task?.shortId.startsWith(`${todayLocal}-hidden-target-automatic-`), "implicit new-task should derive an automatic id from the title, not from a discovered harness directory");
+assert(
+  fs.existsSync(path.join(hiddenManifestWorkspace, ".harness-private", "coding-agent-harness/planning/tasks", hiddenTargetAutomatic.task.shortId, "brief.md")),
+  "implicit new-task should write task files under the discovered hidden harness target",
+);
+assert(!fs.existsSync(path.join(hiddenManifestWorkspace, "coding-agent-harness")), "implicit new-task should not recreate a default harness root when a hidden manifest is present");
 const lifecycleDryRun = expectJson(["new-task", "phase-2-lifecycle", "--title", "阶段二任务生命周期", "--locale", "zh-CN", "--dry-run", lifecycleTarget]);
 assert(lifecycleDryRun.dryRun === true, "new-task dry-run should report dryRun true");
 assert(
