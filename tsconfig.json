@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": false,
+    "skipLibCheck": true
+  },
+  "include": [
+    "scripts/**/*.mjs",
+    "scripts/**/*.mts",
+    "scripts/**/*.ts",
+    "tests/**/*.mjs",
+    "tests/**/*.mts",
+    "tests/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".worktrees",
+    "tmp",
+    "dist"
+  ]
+}

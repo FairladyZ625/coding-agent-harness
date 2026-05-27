@@ -8,6 +8,7 @@ const suites = [
   "tests/meta-test-layout.mjs",
   "tests/directory-structure-v2.mjs",
   "tests/hard-cutover-guards.mjs",
+  "tests/type-boundary-guards.mjs",
   "tests/source-package-boundary.mjs",
   "tests/architecture-health.mjs",
   "tests/cli-help.mjs",
