@@ -18,7 +18,7 @@ PR 尽量聚焦在一类改动上。文档、CLI 行为、目标项目模板、p
 
 ## 本地准备
 
-使用 Node.js 18 或更高版本。CI 当前使用 Node.js 20。
+使用 Node.js 24 或更高版本。CI 应覆盖最低支持的 LTS 版本。
 
 ```bash
 npm install
