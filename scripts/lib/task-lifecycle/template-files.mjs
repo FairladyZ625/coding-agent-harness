@@ -42,9 +42,12 @@ export function moduleTemplateFiles({ locale = "en-US" } = {}) {
 }
 
 export function taskFilesForBudget({ budget, locale }) {
-  if (budget === "simple") return simpleTaskTemplateFiles({ locale });
-  if (budget === "complex") return [...taskTemplateFiles({ locale }), ...optionalTaskTemplateFiles({ locale })];
-  return taskTemplateFiles({ locale });
+  const files = budget === "simple"
+    ? simpleTaskTemplateFiles({ locale })
+    : budget === "complex"
+      ? [...taskTemplateFiles({ locale }), ...optionalTaskTemplateFiles({ locale })]
+      : taskTemplateFiles({ locale });
+  return [...files, ["walkthrough.md", localizedTemplateSource("templates/planning/walkthrough.md", locale)]];
 }
 
 export function appendLongRunningContractFile(files, { locale, longRunning }) {

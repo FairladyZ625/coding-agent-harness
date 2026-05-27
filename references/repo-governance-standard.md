@@ -13,13 +13,13 @@ Harness 不是只生成文档骨架。每个项目必须有项目级 repository 
 标准文件：
 
 ```text
-docs/11-REFERENCE/repo-governance-standard.md
+coding-agent-harness/governance/standards/repo-governance-standard.md
 ```
 
 如果项目需要更详细的 CI/CD 说明，另见：
 
 ```text
-docs/11-REFERENCE/ci-cd-standard.md
+coding-agent-harness/governance/standards/ci-cd-standard.md
 ```
 
 ## 必填字段
@@ -46,7 +46,7 @@ docs/11-REFERENCE/ci-cd-standard.md
 
 - PR required before merge: [yes / no]
 - PR title format
-- PR body requirements. Use `docs/11-REFERENCE/pull-request-standard.md` for
+- PR body requirements. Use `coding-agent-harness/governance/standards/pull-request-standard.md` for
   the required bilingual structure, version impact, verification, review
   evidence, residual risk, and references.
 - Required reviewers
@@ -137,6 +137,6 @@ Bootstrap is not complete unless repository governance is at least:
 
 ## Related Standards
 
-- `docs/11-REFERENCE/pull-request-standard.md` — PR body structure, bilingual
+- `coding-agent-harness/governance/standards/pull-request-standard.md` — PR body structure, bilingual
   requirements, version impact, verification, review evidence, residual risk,
   and references.

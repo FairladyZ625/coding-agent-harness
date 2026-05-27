@@ -12,6 +12,6 @@ Confidence: low
 
 ## Boundary Rule
 
-This catalog gives interface summaries and links only. Put payload bodies, auth rules, error codes, and event schemas in `docs/06-INTEGRATIONS/`.
+This catalog gives interface summaries and links only. Put payload bodies, auth rules, error codes, and event schemas in `coding-agent-harness/context/integrations/`.
 
-Each service or microservice gets one row. If the service affects development or task decisions in this repository, add links to `services/<service-key>.md`, `docs/04-DEVELOPMENT/external-context/<service-key>.md`, and the relevant `docs/06-INTEGRATIONS/<contract>.md`.
+Each service or microservice gets one row. If the service affects development or task decisions in this repository, add links to `services/<service-key>.md`, `coding-agent-harness/context/development/external-context/<service-key>.md`, and the relevant `coding-agent-harness/context/integrations/<contract>.md`.

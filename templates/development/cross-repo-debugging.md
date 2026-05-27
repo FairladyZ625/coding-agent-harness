@@ -8,9 +8,9 @@ Confidence: low
 ## Debug Flow
 
 1. Identify the failing interface or flow.
-2. Read `docs/03-ARCHITECTURE/service-catalog.md` for ownership and upstream/downstream services.
-3. Read the matching `docs/06-INTEGRATIONS/` contract.
-4. Use the matching `docs/04-DEVELOPMENT/external-context/<service-key>.md` notes for mocks and local debugging.
+2. Read `coding-agent-harness/context/architecture/service-catalog.md` for ownership and upstream/downstream services.
+3. Read the matching `coding-agent-harness/context/integrations/` contract.
+4. Use the matching `coding-agent-harness/context/development/external-context/<service-key>.md` notes for mocks and local debugging.
 
 ## Known Failure Modes
 

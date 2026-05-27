@@ -68,7 +68,7 @@ flowchart TD
 
 ### ① validateCapabilities
 
-读取 `.harness-capabilities.json`，检查：
+读取 `coding-agent-harness/harness.yaml`，检查：
 - 声明的能力是否都是合法的能力名（在 `allowedCapabilities` 枚举中）
 - 能力的依赖是否都已启用（如 `subagent-worker` 需要先有 `module-parallel`）
 - 能力对应的 artifact 路径是否存在
@@ -187,8 +187,8 @@ flowchart TD
   Filter --> Sort["按 id 字母序排序"]
   Sort --> Gen["生成 governance surfaces"]
 
-  Gen --> TI["docs/09-PLANNING/generated/task-index.md\n所有任务的汇总索引表"]
-  Gen --> MI["docs/09-PLANNING/generated/module-index.md\n模块步骤索引表"]
+  Gen --> TI["coding-agent-harness/governance/generated/task-index.md\n所有任务的汇总索引表"]
+  Gen --> MI["coding-agent-harness/governance/generated/module-index.md\n模块步骤索引表"]
 
   TI --> Atomic["原子写入\n（governance-sync 锁 + git commit）"]
   MI --> Atomic
@@ -207,11 +207,13 @@ flowchart TD
 
 ### 为什么检查器分 failures 和 warnings 两级
 
-两级从一开始就存在，设计动机是**迁移兼容性**：
-- 新安装的项目（`strict=true`）对缺失文件报 failure 并阻断 CI
-- 旧项目在 `safe-adoption` 模式下，同样的缺失只报 `adoption-needed: ...` warning，不阻断
+两级从一开始就存在。v2 中，活跃目标项目必须从
+`coding-agent-harness/harness.yaml` 运行：
+- v2 项目对缺失必需文件报 failure，并可阻断 CI
+- legacy 结构只作为迁移输入；先运行 `migrate-structure --plan` 和
+  `migrate-structure --apply`，再进入普通 status/check/dashboard 流程
 
-这让 harness 可以在不破坏现有用户的情况下逐步收紧规范。
+这样 active runtime 保持单一形状，同时迁移命令仍能读取旧结构并生成切换计划。
 没有考虑过三级或更多级别——两级已经足够区分"必须修复"和"建议迁移"。
 
 ### 为什么 governance 表格有时间边界

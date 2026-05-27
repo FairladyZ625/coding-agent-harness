@@ -5,6 +5,12 @@ import { spawnSync } from "node:child_process";
 import { readJsonSafe, repoRoot, taskContractMarker, toPosix, visualMapFile } from "./core-shared.mjs";
 import { verifyMigrationSession } from "./migration-planner.mjs";
 import { buildPresetAudit, renderPresetTemplate } from "./preset-registry.mjs";
+import {
+  legacyPath,
+  legacyPlanningRoot,
+  legacyTaskRoot,
+  v2HarnessRoot,
+} from "./harness-paths.mjs";
 
 export function resolvePresetInputs(preset, { cliArgs = [], fromSession = "", targetInput = "" } = {}) {
   const inputs = {};
@@ -160,9 +166,19 @@ export function assertPresetWriteScope(preset, relativePath) {
   if (normalized.startsWith("../") || path.isAbsolute(normalized)) {
     throw new Error(`Preset write scope violation for ${relativePath}`);
   }
-  if (!preset.writeScopes.some((scope) => matchesScope(scope.path, normalized))) {
+  if (!preset.writeScopes.some((scope) => normalizedPresetScopes(scope.path).some((candidate) => matchesScope(candidate, normalized)))) {
     throw new Error(`Preset write scope violation for ${normalized}`);
   }
+}
+
+function normalizedPresetScopes(scopePath) {
+  const scope = toPosix(path.normalize(String(scopePath || "")));
+  const taskRoot = legacyPath(legacyTaskRoot);
+  const planningRoot = legacyPath(legacyPlanningRoot);
+  const scopes = [scope];
+  if (scope.startsWith(taskRoot)) scopes.push(`${v2HarnessRoot}/planning/tasks${scope.slice(taskRoot.length)}`);
+  else if (scope.startsWith(planningRoot)) scopes.push(`${v2HarnessRoot}/planning${scope.slice(planningRoot.length)}`);
+  return scopes;
 }
 
 function inputValue(declaration, { cliArgs, fromSession }) {

@@ -16,7 +16,7 @@
 | 定位 | Repo-local **任务协议** + 轻量工作流 | 项目级 **工程方法论** + 完整 harness 体系 |
 | 粒度 | 单任务卡片级别（一个 md 文件 = 一个任务） | 项目 / wave / feature 级别（多文件协作体系） |
 | 目标用户 | 任何用 AI coding agent 的人 | 需要长程项目工程化支撑的团队 |
-| 核心产出 | `.taskr/tasks/*.md` | `docs/` 完整骨架 + SSoT + Ledger + Walkthrough |
+| 核心产出 | `.taskr/tasks/*.md` | `coding-agent-harness/` 完整骨架 + SSoT + Ledger + Walkthrough |
 | 产品形态 | Skill + npm CLI + 本地看板 + VS Code 插件 | Skill（纯文档协议，无代码工具） |
 | 默认重量 | **轻量优先**（checklist 够了就不加仪式） | **完整优先**（12 个 Phase 全走一遍） |
 
@@ -211,7 +211,7 @@ verification:
 **建议吸收方式**：
 扩展为 Harness 级别的 doctor，检查项包括：
 - `AGENTS.md` / `CLAUDE.md` 存在且非空
-- `docs/` 目录结构是否符合标准
+- `coding-agent-harness/` 目录结构是否符合标准
 - 三张 SSoT 文件存在
 - Harness Ledger 存在
 - 任务目录下的 task_plan 是否通过 validate
@@ -345,9 +345,9 @@ verification:
 
 **建议吸收方式**（两条路选一条）：
 
-**路线 A（轻量）**：扩展现有 `harness-dashboard.html`，增加任务视图页签，读 `docs/09-PLANNING/TASKS/` 目录下的任务文件。
+**路线 A（轻量）**：扩展现有 `harness-dashboard.html`，增加任务视图页签，读 `coding-agent-harness/planning/tasks/` 目录下的任务文件。
 
-**路线 B（对齐）**：把 Taskr 的 board 直接集成进来，让它同时读 `.taskr/` 和我们的 `docs/09-PLANNING/TASKS/`。Taskr 是 MIT 开源，可以直接用。
+**路线 B（对齐）**：把 Taskr 的 board 直接集成进来，让它同时读 `.taskr/` 和我们的 `coding-agent-harness/planning/tasks/`。Taskr 是 MIT 开源，可以直接用。
 
 **注意**：Board 是 nice-to-have，不是核心方法论差异。核心价值在 3.1-3.6。
 
@@ -504,7 +504,7 @@ Footer 格式：`Taskr: <task-id>`（注意不是旧的 `[taskr:<id>]` subject-l
 
 | Taskr 特性 | 不吸收的原因 |
 |------------|-------------|
-| `.taskr/` 目录名 | 我们用 `docs/09-PLANNING/TASKS/`，已是 harness 骨架的一部分，不应再搞一套平行目录 |
+| `.taskr/` 目录名 | 我们用 `coding-agent-harness/planning/tasks/`，已是 harness 骨架的一部分，不应再搞一套平行目录 |
 | 6-section 固定结构（Request/AC/Plan/ProgressLog/AgentNotes/CompletionSummary） | 我们的三件套（plan/findings/progress）更细粒度；但可以考虑对齐 section 名 |
 | 无 SSoT / 无 Regression / 无 Lessons | 这是 Taskr 的定位选择（轻量），不代表我们该砍掉已有能力 |
 | HTML-in-Markdown 片段 | 我们的任务文件面向 agent 消费，不需要富渲染 |

@@ -233,7 +233,7 @@ export function deriveTaskQueues({ id, title, state, budget, reviewStatus, revie
     pushReason({
       code: "review-closeout-materials-incomplete",
       queue: "missing-materials",
-      sourcePath: "TARGET:docs/10-WALKTHROUGH/Closeout-SSoT.md",
+      sourcePath: closeoutMaterialSourcePath(target, taskDir),
       message: "Agent review was submitted, but closeout materials are not ready for human confirmation.",
     });
   }
@@ -257,6 +257,14 @@ export function deriveTaskQueues({ id, title, state, budget, reviewStatus, revie
     queueReasons,
     repairPrompt: renderRepairPrompt({ id, title, taskDir, target, reasons: queueReasons }),
   };
+}
+
+function closeoutMaterialSourcePath(target, taskDir) {
+  const localWalkthrough = path.join(taskDir, "walkthrough.md");
+  if (fs.existsSync(localWalkthrough)) return "TARGET:walkthrough.md";
+  const closeoutIndexPath = target.harness?.closeoutIndexPath;
+  if (closeoutIndexPath) return `TARGET:${toPosix(path.relative(target.projectRoot, closeoutIndexPath))}`;
+  return "TARGET:closeout-materials";
 }
 
 export function parseReviewConfirmation(reviewContent, { taskKey = "", taskAudit = null, projectRoot = "", taskDir = "", indexPath = "", reviewPath = "", progressPath = "" } = {}) {

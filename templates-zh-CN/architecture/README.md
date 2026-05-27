@@ -24,8 +24,8 @@ Keep the English field names and file names because CLI checks rely on them.
 ## Boundary
 
 - 系统结构、服务责任、归属关系、关键流程放这里。
-- Payload、endpoint 参数、event schema、SDK 细节放 `docs/06-INTEGRATIONS/`。
-- 本地启动、mock、stub、跨仓调试经验放 `docs/04-DEVELOPMENT/`。
+- Payload、endpoint 参数、event schema、SDK 细节放 `coding-agent-harness/context/integrations/`。
+- 本地启动、mock、stub、跨仓调试经验放 `coding-agent-harness/context/development/`。
 
 ## Structure Contract
 
@@ -46,6 +46,6 @@ Keep the English field names and file names because CLI checks rely on them.
 
 1. 这个服务负责什么、拥有什么数据。
 2. 它和本仓有什么关系。
-3. Agent 修改本仓前还需要读哪些 `04-DEVELOPMENT` 和 `06-INTEGRATIONS` 文档。
+3. Agent 修改本仓前还需要读哪些 `context/development` 和 `context/integrations` 文档。
 
-不要在 `03-ARCHITECTURE` 里堆接口字段、mock 指令或临时调试记录。那些内容分别放到 `06-INTEGRATIONS` 和 `04-DEVELOPMENT`。
+不要在 `context/architecture` 里堆接口字段、mock 指令或临时调试记录。那些内容分别放到 `context/integrations` 和 `context/development`。

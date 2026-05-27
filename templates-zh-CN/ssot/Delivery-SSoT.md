@@ -33,11 +33,11 @@
 
 ## 归档索引
 
-> 已完成交付块在 release 或阶段收口后移入 `docs/09-PLANNING/_archive/Delivery-SSoT-archive-YYYY-QN.md`，活跃表只保留当前仍会影响集成决策的内容。
+> 已完成交付块在 release 或阶段收口后移入 `coding-agent-harness/planning/_archive/Delivery-SSoT-archive-YYYY-QN.md`，活跃表只保留当前仍会影响集成决策的内容。
 
 | 归档文件 | 覆盖范围 | 移入日期 | 说明 |
 | --- | --- | --- | --- |
-| `docs/09-PLANNING/_archive/Delivery-SSoT-archive-YYYY-QN.md` | DB-... 至 DB-... | YYYY-MM-DD | [说明] |
+| `coding-agent-harness/planning/_archive/Delivery-SSoT-archive-YYYY-QN.md` | DB-... 至 DB-... | YYYY-MM-DD | [说明] |
 
 ## 状态说明
 
@@ -57,4 +57,4 @@
 2. 依赖未满足时不得标记 `ready-for-integration`。
 3. 跨仓接口变化必须有合同条目，不能只靠聊天说明。
 4. 集成队列是合并顺序来源；临时改顺序必须更新本文件。
-5. 完成后的证据和残余同步回 Harness Ledger 与 Closeout SSoT。
+5. 完成后的证据和残余同步回 Harness Ledger 与 Closeout Index。

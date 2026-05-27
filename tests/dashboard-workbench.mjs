@@ -174,7 +174,7 @@ task:
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     audit: true
     templates:
       taskPlanAppend: templates/task_plan.append.md
@@ -186,7 +186,7 @@ audit:
   evidenceFiles: [preset-audit.json]
 writeScopes:
   taskDocs:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write
 `,
   );

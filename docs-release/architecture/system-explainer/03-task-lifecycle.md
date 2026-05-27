@@ -197,7 +197,7 @@ flowchart TD
 sequenceDiagram
   participant CLI as harness CLI
   participant Lock as .harness/locks/governance-sync.lock
-  participant Ledger as docs/Harness-Ledger.md
+  participant Ledger as coding-agent-harness/governance/generated/Harness-Ledger.md
   participant Git
 
   CLI->>Lock: fs.openSync(lockPath, "wx")\n（排他写入，EEXIST 则抛错）
@@ -216,7 +216,7 @@ sequenceDiagram
 | 操作 | 触发方式 | 写入目标 | 频率 |
 | --- | --- | --- | --- |
 | `syncTaskGovernance` | 自动（每次状态变更） | `Harness-Ledger.md` 对应行 | 高频 |
-| `rebuildGovernanceIndexes` | 手动（`harness governance rebuild`） | `docs/09-PLANNING/generated/` 索引表 | 低频 |
+| `rebuildGovernanceIndexes` | 手动（`harness governance rebuild`） | `coding-agent-harness/governance/generated/` 索引表 | 低频 |
 
 ---
 
@@ -272,7 +272,7 @@ Tombstone 块追加到 `task_plan.md` 末尾（不替换原内容），保留历
 ### 为什么 Tombstone 不直接删除任务目录
 
 文档库没有数据库级外键，物理删除后会留下孤儿引用
-（Ledger、Closeout SSoT、其他任务的 `Supersedes` 字段都可能指向被删任务）。
+（Ledger、Closeout Index、其他任务的 `Supersedes` 字段都可能指向被删任务）。
 Tombstone 标记让 Soft-deleted / Superseded 队列可以只读追溯"为什么这个任务不在活跃队列里"。
 
 ### 为什么 review-confirm 需要两次 Git 提交

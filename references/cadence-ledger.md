@@ -6,7 +6,7 @@
 
 ## Cadence Ledger 结构
 
-Cadence Ledger 是一个独立文件，放在 `docs/05-TEST-QA/Cadence-Ledger.md`。
+Cadence Ledger 是一个独立文件，放在 `coding-agent-harness/governance/regression/Cadence-Ledger.md`。
 
 包含两个部分：
 

@@ -36,7 +36,7 @@
 - 有没有反复出现、跨页面/跨模块/跨阶段的共性问题：[有/无，写一句理由]
 - 有没有下次 agent 也可能重复踩的坑：[有/无，写一句理由]
 - Lessons 结果：[checked-created: L-YYYY-MM-DD-NNN / queued-promotion: LC-YYYYMMDD-NNN / checked-candidate: LC-YYYYMMDD-NNN / checked-none: 一句话原因]
-- Lessons Detail Doc：[如 checked-created，填 `docs/01-GOVERNANCE/lessons/...md`；如 queued/checked-candidate，填 `lesson_candidates.md` 和任务本地 `lessons/LC-...md`；否则写"无"]
+- Lessons Detail Doc：[如 checked-created，填 `coding-agent-harness/governance/lessons/...md`；如 queued/checked-candidate，填 `lesson_candidates.md` 和任务本地 `lessons/LC-...md`；否则写"无"]
 
 ## 相关文件
 - Task Plan: [路径]
@@ -48,13 +48,13 @@
 ## 存放位置
 
 ```
-docs/10-WALKTHROUGH/<YYYY-MM-DD-wave名称>.md
+walkthrough.md.md
 ```
 
-Closeout SSoT:
+Closeout Index:
 
 ```text
-docs/10-WALKTHROUGH/Closeout-SSoT.md
+coding-agent-harness/governance/generated/Closeout-Index.md
 ```
 
 ## 规则
@@ -67,15 +67,15 @@ docs/10-WALKTHROUGH/Closeout-SSoT.md
 6. **Walkthrough 不是代码注释** — 不需要逐行解释代码，重点是决策、验证和可复用教训
 7. **Walkthrough 完成后必须执行经验沉淀检查** — 见下方“经验沉淀检查”章节
 8. **收口后必须更新 Harness Ledger** — 记录本轮上下文回写是否完成
-9. **收口后必须更新 Closeout SSoT** — 每个 `closed` / `closed-with-residual` / `closed-local-only` 的 Harness Ledger row 必须有 Closeout SSoT row
+9. **收口后必须更新 Closeout Index** — 每个 `closed` / `closed-with-residual` / `closed-local-only` 的 Harness Ledger row 必须有 Closeout Index row
 
-## Closeout SSoT 规则
+## Closeout Index 规则
 
-`Closeout-SSoT.md` 是 walkthrough 是否写入的硬门槛，不是目录索引。
+`Closeout-Index.md` 是 walkthrough 是否写入的硬门槛，不是目录索引。
 
 每个 closed 任务必须满足一项：
 
-1. `Walkthrough` 列写入 `docs/10-WALKTHROUGH/<file>.md`
+1. `Walkthrough` 列写入 `walkthrough.md.md`
 2. `Walkthrough` 列写入受控 skip reason
 
 允许的 skip reason 只有：
@@ -106,27 +106,27 @@ docs/10-WALKTHROUGH/Closeout-SSoT.md
 
 如果任何一条答案是“有”：
 
-1. 查找任务本地 `lesson_candidates.md`、任务本地 `lessons/LC-*.md` 和 `docs/01-GOVERNANCE/lessons/*.md`
+1. 查找任务本地 `lesson_candidates.md`、任务本地 `lessons/LC-*.md` 和 `coding-agent-harness/governance/lessons/*.md`
 2. 按 `references/lessons-governance.md` 中的规则处理冲突
 3. 先在任务目录 `lesson_candidates.md` 中登记候选；候选进入 `needs-promotion` 时同步写任务本地 `lessons/LC-*.md` 详情文件并在 `Detail Artifact` 链接
-4. 人工确认后，如需沉淀，使用 maintenance CLI 写入 `docs/01-GOVERNANCE/lessons/` promoted 详情文档
-5. 在 Closeout SSoT 和 Harness Ledger 中记录 `queued-promotion: LC-...` 或 `checked-created: L-YYYY-MM-DD-NNN`
+4. 人工确认后，如需沉淀，使用 maintenance CLI 写入 `coding-agent-harness/governance/lessons/` promoted 详情文档
+5. 在 Closeout Index 和 Harness Ledger 中记录 `queued-promotion: LC-...` 或 `checked-created: L-YYYY-MM-DD-NNN`
 
-如果所有答案都是“没有”，不能静默跳过；在 Closeout SSoT 和 Harness Ledger 中记录
+如果所有答案都是“没有”，不能静默跳过；在 Closeout Index 和 Harness Ledger 中记录
 新任务在 `lesson_candidates.md` 中写 `no-candidate-accepted` 和 No-Candidate Reason；旧任务可记录
 `checked-none: <一句话原因>`。
 
 ## Harness Ledger 回写
 
 写完 Walkthrough、更新 Regression SSoT 或其他本轮实际触达的非任务生命周期 SSoT，并完成 Lessons 检查后，Agent 必须更新
-`docs/10-WALKTHROUGH/Closeout-SSoT.md`；任务生命周期总账由 CLI 重新生成 `docs/Harness-Ledger.md`：
+`coding-agent-harness/governance/generated/Closeout-Index.md`；任务生命周期总账由 CLI 重新生成 `coding-agent-harness/governance/generated/Harness-Ledger.md`：
 
 1. 为本轮任务追加或更新对应 `HL-*` 条目
 2. 记录 Task Plan、Regression SSoT、Review Report、Walkthrough、Lessons Check 的结果
 3. 列出本轮触碰的 harness 文档
 4. 如有未完成项，使用 `missing` 或 `skipped-with-reason` 并写明 residual
 
-没有 Harness Ledger 条目或 Closeout SSoT 条目的 wave，不视为完整 closed。
+没有 Harness Ledger 条目或 Closeout Index 条目的 wave，不视为完整 closed。
 
 ## 为什么 Walkthrough 有效
 

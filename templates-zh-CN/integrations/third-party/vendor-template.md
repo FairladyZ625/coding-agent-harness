@@ -13,7 +13,7 @@ Third-party service
 
 | Service Profile | Development Context | Contract Index | Last Verified | Confidence |
 | --- | --- | --- | --- | --- |
-| `docs/03-ARCHITECTURE/services/<vendor-key>.md` | `docs/04-DEVELOPMENT/external-context/<vendor-key>.md` | `docs/06-INTEGRATIONS/README.md` | unknown | low |
+| `coding-agent-harness/context/architecture/services/<vendor-key>.md` | `coding-agent-harness/context/development/external-context/<vendor-key>.md` | `coding-agent-harness/context/integrations/README.md` | unknown | low |
 
 ## Auth
 
@@ -39,4 +39,4 @@ Third-party service
 
 ## Placement Rule
 
-本文件只写一个第三方集成。账号/权限/SDK/限制放这里；业务职责和系统拓扑放 `03-ARCHITECTURE`。
+本文件只写一个第三方集成。账号/权限/SDK/限制放这里；业务职责和系统拓扑放 `context/architecture`。

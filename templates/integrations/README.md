@@ -11,8 +11,8 @@ This folder owns concrete interface contracts: APIs, events, webhooks, SDK usage
 
 ## Boundary
 
-- Put service topology and ownership in `docs/03-ARCHITECTURE/`.
-- Put development mocks and debugging notes in `docs/04-DEVELOPMENT/`.
+- Put service topology and ownership in `coding-agent-harness/context/architecture/`.
+- Put development mocks and debugging notes in `coding-agent-harness/context/development/`.
 - Put endpoint, payload, error, auth, event, webhook, and SDK contracts here.
 
 ## Structure Contract
@@ -28,8 +28,8 @@ This folder owns concrete interface contracts: APIs, events, webhooks, SDK usage
 
 Every interface contract must be its own file and link back to the related service:
 
-- Service ownership and topology: `docs/03-ARCHITECTURE/service-catalog.md` or `services/<service-key>.md`
-- Local mocks, stubs, and debugging: `docs/04-DEVELOPMENT/external-context/<service-key>.md`
+- Service ownership and topology: `coding-agent-harness/context/architecture/service-catalog.md` or `services/<service-key>.md`
+- Local mocks, stubs, and debugging: `coding-agent-harness/context/development/external-context/<service-key>.md`
 - Concrete payloads, auth, errors, and contract tests: this folder
 
 Do not mix multiple services into one large "integration notes" document. Multi-service systems should have multiple contract files; the Contract Index below is the navigation layer for humans and agents.

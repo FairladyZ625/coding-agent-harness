@@ -9,7 +9,7 @@ Confidence: low
 
 | Service Profile | Source Pack | Integration Contracts | Last Verified | Confidence |
 | --- | --- | --- | --- | --- |
-| `docs/03-ARCHITECTURE/services/<service-key>.md` | `docs/04-DEVELOPMENT/external-source-packs/<source-key>/README.md` or N/A | `docs/06-INTEGRATIONS/<contract>.md` | unknown | low |
+| `coding-agent-harness/context/architecture/services/<service-key>.md` | `coding-agent-harness/context/development/external-source-packs/<source-key>/README.md` or N/A | `coding-agent-harness/context/integrations/<contract>.md` | unknown | low |
 
 ## Development Use
 
@@ -30,4 +30,4 @@ Confidence: low
 
 ## Placement Rule
 
-This file only covers local development, testing, and debugging context for this external service. Put service responsibility in `03-ARCHITECTURE`; put interface fields and schemas in `06-INTEGRATIONS`.
+This file only covers local development, testing, and debugging context for this external service. Put service responsibility in `context/architecture`; put interface fields and schemas in `context/integrations`.

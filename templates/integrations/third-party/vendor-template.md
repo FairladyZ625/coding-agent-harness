@@ -13,7 +13,7 @@ Third-party service
 
 | Service Profile | Development Context | Contract Index | Last Verified | Confidence |
 | --- | --- | --- | --- | --- |
-| `docs/03-ARCHITECTURE/services/<vendor-key>.md` | `docs/04-DEVELOPMENT/external-context/<vendor-key>.md` | `docs/06-INTEGRATIONS/README.md` | unknown | low |
+| `coding-agent-harness/context/architecture/services/<vendor-key>.md` | `coding-agent-harness/context/development/external-context/<vendor-key>.md` | `coding-agent-harness/context/integrations/README.md` | unknown | low |
 
 ## Auth
 
@@ -39,4 +39,4 @@ Third-party service
 
 ## Placement Rule
 
-This file describes one third-party integration only. Put account/permission/SDK/limit facts here; put business responsibility and system topology in `03-ARCHITECTURE`.
+This file describes one third-party integration only. Put account/permission/SDK/limit facts here; put business responsibility and system topology in `context/architecture`.

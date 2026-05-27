@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "capabilities": [
-    {"name": "core", "state": "configured"},
-    {"name": "review-contract", "state": "verified"},
-    {"name": "dashboard", "state": "verified"}
-  ]
-}

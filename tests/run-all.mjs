@@ -6,6 +6,8 @@ import path from "node:path";
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const suites = [
   "tests/meta-test-layout.mjs",
+  "tests/directory-structure-v2.mjs",
+  "tests/hard-cutover-guards.mjs",
   "tests/source-package-boundary.mjs",
   "tests/architecture-health.mjs",
   "tests/cli-help.mjs",

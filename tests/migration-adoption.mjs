@@ -2,7 +2,6 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import {
   assert,
   expectJson,
@@ -19,8 +18,12 @@ fs.writeFileSync(
   path.join(legacyPhaseTableTarget, "docs/09-PLANNING/TASKS/table-active/progress.md"),
   "# Progress\n\n## 阶段状态表\n| Phase | Status | Notes |\n| --- | --- | --- |\n| Phase 1 | Done | ok |\n| Phase 2 | In Progress | active |\n| Phase 3 | Pending | next |\n",
 );
-const legacyPhaseStatus = expectJson(["status", "--json", legacyPhaseTableTarget]);
-assert(legacyPhaseStatus.tasks[0].state === "in_progress", "Agora-style legacy phase table should infer active task state");
+const legacyPhaseStatus = run(["status", "--json", legacyPhaseTableTarget]);
+assert(legacyPhaseStatus.status !== 0, "status should reject active legacy structures before structure migration");
+assert(legacyPhaseStatus.stdout.includes("legacy harness structure is migration input only"), "legacy status failure should route to migrate-structure");
+const legacyPhaseDashboard = run(["dashboard", "--out-dir", path.join(tmpRoot, "legacy-dashboard"), legacyPhaseTableTarget]);
+assert(legacyPhaseDashboard.status !== 0, "dashboard should reject active legacy structures before structure migration");
+assert(legacyPhaseDashboard.stderr.includes("dashboard requires v2 harness structure"), "legacy dashboard failure should route to migrate-structure");
 
 const legacyChineseTarget = path.join(tmpRoot, "legacy-chinese");
 fs.mkdirSync(path.join(legacyChineseTarget, "docs/09-PLANNING/TASKS/old"), { recursive: true });
@@ -29,235 +32,102 @@ fs.writeFileSync(path.join(legacyChineseTarget, "docs/09-PLANNING/TASKS/old/task
 const legacyChinesePlan = expectJson(["migrate-plan", "--json", legacyChineseTarget]);
 assert(legacyChinesePlan.locale === "zh-CN", "migrate-plan should infer zh-CN from Chinese legacy project text");
 assert(
-  legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-run --locale zh-CN")),
-  "migrate-plan should recommend zh-CN migration run for Chinese legacy projects",
-);
-assert(
   legacyChinesePlan.nextCommands.some((command) => command.includes(legacyChineseTarget)),
   "migrate-plan should keep executable target paths in CLI output",
 );
+assert(
+  legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-structure --plan")) &&
+  legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-structure --apply")),
+  "migrate-plan should route hard-cutover users to migrate-structure",
+);
+assert(
+  !legacyChinesePlan.nextCommands.some((command) => command.includes("migrate-run")),
+  "migrate-plan should not route hard-cutover users to legacy migrate-run as the next command",
+);
 
-const legacyAdoptionTarget = path.join(tmpRoot, "legacy-adoption");
-fs.mkdirSync(path.join(legacyAdoptionTarget, "docs/09-PLANNING/TASKS/old"), { recursive: true });
-const legacyAgents = "# Legacy Agents\n\nLEGACY_DO_NOT_OVERWRITE\n";
-const legacyClaude = "# Legacy Claude\n\nLEGACY_CLAUDE_DO_NOT_OVERWRITE\n";
-const legacyLedger = "# Legacy Ledger\n\nLEGACY_LEDGER_DO_NOT_OVERWRITE\n";
-const legacyTaskPlan = "# Legacy Task\n\nLEGACY_TASK_DO_NOT_OVERWRITE\n";
-fs.writeFileSync(path.join(legacyAdoptionTarget, "AGENTS.md"), legacyAgents);
-fs.writeFileSync(path.join(legacyAdoptionTarget, "CLAUDE.md"), legacyClaude);
-fs.mkdirSync(path.join(legacyAdoptionTarget, "docs"), { recursive: true });
-fs.writeFileSync(path.join(legacyAdoptionTarget, "docs/Harness-Ledger.md"), legacyLedger);
-fs.writeFileSync(path.join(legacyAdoptionTarget, "docs/09-PLANNING/TASKS/old/task_plan.md"), legacyTaskPlan);
-fs.writeFileSync(path.join(legacyAdoptionTarget, "docs/09-PLANNING/TASKS/old/progress.md"), "# Progress\n\n## Status\n\nplanned\n");
-const legacyAdoption = expectJson(["add-capability", "safe-adoption", "--locale", "zh-CN", legacyAdoptionTarget]);
-assert(legacyAdoption.report?.operation === "add-capability", "safe-adoption output should include add-capability report");
-assert(
-  legacyAdoption.report?.capabilities?.some((capability) => capability.name === "safe-adoption" && capability.selected === true),
-  "safe-adoption report should mark safe-adoption selected",
-);
-assert(
-  legacyAdoption.report?.skipped?.includes("AGENTS.md") &&
-    legacyAdoption.report?.skipped?.includes("CLAUDE.md") &&
-    legacyAdoption.report?.skipped?.includes("docs/Harness-Ledger.md"),
-  "safe-adoption report should show skipped legacy files",
-);
-const legacyAdoptionRegistry = JSON.parse(fs.readFileSync(path.join(legacyAdoptionTarget, ".harness-capabilities.json"), "utf8"));
-assert(legacyAdoptionRegistry.locale === "zh-CN", "safe-adoption should persist requested locale");
-assert(legacyAdoptionRegistry.capabilities.some((capability) => capability.name === "core"), "safe-adoption should include core dependency");
-assert(legacyAdoptionRegistry.capabilities.some((capability) => capability.name === "safe-adoption"), "safe-adoption registry missing capability");
-assert(fs.readFileSync(path.join(legacyAdoptionTarget, "AGENTS.md"), "utf8") === legacyAgents, "safe-adoption should not overwrite legacy AGENTS.md");
-assert(fs.readFileSync(path.join(legacyAdoptionTarget, "CLAUDE.md"), "utf8") === legacyClaude, "safe-adoption should not overwrite legacy CLAUDE.md");
-assert(fs.readFileSync(path.join(legacyAdoptionTarget, "docs/Harness-Ledger.md"), "utf8") === legacyLedger, "safe-adoption should not overwrite legacy ledger");
-assert(fs.readFileSync(path.join(legacyAdoptionTarget, "docs/09-PLANNING/TASKS/old/task_plan.md"), "utf8") === legacyTaskPlan, "safe-adoption should not overwrite old task plans");
-assert(
-  fs.readFileSync(path.join(legacyAdoptionTarget, "docs/09-PLANNING/TASKS/_task-template/review.md"), "utf8").includes("审查者身份"),
-  "safe-adoption should add missing localized v1 templates",
-);
-const adoptedStatus = expectJson(["status", "--json", legacyAdoptionTarget]);
-assert(adoptedStatus.checkState.status === "warn", "safe-adoption should warn on historical contract gaps without failing");
-assert(
-  adoptedStatus.checkState.details.warnings.some((warning) => warning.includes("adoption-needed")),
-  "safe-adoption warnings should be routed as adoption-needed",
-);
-assert(adoptedStatus.tasks[0].inferredModule, "legacy task status should expose inferred module classification");
-assert(adoptedStatus.tasks[0].classificationBucket, "legacy task status should expose classification bucket");
-const legacyAdoptionDashboard = path.join(tmpRoot, "legacy-adoption-dashboard");
-expectPass(["dashboard", "--out-dir", legacyAdoptionDashboard, legacyAdoptionTarget]);
-const legacyAdoptionWarnings = JSON.parse(fs.readFileSync(path.join(legacyAdoptionDashboard, "data/adoption.json"), "utf8"));
-const firstAdoptionWarning = legacyAdoptionWarnings.warnings?.[0];
-assert(firstAdoptionWarning?.type, "adoption warning should expose stable type");
-assert(firstAdoptionWarning?.scope, "adoption warning should expose scope");
-assert(firstAdoptionWarning?.priority, "adoption warning should expose priority");
-assert(firstAdoptionWarning?.phase, "adoption warning should expose migration phase");
-assert(firstAdoptionWarning?.fixability, "adoption warning should expose fixability");
-assert(firstAdoptionWarning?.status, "adoption warning should expose queue status");
-assert(firstAdoptionWarning?.confidence, "adoption warning should expose confidence");
-assert(Array.isArray(firstAdoptionWarning?.affectedPaths), "adoption warning should expose affectedPaths array");
-assert(firstAdoptionWarning?.affected && firstAdoptionWarning?.requiredAction, "adoption warning should preserve affected and requiredAction fields");
-const migrationPlan = expectJson(["migrate-plan", "--json", "--limit", "5", legacyAdoptionTarget]);
-assert(migrationPlan.operation === "migrate-plan", "migrate-plan should report its operation");
-assert(migrationPlan.compatibility?.preserves?.some((item) => item.includes("AGENTS.md")), "migrate-plan should state preservation rules");
-assert(migrationPlan.phases?.some((phase) => phase.id === "MP-03"), "migrate-plan should include active task migration phase");
-assert(migrationPlan.summary?.missingExecutionStrategy >= 1, "migrate-plan should count missing execution strategies");
-assert(migrationPlan.summary?.missingVisualMap >= 1, "migrate-plan should count missing canonical visual maps");
-assert(migrationPlan.summary?.visualMapActions >= 1, "migrate-plan should expose visual map action count");
-assert(migrationPlan.summary?.legacyVisualOnly >= 1, "migrate-plan should expose legacy visual-only count");
-assert(migrationPlan.summary?.weakBrief >= 1, "migrate-plan should expose weak brief count");
-assert(migrationPlan.summary?.missingCanonicalVisualMap >= 1, "migrate-plan should expose missing canonical visual map count");
-assert(migrationPlan.summary?.fullCutoverEligible === false, "legacy migrate-plan should not be full-cutover eligible");
-assert(migrationPlan.taskActions?.some((action) => action.taskId === "old" && action.files.includes("execution_strategy.md")), "migrate-plan should include task-level file actions");
-assert(migrationPlan.taskActions?.some((action) => action.taskId === "old" && action.files.includes("visual_map.md")), "migrate-plan should include canonical visual map action");
-assert(migrationPlan.taskActions?.some((action) => action.taskId === "old" && action.files.includes("brief.md")), "migrate-plan should include active brief migration action");
-assert(migrationPlan.visualMapActions?.some((action) => action.taskId === "old"), "migrate-plan should expose visual map actions separately");
-assert(migrationPlan.legacyVisualOnlyTasks?.some((action) => action.taskId === "old"), "migrate-plan should expose legacy visual-only tasks separately");
-assert(migrationPlan.weakBriefTasks?.some((action) => action.taskId === "old"), "migrate-plan should expose weak brief tasks separately");
-assert(migrationPlan.taskActions?.some((action) => action.commands.some((command) => command.includes("_task-template/brief.md"))), "migrate-plan should emit a command per active task file");
-assert(migrationPlan.nextCommands?.some((command) => command.includes("migrate-run")), "migrate-plan should include migrate-run command");
-assert(migrationPlan.nextCommands?.some((command) => command.includes("migrate-verify --full-cutover")), "migrate-plan should include full-cutover verify command");
-const migrationPlanText = expectPass(["migrate-plan", "--limit", "3", legacyAdoptionTarget]).stdout;
-assert(migrationPlanText.includes("Migration Plan"), "migrate-plan text output should have a readable heading");
-assert(migrationPlanText.includes("legacy residuals:"), "migrate-plan text output should show residual counts");
-assert(migrationPlanText.includes("full cutover eligible:"), "migrate-plan text output should show full cutover eligibility");
-const adoptedStrict = run(["status", "--json", "--strict", legacyAdoptionTarget]);
-assert(adoptedStrict.status !== 0, "safe-adoption strict status should still fail on historical contract gaps");
-
-const migrationRunTarget = path.join(tmpRoot, "migration-run");
-fs.mkdirSync(path.join(migrationRunTarget, "docs/09-PLANNING/TASKS/old"), { recursive: true });
-fs.writeFileSync(path.join(migrationRunTarget, "AGENTS.md"), "# 旧项目 Agents\n\nLegacy English notes are still present.\n");
-fs.writeFileSync(path.join(migrationRunTarget, "docs/09-PLANNING/TASKS/old/task_plan.md"), "# Old Task\n\nThis active task predates v1.\n");
-fs.writeFileSync(path.join(migrationRunTarget, "docs/09-PLANNING/TASKS/old/progress.md"), "# Progress\n\n## Status\n\nplanned\n");
-spawnSync("git", ["init"], { cwd: migrationRunTarget, encoding: "utf8" });
-spawnSync("git", ["add", "."], { cwd: migrationRunTarget, encoding: "utf8" });
-spawnSync("git", ["-c", "user.name=Harness Test", "-c", "user.email=harness@example.test", "commit", "-m", "legacy baseline"], {
-  cwd: migrationRunTarget,
-  encoding: "utf8",
-});
-const migrationSessionDir = path.join(tmpRoot, "migration-session");
-const migrationDashboardDir = path.join(tmpRoot, "migration-dashboard");
-const migrationRun = expectJson([
-  "migrate-run",
-  "--locale",
-  "zh-CN",
-  "--session-dir",
-  migrationSessionDir,
-  "--out-dir",
-  migrationDashboardDir,
-  migrationRunTarget,
-]);
-assert(migrationRun.operation === "migrate-run", "migrate-run should report its operation");
-assert(migrationRun.result === "adopted-with-strict-deferred", "legacy migrate-run should keep strict cutover deferred");
-assert(migrationRun.checks.normal.status !== "fail", "legacy migrate-run should keep normal check usable");
-assert(migrationRun.checks.strict.status === "fail", "legacy migrate-run should record strict failure");
-assert(migrationRun.strictDeferred?.owner && migrationRun.strictDeferred?.trigger && migrationRun.strictDeferred?.nextAction, "strict-deferred migration should include owner, trigger, and nextAction");
-assert(fs.existsSync(migrationRun.sessionPath), "migrate-run should write session.json");
-assert(fs.existsSync(migrationRun.reportPath), "migrate-run should write report.md");
-assert(fs.existsSync(path.join(migrationDashboardDir, "index.html")), "migrate-run should generate an HTML dashboard folder");
-const migrationRegistry = JSON.parse(fs.readFileSync(path.join(migrationRunTarget, ".harness-capabilities.json"), "utf8"));
-assert(migrationRegistry.locale === "zh-CN", "migrate-run should persist selected locale");
-assert(migrationRegistry.capabilities.some((capability) => capability.name === "safe-adoption"), "migrate-run should declare safe-adoption");
-assert(migrationRegistry.capabilities.some((capability) => capability.name === "dashboard"), "migrate-run should declare dashboard");
-assert(!migrationRun.git.after.staged.length, "migrate-run should not stage target files");
-assert(
-  spawnSync("git", ["-C", migrationRunTarget, "diff", "--cached", "--name-only"], { encoding: "utf8" }).stdout.trim() === "",
-  "migrate-run should leave the target git index untouched",
-);
-const migrationVerify = expectJson(["migrate-verify", "--json", migrationRun.sessionPath]);
-assert(migrationVerify.status === "pass", "migrate-verify should pass for migrate-run output");
-assert(migrationVerify.dashboard?.indexPath?.endsWith("index.html"), "migrate-verify should preserve HTML dashboard evidence");
-const migrationFullCutover = run(["migrate-verify", "--json", "--full-cutover", migrationRun.sessionPath]);
-assert(migrationFullCutover.status !== 0, "full cutover verify should reject baseline legacy-only migration output");
-
-const falseSessionPath = path.join(tmpRoot, "false-session.json");
+const migrationTarget = path.join(tmpRoot, "structure-migration");
+const legacyTask = path.join(migrationTarget, "docs/09-PLANNING/TASKS/old");
+const legacyModuleTask = path.join(migrationTarget, "docs/09-PLANNING/MODULES/auth/TASKS/auth-old");
+fs.mkdirSync(legacyTask, { recursive: true });
+fs.mkdirSync(legacyModuleTask, { recursive: true });
+fs.mkdirSync(path.join(migrationTarget, "docs/10-WALKTHROUGH"), { recursive: true });
+fs.mkdirSync(path.join(migrationTarget, "docs/11-REFERENCE"), { recursive: true });
 fs.writeFileSync(
-  falseSessionPath,
-  JSON.stringify(
-    {
-      ...JSON.parse(fs.readFileSync(migrationRun.sessionPath, "utf8")),
-      dashboard: { dir: migrationRunTarget, indexPath: path.join(migrationRunTarget, "docs/Harness-Ledger.md"), kind: "html-folder" },
-    },
-    null,
-    2,
-  ),
+  path.join(migrationTarget, ".harness-capabilities.json"),
+  JSON.stringify({ version: 1, locale: "zh-CN", capabilities: [{ name: "core", state: "configured" }, { name: "dashboard", state: "configured" }] }, null, 2),
 );
-const falseVerify = run(["migrate-verify", "--json", falseSessionPath]);
-assert(falseVerify.status !== 0, "migrate-verify should reject non-HTML dashboard evidence");
+fs.writeFileSync(path.join(migrationTarget, "AGENTS.md"), "# Legacy Agents\n\nDO_NOT_OVERWRITE\n");
+fs.writeFileSync(path.join(migrationTarget, "docs/Harness-Ledger.md"), "# Legacy Ledger\n");
+fs.writeFileSync(path.join(migrationTarget, "docs/09-PLANNING/Module-Registry.md"), "# Module Registry\n");
+fs.writeFileSync(path.join(migrationTarget, "docs/11-REFERENCE/external-source-intake-standard.md"), "# Legacy Standard\n");
+fs.writeFileSync(path.join(legacyTask, "task_plan.md"), "# Old Task\n\nTask Contract: harness-task/v1\n\nSelected budget: simple\n");
+fs.writeFileSync(path.join(legacyTask, "brief.md"), "# Old Brief\n\nThis legacy task is long enough to act as a migrated v2 fixture and verify path behavior after the one-shot structure migration.\n");
+fs.writeFileSync(path.join(legacyTask, "visual_map.md"), "# Visual Map\n\nVisual Map Contract: v1.0\n");
+fs.writeFileSync(path.join(legacyTask, "progress.md"), "# Progress\n\n## Status\n\nplanned\n");
+fs.writeFileSync(path.join(legacyModuleTask, "task_plan.md"), "# Old Module Task\n\nTask Contract: harness-task/v1\n\nSelected budget: simple\n");
+fs.writeFileSync(path.join(legacyModuleTask, "brief.md"), "# Old Module Brief\n\nThis legacy module task verifies uppercase TASKS normalization into the v2 module task directory shape.\n");
+fs.writeFileSync(path.join(legacyModuleTask, "progress.md"), "# Progress\n\n## Status\n\nplanned\n");
 
-const mixedLocaleTarget = path.join(tmpRoot, "mixed-locale");
-fs.mkdirSync(path.join(mixedLocaleTarget, "docs/09-PLANNING/TASKS/mixed"), { recursive: true });
-fs.writeFileSync(path.join(mixedLocaleTarget, "AGENTS.md"), "# 中文入口\n\n这是一个中文项目，迁移时需要选择中文或英文模板。\n");
-fs.writeFileSync(
-  path.join(mixedLocaleTarget, "docs/09-PLANNING/TASKS/mixed/task_plan.md"),
-  "# Legacy task\n\nThis English task plan intentionally contains enough words to make the language decision ambiguous for migration.\n",
+const docsRootPlan = expectJson(["migrate-structure", "--json", "--plan", path.join(migrationTarget, "docs")]);
+assert(docsRootPlan.target === migrationTarget, "migrate-structure should accept a legacy docs/ path and resolve the project root");
+assert(docsRootPlan.actions.some((action) => action.destination === "coding-agent-harness/planning/tasks"), "structure plan should move legacy tasks to v2 tasks root");
+assert(docsRootPlan.capabilities.locale === "zh-CN", "structure plan should preserve legacy registry locale");
+assert(docsRootPlan.capabilities.names.includes("dashboard"), "structure plan should preserve declared capabilities");
+
+const conflictTarget = path.join(tmpRoot, "structure-migration-conflict");
+fs.mkdirSync(path.join(conflictTarget, "docs/03-ARCHITECTURE"), { recursive: true });
+fs.mkdirSync(path.join(conflictTarget, "coding-agent-harness/context/architecture"), { recursive: true });
+fs.writeFileSync(path.join(conflictTarget, "docs/03-ARCHITECTURE/README.md"), "# Legacy Architecture\n");
+fs.writeFileSync(path.join(conflictTarget, "coding-agent-harness/context/architecture/README.md"), "# Existing V2 Architecture\n");
+const conflictApply = run(["migrate-structure", "--json", "--apply", conflictTarget]);
+assert(conflictApply.status !== 0, "migrate-structure should fail before applying when v2 destinations would be overwritten");
+assert(!fs.existsSync(path.join(conflictTarget, "coding-agent-harness/harness.yaml")), "migrate-structure conflict preflight should not leave a partial manifest");
+assert(fs.existsSync(path.join(conflictTarget, "docs/03-ARCHITECTURE/README.md")), "migrate-structure conflict preflight should not move legacy docs");
+
+const moduleConflictTarget = path.join(tmpRoot, "structure-migration-module-conflict");
+fs.mkdirSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/TASKS/dup"), { recursive: true });
+fs.mkdirSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/tasks/dup"), { recursive: true });
+fs.writeFileSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/TASKS/dup/task_plan.md"), "# Legacy Dup\n");
+fs.writeFileSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/tasks/dup/task_plan.md"), "# Existing Lowercase Legacy Dup\n");
+const moduleConflictEntries = fs.readdirSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth"));
+if (moduleConflictEntries.includes("TASKS") && moduleConflictEntries.includes("tasks")) {
+  const moduleConflictApply = run(["migrate-structure", "--json", "--apply", moduleConflictTarget]);
+  assert(moduleConflictApply.status !== 0, "migrate-structure should fail before applying when module TASKS normalization would overwrite v2 tasks");
+  assert(!fs.existsSync(path.join(moduleConflictTarget, "coding-agent-harness/harness.yaml")), "module conflict preflight should not leave a partial manifest");
+  assert(fs.existsSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/TASKS/dup/task_plan.md")), "module conflict preflight should not move legacy module TASKS");
+  assert(fs.existsSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/tasks/dup/task_plan.md")), "module conflict preflight should preserve existing lowercase module task");
+}
+
+const applied = expectJson(["migrate-structure", "--json", "--apply", migrationTarget]);
+assert(applied.applied === true, "migrate-structure --apply should report applied true");
+assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/harness.yaml")), "structure migration should write v2 manifest");
+assert(!fs.existsSync(path.join(migrationTarget, "docs")), "structure migration should remove the active legacy docs root");
+assert(!fs.existsSync(path.join(migrationTarget, ".harness-capabilities.json")), "structure migration should remove the active legacy capability registry");
+assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/planning/tasks/old/task_plan.md")), "structure migration should move legacy task plans to v2 tasks root");
+assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/planning/tasks/old/walkthrough.md")), "structure migration should add task-local walkthrough when absent");
+assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/planning/modules/auth/tasks/auth-old/task_plan.md")), "structure migration should normalize legacy module task directories to v2 module tasks");
+assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/planning/modules/auth/tasks/auth-old/walkthrough.md")), "structure migration should add task-local walkthroughs for migrated module tasks");
+assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/planning/modules/auth/tasks/auth-old/visual_map.md")), "structure migration should add canonical visual maps for migrated tasks when absent");
+assert(
+  !fs.readdirSync(path.join(migrationTarget, "coding-agent-harness/planning/modules/auth")).includes("TASKS"),
+  "structure migration should remove legacy uppercase module TASKS roots",
 );
-const mixedLocaleFail = run(["migrate-run", "--plan-only", mixedLocaleTarget]);
-assert(mixedLocaleFail.status !== 0, "migrate-run should require --locale for mixed-language targets");
-assert(mixedLocaleFail.stderr.includes("--locale zh-CN"), "mixed-language failure should tell agents how to choose locale");
-const mixedLocalePlan = expectJson(["migrate-run", "--plan-only", "--locale", "zh-CN", "--session-dir", path.join(tmpRoot, "mixed-locale-session"), mixedLocaleTarget]);
-assert(mixedLocalePlan.result === "plan-only", "migrate-run --plan-only should produce a plan-only session");
-assert(mixedLocalePlan.localeDecision.selected === "zh-CN", "migrate-run --locale should resolve mixed-language decision");
-const planOnlyVerify = run(["migrate-verify", "--json", mixedLocalePlan.sessionPath]);
-assert(planOnlyVerify.status !== 0, "migrate-verify should reject plan-only sessions as completion evidence");
+assert(fs.existsSync(path.join(migrationTarget, "coding-agent-harness/governance/standards/external-source-intake-standard.md")), "structure migration should move reference docs to governance standards");
+assert(applied.actionsApplied.some((action) => action.action === "archive-source-root"), "structure migration should archive the old docs root");
 
-const dirtyMigrationTarget = path.join(tmpRoot, "dirty-migration");
-fs.mkdirSync(dirtyMigrationTarget);
-fs.writeFileSync(path.join(dirtyMigrationTarget, "AGENTS.md"), "# Legacy\n");
-spawnSync("git", ["init"], { cwd: dirtyMigrationTarget, encoding: "utf8" });
-spawnSync("git", ["add", "."], { cwd: dirtyMigrationTarget, encoding: "utf8" });
-spawnSync("git", ["-c", "user.name=Harness Test", "-c", "user.email=harness@example.test", "commit", "-m", "baseline"], {
-  cwd: dirtyMigrationTarget,
-  encoding: "utf8",
-});
-fs.writeFileSync(path.join(dirtyMigrationTarget, "unreviewed.txt"), "dirty\n");
-const dirtyMigration = run(["migrate-run", "--locale", "en-US", dirtyMigrationTarget]);
-assert(dirtyMigration.status !== 0, "migrate-run should stop on dirty git targets by default");
-assert(dirtyMigration.stderr.includes("--allow-dirty"), "dirty guard should explain --allow-dirty escape hatch");
+const manifest = fs.readFileSync(path.join(migrationTarget, "coding-agent-harness/harness.yaml"), "utf8");
+assert(manifest.includes("locale: zh-CN"), "structure migration should persist locale in manifest");
+assert(/^\s*-\s*dashboard\s*$/m.test(manifest), "structure migration should persist capabilities in manifest");
 
-const forgedStrictSessionPath = path.join(tmpRoot, "forged-strict-session.json");
-const forgedStrictSession = {
-  ...JSON.parse(fs.readFileSync(migrationRun.sessionPath, "utf8")),
-  result: "complete",
-  checks: { ...migrationRun.checks, strict: { status: "pass", failures: 0, warnings: 0 } },
-  strictDeferred: null,
-};
-fs.writeFileSync(forgedStrictSessionPath, `${JSON.stringify(forgedStrictSession, null, 2)}\n`);
-const forgedStrictVerify = run(["migrate-verify", "--json", forgedStrictSessionPath]);
-assert(forgedStrictVerify.status !== 0, "migrate-verify should rerun strict and reject forged strict pass sessions");
-
-const fakeDashboardDir = path.join(tmpRoot, "fake-dashboard");
-const fakeDashboardPath = path.join(fakeDashboardDir, "index.html");
-fs.mkdirSync(path.join(fakeDashboardDir, "assets"), { recursive: true });
-fs.mkdirSync(path.join(fakeDashboardDir, "data"), { recursive: true });
-fs.writeFileSync(fakeDashboardPath, '<html><script src="assets/dashboard-data.js"></script></html>\n');
-fs.writeFileSync(path.join(fakeDashboardDir, "assets/dashboard-data.js"), 'window.__HARNESS_DASHBOARD__ = {"status":{"schemaVersion":2,"project":{"name":"WrongProject"},"checkState":{}},"adoption":{"warnings":[]}};\n');
-fs.writeFileSync(path.join(fakeDashboardDir, "data/status.json"), "{}\n");
-fs.writeFileSync(path.join(fakeDashboardDir, "data/adoption.json"), "{}\n");
-const fakeDashboardSessionPath = path.join(tmpRoot, "fake-dashboard-session.json");
-const fakeDashboardSession = {
-  ...JSON.parse(fs.readFileSync(migrationRun.sessionPath, "utf8")),
-  dashboard: { dir: fakeDashboardDir, indexPath: fakeDashboardPath, kind: "html-folder" },
-};
-fs.writeFileSync(fakeDashboardSessionPath, `${JSON.stringify(fakeDashboardSession, null, 2)}\n`);
-const fakeDashboardVerify = run(["migrate-verify", "--json", fakeDashboardSessionPath]);
-assert(fakeDashboardVerify.status !== 0, "migrate-verify should reject arbitrary HTML as dashboard evidence");
-
-const missingGitSessionPath = path.join(tmpRoot, "missing-git-session.json");
-const missingGitSession = {
-  ...JSON.parse(fs.readFileSync(migrationRun.sessionPath, "utf8")),
-  git: undefined,
-};
-fs.writeFileSync(missingGitSessionPath, `${JSON.stringify(missingGitSession, null, 2)}\n`);
-const missingGitVerify = run(["migrate-verify", "--json", missingGitSessionPath]);
-assert(missingGitVerify.status !== 0, "migrate-verify should require git audit metadata");
-
-const legacyCheckerOnlyTarget = path.join(tmpRoot, "legacy-checker-only");
-fs.mkdirSync(legacyCheckerOnlyTarget);
-expectPass(["add-capability", "safe-adoption", "--locale", "en-US", legacyCheckerOnlyTarget]);
-const legacyCheckerOnly = expectJson(["status", "--json", legacyCheckerOnlyTarget]);
-assert(legacyCheckerOnly.checkState.status === "warn", "safe-adoption should surface legacy checker gaps as warnings");
-assert(legacyCheckerOnly.checkState.legacy.status === "fail", "safe-adoption should keep legacy checker signal after registry creation");
-const legacyCheckerOnlyStrictStatus = run(["status", "--json", "--strict", legacyCheckerOnlyTarget]);
-assert(legacyCheckerOnlyStrictStatus.status !== 0, "safe-adoption strict status should fail when legacy checker fails even if v1 validators are clean");
-const legacyCheckerOnlyStrictCheck = run(["check", "--profile", "target-project", "--strict", legacyCheckerOnlyTarget]);
-assert(legacyCheckerOnlyStrictCheck.status !== 0, "safe-adoption strict check should fail when legacy checker fails even if v1 validators are clean");
+const migratedStatus = expectJson(["status", "--json", migrationTarget]);
+assert(migratedStatus.mode === "v2-manifest", "migrated target should run in v2 manifest mode");
+assert(migratedStatus.tasks.some((task) => task.path === "TARGET:coding-agent-harness/planning/tasks/old"), "status should discover migrated v2 task");
+assert(migratedStatus.tasks.some((task) => task.id === "MODULES/auth/auth-old"), "status should discover migrated v2 module task identity");
+assert(!JSON.stringify(migratedStatus).includes("docs/09-PLANNING"), "migrated status should not expose legacy active task paths");
+const dashboardDir = path.join(tmpRoot, "structure-migration-dashboard");
+expectPass(["dashboard", "--out-dir", dashboardDir, migrationTarget]);
+const dashboardStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8"));
+assert(dashboardStatus.tasks.some((task) => task.path === "TARGET:coding-agent-harness/planning/tasks/old"), "dashboard should display migrated v2 task");
+assert(dashboardStatus.tasks.some((task) => task.path === "TARGET:coding-agent-harness/planning/modules/auth/tasks/auth-old"), "dashboard should display migrated v2 module task");
 
 console.log("Migration adoption tests passed");

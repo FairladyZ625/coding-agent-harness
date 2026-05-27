@@ -16,7 +16,7 @@ This document preserves the legacy bootstrap sequence used before the v1.0 capab
 4. Optional module registration: identify independent modules, write scopes, module registry rows, and module plans.
 5. Directory structure: create or adapt `docs/` according to the docs directory standard.
 6. AGENTS.md and CLAUDE.md: generate the root agent entrypoint and Claude Code shim.
-7. Reference standards: generate project-specific reference files under `docs/11-REFERENCE/`.
+7. Reference standards: generate project-specific reference files under `coding-agent-harness/governance/standards/`.
 8. Repository governance and CI/CD: define PR policy, required checks, branch protection, CI, and worktree concurrency.
 9. Planning loop: create task templates and task directories.
 10. Long-running task protocol: add long-running task standard and contract template.
@@ -31,7 +31,7 @@ This document preserves the legacy bootstrap sequence used before the v1.0 capab
 | Task directory with only `task_plan.md` | Add `brief.md`, `execution_strategy.md`, `visual_map.md`, `progress.md`, `findings.md`, and `review.md` only for active tasks. |
 | Embedded roadmap in `task_plan.md` | Move active roadmap rows into standalone `visual_map.md`; leave historical tasks untouched unless they are reopened. |
 | Single-line progress status | Normalize active tasks through `harness task-start`, `task-block`, `task-log`, and `task-complete`. |
-| Broad reference bundle | Declare only capabilities that are actually adopted in `.harness-capabilities.json`. |
+| Broad reference bundle | Declare only capabilities that are actually adopted in `coding-agent-harness/harness.yaml`. |
 | Long-running task artifacts | Add or declare `long-running-task` only when active work needs continuous autonomous execution. |
 | Informal module lists | Adopt `module-parallel` only after modules have owners, write scopes, dependency rules, and registry maintenance. |
 | Historical review notes | Do not rewrite all old review files. Upgrade active release-blocking reviews to the v1 review schema first. |

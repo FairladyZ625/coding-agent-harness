@@ -43,7 +43,7 @@ templateValues:
 entrypoints:
   newTask:
     type: template
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     reads: [session.json]
     audit: true
     templates:
@@ -55,19 +55,19 @@ entrypoints:
   plan:
     type: script
     command: scripts/plan-work-queue.mjs
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     reads: [docs/**, .git/**]
     audit: true
   scaffold:
     type: script
     command: scripts/scaffold-task-contracts.mjs
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     reads: [docs/**]
     audit: true
   check:
     type: check
     command: checks/preset-check.mjs
-    writes: [docs/09-PLANNING/TASKS/**]
+    writes: [coding-agent-harness/planning/tasks/**]
     reads: [docs/**]
     audit: true
 workbench:
@@ -130,5 +130,5 @@ audit:
   evidenceFiles: [preset-manifest.json, preset-audit.json, write-scope.json]
 writeScopes:
   taskArtifacts:
-    path: docs/09-PLANNING/TASKS/**
+    path: coding-agent-harness/planning/tasks/**
     access: write

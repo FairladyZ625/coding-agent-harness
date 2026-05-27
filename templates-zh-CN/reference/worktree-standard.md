@@ -42,7 +42,7 @@ worktree 目录推荐：
 - `fix/`：缺陷修复。
 - `refactor/`：重构。
 - `test/`：测试相关。
-- `docs/`：文档相关。
+- `coding-agent-harness/`：文档相关。
 - `codex/`：agent 任务分支。
 
 示例：

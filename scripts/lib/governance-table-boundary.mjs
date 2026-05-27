@@ -6,18 +6,18 @@ import { getCell, parseAllMarkdownTables } from "./markdown-utils.mjs";
 const newRuleCutoff = "2026-05-24";
 
 const globalTableSpecs = [
-  { key: "feature-ssot", relativePath: "09-PLANNING/Feature-SSoT.md", allowed: "index-state-route-summary", evaluate: evaluateFeatureRow },
-  { key: "harness-ledger", relativePath: "Harness-Ledger.md", allowed: "task-audit-summary-route", evaluate: evaluateLedgerRow },
-  { key: "closeout-ssot", relativePath: "10-WALKTHROUGH/Closeout-SSoT.md", allowed: "closeout-index-review-route-summary", evaluate: evaluateCloseoutRow },
-  { key: "regression-ssot", relativePath: "05-TEST-QA/Regression-SSoT.md", allowed: "gate-index-current-state", evaluate: evaluateRegressionRow },
-  { key: "cadence-ledger", relativePath: "05-TEST-QA/Cadence-Ledger.md", allowed: "trigger-rule-and-batch-summary", evaluate: evaluateCadenceRow },
+  { key: "feature-ssot", pathFor: (target) => path.join(target.harness.planningRoot, "Feature-SSoT.md"), allowed: "index-state-route-summary", evaluate: evaluateFeatureRow },
+  { key: "harness-ledger", pathFor: (target) => target.harness.ledgerPath, allowed: "task-audit-summary-route", evaluate: evaluateLedgerRow },
+  { key: "closeout-ssot", pathFor: (target) => target.harness.closeoutIndexPath, allowed: "closeout-index-review-route-summary", evaluate: evaluateCloseoutRow },
+  { key: "regression-ssot", pathFor: (target) => path.join(target.harness.regressionRoot, "Regression-SSoT.md"), allowed: "gate-index-current-state", evaluate: evaluateRegressionRow },
+  { key: "cadence-ledger", pathFor: (target) => path.join(target.harness.regressionRoot, "Cadence-Ledger.md"), allowed: "trigger-rule-and-batch-summary", evaluate: evaluateCadenceRow },
 ];
 
 export function validateGovernanceTableBoundaries(target) {
   const failures = [];
   const warnings = [];
   for (const spec of globalTableSpecs) {
-    const file = path.join(target.docsRoot, spec.relativePath);
+    const file = spec.pathFor(target);
     if (!fs.existsSync(file)) continue;
     const relative = toPosix(path.relative(target.projectRoot, file));
     for (const table of parseAllMarkdownTables(readFileSafe(file), relative, spec.key)) {
@@ -48,7 +48,7 @@ function evaluateFeatureRow(row) {
   const taskPlan = getCell(cells, ["Task Plan", "Task", "任务计划", "路径"], "");
   const evidence = getCell(cells, ["Acceptance Evidence", "Evidence", "验收证据"], "");
   const findings = [];
-  if (/09-PLANNING\/MODULES\//i.test(taskPlan) && !isModuleAggregateRow(row) && localDetailPattern().test(text)) {
+  if (/(?:09-PLANNING\/MODULES|planning\/modules)\//i.test(taskPlan) && !isModuleAggregateRow(row) && localDetailPattern().test(text)) {
     findings.push({
       reason: "module-local detail belongs in module_plan.md or task files, not Feature SSoT",
       route: "module-plan-or-task-detail",
@@ -67,7 +67,7 @@ function isModuleAggregateRow(row) {
   const cells = row.cells || {};
   const id = getCell(cells, ["ID"], "");
   const taskPlan = getCell(cells, ["Task Plan", "Task", "任务计划", "路径"], "");
-  return /^F-MODULE-/i.test(id) && /09-PLANNING\/MODULES\/[^/]+\/module_plan\.md/i.test(taskPlan);
+  return /^F-MODULE-/i.test(id) && /(?:09-PLANNING\/MODULES|planning\/modules)\/[^/]+\/module_plan\.md/i.test(taskPlan);
 }
 
 function evaluateLedgerRow(row) {

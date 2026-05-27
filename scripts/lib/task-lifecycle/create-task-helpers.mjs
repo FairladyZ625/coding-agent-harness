@@ -65,3 +65,19 @@ export function refreshPresetCommandAudit(target, presetContext, { commandWriteS
     fs.writeFileSync(path.join(target.projectRoot, evidence.relativePath), evidence.content);
   }
 }
+
+export function targetInputFromSessionFile(fromSession) {
+  if (!fromSession) return "";
+  try {
+    const parsed = JSON.parse(fs.readFileSync(path.resolve(fromSession), "utf8"));
+    return parsed.target || "";
+  } catch {
+    return "";
+  }
+}
+
+export function resolveImplicitCreateTarget(targetInput, fromSession) {
+  const sessionTarget = targetInputFromSessionFile(fromSession);
+  if (targetInput && targetInput !== ".") return targetInput;
+  return sessionTarget || targetInput || "";
+}

@@ -3,7 +3,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import {
   repoRoot,
-  legacyChecker,
+  bundledCheckScript,
   visualMapFile,
   legacyVisualRoadmapFile,
   allowedReviewDispositions,
@@ -35,11 +35,20 @@ import { validateGovernanceTableBoundaries } from "./governance-table-boundary.m
 import { validateSubagentAuthorization } from "./subagent-authorization-audit.mjs";
 import { summarizeGitState } from "./git-status-summary.mjs";
 import { buildStatusData } from "./status-builder.mjs";
+import {
+  legacyCloseoutFile,
+  legacyCompatMode,
+  legacyLedgerFile,
+  legacyPath,
+  legacyPlanningRoot,
+  legacyWalkthroughRoot,
+  safeAdoptionCapability,
+} from "./harness-paths.mjs";
 export { renderDashboard } from "./status-dashboard-renderer.mjs";
 
-export function runLegacyCheck(target) {
+export function runCompatibilityCheck(target) {
   const checkTarget = target.docsOnly ? target.projectRoot : target.input;
-  const result = spawnSync(process.execPath, [legacyChecker, checkTarget], {
+  const result = spawnSync(process.execPath, [bundledCheckScript, checkTarget], {
     cwd: repoRoot,
     encoding: "utf8",
   });
@@ -270,8 +279,7 @@ export function validateContextDocs(target, { strict = true } = {}) {
     if (strict) failures.push(message);
     else warnings.push(`adoption-needed: ${message}`);
   };
-  const contextRoots = ["03-ARCHITECTURE", "04-DEVELOPMENT", "06-INTEGRATIONS"];
-  const files = contextRoots.flatMap((root) => walkFiles(path.join(target.docsRoot, root))).filter((file) => file.endsWith(".md"));
+  const files = contextDocRoots(target).flatMap((root) => walkFiles(root)).filter((file) => file.endsWith(".md"));
   for (const file of files) {
     if (file.includes(`${path.sep}_archive${path.sep}`)) continue;
     const relative = toPosix(path.relative(target.projectRoot, file));
@@ -281,7 +289,7 @@ export function validateContextDocs(target, { strict = true } = {}) {
     if (!contentHasAny(content, [/Source Evidence/i, "来源证据"])) report(`${relative} missing Source Evidence field`);
     if (!/Last Verified:\s*\S+|Last Verified\s*\|/i.test(content) && !/最近验证[：:]\s*\S+|最近验证\s*\|/.test(content)) report(`${relative} missing Last Verified field`);
     if (!/Confidence:\s*(high|medium|low|unknown)|Confidence\s*\|/i.test(content) && !/信心[：:]\s*(high|medium|low|unknown|高|中|低|未知)|信心\s*\|/.test(content)) report(`${relative} missing Confidence field`);
-    if (/03-ARCHITECTURE\/service-catalog\.md$/.test(relative)) {
+    if (/(^|\/)(?:03-ARCHITECTURE|context\/architecture)\/service-catalog\.md$/.test(relative)) {
       for (const [column, ...aliases] of [
         ["Service / Component", "服务 / 组件"],
         ["Interfaces", "接口"],
@@ -292,7 +300,7 @@ export function validateContextDocs(target, { strict = true } = {}) {
         if (!contentHasAny(content, [column, ...aliases])) report(`${relative} service catalog missing column: ${column}`);
       }
     }
-    if (/04-DEVELOPMENT\/external-context\/[^/]+\.md$/.test(relative)) {
+    if (/(^|\/)(?:04-DEVELOPMENT|context\/development)\/external-context\/[^/]+\.md$/.test(relative)) {
       for (const [heading, ...aliases] of [
         ["Development Use", "开发用途"],
         ["Do Not Assume", "不要假设"],
@@ -301,7 +309,7 @@ export function validateContextDocs(target, { strict = true } = {}) {
         if (!contentHasAny(content, [heading, ...aliases])) report(`${relative} external context missing section: ${heading}`);
       }
     }
-    if (/06-INTEGRATIONS\/(?:[^/_][^/]*|third-party\/[^/_][^/]*)\.md$/.test(relative)) {
+    if (/(^|\/)(?:06-INTEGRATIONS|context\/integrations)\/(?:[^/_][^/]*|third-party\/[^/_][^/]*)\.md$/.test(relative)) {
       for (const [heading, ...aliases] of [
         ["Contract Type", "合同类型"],
         ["Auth", "认证"],
@@ -316,17 +324,28 @@ export function validateContextDocs(target, { strict = true } = {}) {
   return { failures, warnings };
 }
 
+function contextDocRoots(target) {
+  if (target.harness?.version === 2) {
+    return [
+      path.join(target.harness.harnessRoot, "context/architecture"),
+      path.join(target.harness.harnessRoot, "context/development"),
+      path.join(target.harness.harnessRoot, "context/integrations"),
+    ];
+  }
+  return ["03-ARCHITECTURE", "04-DEVELOPMENT", "06-INTEGRATIONS"].map((root) => path.join(target.docsRoot, root));
+}
+
 export function buildStatus(targetInput, options = {}) {
   const target = normalizeTarget(targetInput);
   const gitState = summarizeGitState(target);
   const capabilityState = validateCapabilities(target);
   const declaredCapabilities = new Set(capabilityState.registry.capabilities.map((capability) => capability.name));
-  const safeAdoptionMode = declaredCapabilities.has("safe-adoption");
-  const shouldRunLegacy = !options.skipLegacyCheck && (capabilityState.registry.mode === "legacy-compat" || safeAdoptionMode);
-  const legacy = shouldRunLegacy ? runLegacyCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
-  const contractStrict = Boolean(options.strict) || (capabilityState.registry.mode !== "legacy-compat" && !safeAdoptionMode);
+  const safeAdoptionMode = declaredCapabilities.has(safeAdoptionCapability);
+  const shouldRunLegacy = !options.skipLegacyCheck && (capabilityState.registry.mode === legacyCompatMode || safeAdoptionMode);
+  const legacy = shouldRunLegacy ? runCompatibilityCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
+  const contractStrict = Boolean(options.strict) || (capabilityState.registry.mode !== legacyCompatMode && !safeAdoptionMode);
   const taskPlanPaths = listTaskPlanPaths(target);
-  const closeoutContent = readFileSafe(path.join(target.docsRoot, "10-WALKTHROUGH/Closeout-SSoT.md"));
+  const closeoutContent = target.harness?.version === 2 ? "" : readFileSafe(path.join(target.projectRoot, legacyPath(legacyCloseoutFile)));
   const tasks = collectTasks(target, { requireGeneratedScaffoldProvenance: contractStrict, taskPlanPaths, closeoutContent });
   const reviews = validateReviewSchema(target, { strict: contractStrict });
   const visualMaps = validateVisualMaps(target, { taskPlanPaths });
@@ -337,6 +356,9 @@ export function buildStatus(targetInput, options = {}) {
   const subagentAuthorization = validateSubagentAuthorization(target, { strict: contractStrict });
   const failures = [...capabilityState.failures, ...reviews.failures, ...visualMaps.failures, ...planContracts.failures, ...presetContracts.failures, ...contextDocs.failures, ...governanceBoundaries.failures, ...subagentAuthorization.failures];
   const warnings = [...capabilityState.warnings, ...reviews.warnings, ...visualMaps.warnings, ...planContracts.warnings, ...presetContracts.warnings, ...contextDocs.warnings, ...governanceBoundaries.warnings, ...subagentAuthorization.warnings, ...gitState.warnings];
+  if (target.harness?.version !== 2 && hasLegacyHarnessDocs(target) && !options.allowLegacyTarget) {
+    failures.push("legacy harness structure is migration input only; run `harness migrate-structure --plan` then `harness migrate-structure --apply`");
+  }
   if (legacy.status === "fail") {
     if (options.strictLegacy) failures.push("legacy check failed");
     else warnings.push(`adoption-needed: legacy check failed: ${(legacy.stderr || legacy.stdout).trim()}`);
@@ -369,4 +391,12 @@ export function buildStatus(targetInput, options = {}) {
     tasks,
     validationMode: "validated",
   });
+}
+
+function hasLegacyHarnessDocs(target) {
+  return [
+    path.join(target.projectRoot, legacyPath(legacyPlanningRoot)),
+    path.join(target.projectRoot, legacyPath(legacyWalkthroughRoot)),
+    path.join(target.projectRoot, legacyPath(legacyLedgerFile)),
+  ].some((candidate) => fs.existsSync(candidate));
 }

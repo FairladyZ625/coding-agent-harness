@@ -172,7 +172,7 @@ export function validateFullCutoverSession(session, failures) {
     failures.push(`full cutover has recommended capabilities: ${summary.recommendedCapabilities.join(", ")}`);
   }
   if (!session.target || !fs.existsSync(session.target)) return;
-  const status = buildStatus(session.target, { strict: true, strictLegacy: true });
+  const status = buildStatus(session.target, { strict: true, strictLegacy: true, allowLegacyTarget: true });
   if (status.checkState.status !== "pass") failures.push(`full cutover current strict status is ${status.checkState.status}`);
   for (const task of status.tasks) {
     if (task.briefQuality?.status !== "pass") failures.push(`${task.path} weak brief: ${(task.briefQuality?.issues || []).join(", ")}`);

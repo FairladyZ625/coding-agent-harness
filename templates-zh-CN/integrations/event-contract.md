@@ -13,7 +13,7 @@ Event
 
 | Service Profile | Development Context | Contract Index | Last Verified | Confidence |
 | --- | --- | --- | --- | --- |
-| `docs/03-ARCHITECTURE/services/<service-key>.md` | `docs/04-DEVELOPMENT/external-context/<service-key>.md` | `docs/06-INTEGRATIONS/README.md` | unknown | low |
+| `coding-agent-harness/context/architecture/services/<service-key>.md` | `coding-agent-harness/context/development/external-context/<service-key>.md` | `coding-agent-harness/context/integrations/README.md` | unknown | low |
 
 ## Topic / Channel
 
@@ -43,4 +43,4 @@ Event
 
 ## Placement Rule
 
-本文件只写一个 event 契约。服务职责放 `03-ARCHITECTURE`，本地 mock/stub/debug 放 `04-DEVELOPMENT`。
+本文件只写一个 event 契约。服务职责放 `context/architecture`，本地 mock/stub/debug 放 `context/development`。

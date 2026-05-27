@@ -22,3 +22,10 @@ export function markdownCell(value) {
     .replaceAll("|", "\\|")
     .trim();
 }
+
+export function markWalkthroughClosed(content) {
+  if (/^Closeout Status\s*:/im.test(content)) {
+    return content.replace(/^Closeout Status\s*:[^\n]*/im, "Closeout Status: closed").trimEnd() + "\n";
+  }
+  return `${String(content || "").trimEnd()}\n\nCloseout Status: closed\n`;
+}

@@ -89,7 +89,7 @@ foundation that lets the whole system derive state from Markdown files.
 
 ### ② Task scanning layer
 
-Responsible for reading all files under `docs/09-PLANNING/TASKS/` and parsing them into
+Responsible for reading all files under `coding-agent-harness/planning/tasks/` and parsing them into
 structured data:
 
 ```mermaid

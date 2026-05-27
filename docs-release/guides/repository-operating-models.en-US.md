@@ -14,9 +14,9 @@ This guide explains three common models:
 
 | Model | Fits | Does not fit | Harness source of truth |
 | --- | --- | --- | --- |
-| Single repo | One product, one code repository, clear team boundary | A system already split across independently released repositories | Current repo `AGENTS.md` + `docs/` |
-| Independent multi-repo | Frontend, backend, SDK, or services evolve independently and cross-repo work is rare | Frequent cross-repo features and one shared release plan | Each repo's own `AGENTS.md` + `docs/` |
-| Parent-control repo | Microservices, many subsystems, shared roadmap, cross-repo releases, agents need one startup point | Small projects or short-lived script repositories | Parent repo `AGENTS.md` + `docs/` |
+| Single repo | One product, one code repository, clear team boundary | A system already split across independently released repositories | Current repo `AGENTS.md` + `coding-agent-harness/` |
+| Independent multi-repo | Frontend, backend, SDK, or services evolve independently and cross-repo work is rare | Frequent cross-repo features and one shared release plan | Each repo's own `AGENTS.md` + `coding-agent-harness/` |
+| Parent-control repo | Microservices, many subsystems, shared roadmap, cross-repo releases, agents need one startup point | Small projects or short-lived script repositories | Parent repo `AGENTS.md` + `coding-agent-harness/` |
 
 ## Single-Repo Model
 
@@ -26,12 +26,12 @@ The single-repo model is the simplest. Code, plans, regression state, and walkth
 product-repo/
   AGENTS.md
   docs/
-    03-ARCHITECTURE/
-    04-DEVELOPMENT/
-    05-TEST-QA/
-    09-PLANNING/
-    10-WALKTHROUGH/
-    11-REFERENCE/
+    coding-agent-harness/context/architecture/
+    coding-agent-harness/context/development/
+    coding-agent-harness/governance/regression/
+    coding-agent-harness/planning/
+    coding-agent-harness/planning/tasks/<task>/
+    coding-agent-harness/governance/standards/
   src/
   tests/
 ```
@@ -82,10 +82,10 @@ Independent multi-repo mode is not just "copy the template into every repo." If 
 
 Each repository should document its external boundary in:
 
-- `docs/03-ARCHITECTURE/`: where this repository sits in the overall system.
-- `docs/04-DEVELOPMENT/`: sibling repo dependencies and local integration startup.
-- `docs/06-INTEGRATIONS/`: APIs, events, SDKs, queues, databases, auth, and other contracts.
-- `docs/05-TEST-QA/Regression-SSoT.md`: which checks cover this repository only and which require integration across repositories.
+- `coding-agent-harness/context/architecture/`: where this repository sits in the overall system.
+- `coding-agent-harness/context/development/`: sibling repo dependencies and local integration startup.
+- `coding-agent-harness/context/integrations/`: APIs, events, SDKs, queues, databases, auth, and other contracts.
+- `coding-agent-harness/governance/regression/Regression-SSoT.md`: which checks cover this repository only and which require integration across repositories.
 - `AGENTS.md`: whether agents should stop, switch repositories, or ask humans when a task crosses repository boundaries.
 
 ### Risk
@@ -106,13 +106,13 @@ The parent-control model puts the harness in a parent repository. Child reposito
 product-control-repo/
   AGENTS.md
   docs/
-    03-ARCHITECTURE/
-    04-DEVELOPMENT/
-    05-TEST-QA/
-    06-INTEGRATIONS/
-    09-PLANNING/
-    10-WALKTHROUGH/
-    11-REFERENCE/
+    coding-agent-harness/context/architecture/
+    coding-agent-harness/context/development/
+    coding-agent-harness/governance/regression/
+    coding-agent-harness/context/integrations/
+    coding-agent-harness/planning/
+    coding-agent-harness/planning/tasks/<task>/
+    coding-agent-harness/governance/standards/
   tools/
   frontend/   -> child repository
   backend/    -> child repository
@@ -164,7 +164,7 @@ See `docs-release/guides/parent-control-repository-pattern.en-US.md` for the ful
 
 ### Single Repo To Multi-Repo
 
-When a single repository splits into frontend, backend, or SDK repositories, do not copy the same `docs/` tree into every repository.
+When a single repository splits into frontend, backend, or SDK repositories, do not copy the same `coding-agent-harness/` tree into every repository.
 
 Decide first:
 

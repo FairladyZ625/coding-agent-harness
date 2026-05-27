@@ -2,10 +2,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveHarnessPaths } from "./harness-paths.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(__dirname, "../..");
 export const legacyChecker = path.join(repoRoot, "scripts/check-harness.mjs");
+export const bundledCheckScript = legacyChecker;
 export const visualMapFile = "visual_map.md";
 export const legacyVisualRoadmapFile = "visual_roadmap.md";
 export const lessonCandidatesFile = "lesson_candidates.md";
@@ -35,14 +37,27 @@ export const allowedEvidenceStatus = new Set(["missing", "partial", "present", "
 
 export function normalizeTarget(input = ".") {
   const target = path.resolve(input);
+  const siblingV2Manifest = path.join(path.dirname(target), "coding-agent-harness", "harness.yaml");
   const isDocsRoot =
     path.basename(target) === "docs" &&
-    (fs.existsSync(path.join(target, "09-PLANNING")) || fs.existsSync(path.join(target, "11-REFERENCE")));
-  return {
+    (fs.existsSync(path.join(target, "09-PLANNING")) || fs.existsSync(path.join(target, "11-REFERENCE")) || fs.existsSync(siblingV2Manifest));
+  const isHarnessRoot = path.basename(target) === "coding-agent-harness" && fs.existsSync(path.join(target, "harness.yaml"));
+  const normalized = {
     input: target,
-    projectRoot: isDocsRoot ? path.dirname(target) : target,
+    projectRoot: isDocsRoot || isHarnessRoot ? path.dirname(target) : target,
     docsRoot: isDocsRoot ? target : path.join(target, "docs"),
     docsOnly: isDocsRoot,
+  };
+  const paths = resolveHarnessPaths(normalized);
+  const harnessRootRelative = toPosix(path.relative(paths.projectRoot, paths.harnessRoot)) || ".";
+  return {
+    ...normalized,
+    ...paths,
+    docsRoot: paths.version === 2 ? paths.harnessRoot : normalized.docsRoot,
+    harnessRootRelative,
+    structureVersion: paths.version,
+    structureState: paths.version === 2 ? "v2" : "legacy",
+    harness: paths,
   };
 }
 

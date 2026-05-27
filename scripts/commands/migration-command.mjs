@@ -1,5 +1,7 @@
 import {
+  applyStructureMigration,
   buildMigrationPlan,
+  planStructureMigration,
   runMigration,
   verifyMigrationSession,
 } from "../lib/harness-core.mjs";
@@ -9,6 +11,30 @@ import {
 } from "../lib/task-audit-migration.mjs";
 
 export function runMigrationCommand(command, { args, takeFlag, takeOption, targetArg }) {
+  if (command === "migrate-structure") {
+    const json = takeFlag("--json");
+    const apply = takeFlag("--apply");
+    const planOnly = takeFlag("--plan");
+    const force = takeFlag("--force");
+    try {
+      const result = apply && !planOnly
+        ? applyStructureMigration(targetArg(), { force })
+        : planStructureMigration(targetArg());
+      if (json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        console.log(`Structure migration ${result.applied ? "applied" : "plan"}: ${result.target}`);
+        console.log(`manifest: ${result.manifest}`);
+        console.log(`actions: ${result.summary.actions}`);
+        for (const action of result.actions || []) console.log(`- ${action.action}: ${action.source || "(none)"} -> ${action.destination}`);
+      }
+    } catch (error) {
+      console.error(error.message);
+      process.exit(1);
+    }
+    return;
+  }
+
   if (command === "migrate-task-audit-index") {
     const json = takeFlag("--json");
     const apply = takeFlag("--apply");

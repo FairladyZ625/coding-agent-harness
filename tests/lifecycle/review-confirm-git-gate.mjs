@@ -56,13 +56,9 @@ function prepareReviewTarget(name) {
   fs.writeFileSync(path.join(target, ".gitignore"), ".harness-private/\nAGENTS.md\nCLAUDE.md\n");
   expectHarnessJson(["new-task", name, "--title", name, target]);
   const taskId = `TASKS/${todayLocal}-${name}`;
-  const taskDir = path.join(target, "docs/09-PLANNING", taskId);
-  const walkthroughPath = path.join(target, `docs/10-WALKTHROUGH/${name}-walkthrough.md`);
+  const taskDir = path.join(target, "coding-agent-harness/planning/tasks", `${todayLocal}-${name}`);
+  const walkthroughPath = path.join(taskDir, "walkthrough.md");
   fs.writeFileSync(walkthroughPath, `# Walkthrough: ${name}\n\n## Summary\n\nFixture walkthrough.\n`);
-  fs.appendFileSync(
-    path.join(target, "docs/10-WALKTHROUGH/Closeout-SSoT.md"),
-    `\n| CL-${name.toUpperCase().replace(/[^A-Z0-9]/g, "-")} | ${todayLocal} | ${name} | \`docs/09-PLANNING/${taskId}/task_plan.md\` | \`docs/09-PLANNING/${taskId}/review.md\` | \`docs/10-WALKTHROUGH/${name}-walkthrough.md\` | pending human review | none | checked-none | pending |\n`,
-  );
   acceptNoLessonCandidate(taskDir);
   expectHarnessJson(["task-start", name, "--message", "start", target]);
   expectHarnessJson(["task-phase", name, "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
@@ -185,7 +181,7 @@ function readIndex(fixture) {
   assert(result.status === 0, `allowlist fixture should pass\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   const committedFiles = expectGit(fixture.target, ["show", "--name-only", "--format=", `${result.stdout && JSON.parse(result.stdout).audit.commitSha}`]).stdout.trim().split(/\r?\n/).filter(Boolean);
   assert(committedFiles.length === 1, `review-confirm commit should contain exactly one file, got ${committedFiles.join(", ")}`);
-  assert(committedFiles[0] === `docs/09-PLANNING/${fixture.taskId}/INDEX.md`, "review-confirm commit should stage only INDEX.md");
+  assert(committedFiles[0] === `coding-agent-harness/planning/tasks/${fixture.shortId}/INDEX.md`, "review-confirm commit should stage only INDEX.md");
 }
 
 {

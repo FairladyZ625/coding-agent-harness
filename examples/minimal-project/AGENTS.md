@@ -1,4 +1,4 @@
 # Minimal Harness Example
 
-Use `docs/11-REFERENCE/` for project rules and `docs/09-PLANNING/TASKS/` for
-task execution records.
+Use `coding-agent-harness/governance/standards/` for project rules and
+`coding-agent-harness/planning/tasks/` for task execution records.

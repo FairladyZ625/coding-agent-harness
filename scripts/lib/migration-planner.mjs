@@ -45,7 +45,7 @@ import {
 
 export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
   const target = normalizeTarget(targetInput);
-  const status = buildStatus(targetInput, { strict: false, strictLegacy: false });
+  const status = buildStatus(targetInput, { strict: false, strictLegacy: false, allowLegacyTarget: true });
   const registry = readCapabilityRegistry(target);
   const locale = registry.raw ? registry.locale : inferProjectLocale(target, registry.locale);
   const adoption = collectAdoption(status);
@@ -251,11 +251,10 @@ export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
     warningGroups: [...warningGroups.values()],
     warningQueue: adoption.warnings.slice(0, limit),
     nextCommands: [
-      `harness migrate-run --locale ${locale} --session-dir /tmp/cah-migration-${slug(status.project.name)} --out-dir /tmp/cah-migration-${slug(status.project.name)}/dashboard ${target.projectRoot}`,
-      `harness migrate-verify /tmp/cah-migration-${slug(status.project.name)}/session.json`,
-      `harness migrate-verify --full-cutover /tmp/cah-migration-${slug(status.project.name)}/session.json`,
+      `harness migrate-structure --plan ${target.projectRoot}`,
+      `harness migrate-structure --apply ${target.projectRoot}`,
       `harness check --profile target-project ${target.projectRoot}`,
-      `harness check --profile target-project --strict ${target.projectRoot}`,
+      `harness dashboard --out-dir /tmp/cah-v2-dashboard-${slug(status.project.name)} ${target.projectRoot}`,
     ],
   };
 }
@@ -276,7 +275,7 @@ export function runMigration(targetInput, options = {}) {
     );
   }
   const selectedLocale = normalizeLocale(options.locale || localeProbe.suggested);
-  const baselineStatus = buildStatus(targetInput, { strict: false, strictLegacy: false });
+  const baselineStatus = buildStatus(targetInput, { strict: false, strictLegacy: false, allowLegacyTarget: true });
   const initialPlan = buildMigrationPlan(targetInput, { limit: options.limit || 50 });
   const sessionDir = ensureSessionDir(path.basename(target.projectRoot), options.sessionDir || "");
   const dashboardDir = options.outDir ? path.resolve(options.outDir) : path.join(sessionDir, "dashboard");
@@ -293,8 +292,8 @@ export function runMigration(targetInput, options = {}) {
     dashboardIndex = path.join(writtenDashboardDir, "index.html");
   }
 
-  const normalStatus = buildStatus(targetInput, { strict: false, strictLegacy: false });
-  const strictStatus = buildStatus(targetInput, { strict: true, strictLegacy: true });
+  const normalStatus = buildStatus(targetInput, { strict: false, strictLegacy: false, allowLegacyTarget: true });
+  const strictStatus = buildStatus(targetInput, { strict: true, strictLegacy: true, allowLegacyTarget: true });
   const finalPlan = buildMigrationPlan(targetInput, { limit: options.limit || 50 });
   const afterGit = inspectGitStatus(target.projectRoot);
   const strictDeferred = strictDeferredFromStatus(strictStatus);
@@ -398,9 +397,9 @@ export function verifyMigrationSession(sessionPathInput, { fullCutover = false }
         failures.push(`registry locale ${registry.locale} does not match session locale ${session.localeDecision.selected}`);
       }
     }
-    const normal = buildStatus(target.projectRoot, { strict: false, strictLegacy: false });
+    const normal = buildStatus(target.projectRoot, { strict: false, strictLegacy: false, allowLegacyTarget: true });
     if (normal.checkState.status === "fail") failures.push(`normal check fails with ${normal.checkState.failures} failures`);
-    const strict = buildStatus(target.projectRoot, { strict: true, strictLegacy: true });
+    const strict = buildStatus(target.projectRoot, { strict: true, strictLegacy: true, allowLegacyTarget: true });
     if (strict.checkState.status === "fail") {
       const deferred = session.strictDeferred;
       if (session.result === "complete") failures.push("session claims complete while current strict check fails");

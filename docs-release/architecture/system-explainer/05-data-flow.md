@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-  A["📄 Markdown 文件\n（docs/ 下的源文件）"]
+  A["📄 Markdown 文件\n（coding-agent-harness/ 下的源文件）"]
   B["⚙️ Scanner\n（解析 + 验证）"]
   C["📊 Dashboard\n（HTML + JSON）"]
 
@@ -44,7 +44,7 @@ Scanner 层（`task-scanner.mjs` + `task-review-model.mjs`）把原始 Markdown 
 flowchart TD
   CT["collectTasks()"]
 
-  CT --> Discover["listTaskPlanPaths()\n扫描两个根目录：\n09-PLANNING/TASKS/\n09-PLANNING/MODULES/\n过滤模板和归档目录"]
+  CT --> Discover["listTaskPlanPaths()\n扫描两个根目录：\ncoding-agent-harness/planning/tasks/\ncoding-agent-harness/planning/modules/\n过滤模板和归档目录"]
 
   Discover --> ReadFiles["对每个任务目录读取 9 个文件\ntask_plan / brief / progress\nreview / visual_map\nexecution_strategy\nlesson_candidates / findings / context"]
 
@@ -152,13 +152,13 @@ flowchart TD
 flowchart TD
   Collect["collectMarkdownDocuments()"]
 
-  Collect --> Fixed["固定路径（存在时收集）\nHarness-Ledger.md\n09-PLANNING/Module-Registry.md\n05-TEST-QA/Regression-SSoT.md\n10-WALKTHROUGH/Closeout-SSoT.md"]
+  Collect --> Fixed["固定路径（存在时收集）\nHarness-Ledger.md\ncoding-agent-harness/planning/modules/Module-Registry.md\ncoding-agent-harness/governance/regression/Regression-SSoT.md\ncoding-agent-harness/governance/generated/Closeout-Index.md"]
 
-  Collect --> Walkthrough["10-WALKTHROUGH/ 下所有 .md\n（排除 _archive/ 和 _ 开头文件）"]
+  Collect --> Walkthrough["coding-agent-harness/planning/tasks/<task>/ 下所有 .md\n（排除 _archive/ 和 _ 开头文件）"]
 
   Collect --> TaskDocs["每个任务目录下：\nbrief / task_plan / execution_strategy\nvisual_map / lesson_candidates\nprogress / review / findings\nreferences/INDEX.md / artifacts/INDEX.md"]
 
-  Collect --> ModuleDocs["09-PLANNING/MODULES/ 下：\n每个模块的 module_plan.md\n每个模块的 brief.md"]
+  Collect --> ModuleDocs["coding-agent-harness/planning/modules/ 下：\n每个模块的 module_plan.md\n每个模块的 brief.md"]
 
   Collect --> Lessons["01-GOVERNANCE/lessons/ 下所有 .md"]
 ```

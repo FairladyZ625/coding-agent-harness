@@ -11,13 +11,13 @@ delivery operating model：谁负责拆分工作、几个仓库/团队并行、a
 ## 存放位置
 
 ```text
-docs/11-REFERENCE/delivery-operating-model-standard.md
+coding-agent-harness/governance/standards/delivery-operating-model-standard.md
 ```
 
 如项目是多人或多仓交付，还应创建：
 
 ```text
-docs/09-PLANNING/Delivery-SSoT.md
+coding-agent-harness/planning/Delivery-SSoT.md
 ```
 
 ## 必填字段
@@ -40,7 +40,7 @@ Define who breaks roadmap work into feature blocks:
 |-------|-------|----------|------|
 | Roadmap | [owner] | [SSoT / issue tracker] | [how priority is chosen] |
 | Feature block | [owner] | `Delivery-SSoT.md` / generated Harness Ledger | [how blocks are bounded] |
-| Task | [owner] | `docs/09-PLANNING/TASKS/<task>/task_plan.md` | [who can start work] |
+| Task | [owner] | `coding-agent-harness/planning/tasks/<task>/task_plan.md` | [who can start work] |
 | Review | [owner] | `review.md` / PR review | [required reviewers] |
 | Integration | [owner] | PR / release branch / integration branch | [merge order] |
 
@@ -97,7 +97,7 @@ Use when work passes through formal stages: requirements, design, implementation
 
 - Stage entry/exit criteria must be explicit.
 - Agents cannot skip design/review gates just because code is ready.
-- Walkthrough and Closeout SSoT map to stage closeout, not only feature closeout.
+- Walkthrough and Closeout Index map to stage closeout, not only feature closeout.
 
 #### kanban-continuous
 

@@ -2,13 +2,13 @@
 
 ## 职责
 
-Harness Ledger 是 `docs/` 骨架的全局上下文维护总账，固定位置为：
+Harness Ledger 是 `coding-agent-harness/` 骨架的全局上下文维护总账，固定位置为：
 
 ```text
-docs/Harness-Ledger.md
+coding-agent-harness/governance/generated/Harness-Ledger.md
 ```
 
-它记录每个非平凡任务是否完成了 task plan、progress、review、功能 SSoT、Delivery SSoT、Regression SSoT、lesson candidates/detail docs、walkthrough、Closeout SSoT、reference/template 和 CI/CD 治理回写。它不复制业务事实，只记录上下文维护是否合规。
+它记录每个非平凡任务是否完成了 task plan、progress、review、功能 SSoT、Delivery SSoT、Regression SSoT、lesson candidates/detail docs、walkthrough、Closeout Index、reference/template 和 CI/CD 治理回写。它不复制业务事实，只记录上下文维护是否合规。
 
 ## 必须更新的场景
 
@@ -17,7 +17,7 @@ docs/Harness-Ledger.md
 - 新增或修改 AGENTS.md、CLAUDE.md、reference、template、checker 或 dashboard。
 - coordinator pass 汇总模块任务、worker handoff、review、closeout 或 regression 结果。
 - 创建或更新 required review。
-- 修改功能 SSoT、Delivery SSoT、Regression SSoT、lesson detail docs、Closeout SSoT 任一文件。
+- 修改功能 SSoT、Delivery SSoT、Regression SSoT、lesson detail docs、Closeout Index 任一文件。
 - 创建 walkthrough 或接受受控跳过。
 - Lessons approved 后合入正式 reference。
 
@@ -67,7 +67,7 @@ docs/Harness-Ledger.md
 - [ ] repo governance、CI/CD required checks 已验证、更新或 residualized。
 - [ ] 功能 SSoT 或 Delivery SSoT 已更新，或标记 `n/a`。
 - [ ] Regression SSoT / Cadence Ledger 已更新，或标记 `n/a`。
-- [ ] walkthrough 已创建，或 Closeout SSoT 写明受控跳过原因。
+- [ ] walkthrough 已创建，或 Closeout Index 写明受控跳过原因。
 - [ ] walkthrough 包含 Lessons 反思。
 - [ ] Lessons 检查结果为 `checked-candidate: LC-...`、`queued-promotion: LC-...`、`checked-created: L-YYYY-MM-DD-NNN`，或旧任务兼容的 `checked-none: <reason>`。
 - [ ] Harness Ledger 行已收口，或 residual 已写明 owner 和后续路径。
@@ -88,7 +88,7 @@ docs/Harness-Ledger.md
 活跃表保留最近 50 条。更早的 `closed` 或 `superseded` 条目按季度归档：
 
 ```text
-docs/01-GOVERNANCE/_archive/Harness-Ledger-archive-YYYY-QN.md
+coding-agent-harness/governance/archive/Harness-Ledger-archive-YYYY-QN.md
 ```
 
 归档后，活跃表必须留下归档位置说明。

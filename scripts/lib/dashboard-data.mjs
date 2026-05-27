@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import {
-  legacyChecker,
+  bundledCheckScript,
   repoRoot,
   builtinPresetRoot,
   normalizeTarget,
@@ -27,6 +27,11 @@ import {
   splitDependencies,
 } from "./markdown-utils.mjs";
 import { readCapabilityRegistry, validateCapabilities } from "./capability-registry.mjs";
+import { resolveHarnessPaths } from "./harness-paths.mjs";
+import {
+  legacyCompatMode,
+  safeAdoptionCapability,
+} from "./harness-paths.mjs";
 import { buildStatusData } from "./status-builder.mjs";
 import {
   listTaskPlanPaths,
@@ -56,26 +61,44 @@ export function collectMarkdownDocuments(target, options = {}) {
 }
 
 function collectDashboardDocumentPaths(target, options = {}) {
+  const harnessPaths = target.harness || resolveHarnessPaths(target);
   const selected = new Set();
   const partial = new Map();
+  const addAbsolutePath = (file) => {
+    if (file && fs.existsSync(file)) selected.add(file);
+  };
   const addDocsPath = (relativePath) => {
     const file = path.join(target.docsRoot, relativePath);
     if (fs.existsSync(file)) selected.add(file);
   };
-  for (const relativePath of [
-    "Harness-Ledger.md",
-    "09-PLANNING/Module-Registry.md",
-    "05-TEST-QA/Regression-SSoT.md",
-    "05-TEST-QA/Cadence-Ledger.md",
-    "10-WALKTHROUGH/Closeout-SSoT.md",
-  ]) {
-    addDocsPath(relativePath);
+  if (harnessPaths.version === 2) {
+    addAbsolutePath(harnessPaths.ledgerPath);
+    addAbsolutePath(harnessPaths.closeoutIndexPath);
+    addAbsolutePath(path.join(harnessPaths.modulesRoot, "Module-Registry.md"));
+    addAbsolutePath(path.join(harnessPaths.regressionRoot, "Regression-SSoT.md"));
+    addAbsolutePath(path.join(harnessPaths.regressionRoot, "Cadence-Ledger.md"));
+    for (const generatedRoot of [harnessPaths.generatedRoot, path.join(harnessPaths.planningRoot, "generated")]) {
+      for (const file of walkFiles(generatedRoot)) {
+        if (file.endsWith(".md")) selected.add(file);
+      }
+    }
   }
-  for (const file of walkFiles(path.join(target.docsRoot, "10-WALKTHROUGH"))) {
-    if (!file.endsWith(".md")) continue;
-    if (file.includes(`${path.sep}_archive${path.sep}`)) continue;
-    if (path.basename(file).startsWith("_")) continue;
-    selected.add(file);
+  if (harnessPaths.version !== 2) {
+    for (const relativePath of [
+      "Harness-Ledger.md",
+      "09-PLANNING/Module-Registry.md",
+      "05-TEST-QA/Regression-SSoT.md",
+      "05-TEST-QA/Cadence-Ledger.md",
+      "10-WALKTHROUGH/Closeout-SSoT.md",
+    ]) {
+      addDocsPath(relativePath);
+    }
+    for (const file of walkFiles(harnessPaths.legacy.walkthroughRoot)) {
+      if (!file.endsWith(".md")) continue;
+      if (file.includes(`${path.sep}_archive${path.sep}`)) continue;
+      if (path.basename(file).startsWith("_")) continue;
+      selected.add(file);
+    }
   }
   const tasksByPlanPath = new Map((options.tasks || []).map((task) => [
     path.join(target.projectRoot, String(task.taskPlanPath || "").replace(/^TARGET:/, "")),
@@ -89,8 +112,8 @@ function collectDashboardDocumentPaths(target, options = {}) {
     const task = tasksByPlanPath.get(taskPlanPath);
     const historicalClosed = !active && task?.closeoutStatus === "closed";
     const documentNames = historicalClosed
-      ? ["brief.md"]
-      : ["brief.md", "task_plan.md", "execution_strategy.md", visualMapFile, legacyVisualRoadmapFile, lessonCandidatesFile, longRunningTaskContractFile, "progress.md", "review.md", "findings.md"];
+      ? ["brief.md", "walkthrough.md"]
+      : ["brief.md", "task_plan.md", "execution_strategy.md", visualMapFile, legacyVisualRoadmapFile, lessonCandidatesFile, longRunningTaskContractFile, "progress.md", "review.md", "findings.md", "walkthrough.md"];
     for (const fileName of documentNames) {
       const file = path.join(taskDir, fileName);
       if (fs.existsSync(file)) {
@@ -111,11 +134,14 @@ function collectDashboardDocumentPaths(target, options = {}) {
       }
     }
   }
-  for (const file of walkFiles(path.join(target.docsRoot, "09-PLANNING/MODULES"))) {
+  for (const file of walkFiles(harnessPaths.modulesRoot)) {
     if (file.endsWith("module_plan.md")) selected.add(file);
-    if (/09-PLANNING[\\/]+MODULES[\\/]+[^\\/]+[\\/]brief\.md$/.test(file)) selected.add(file);
+    if (file.endsWith(`${path.sep}brief.md`) && path.dirname(file) !== harnessPaths.modulesRoot) selected.add(file);
   }
-  for (const file of walkFiles(path.join(target.docsRoot, "01-GOVERNANCE/lessons"))) {
+  const lessonsRoot = harnessPaths.version === 2
+    ? path.join(harnessPaths.governanceRoot, "lessons")
+    : path.join(target.docsRoot, "01-GOVERNANCE/lessons");
+  for (const file of walkFiles(lessonsRoot)) {
     if (file.endsWith(".md")) selected.add(file);
   }
   return [...selected]
@@ -132,7 +158,7 @@ function documentKind(source) {
   if (lower.includes("module-registry.md")) return "module-registry";
   if (lower.includes("regression-ssot.md")) return "regression-ssot";
   if (lower.includes("cadence-ledger.md")) return "cadence-ledger";
-  if (/\/01-governance\/lessons\/[^/]+\.md$/i.test(lower)) return "lesson-detail";
+  if (/\/(?:01-governance|governance)\/lessons\/[^/]+\.md$/i.test(lower)) return "lesson-detail";
   if (lower.endsWith("/progress.md")) return "task-progress";
   if (lower.endsWith("/brief.md")) return "task-brief";
   if (lower.endsWith("/review.md")) return "task-review";
@@ -153,13 +179,19 @@ export function collectTables(documents) {
   };
 }
 
-export function collectGraph(status, tables = { tables: [] }) {
+export function collectGraph(status, tables = { tables: [] }, target = null) {
+  const harnessPaths = target?.harness || null;
   const nodes = [];
   const edges = [];
   const seenNodes = new Map();
   const addNode = (node) => {
     const existing = seenNodes.get(node.id);
     if (existing) {
+      if (existing.type === "module" && node.type === "module" && node.state === "planned" && existing.state && existing.state !== "planned") {
+        const { state: _state, currentStep: _currentStep, ...rest } = node;
+        Object.assign(existing, rest);
+        return;
+      }
       Object.assign(existing, node);
       return;
     }
@@ -204,7 +236,14 @@ export function collectGraph(status, tables = { tables: [] }) {
         const moduleId = `module:${key}`;
         const status = getCell(row.cells, ["Status", "状态"], "unknown");
         const currentStep = getCell(row.cells, ["Current Step", "当前步骤"], "");
-        addNode({ id: moduleId, type: "module", label: getCell(row.cells, ["Name", "Module", "模块名称", "模块"], key), state: status, currentStep });
+        addNode({
+          id: moduleId,
+          type: "module",
+          label: getCell(row.cells, ["Name", "Module", "模块名称", "模块"], key),
+          state: status,
+          currentStep,
+          ...moduleDocumentPaths(target, key),
+        });
         if (currentStep) {
           const stepId = `step:${currentStep}`;
           if (!seenNodes.has(stepId)) addNode({ id: stepId, type: "step", label: currentStep, state: status, module: key });
@@ -213,10 +252,9 @@ export function collectGraph(status, tables = { tables: [] }) {
       }
     }
     if (table.kind === "module-plan") {
-      const moduleMatch = table.source.match(/MODULES\/([^/]+)\/module_plan\.md$/);
-      const moduleKey = moduleMatch ? moduleMatch[1] : slug(table.source);
+      const moduleKey = moduleKeyFromPlanSource(table.source, target) || slug(table.source);
       const moduleId = `module:${moduleKey}`;
-      addNode({ id: moduleId, type: "module", label: moduleKey, state: "planned" });
+      addNode({ id: moduleId, type: "module", label: moduleKey, state: "planned", ...moduleDocumentPaths(target, moduleKey) });
       for (const row of table.rows) {
         const step = getCell(row.cells, ["Step ID", "步骤 ID"]);
         if (!step) continue;
@@ -237,10 +275,34 @@ export function collectGraph(status, tables = { tables: [] }) {
   return { nodes, edges: edges.filter((edge) => seenNodes.has(edge.from) && seenNodes.has(edge.to)) };
 }
 
+function moduleKeyFromPlanSource(source, target) {
+  if (!target?.projectRoot || !target?.harness?.modulesRoot) {
+    const moduleMatch = source.match(/(?:MODULES|modules)\/([^/]+)\/module_plan\.md$/);
+    return moduleMatch ? moduleMatch[1] : "";
+  }
+  const relativeSource = String(source || "").replace(/^TARGET:/, "");
+  const absoluteSource = path.join(target.projectRoot, relativeSource);
+  const relative = toPosix(path.relative(target.harness.modulesRoot, absoluteSource));
+  const match = relative.match(/^([^/]+)\/module_plan\.md$/);
+  if (match) return match[1];
+  const legacyMatch = source.match(/(?:MODULES|modules)\/([^/]+)\/module_plan\.md$/);
+  return legacyMatch ? legacyMatch[1] : "";
+}
+
+function moduleDocumentPaths(target, moduleKey) {
+  if (!target?.harness?.modulesRoot || !moduleKey) return {};
+  const brief = path.join(target.harness.modulesRoot, moduleKey, "brief.md");
+  const modulePlan = path.join(target.harness.modulesRoot, moduleKey, "module_plan.md");
+  return {
+    ...(fs.existsSync(brief) ? { briefPath: prefixedPath(target, brief) } : {}),
+    ...(fs.existsSync(modulePlan) ? { modulePlanPath: prefixedPath(target, modulePlan) } : {}),
+  };
+}
+
 export function categorizeWarning(message) {
   if (/governance-table-entropy/i.test(message)) return "Governance Table Boundary";
   if (/missing execution_strategy\.md|missing visual_(?:map|roadmap)\.md|Visual (?:Map|Roadmap)/i.test(message)) return "Plan Contract Missing";
-  if (/legacy-compat|adoption-needed|legacy check/i.test(message)) return "Adoption Advice";
+  if (new RegExp(`${legacyCompatMode}|adoption-needed|legacy check`, "i").test(message)) return "Adoption Advice";
   if (/Evidence|evidence/i.test(message)) return "Missing Evidence";
   if (/schema|missing .*columns|invalid/i.test(message)) return "Schema Drift";
   return "Review Finding";
@@ -255,17 +317,17 @@ function warningType(message) {
   if (/governance-table-entropy/i.test(message)) return "governance-table-entropy";
   if (/Evidence|evidence/i.test(message)) return "missing-evidence";
   if (/missing required file/i.test(message)) return "legacy-reference-gap";
-  if (/legacy-compat|legacy check|adoption-needed/i.test(message)) return "capability-adoption";
+  if (new RegExp(`${legacyCompatMode}|legacy check|adoption-needed`, "i").test(message)) return "capability-adoption";
   if (/schema|missing .*columns|invalid/i.test(message)) return "schema-drift";
   return "review-finding";
 }
 
 function warningScope(message) {
-  if (/docs\/09-PLANNING\/TASKS\//i.test(message)) return "task";
-  if (/docs\/09-PLANNING\/MODULES\//i.test(message)) return "module";
+  if (/(?:docs\/09-PLANNING\/TASKS|coding-agent-harness\/planning\/tasks)\//i.test(message)) return "task";
+  if (/(?:docs\/09-PLANNING\/MODULES|coding-agent-harness\/planning\/modules)\//i.test(message)) return "module";
   if (/review\.md|findings table/i.test(message)) return "review";
   if (/docs\/11-REFERENCE\//i.test(message)) return "reference";
-  if (/\.harness-capabilities\.json|capability|legacy-compat/i.test(message)) return "capability";
+  if (new RegExp(`\\.harness-capabilities\\.json|capability|${legacyCompatMode}`, "i").test(message)) return "capability";
   return "project";
 }
 
@@ -303,7 +365,7 @@ function warningConfidence(message) {
 }
 
 function warningAffectedPaths(message) {
-  const matches = String(message).match(/(?:docs|\.harness-private)\/[^\s:]+|\.harness-capabilities\.json|AGENTS\.md|CLAUDE\.md/g) || [];
+  const matches = String(message).match(/(?:docs|\.harness-private|coding-agent-harness)\/[^\s:]+|\.harness-capabilities\.json|AGENTS\.md|CLAUDE\.md/g) || [];
   return [...new Set(matches.map((item) => item.replace(/[),.;]+$/, "")))];
 }
 
@@ -346,7 +408,7 @@ export function collectAdoption(status) {
       fixability: warningFixability(type, scope),
       status: /legacy-report-only/i.test(message) ? "legacy-report-only" : "open",
       confidence: warningConfidence(message),
-      severity: status.mode === "legacy-compat" ? "advice" : "warning",
+      severity: status.mode === legacyCompatMode ? "advice" : "warning",
       title: warningTitle(message),
       affected: affectedPaths[0] || warningAffected(message),
       affectedPaths,
@@ -402,7 +464,7 @@ function warningTitle(message) {
   if (/missing execution_strategy\.md/i.test(message)) return "Missing execution strategy";
   if (/missing visual_map\.md|Visual Map/i.test(message)) return "Missing visual map";
   if (/missing visual_roadmap\.md|Visual Roadmap/i.test(message)) return "Missing legacy visual roadmap";
-  if (/legacy-compat/i.test(message)) return "Legacy compatibility mode";
+  if (new RegExp(legacyCompatMode, "i").test(message)) return "Legacy compatibility mode";
   if (/legacy check failed/i.test(message)) return "Legacy checker finding";
   if (/review\.md missing/i.test(message)) return "Review schema gap";
   if (/findings table missing/i.test(message)) return "Review findings schema gap";
@@ -430,8 +492,8 @@ export function buildDashboardBundle(targetInput, options = {}) {
   const capabilityState = validateCapabilities(target);
   const gitState = summarizeGitState(target);
   const declaredCapabilities = new Set(capabilityState.registry.capabilities.map((capability) => capability.name));
-  const shouldRunLegacy = !options.skipLegacyCheck && (capabilityState.registry.mode === "legacy-compat" || declaredCapabilities.has("safe-adoption"));
-  const legacy = shouldRunLegacy ? runDashboardLegacyCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
+  const shouldRunLegacy = !options.skipLegacyCheck && (capabilityState.registry.mode === legacyCompatMode || declaredCapabilities.has(safeAdoptionCapability));
+  const legacy = shouldRunLegacy ? runDashboardCompatibilityCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
   const legacyWarnings = legacy.status === "fail" ? [`adoption-needed: legacy check failed: ${(legacy.stderr || legacy.stdout).trim()}`] : [];
   const governanceBoundaries = validateGovernanceTableBoundaries(target);
   const status = buildStatusData(target, {
@@ -445,15 +507,15 @@ export function buildDashboardBundle(targetInput, options = {}) {
   });
   const documents = { documents: collectMarkdownDocuments(target, { taskPlanPaths, tasks: status.tasks }) };
   const tables = collectTables(documents.documents);
-  const graph = collectGraph(status, tables);
+  const graph = collectGraph(status, tables, target);
   const adoption = collectAdoption(status);
   const presetCatalog = collectPresetCatalog(targetInput, target, options);
   return sanitizeDeep({ status, tables, documents, graph, adoption, presetCatalog });
 }
 
-function runDashboardLegacyCheck(target) {
+function runDashboardCompatibilityCheck(target) {
   const checkTarget = target.docsOnly ? target.projectRoot : target.input;
-  const result = spawnSync(process.execPath, [legacyChecker, checkTarget], {
+  const result = spawnSync(process.execPath, [bundledCheckScript, checkTarget], {
     cwd: repoRoot,
     encoding: "utf8",
   });

@@ -12,7 +12,7 @@ Repo Governance / CI-CD 变化仍通过对应 reference 和任务证据路由。
 
 | ID | Scope | Module | Task | State | Queues | Plan | Review | Lessons Check | Closeout | Residual | Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| HL-YYYY-MM-DD-001 | task | none | 短任务标题 | planned | none | docs/09-PLANNING/TASKS/.../task_plan.md | pending | pending | pending | none | YYYY-MM-DD |
+| HL-YYYY-MM-DD-001 | task | none | 短任务标题 | planned | none | coding-agent-harness/planning/tasks/.../task_plan.md | pending | pending | pending | none | YYYY-MM-DD |
 
 ## 字段规则
 

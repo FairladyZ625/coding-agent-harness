@@ -41,7 +41,7 @@ Use the v1.0 six-phase flow:
 5. Verify: run CLI checks and native project evidence.
 6. Deliver: report residuals, owners, and next actions.
 
-If Diagnose finds a microservice, multi-repo, split frontend/backend, or platform subsystem, or the code references external services, SDKs, API gateways, message queues, webhooks, contracts, schemas, or mocks, the agent must ask the user whether external source material exists. Small source sets can be linked from `Source Evidence`; large source sets use `docs/11-REFERENCE/external-source-intake-standard.md` and `docs/04-DEVELOPMENT/external-source-packs/<source-key>/`, then project stable conclusions into `03/04/06`.
+If Diagnose finds a microservice, multi-repo, split frontend/backend, or platform subsystem, or the code references external services, SDKs, API gateways, message queues, webhooks, contracts, schemas, or mocks, the agent must ask the user whether external source material exists. Small source sets can be linked from `Source Evidence`; large source sets use `coding-agent-harness/governance/standards/external-source-intake-standard.md` and `coding-agent-harness/context/development/external-source-packs/<source-key>/`, then project stable conclusions into `context/{architecture,development,integrations}`.
 
 ## Locale Rules
 
@@ -77,7 +77,6 @@ Choose capabilities conservatively:
 | --- | --- | --- |
 | `core` | Yes | Always install. This is the document kernel. |
 | `dashboard` | No | A user or agent needs a local status page, static evidence snapshot, or localhost dynamic workbench. |
-| `safe-adoption` | No | A legacy Harness project adopts v1.0 while preserving history. |
 | `adversarial-review` | No | Release, architecture, security, data, or policy risk needs independent review artifacts. |
 | `long-running-task` | No | An agent needs to execute across many turns without asking the user at every step. |
 | `module-parallel` | No | Two or more independent modules need owners, a registry, and synchronization rules. |
@@ -98,7 +97,7 @@ The JSON output from `init` includes a `report`. The delivery summary must inclu
 
 ## External Source Intake
 
-When a project depends on external microservices, repositories, or external-team documents, agents should not drop those materials directly into `03-ARCHITECTURE`, `04-DEVELOPMENT`, or `06-INTEGRATIONS`. Use this order:
+When a project depends on external microservices, repositories, or external-team documents, agents should not drop those materials directly into `context/architecture`, `context/development`, or `context/integrations`. Use this order:
 
 ```text
 Inventory -> Classify -> Sanitize -> Digest -> Project -> Verify -> Residual
@@ -108,9 +107,9 @@ Rules:
 
 - Ask the user for external architecture docs, API docs, diagrams, meeting notes, links, source paths, or exported packets.
 - Confirm whether the material may be copied into the repository; non-committable material is represented by path, URL, owner, access condition, and digest only.
-- If there are more than 5 external documents, multiple topics, or continuing growth, create `docs/04-DEVELOPMENT/external-source-packs/<source-key>/`.
+- If there are more than 5 external documents, multiple topics, or continuing growth, create `coding-agent-harness/context/development/external-source-packs/<source-key>/`.
 - `external-source-packs/` stores source indexes, digests, and projection status only.
-- Stable facts must be written back to `03-ARCHITECTURE/services/<service-key>.md`, `04-DEVELOPMENT/external-context/<service-key>.md`, or `06-INTEGRATIONS/<contract>.md`.
+- Stable facts must be written back to `coding-agent-harness/context/architecture/services/<service-key>.md`, `coding-agent-harness/context/development/external-context/<service-key>.md`, or `coding-agent-harness/context/integrations/<contract>.md`.
 - Unconfirmed or conflicting material stays in the source pack or `Do Not Assume`.
 
 ## User-Level Registration
@@ -174,7 +173,7 @@ harness new-task \
 
 Rules:
 
-- Do not overwrite existing `AGENTS.md`, `CLAUDE.md`, `docs/Harness-Ledger.md`, SSoTs, walkthroughs, task progress, or historical task plans.
+- Do not overwrite existing `AGENTS.md`, `CLAUDE.md`, `coding-agent-harness/governance/generated/Harness-Ledger.md`, SSoTs, walkthroughs, task progress, or historical task plans.
 - When the old project mixes Chinese and English, explicitly pass `--locale zh-CN` or `--locale en-US`.
 - Only add the missing v1.0 templates and capability registry.
 - Existing project facts may be merged, appended, or recorded as residuals. They must not be replaced with generic templates.

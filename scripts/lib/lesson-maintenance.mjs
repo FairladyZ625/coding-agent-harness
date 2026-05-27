@@ -48,7 +48,10 @@ export function promoteLessonCandidate(targetInput, taskId, candidateId, { dryRu
 
   const lessonId = lessonIdFromCandidate(row.id);
   const title = row.title || lessonId;
-  const detailRelative = `docs/01-GOVERNANCE/lessons/${lessonId}-${slug(title)}.md`;
+  const detailRoot = target.harness.version === 2
+    ? toPosix(path.relative(target.projectRoot, path.join(target.harness.governanceRoot, "lessons")))
+    : "docs/01-GOVERNANCE/lessons";
+  const detailRelative = `${detailRoot}/${lessonId}-${slug(title)}.md`;
   const detailPath = path.join(target.projectRoot, detailRelative);
 
   const changes = [];

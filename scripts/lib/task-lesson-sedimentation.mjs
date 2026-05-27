@@ -111,7 +111,7 @@ export function createLessonSedimentationTask(targetInput, taskRef, candidateId,
     taskId: followUpTaskId,
     targetRoot: target.projectRoot,
     entrypoint: "newTask",
-    writeScopes: ["docs/09-PLANNING/TASKS/**"],
+    writeScopes: [`${toPosix(path.relative(target.projectRoot, target.harness.tasksRoot))}/**`],
   });
   const prompt = renderLessonSedimentationPrompt(preset, {
     target,

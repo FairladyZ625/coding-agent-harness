@@ -30,13 +30,13 @@ product-control-repo/
   docs/
     01-GOVERNANCE/
     02-PRODUCT/
-    03-ARCHITECTURE/
-    04-DEVELOPMENT/
-    05-TEST-QA/
-    06-INTEGRATIONS/
-    09-PLANNING/
-    10-WALKTHROUGH/
-    11-REFERENCE/
+    coding-agent-harness/context/architecture/
+    coding-agent-harness/context/development/
+    coding-agent-harness/governance/regression/
+    coding-agent-harness/context/integrations/
+    coding-agent-harness/planning/
+    coding-agent-harness/planning/tasks/<task>/
+    coding-agent-harness/governance/standards/
   tools/
     check-harness.mjs
     internal-ci.mjs
@@ -59,16 +59,16 @@ product-control-repo/
 它应该包含：
 
 - `AGENTS.md`：Agent 的唯一启动入口和读文件矩阵。
-- `docs/03-ARCHITECTURE/repository-topology.md`：仓库拓扑、owner、边界、依赖方向。
-- `docs/04-DEVELOPMENT/local-development.md`：跨仓本地启动、联调、依赖安装。
-- `docs/06-INTEGRATIONS/`：跨服务 API、事件、SDK、数据库、权限、外部系统契约。
-- `docs/Harness-Ledger.md`：由任务文件生成的全局任务生命周期索引。
-- `docs/09-PLANNING/Delivery-SSoT.md`：跨仓 feature block、依赖和 release 编排。
-- `docs/09-PLANNING/TASKS/`：跨仓任务合同。
-- `docs/05-TEST-QA/Regression-SSoT.md`：跨仓 regression gates。
-- `docs/05-TEST-QA/Cadence-Ledger.md`：哪些变更触发哪些检查。
-- `docs/10-WALKTHROUGH/`：跨仓 closeout 和人工确认。
-- `docs/11-REFERENCE/`：本项目使用 Harness 的本地标准。
+- `coding-agent-harness/context/architecture/repository-topology.md`：仓库拓扑、owner、边界、依赖方向。
+- `coding-agent-harness/context/development/local-development.md`：跨仓本地启动、联调、依赖安装。
+- `coding-agent-harness/context/integrations/`：跨服务 API、事件、SDK、数据库、权限、外部系统契约。
+- `coding-agent-harness/governance/generated/Harness-Ledger.md`：由任务文件生成的全局任务生命周期索引。
+- `coding-agent-harness/planning/Delivery-SSoT.md`：跨仓 feature block、依赖和 release 编排。
+- `coding-agent-harness/planning/tasks/`：跨仓任务合同。
+- `coding-agent-harness/governance/regression/Regression-SSoT.md`：跨仓 regression gates。
+- `coding-agent-harness/governance/regression/Cadence-Ledger.md`：哪些变更触发哪些检查。
+- `coding-agent-harness/planning/tasks/<task>/`：跨仓 closeout 和人工确认。
+- `coding-agent-harness/governance/standards/`：本项目使用 Harness 的本地标准。
 
 父仓库还应该有一个检查命令，例如：
 
@@ -138,7 +138,7 @@ npm test
 跨仓任务应该在父仓库创建：
 
 ```text
-docs/09-PLANNING/TASKS/2026-05-22-example-cross-repo-feature/
+coding-agent-harness/planning/tasks/2026-05-22-example-cross-repo-feature/
   brief.md
   task_plan.md
   execution_strategy.md
@@ -164,7 +164,7 @@ docs/09-PLANNING/TASKS/2026-05-22-example-cross-repo-feature/
 
 ### Architecture
 
-`docs/03-ARCHITECTURE/` 说明系统如何被拆成多个仓库：
+`coding-agent-harness/context/architecture/` 说明系统如何被拆成多个仓库：
 
 - repo topology。
 - 服务边界。
@@ -175,7 +175,7 @@ docs/09-PLANNING/TASKS/2026-05-22-example-cross-repo-feature/
 
 ### Development
 
-`docs/04-DEVELOPMENT/` 说明如何跨仓工作：
+`coding-agent-harness/context/development/` 说明如何跨仓工作：
 
 - 如何 clone 或初始化所有子仓库。
 - 如何安装依赖。
@@ -185,7 +185,7 @@ docs/09-PLANNING/TASKS/2026-05-22-example-cross-repo-feature/
 
 ### Integration
 
-`docs/06-INTEGRATIONS/` 说明仓库之间如何对接：
+`coding-agent-harness/context/integrations/` 说明仓库之间如何对接：
 
 - API contract。
 - SDK contract。
@@ -241,10 +241,10 @@ Agent 不需要在启动时读 100 个仓库的所有文档。它先读父任务
 采用主控仓库模式时，先做到这些：
 
 - 父仓库 `AGENTS.md` 写清楚它是 control repo。
-- `docs/03-ARCHITECTURE/repository-topology.md` 列出所有子仓库。
-- `docs/Harness-Ledger.md` 由任务文件生成全局任务生命周期索引。
-- `docs/09-PLANNING/Delivery-SSoT.md` 只在需要跨仓 release / block 编排时维护。
-- `docs/05-TEST-QA/Regression-SSoT.md` 定义局部、契约、集成、发布 gate。
+- `coding-agent-harness/context/architecture/repository-topology.md` 列出所有子仓库。
+- `coding-agent-harness/governance/generated/Harness-Ledger.md` 由任务文件生成全局任务生命周期索引。
+- `coding-agent-harness/planning/Delivery-SSoT.md` 只在需要跨仓 release / block 编排时维护。
+- `coding-agent-harness/governance/regression/Regression-SSoT.md` 定义局部、契约、集成、发布 gate。
 - 每个子仓库只有短的局部 `AGENTS.md`。
 - 新跨仓任务只在父仓库创建。
 - 子仓库 commit、PR、test output 都作为父任务 evidence。

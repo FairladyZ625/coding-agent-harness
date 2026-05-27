@@ -9,7 +9,7 @@ Confidence: low
 
 | Service Profile | Source Pack | Integration Contracts | Last Verified | Confidence |
 | --- | --- | --- | --- | --- |
-| `docs/03-ARCHITECTURE/services/<service-key>.md` | `docs/04-DEVELOPMENT/external-source-packs/<source-key>/README.md` 或 N/A | `docs/06-INTEGRATIONS/<contract>.md` | unknown | low |
+| `coding-agent-harness/context/architecture/services/<service-key>.md` | `coding-agent-harness/context/development/external-source-packs/<source-key>/README.md` 或 N/A | `coding-agent-harness/context/integrations/<contract>.md` | unknown | low |
 
 ## Development Use
 
@@ -30,4 +30,4 @@ Confidence: low
 
 ## Placement Rule
 
-本文件只写本仓开发、测试、调试这个外部服务时需要的上下文。服务职责放 `03-ARCHITECTURE`，接口字段和 schema 放 `06-INTEGRATIONS`。
+本文件只写本仓开发、测试、调试这个外部服务时需要的上下文。服务职责放 `context/architecture`，接口字段和 schema 放 `context/integrations`。

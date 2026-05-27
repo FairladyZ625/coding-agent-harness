@@ -13,7 +13,7 @@
 标准位置：
 
 ```text
-docs/09-PLANNING/TASKS/<YYYY-MM-DD-任务名>/review.md
+coding-agent-harness/planning/tasks/<YYYY-MM-DD-任务名>/review.md
 ```
 
 任务目录中的文件职责：
@@ -150,7 +150,7 @@ Review loop 的固定执行形态：
 - `progress.md` 记录审查发生的时间和处理结果摘要
 - `findings.md` 记录审查中产生的技术决策或研究发现
 - `Regression-SSoT.md` 记录新增或调整的 regression surface
-- `lesson_candidates.md` 和 `docs/01-GOVERNANCE/lessons/*.md` 记录可复用的流程、架构或标准改进建议
+- `lesson_candidates.md` 和 `coding-agent-harness/governance/lessons/*.md` 记录可复用的流程、架构或标准改进建议
 - `walkthrough` 收口时引用 `review.md` 的 material finding 状态和 no-finding 结论
 - `Harness Ledger` 记录本轮是否完成 review report
 

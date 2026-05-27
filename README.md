@@ -84,6 +84,9 @@ context in every prompt, put it in a preset and create each task with
 
 Harness ships bundled presets, `harness init` seeds them into the target project,
 and teams can add project-local presets under `.coding-agent-harness/presets/`.
+This dotdir is a preset overlay exception: operational task state lives under
+`coding-agent-harness/`, while preset packages keep their existing overlay root
+so user and project preset precedence remains stable across upgrades.
 The `preset-creator` Skill is for authoring these preset packages; the Harness
 CLI is what checks, installs, lists, and applies them.
 
@@ -160,6 +163,8 @@ The npm install seeds bundled presets into `~/.coding-agent-harness/presets/`.
 `harness init` also seeds those presets into the target project at
 `.coding-agent-harness/presets/`, so agents can discover stable task methods
 with `harness preset list --json`.
+The `.coding-agent-harness/presets/` location is intentionally retained for
+preset overlays; it is not a legacy task-state directory.
 
 Agents must not silently run a global install. They may run `npm install -g coding-agent-harness` only after the user explicitly approves changing the global npm environment. Without that approval, keep using `npx --yes coding-agent-harness ...`.
 
@@ -222,7 +227,7 @@ Use Chinese templates by default. If the project is clearly an English team or E
 
 First diagnose the project structure, then give me an initialization plan.
 If this is a microservice, multi-repo, split frontend/backend, or externally integrated project, proactively ask me whether I have external architecture docs, API docs, diagrams, meeting notes, links, source paths, or exported packets.
-If the external material is large, create an external-source-packs index and digests first, then project stable conclusions into 03-ARCHITECTURE / 04-DEVELOPMENT / 06-INTEGRATIONS.
+If the external material is large, create an external-source-packs index and digests first, then project stable conclusions into coding-agent-harness/context/{architecture,development,integrations}.
 After confirmation, execute Diagnose → Decide → Scaffold → Configure → Verify → Deliver.
 When initializing, run:
 npx --yes coding-agent-harness init --locale zh-CN --capabilities core,dashboard .
@@ -263,7 +268,7 @@ This project already has an older Harness. Do not edit files yet.
 
 First run a detailed scan and give me a migration plan:
 1. Check git status, Harness status, task count, brief coverage, visual_map coverage, warnings/actions/residuals, strict status, and dashboard usability.
-2. If this is a microservice, multi-repo, split frontend/backend, or externally integrated project, proactively ask me for external source material; when the material is large, create an external-source-packs index and digests before projecting facts into 03/04/06.
+2. If this is a microservice, multi-repo, split frontend/backend, or externally integrated project, proactively ask me for external source material; when the material is large, create an external-source-packs index and digests before projecting facts into context/{architecture,development,integrations}.
 3. Recommend the migration mode from project evidence:
    - baseline-preserve: safe adoption first; only add necessary structure and visibility.
    - status-aware-rewrite: rewrite current or reopened tasks from SSoT, Ledger, progress, review, and git evidence.

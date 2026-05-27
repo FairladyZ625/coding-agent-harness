@@ -7,6 +7,7 @@ import { URL } from "node:url";
 import { confirmTaskReview } from "./task-lifecycle.mjs";
 import { createLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
 import { normalizeTarget } from "./core-shared.mjs";
+import { dashboardWatchRoots } from "./harness-paths.mjs";
 import { collectTasks } from "./task-scanner.mjs";
 import { writeDashboardFolder } from "./dashboard-data.mjs";
 import {
@@ -186,7 +187,7 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
   const actualPort = typeof address === "object" && address ? address.port : port;
   const url = `http://${host}:${actualPort}/`;
   let watcher = null;
-  if (autoRefresh) watcher = startPollingWatch(target.docsRoot, regenerate);
+  if (autoRefresh) watcher = startPollingWatch(dashboardWatchRoots(target.harness), regenerate);
   console.log(`${label}: ${url} csrf=${csrfToken} outDir=${outputDir}`);
   if (open) openBrowser(url);
 
@@ -221,11 +222,11 @@ function reviewQueueRejectionPayload(task) {
   };
 }
 
-function startPollingWatch(root, regenerate) {
-  let lastMtime = latestTreeMtime(root);
+function startPollingWatch(roots, regenerate) {
+  let lastMtime = latestTreeMtime(roots);
   let timer = null;
   return setInterval(() => {
-    const nextMtime = latestTreeMtime(root);
+    const nextMtime = latestTreeMtime(roots);
     if (nextMtime <= lastMtime) return;
     lastMtime = nextMtime;
     clearTimeout(timer);
@@ -239,9 +240,9 @@ function startPollingWatch(root, regenerate) {
   }, 1000);
 }
 
-function latestTreeMtime(root) {
+function latestTreeMtime(roots) {
   let latest = 0;
-  if (!fs.existsSync(root)) return latest;
+  const watchRoots = Array.isArray(roots) ? roots : [roots];
   const visit = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if ([".git", "node_modules", "tmp"].includes(entry.name)) continue;
@@ -251,7 +252,9 @@ function latestTreeMtime(root) {
       if (entry.isDirectory()) visit(fullPath);
     }
   };
-  visit(root);
+  for (const root of watchRoots) {
+    if (fs.existsSync(root)) visit(root);
+  }
   return latest;
 }
 

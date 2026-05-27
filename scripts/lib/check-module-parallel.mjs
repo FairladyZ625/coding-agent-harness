@@ -1,6 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import { walkFiles } from "./core-shared.mjs";
+import {
+  legacyLedgerFile,
+  legacyModuleRoot,
+  legacyPath,
+  legacyPlanningRoot,
+} from "./harness-paths.mjs";
+
+const moduleRegistryPath = legacyPath(legacyPlanningRoot, "Module-Registry.md");
+const legacyModulesPath = legacyPath(legacyModuleRoot);
+const legacyLedgerPath = legacyPath(legacyLedgerFile);
 
 function stripMarkdownCode(value) {
   return String(value || "").replace(/`/g, "").trim();
@@ -16,7 +26,7 @@ function modulePromptBlock(content, key) {
 }
 
 function listModuleTaskPlans({ targetRoot, rel, filePath }) {
-  const modulesRoot = filePath("docs/09-PLANNING/MODULES");
+  const modulesRoot = filePath(legacyModulesPath);
   if (!fs.existsSync(modulesRoot)) return [];
   return walkFiles(modulesRoot, {
     dirFilter: (_dirName, fullPath) => {
@@ -29,7 +39,7 @@ function listModuleTaskPlans({ targetRoot, rel, filePath }) {
 }
 
 function parseModuleTaskPath(taskPlanPath) {
-  const match = taskPlanPath.match(/^docs\/09-PLANNING\/MODULES\/([^/]+)\/TASKS\/([^/]+)\/task_plan\.md$/);
+  const match = taskPlanPath.match(new RegExp(`^${escapeRegExp(legacyModulesPath)}/([^/]+)/TASKS/([^/]+)/task_plan\\.md$`));
   if (!match) return null;
   return { moduleKey: match[1], taskDir: match[2] };
 }
@@ -95,14 +105,14 @@ function hasPendingCoordinatorHandoff(taskPlanContent, progressContent) {
 function checkModuleTaskSsotIndex(registryRows, context) {
   const { exists, read, fail, warn, requireGlobalModuleSync } = context;
   const registryByModule = new Map(registryRows.map((cells) => [cells[0], cells]));
-  const ledgerContent = exists("docs/Harness-Ledger.md") ? read("docs/Harness-Ledger.md") : "";
+  const ledgerContent = exists(legacyLedgerPath) ? read(legacyLedgerPath) : "";
   const taskPlans = listModuleTaskPlans(context);
 
   for (const taskPlanPath of taskPlans) {
     const parsed = parseModuleTaskPath(taskPlanPath);
     if (!parsed) continue;
     const { moduleKey, taskDir } = parsed;
-    const modulePlanPath = `docs/09-PLANNING/MODULES/${moduleKey}/module_plan.md`;
+    const modulePlanPath = legacyPath(legacyModuleRoot, moduleKey, "module_plan.md");
     if (!exists(modulePlanPath)) continue;
 
     const taskPlan = read(taskPlanPath);
@@ -133,15 +143,15 @@ function checkModuleTaskSsotIndex(registryRows, context) {
 
     if (requireGlobalModuleSync) {
       if (!registryRow) {
-        fail(`docs/09-PLANNING/Module-Registry.md does not include active module ${moduleKey} for ${taskPlanPath}`);
+        fail(`${moduleRegistryPath} does not include active module ${moduleKey} for ${taskPlanPath}`);
       } else if (registryRow[4] !== stepId) {
-        fail(`docs/09-PLANNING/Module-Registry.md row ${moduleKey} current step is ${registryRow[4]}, but active task is ${stepId}`);
+        fail(`${moduleRegistryPath} row ${moduleKey} current step is ${registryRow[4]}, but active task is ${stepId}`);
       }
       if (!ledgerContent.includes(taskPlanPath)) {
-        fail(`docs/Harness-Ledger.md does not index active module task plan ${taskPlanPath}`);
+        fail(`${legacyLedgerPath} does not index active module task plan ${taskPlanPath}`);
       }
       if (exists(reviewPath) && !ledgerContent.includes(reviewPath)) {
-        fail(`docs/Harness-Ledger.md does not index active module review ${reviewPath}`);
+        fail(`${legacyLedgerPath} does not index active module review ${reviewPath}`);
       }
       continue;
     }
@@ -156,23 +166,23 @@ function checkModuleTaskSsotIndex(registryRows, context) {
 
 export function checkModuleParallelStructure(context) {
   const { exists, read, fail, requireFile, markdownTable } = context;
-  if (!exists("docs/09-PLANNING/Module-Registry.md")) return;
+  if (!exists(moduleRegistryPath)) return;
 
-  requireFile("docs/09-PLANNING/MODULES/Session-Prompt-Pack.md");
-  const hasPromptPack = exists("docs/09-PLANNING/MODULES/Session-Prompt-Pack.md");
+  requireFile(legacyPath(legacyModuleRoot, "Session-Prompt-Pack.md"));
+  const hasPromptPack = exists(legacyPath(legacyModuleRoot, "Session-Prompt-Pack.md"));
   for (const templateFile of [
-    "docs/09-PLANNING/MODULES/_task-template/task_plan.md",
-    "docs/09-PLANNING/MODULES/_task-template/progress.md",
-    "docs/09-PLANNING/MODULES/_task-template/findings.md",
-    "docs/09-PLANNING/MODULES/_task-template/review.md",
+    legacyPath(legacyModuleRoot, "_task-template/task_plan.md"),
+    legacyPath(legacyModuleRoot, "_task-template/progress.md"),
+    legacyPath(legacyModuleRoot, "_task-template/findings.md"),
+    legacyPath(legacyModuleRoot, "_task-template/review.md"),
   ]) {
     requireFile(templateFile);
   }
 
-  const registryContent = read("docs/09-PLANNING/Module-Registry.md");
+  const registryContent = read(moduleRegistryPath);
   for (const term of ["PREFIX", "Current Step", "Status", "Write Scope"]) {
     if (!registryContent.includes(term)) {
-      fail(`docs/09-PLANNING/Module-Registry.md missing registry column or section: ${term}`);
+      fail(`${moduleRegistryPath} missing registry column or section: ${term}`);
     }
   }
 
@@ -181,30 +191,30 @@ export function checkModuleParallelStructure(context) {
     .filter((cells) => /^(_shared|[a-z][a-z0-9-]*)$/.test(cells[0] || "") && /^[A-Z]{2,5}$/.test(cells[2] || ""));
 
   if (registryRows.length === 0) {
-    fail("docs/09-PLANNING/Module-Registry.md has no active module rows");
+    fail(`${moduleRegistryPath} has no active module rows`);
   }
 
-  const promptPack = hasPromptPack ? read("docs/09-PLANNING/MODULES/Session-Prompt-Pack.md") : "";
+  const promptPack = hasPromptPack ? read(legacyPath(legacyModuleRoot, "Session-Prompt-Pack.md")) : "";
   if (hasPromptPack && !/Subagent Worker Invariant|worker[\s\S]{0,120}worktree[\s\S]{0,120}commit SHA/i.test(promptPack)) {
-    fail("docs/09-PLANNING/MODULES/Session-Prompt-Pack.md missing subagent worker worktree/commit handoff rule");
+    fail(`${legacyPath(legacyModuleRoot, "Session-Prompt-Pack.md")} missing subagent worker worktree/commit handoff rule`);
   }
   for (const cells of registryRows) {
     const [key, , prefix, branch, currentStep, status] = cells;
-    requireFile(`docs/09-PLANNING/MODULES/${key}/module_plan.md`);
+    requireFile(legacyPath(legacyModuleRoot, key, "module_plan.md"));
     if (!/^(planned|in-progress|paused|completed)$/.test(status)) {
-      fail(`docs/09-PLANNING/Module-Registry.md row ${key} has invalid status: ${status}`);
+      fail(`${moduleRegistryPath} row ${key} has invalid status: ${status}`);
     }
     if (currentStep !== `${prefix}-00` && !currentStep.startsWith(`${prefix}-`)) {
-      fail(`docs/09-PLANNING/Module-Registry.md row ${key} current step does not match prefix ${prefix}: ${currentStep}`);
+      fail(`${moduleRegistryPath} row ${key} current step does not match prefix ${prefix}: ${currentStep}`);
     }
     const branchName = stripMarkdownCode(branch);
     if (!branchName.startsWith("codex/")) {
-      fail(`docs/09-PLANNING/Module-Registry.md row ${key} branch must use codex/ prefix: ${branch}`);
+      fail(`${moduleRegistryPath} row ${key} branch must use codex/ prefix: ${branch}`);
     }
 
     const block = modulePromptBlock(promptPack, key);
     if (!block) {
-      if (!exists(`docs/09-PLANNING/MODULES/${key}/session_prompt.md`)) {
+      if (!exists(legacyPath(legacyModuleRoot, key, "session_prompt.md"))) {
         fail(`missing module session prompt for ${key}`);
       }
       continue;
@@ -227,4 +237,8 @@ export function checkModuleParallelStructure(context) {
     }
   }
   checkModuleTaskSsotIndex(registryRows, context);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
