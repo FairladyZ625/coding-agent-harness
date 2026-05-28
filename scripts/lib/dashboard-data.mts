@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Dashboard bundle aggregation stays behavior-first until dashboard domain types are modeled.
 
 import fs from "node:fs";
@@ -46,11 +45,84 @@ import { writeDashboardDirectory, writeDashboardFile } from "./dashboard-writer.
 import { listPresetPackageLayers } from "./preset-registry.mjs";
 import { validateGovernanceTableBoundaries } from "./governance-table-boundary.mjs";
 import { summarizeGitState } from "./git-status-summary.mjs";
+import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
+import type { CheckTarget, ScannedTask } from "./types/check-profiles.js";
 
-export function collectMarkdownDocuments(target, options = {}) {
+type DashboardTarget = CheckTarget & {
+  harness: ResolvedHarnessPaths;
+};
+
+type DashboardOptions = {
+  home?: string;
+  localeOverride?: string;
+  recoverGeneratedDashboard?: boolean;
+  replaceExistingDashboardOutput?: boolean;
+  skipLegacyCheck?: boolean;
+  taskPlanPaths?: string[];
+  tasks?: DashboardTaskRef[];
+  workbenchRuntime?: boolean;
+} & Record<string, unknown>;
+
+type DashboardDocumentPath = {
+  file: string;
+  partial?: boolean;
+  partialReason?: string;
+  taskId?: string;
+};
+
+type DashboardDocument = {
+  id: string;
+  path: string;
+  title: string;
+  type: string;
+  content: string;
+  partial?: boolean;
+  partialReason?: string;
+  taskId?: string;
+};
+
+type DashboardTable = ReturnType<typeof parseAllMarkdownTables>[number];
+type DashboardTables = {
+  tables: DashboardTable[];
+};
+
+type DashboardStatus = ReturnType<typeof buildStatusData>;
+type DashboardNode = Record<string, unknown> & {
+  id: string;
+  type: string;
+  label?: string;
+  state?: unknown;
+};
+type DashboardEdge = {
+  from: string;
+  to: string;
+  type: string;
+};
+type DashboardBundle = Record<string, unknown>;
+type DashboardTaskRef = Partial<ScannedTask> & {
+  closeoutStatus?: string;
+  id?: string;
+  taskPlanPath?: string;
+};
+type DashboardPhaseRef = {
+  id: string;
+  state?: string;
+  completion?: number;
+  kind?: string;
+  actor?: string;
+  exitCommand?: string;
+  dependsOn?: string[];
+};
+type DashboardHandoffRef = {
+  id: string;
+  summary?: string;
+  state?: string;
+};
+
+export function collectMarkdownDocuments(target: DashboardTarget, options: DashboardOptions = {}): DashboardDocument[] {
   const docs = collectDashboardDocumentPaths(target, options);
   return docs.map((entry, index) => {
-    const file = typeof entry === "string" ? entry : entry.file;
+    const file = entry.file;
     const content = sanitizeText(readFileSafe(file));
     const source = prefixedPath(target, file);
     return {
@@ -64,14 +136,14 @@ export function collectMarkdownDocuments(target, options = {}) {
   });
 }
 
-function collectDashboardDocumentPaths(target, options = {}) {
+function collectDashboardDocumentPaths(target: DashboardTarget, options: DashboardOptions = {}): DashboardDocumentPath[] {
   const harnessPaths = target.harness || resolveHarnessPaths(target);
-  const selected = new Set();
-  const partial = new Map();
-  const addAbsolutePath = (file) => {
+  const selected = new Set<string>();
+  const partial = new Map<string, Omit<DashboardDocumentPath, "file">>();
+  const addAbsolutePath = (file: string) => {
     if (file && fs.existsSync(file)) selected.add(file);
   };
-  const addDocsPath = (relativePath) => {
+  const addDocsPath = (relativePath: string) => {
     const file = path.join(target.docsRoot, relativePath);
     if (fs.existsSync(file)) selected.add(file);
   };
@@ -156,7 +228,7 @@ function collectDashboardDocumentPaths(target, options = {}) {
     .map((file) => ({ file, ...(partial.get(file) || {}) }));
 }
 
-function documentKind(source) {
+function documentKind(source: string): string {
   const lower = source.toLowerCase();
   if (lower.includes("harness-ledger.md")) return "harness-ledger";
   if (lower.includes("module-registry.md")) return "module-registry";
@@ -177,18 +249,18 @@ function documentKind(source) {
   return "markdown-table";
 }
 
-export function collectTables(documents) {
+export function collectTables(documents: DashboardDocument[]): DashboardTables {
   return {
     tables: documents.flatMap((document) => parseAllMarkdownTables(document.content, document.path, documentKind(document.path))),
   };
 }
 
-export function collectGraph(status, tables = { tables: [] }, target = null) {
+export function collectGraph(status: DashboardStatus, tables: DashboardTables = { tables: [] }, target: DashboardTarget | null = null) {
   const harnessPaths = target?.harness || null;
-  const nodes = [];
-  const edges = [];
-  const seenNodes = new Map();
-  const addNode = (node) => {
+  const nodes: DashboardNode[] = [];
+  const edges: DashboardEdge[] = [];
+  const seenNodes = new Map<string, DashboardNode>();
+  const addNode = (node: DashboardNode) => {
     const existing = seenNodes.get(node.id);
     if (existing) {
       if (existing.type === "module" && node.type === "module" && node.state === "planned" && existing.state && existing.state !== "planned") {
@@ -202,13 +274,13 @@ export function collectGraph(status, tables = { tables: [] }, target = null) {
     seenNodes.set(node.id, node);
     nodes.push(node);
   };
-  const addEdge = (edge) => {
+  const addEdge = (edge: DashboardEdge) => {
     if (!edge.from || !edge.to || edge.from === edge.to) return;
     edges.push(edge);
   };
   for (const task of status.tasks) {
     addNode({ id: `task:${task.id}`, type: "task", label: task.title, state: task.state, completion: task.completion });
-    for (const phase of task.phases || []) {
+    for (const phase of dashboardTaskPhases(task)) {
       const phaseId = `phase:${task.id}:${phase.id}`;
       addNode({
         id: phaseId,
@@ -226,7 +298,7 @@ export function collectGraph(status, tables = { tables: [] }, target = null) {
         addEdge({ from: `phase:${task.id}:${dependency}`, to: phaseId, type: "depends_on" });
       }
     }
-    for (const handoff of task.handoffs || []) {
+    for (const handoff of dashboardTaskHandoffs(task)) {
       const handoffId = `handoff:${handoff.id}`;
       addNode({ id: handoffId, type: "handoff", label: handoff.summary, state: handoff.state });
       addEdge({ from: `task:${task.id}`, to: handoffId, type: "handoff" });
@@ -279,7 +351,15 @@ export function collectGraph(status, tables = { tables: [] }, target = null) {
   return { nodes, edges: edges.filter((edge) => seenNodes.has(edge.from) && seenNodes.has(edge.to)) };
 }
 
-function moduleKeyFromPlanSource(source, target) {
+function dashboardTaskPhases(task: Record<string, unknown>): DashboardPhaseRef[] {
+  return Array.isArray(task.phases) ? task.phases as DashboardPhaseRef[] : [];
+}
+
+function dashboardTaskHandoffs(task: Record<string, unknown>): DashboardHandoffRef[] {
+  return Array.isArray(task.handoffs) ? task.handoffs as DashboardHandoffRef[] : [];
+}
+
+function moduleKeyFromPlanSource(source: string, target: DashboardTarget | null): string {
   if (!target?.projectRoot || !target?.harness?.modulesRoot) {
     const moduleMatch = source.match(/(?:MODULES|modules)\/([^/]+)\/module_plan\.md$/);
     return moduleMatch ? moduleMatch[1] : "";
@@ -293,7 +373,7 @@ function moduleKeyFromPlanSource(source, target) {
   return legacyMatch ? legacyMatch[1] : "";
 }
 
-function moduleDocumentPaths(target, moduleKey) {
+function moduleDocumentPaths(target: DashboardTarget | null, moduleKey: string) {
   if (!target?.harness?.modulesRoot || !moduleKey) return {};
   const brief = path.join(target.harness.modulesRoot, moduleKey, "brief.md");
   const modulePlan = path.join(target.harness.modulesRoot, moduleKey, "module_plan.md");
@@ -303,7 +383,7 @@ function moduleDocumentPaths(target, moduleKey) {
   };
 }
 
-export function categorizeWarning(message) {
+export function categorizeWarning(message: string): string {
   if (/governance-table-entropy/i.test(message)) return "Governance Table Boundary";
   if (/missing execution_strategy\.md|missing visual_(?:map|roadmap)\.md|Visual (?:Map|Roadmap)/i.test(message)) return "Plan Contract Missing";
   if (new RegExp(`${legacyCompatMode}|adoption-needed|legacy check`, "i").test(message)) return "Adoption Advice";
@@ -312,7 +392,7 @@ export function categorizeWarning(message) {
   return "Review Finding";
 }
 
-function warningType(message) {
+function warningType(message: string): string {
   if (/missing brief\.md|briefSource|brief/i.test(message) && /missing|缺少/i.test(message)) return "missing-brief";
   if (/missing execution_strategy\.md/i.test(message)) return "missing-execution-strategy";
   if (/missing visual_map\.md|Visual Map/i.test(message)) return "missing-visual-map";
@@ -326,7 +406,7 @@ function warningType(message) {
   return "review-finding";
 }
 
-function warningScope(message) {
+function warningScope(message: string): string {
   if (/(?:docs\/09-PLANNING\/TASKS|coding-agent-harness\/planning\/tasks)\//i.test(message)) return "task";
   if (/(?:docs\/09-PLANNING\/MODULES|coding-agent-harness\/planning\/modules)\//i.test(message)) return "module";
   if (/review\.md|findings table/i.test(message)) return "review";
@@ -335,7 +415,7 @@ function warningScope(message) {
   return "project";
 }
 
-function warningPhase(type, scope) {
+function warningPhase(type: string, scope: string): string {
   if (type === "capability-adoption") return "baseline";
   if (type === "governance-table-entropy") return "global-table-boundary";
   if (type === "missing-brief" || type === "missing-execution-strategy" || type === "missing-visual-map" || type === "missing-visual-roadmap") return "active-task-contracts";
@@ -345,7 +425,7 @@ function warningPhase(type, scope) {
   return "triage";
 }
 
-function warningFixability(type, scope) {
+function warningFixability(type: string, scope: string): string {
   if (["missing-brief", "missing-execution-strategy", "missing-visual-map", "missing-visual-roadmap"].includes(type)) return "guided";
   if (type === "governance-table-entropy") return "manual";
   if (type === "legacy-reference-gap" || scope === "reference") return "template";
@@ -354,7 +434,7 @@ function warningFixability(type, scope) {
   return "manual";
 }
 
-function warningPriority(type, scope, message) {
+function warningPriority(type: string, scope: string, message: string): string {
   if (/fail|invalid|blocked/i.test(message) || type === "schema-drift") return "P1";
   if (type === "governance-table-entropy") return /legacy-report-only/i.test(message) ? "P3" : "P2";
   if (["missing-brief", "missing-execution-strategy", "missing-visual-map", "missing-visual-roadmap"].includes(type) && scope === "task") return "P2";
@@ -363,23 +443,25 @@ function warningPriority(type, scope, message) {
   return "P3";
 }
 
-function warningConfidence(message) {
+function warningConfidence(message: string): string {
   if (/legacy|unknown|fallback/i.test(message)) return "medium";
   return "high";
 }
 
-function warningAffectedPaths(message) {
+function warningAffectedPaths(message: string): string[] {
   const matches = String(message).match(/(?:docs|\.harness-private|coding-agent-harness)\/[^\s:]+|\.harness-capabilities\.json|AGENTS\.md|CLAUDE\.md/g) || [];
   return [...new Set(matches.map((item) => item.replace(/[),.;]+$/, "")))];
 }
 
-function summarizeWarnings(warnings) {
-  const countBy = (field) =>
-    warnings.reduce((acc, warning) => {
-      const key = warning[field] || "unknown";
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {});
+function summarizeWarnings(warnings: Array<Record<string, unknown>>): Record<string, unknown> {
+  const countBy = (field: string): Record<string, number> => {
+    const counts: Record<string, number> = {};
+    for (const warning of warnings) {
+      const key = String(warning[field] || "unknown");
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  };
   return {
     total: warnings.length,
     byCategory: countBy("category"),
@@ -392,7 +474,7 @@ function summarizeWarnings(warnings) {
   };
 }
 
-export function collectAdoption(status) {
+export function collectAdoption(status: DashboardStatus) {
   const dashboardMessages = [
     ...(status.checkState.details.warnings || []),
     ...(status.checkState.details.failures || []).filter((message) => /governance-table-entropy/i.test(message)),
@@ -444,26 +526,26 @@ export function collectAdoption(status) {
   };
 }
 
-function governanceWarningRowKey(message) {
+function governanceWarningRowKey(message: string): string {
   const match = String(message || "").match(/\brow\s+([^:]+)/i);
   return match ? match[1].trim() : "global-table";
 }
 
-function stableWarningIdPart(value) {
+function stableWarningIdPart(value: string): string {
   return String(value || "global-table")
     .replace(/[^A-Za-z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80) || "global-table";
 }
 
-export function splitWarningMessage(message) {
+export function splitWarningMessage(message: string): string[] {
   return String(message || "")
     .split(/\n-\s+/)
     .map((item, index) => (index === 0 ? item : `- ${item}`))
     .filter(Boolean);
 }
 
-function warningTitle(message) {
+function warningTitle(message: string): string {
   if (/governance-table-entropy/i.test(message)) return "Global table boundary";
   if (/missing execution_strategy\.md/i.test(message)) return "Missing execution strategy";
   if (/missing visual_map\.md|Visual Map/i.test(message)) return "Missing visual map";
@@ -475,12 +557,12 @@ function warningTitle(message) {
   return String(message).split(":")[0].slice(0, 96);
 }
 
-function warningAffected(message) {
+function warningAffected(message: string): string {
   const target = String(message).match(/(?:docs|\.harness-private)\/[^\s:]+/);
   return target ? target[0] : "project";
 }
 
-function warningAction(message) {
+function warningAction(message: string): string {
   if (/governance-table-entropy/i.test(message)) return "Move local detail to module/task docs; keep the global row to summary, state, route, and audit result.";
   if (/execution_strategy\.md/i.test(message)) return "Add standalone execution strategy file.";
   if (/visual_map\.md|Visual Map/i.test(message)) return "Add standalone visual map file.";
@@ -490,8 +572,8 @@ function warningAction(message) {
   return "Inspect source document and decide whether to adopt v1 contract.";
 }
 
-export function buildDashboardBundle(targetInput, options = {}) {
-  const target = normalizeTarget(targetInput);
+export function buildDashboardBundle(targetInput: string, options: DashboardOptions = {}): DashboardBundle {
+  const target = normalizeTarget(targetInput) as DashboardTarget;
   const taskPlanPaths = listTaskPlanPaths(target);
   const capabilityState = validateCapabilities(target);
   const gitState = summarizeGitState(target);
@@ -509,15 +591,15 @@ export function buildDashboardBundle(targetInput, options = {}) {
     failures: [...capabilityState.failures, ...governanceBoundaries.failures],
     warnings: [...capabilityState.warnings, ...legacyWarnings, ...governanceBoundaries.warnings, ...gitState.warnings],
   });
-  const documents = { documents: collectMarkdownDocuments(target, { taskPlanPaths, tasks: status.tasks }) };
+  const documents = { documents: collectMarkdownDocuments(target, { taskPlanPaths, tasks: status.tasks as DashboardTaskRef[] }) };
   const tables = collectTables(documents.documents);
   const graph = collectGraph(status, tables, target);
   const adoption = collectAdoption(status);
   const presetCatalog = collectPresetCatalog(targetInput, target, options);
-  return sanitizeDeep({ status, tables, documents, graph, adoption, presetCatalog });
+  return sanitizeDeep({ status, tables, documents, graph, adoption, presetCatalog }) as DashboardBundle;
 }
 
-function runDashboardCompatibilityCheck(target) {
+function runDashboardCompatibilityCheck(target: DashboardTarget) {
   const checkTarget = target.docsOnly ? target.projectRoot : target.input;
   const result = spawnSync(process.execPath, [bundledCheckScript, checkTarget], {
     cwd: repoRoot,
@@ -531,7 +613,7 @@ function runDashboardCompatibilityCheck(target) {
   };
 }
 
-export function collectPresetCatalog(targetInput, target = normalizeTarget(targetInput), options = {}) {
+export function collectPresetCatalog(targetInput: string, target: DashboardTarget = normalizeTarget(targetInput) as DashboardTarget, options: DashboardOptions = {}) {
   const home = options.home || "";
   const presets = listPresetPackageLayers({ targetInput: target.projectRoot, home }).map((preset) => ({
     key: `${preset.source}:${preset.id}`,
@@ -552,7 +634,7 @@ export function collectPresetCatalog(targetInput, target = normalizeTarget(targe
     requiredReadCount: Array.isArray(preset.context?.requiredReads) ? preset.context.requiredReads.length : 0,
     checkStatus: "unknown",
   }));
-  const countSource = (source) => presets.filter((preset) => preset.source === source).length;
+  const countSource = (source: string) => presets.filter((preset) => preset.source === source).length;
   return {
     summary: {
       total: presets.length,
@@ -569,8 +651,8 @@ export function collectPresetCatalog(targetInput, target = normalizeTarget(targe
   };
 }
 
-export function writeDashboardFolder(outDir, targetInput, options = {}) {
-  const target = normalizeTarget(targetInput);
+export function writeDashboardFolder(outDir: string, targetInput: string, options: DashboardOptions = {}) {
+  const target = normalizeTarget(targetInput) as DashboardTarget;
   const registry = readCapabilityRegistry(target);
   const locale = options.localeOverride || registry.locale;
   const bundle = buildDashboardBundle(targetInput, options);
@@ -585,8 +667,8 @@ export function writeDashboardFolder(outDir, targetInput, options = {}) {
   });
 }
 
-export function writeDashboardSingleFile(outFile, targetInput, options = {}) {
-  const target = normalizeTarget(targetInput);
+export function writeDashboardSingleFile(outFile: string, targetInput: string, options: DashboardOptions = {}) {
+  const target = normalizeTarget(targetInput) as DashboardTarget;
   const registry = readCapabilityRegistry(target);
   const locale = options.localeOverride || registry.locale;
   const bundle = buildDashboardBundle(targetInput, options);

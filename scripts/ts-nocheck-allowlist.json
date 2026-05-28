@@ -2,8 +2,6 @@
   "generated_at": "2026-05-28",
   "files": [
     "scripts/build-dist.mts",
-    "scripts/lib/dashboard-data.mts",
-    "scripts/lib/dashboard-workbench.mts",
     "scripts/lib/migration-planner.mts",
     "scripts/lib/preset-engine.mts",
     "scripts/lib/preset-registry.mts",

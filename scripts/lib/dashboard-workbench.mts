@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Dashboard workbench HTTP handlers stay behavior-first until workbench request/response types are modeled.
 
 import crypto from "node:crypto";
@@ -21,12 +20,70 @@ import {
   seedBundledPresets,
   uninstallPresetPackage,
 } from "./preset-registry.mjs";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
+import type { CheckTarget, ScannedTask } from "./types/check-profiles.js";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "connection": "close" };
 
-export async function serveDashboardWorkbench(outDir, targetInput, { host = "127.0.0.1", port = 0, localeOverride = "", autoRefresh = false, open = false, label = "dashboard workbench", recoverGeneratedDashboard = false, replaceExistingDashboardOutput = false } = {}) {
+type WorkbenchTarget = CheckTarget & {
+  harness: ResolvedHarnessPaths;
+};
+
+type WorkbenchOptions = {
+  host?: string;
+  port?: number;
+  localeOverride?: string;
+  autoRefresh?: boolean;
+  open?: boolean;
+  label?: string;
+  recoverGeneratedDashboard?: boolean;
+  replaceExistingDashboardOutput?: boolean;
+};
+
+type WorkbenchBody = {
+  taskId?: string;
+  taskIds?: unknown[];
+  candidateId?: string;
+  selections?: unknown;
+  reviewer?: string;
+  message?: string;
+  evidence?: string;
+  confirmText?: string;
+  title?: string;
+  id?: string;
+  source?: string;
+  scope?: string;
+  force?: boolean;
+  dryRun?: boolean;
+};
+
+type WorkbenchBatchResult = {
+  taskId: string;
+  ok: boolean;
+  status: number;
+  audit?: {
+    allowedPaths?: string[];
+    commitSha?: string;
+    auditCommitSha?: string;
+    auditStatus?: string;
+  };
+  task?: {
+    id: string;
+  };
+  [key: string]: unknown;
+};
+
+type BulkLessonSelection = {
+  taskId: string;
+  candidateId: string;
+};
+
+type JsonPayload = Record<string, unknown>;
+
+export async function serveDashboardWorkbench(outDir: string, targetInput: string, { host = "127.0.0.1", port = 0, localeOverride = "", autoRefresh = false, open = false, label = "dashboard workbench", recoverGeneratedDashboard = false, replaceExistingDashboardOutput = false }: WorkbenchOptions = {}) {
   if (host !== "127.0.0.1") throw new Error("dashboard workbench only supports --host 127.0.0.1");
-  const target = normalizeTarget(targetInput);
+  const target = normalizeTarget(targetInput) as WorkbenchTarget;
   const outputDir = path.resolve(outDir);
   const csrfToken = crypto.randomBytes(24).toString("hex");
   const options = localeOverride ? { localeOverride } : {};
@@ -93,7 +150,7 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
           writeJson(response, 400, { error: "No review tasks selected" });
           return;
         }
-        const results = [];
+        const results: WorkbenchBatchResult[] = [];
         for (const taskId of taskIds) {
           const task = collectTasks(target).find((item) => item.id === taskId);
           if (!task) {
@@ -101,7 +158,8 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
             continue;
           }
           if (!isTaskInReviewQueue(task)) {
-            results.push({ taskId, ok: false, status: 409, ...reviewQueueRejectionPayload(task) });
+            const payload = reviewQueueRejectionPayload(task);
+            results.push({ taskId, ok: false, status: 409, ...payload });
             continue;
           }
           if (task.reviewStatus === "confirmed") {
@@ -118,7 +176,7 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
             });
             results.push({ taskId, ok: true, status: 200, audit: result.audit, task: { id: result.task?.id || taskId } });
           } catch (error) {
-            results.push({ taskId, ok: false, status: error.status || 400, ...errorPayload(error) });
+            results.push({ taskId, ok: false, status: errorStatus(error), ...errorPayload(error) });
           }
         }
         const confirmed = results.filter((result) => result.ok).length;
@@ -195,7 +253,7 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
             results,
           });
         } catch (error) {
-          writeJson(response, error.status || 400, { ok: false, created: 0, candidates: selections.length, failed: selections.length, ...errorPayload(error) });
+          writeJson(response, errorStatus(error), { ok: false, created: 0, candidates: selections.length, failed: selections.length, ...errorPayload(error) });
         }
         return;
       }
@@ -273,14 +331,15 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
       if (request.method === "GET" && isDashboardDataRequest(requestUrl.pathname)) regenerate();
       serveStaticFile(response, outputDir, requestUrl.pathname, request.method === "HEAD");
     } catch (error) {
-      const status = error.status || (/CSRF|Origin|Host/.test(error.message) ? 403 : 400);
+      const message = errorMessage(error);
+      const status = errorStatus(error, /CSRF|Origin|Host/.test(message) ? 403 : 400);
       writeJson(response, status, errorPayload(error));
     }
   });
 
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(Number(port), host, resolve);
+    server.listen(Number(port), host, () => resolve());
   });
   const address = server.address();
   const actualPort = typeof address === "object" && address ? address.port : port;
@@ -299,17 +358,17 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
   await new Promise(() => {});
 }
 
-function normalizePresetScope(value) {
+function normalizePresetScope(value: unknown): "project" | "user" {
   const scope = String(value || "project");
   if (scope !== "project" && scope !== "user") throw new Error(`Invalid preset scope: ${scope}`);
   return scope;
 }
 
-function isDashboardDataRequest(urlPath) {
+function isDashboardDataRequest(urlPath: string): boolean {
   return urlPath === "/assets/dashboard-data.js" || urlPath.startsWith("/data/");
 }
 
-function commitWorkbenchBatch(target, allowedPaths, { operation, message }) {
+function commitWorkbenchBatch(target: WorkbenchTarget, allowedPaths: string[], { operation, message }: { operation: string; message: string }) {
   const paths = uniqueValues(allowedPaths || []);
   const context = beginGovernanceSync(target, {
     operation,
@@ -324,9 +383,9 @@ function commitWorkbenchBatch(target, allowedPaths, { operation, message }) {
   }
 }
 
-function uniqueValues(values) {
-  const seen = new Set();
-  const result = [];
+function uniqueValues(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
   for (const value of values) {
     if (seen.has(value)) continue;
     seen.add(value);
@@ -335,10 +394,10 @@ function uniqueValues(values) {
   return result;
 }
 
-function normalizeBulkLessonSelections(rawSelections) {
+function normalizeBulkLessonSelections(rawSelections: unknown): BulkLessonSelection[] {
   if (!Array.isArray(rawSelections)) return [];
-  const seen = new Set();
-  const result = [];
+  const seen = new Set<string>();
+  const result: BulkLessonSelection[] = [];
   for (const selection of rawSelections) {
     const taskId = String(selection?.taskId || "").trim();
     const candidateId = String(selection?.candidateId || "").trim();
@@ -351,11 +410,11 @@ function normalizeBulkLessonSelections(rawSelections) {
   return result;
 }
 
-function isTaskInReviewQueue(task) {
+function isTaskInReviewQueue(task: ScannedTask | undefined): boolean {
   return task?.reviewQueueState === "ready-to-confirm" && Array.isArray(task?.taskQueues) && task.taskQueues.includes("review");
 }
 
-function reviewQueueRejectionPayload(task) {
+function reviewQueueRejectionPayload(task: ScannedTask): JsonPayload {
   return {
     error: "Review completion is only available for tasks in the review queue.",
     reviewQueueState: task?.reviewQueueState || "unknown",
@@ -367,28 +426,28 @@ function reviewQueueRejectionPayload(task) {
   };
 }
 
-function startPollingWatch(roots, regenerate) {
+function startPollingWatch(roots: string | string[], regenerate: () => void): ReturnType<typeof setInterval> {
   let lastMtime = latestTreeMtime(roots);
-  let timer = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   return setInterval(() => {
     const nextMtime = latestTreeMtime(roots);
     if (nextMtime <= lastMtime) return;
     lastMtime = nextMtime;
-    clearTimeout(timer);
+    if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       try {
         regenerate();
       } catch (error) {
-        console.error(`dashboard regeneration failed: ${error.message}`);
+        console.error(`dashboard regeneration failed: ${errorMessage(error)}`);
       }
     }, 250);
   }, 1000);
 }
 
-function latestTreeMtime(roots) {
+function latestTreeMtime(roots: string | string[]): number {
   let latest = 0;
   const watchRoots = Array.isArray(roots) ? roots : [roots];
-  const visit = (dir) => {
+  const visit = (dir: string) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if ([".git", "node_modules", "tmp"].includes(entry.name)) continue;
       const fullPath = path.join(dir, entry.name);
@@ -403,7 +462,7 @@ function latestTreeMtime(roots) {
   return latest;
 }
 
-function openBrowser(url) {
+function openBrowser(url: string): void {
   const command =
     process.platform === "darwin" ? "open" :
     process.platform === "win32" ? "cmd" :
@@ -414,18 +473,18 @@ function openBrowser(url) {
   child.unref();
 }
 
-function assertTrustedWorkbenchRequest(request, { origin, csrfToken }) {
+function assertTrustedWorkbenchRequest(request: IncomingMessage, { origin, csrfToken }: { origin: string; csrfToken: string }): void {
   const host = request.headers.host || "";
   if (host !== origin.replace(/^http:\/\//, "")) throw new Error("Host mismatch");
   if (request.headers.origin !== origin) throw new Error("Origin mismatch");
   if (request.headers["x-harness-csrf"] !== csrfToken) throw new Error("CSRF token mismatch");
 }
 
-function readJsonBody(request) {
+function readJsonBody(request: IncomingMessage): Promise<WorkbenchBody> {
   return new Promise((resolve, reject) => {
     let raw = "";
     request.setEncoding("utf8");
-    request.on("data", (chunk) => {
+    request.on("data", (chunk: string) => {
       raw += chunk;
       if (raw.length > 32_768) {
         reject(new Error("Request body too large"));
@@ -434,7 +493,7 @@ function readJsonBody(request) {
     });
     request.on("end", () => {
       try {
-        resolve(raw ? JSON.parse(raw) : {});
+        resolve(raw ? JSON.parse(raw) as WorkbenchBody : {});
       } catch {
         reject(new Error("Invalid JSON body"));
       }
@@ -443,7 +502,7 @@ function readJsonBody(request) {
   });
 }
 
-function serveStaticFile(response, outputDir, urlPath, headOnly) {
+function serveStaticFile(response: ServerResponse, outputDir: string, urlPath: string, headOnly: boolean): void {
   const decoded = decodeURIComponent(urlPath);
   const relative = decoded === "/" ? "index.html" : decoded.replace(/^\/+/, "");
   const filePath = path.resolve(outputDir, relative);
@@ -456,20 +515,34 @@ function serveStaticFile(response, outputDir, urlPath, headOnly) {
   else response.end();
 }
 
-function writeJson(response, status, payload) {
+function writeJson(response: ServerResponse, status: number, payload: JsonPayload): void {
   response.writeHead(status, jsonHeaders);
   response.end(`${JSON.stringify(payload)}\n`);
 }
 
-function errorPayload(error) {
-  const payload = { error: error.message };
-  if (error.code) payload.code = error.code;
-  if (Array.isArray(error.recovery) && error.recovery.length > 0) payload.recovery = error.recovery;
-  if (error.details) payload.details = error.details;
+function errorPayload(error: unknown): JsonPayload {
+  const source = isRecord(error) ? error : {};
+  const payload: JsonPayload = { error: errorMessage(error) };
+  if (source.code) payload.code = source.code;
+  if (Array.isArray(source.recovery) && source.recovery.length > 0) payload.recovery = source.recovery;
+  if (source.details) payload.details = source.details;
   return payload;
 }
 
-function mimeType(filePath) {
+function errorStatus(error: unknown, fallback = 400): number {
+  const source = isRecord(error) ? error : {};
+  return typeof source.status === "number" ? source.status : fallback;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error || "unknown error");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function mimeType(filePath: string): string {
   if (filePath.endsWith(".html")) return "text/html; charset=utf-8";
   if (filePath.endsWith(".js")) return "text/javascript; charset=utf-8";
   if (filePath.endsWith(".css")) return "text/css; charset=utf-8";
@@ -478,7 +551,7 @@ function mimeType(filePath) {
   return "application/octet-stream";
 }
 
-function isPathInside(candidate, parent) {
+function isPathInside(candidate: string, parent: string): boolean {
   const relative = path.relative(path.resolve(parent), path.resolve(candidate));
   return !relative.startsWith("..") && !path.isAbsolute(relative);
 }
