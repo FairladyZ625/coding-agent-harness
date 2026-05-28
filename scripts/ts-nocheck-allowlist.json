@@ -1,8 +1,4 @@
 {
   "generated_at": "2026-05-28",
-  "files": [
-    "scripts/lib/task-audit-metadata.mts",
-    "scripts/lib/task-audit-migration.mts",
-    "scripts/lib/task-lesson-sedimentation.mts"
-  ]
+  "files": []
 }
