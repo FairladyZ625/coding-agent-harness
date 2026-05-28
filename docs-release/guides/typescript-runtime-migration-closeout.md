@@ -1,25 +1,26 @@
 # TypeScript Runtime Migration Closeout
 
 This closeout records the public package rule after the progressive JavaScript to
-TypeScript runtime migration. The package now executes committed
-`dist/**/*.mjs` artifacts, while `scripts/**/*.mts` and `tests/**/*.mts` are the
-source ownership surfaces. Historical checked-in `scripts/**/*.mjs` and
-`tests/**/*.mjs` shims have been removed after the dist observation gates passed.
+TypeScript runtime migration. The package executes generated `dist/**/*.mjs`
+artifacts, while `scripts/**/*.mts` and `tests/**/*.mts` are the source ownership
+surfaces. Historical checked-in `scripts/**/*.mjs` and `tests/**/*.mjs` shims
+have been removed after the dist observation gates passed.
 
 ## Current State
 
 All Node runtime and test sources under `scripts/` and `tests/` are now
 TypeScript-first:
 
-- `scripts/**/*.mts` builds to committed `dist/**/*.mjs` artifacts.
+- `scripts/**/*.mts` builds to generated `dist/**/*.mjs` artifacts.
 - `tests/**/*.mts` runs through the built test runner.
-- `dist/**/*.mjs` is the package runtime surface for npm bin, npm scripts, and
-  postinstall.
+- `dist/**/*.mjs` is the package runtime surface for npm bin and installed
+  execution. Source checkout npm scripts refresh it before running.
 - `scripts/**/*.mjs` and `tests/**/*.mjs` have a final inventory of zero.
 
-The npm package publishes `dist/` and no longer publishes `scripts/` or `tests/`.
-This keeps installed execution independent from TypeScript source files and from
-the deleted historical shims.
+The source repository ignores `dist/`, but the npm package publishes generated
+`dist/` and no longer publishes `scripts/` or `tests/`. This keeps installed
+execution independent from TypeScript source files and from the deleted
+historical shims.
 
 ## Final Closeout Evidence
 
@@ -42,12 +43,15 @@ dashboard exceptions below.
 ## Runtime Contract
 
 The package is an ESM package and its current public runtime contract points at
-the committed dist build output:
+generated dist build output:
 
 - `package.json` maps the `harness` executable to `dist/harness.mjs`.
-- npm postinstall runs `dist/postinstall.mjs`.
+- npm postinstall runs the source-safe `postinstall.mjs` bootstrap, which
+  delegates to `dist/postinstall.mjs` after generating `dist/` in a source
+  checkout.
 - npm helper scripts such as `check`, `status`, and dashboard generation run
-  through `dist/harness.mjs`.
+  through `run-dist.mjs`, which refreshes `dist/` in a source checkout and then
+  runs the relevant dist entrypoint.
 - Runtime modules import sibling `.mjs` files inside `dist/`, so installed
   package execution does not depend on TypeScript loaders.
 

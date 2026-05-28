@@ -30,16 +30,17 @@ export function checkDistObservation({
 
   expectEqual(failures, "package-bin-not-dist", pkg.bin?.harness, "dist/harness.mjs", "package bin.harness must resolve to dist/harness.mjs");
   const distRuntimeScripts = {
-    check: "node dist/harness.mjs check --profile source-package .",
-    "check:private": "node dist/harness.mjs check --profile private-harness .harness-private",
-    status: "node dist/harness.mjs status --json .",
-    dashboard: "node dist/harness.mjs dashboard --out tmp/harness-dashboard.html examples/minimal-project",
-    "dashboard:folder": "node dist/harness.mjs dashboard --out-dir tmp/harness-dashboard examples/minimal-project",
-    postinstall: "node dist/postinstall.mjs",
-    "observe:dist": "node dist/check-dist-observation.mjs --skip-pack --skip-install-smoke",
+    check: ["run-dist.mjs", "harness.mjs", "check", "--profile", "source-package"],
+    "check:private": ["run-dist.mjs", "harness.mjs", "check", "--profile", "private-harness"],
+    status: ["run-dist.mjs", "harness.mjs", "status", "--json"],
+    dashboard: ["run-dist.mjs", "harness.mjs", "dashboard", "--out"],
+    "dashboard:folder": ["run-dist.mjs", "harness.mjs", "dashboard", "--out-dir"],
+    postinstall: ["postinstall.mjs"],
+    prepare: ["postinstall.mjs", "--build-only"],
+    "observe:dist": ["run-dist.mjs", "check-dist-observation.mjs", "--skip-pack", "--skip-install-smoke"],
   };
-  for (const [name, expected] of Object.entries(distRuntimeScripts)) {
-    expectEqual(failures, `package-script-${name}-not-dist`, pkg.scripts?.[name], expected, `package script ${name} must run from dist`);
+  for (const [name, tokens] of Object.entries(distRuntimeScripts)) {
+    expectScriptIncludes(failures, `package-script-${name}-not-source-safe-dist`, pkg.scripts?.[name], tokens, `package script ${name} must run through the source-safe dist bootstrap`);
   }
 
   observations.packageRuntime = {
@@ -67,13 +68,15 @@ export function checkDistObservation({
         hasDistHarness: packed.includes("dist/harness.mjs"),
         hasDistPostinstall: packed.includes("dist/postinstall.mjs"),
         hasDistObservationGate: packed.includes("dist/check-dist-observation.mjs"),
+        hasPostinstallBootstrap: packed.includes("postinstall.mjs"),
+        hasRunDistBootstrap: packed.includes("run-dist.mjs"),
         hasScriptsHarness: packed.includes("scripts/harness.mjs"),
         hasScripts: packed.some((file) => file.startsWith("scripts/")),
         hasTests: packed.some((file) => file.startsWith("tests/")),
         distHarnessMode,
         distHarnessExecutable: typeof distHarnessMode === "number" && Boolean(distHarnessMode & 0o111),
       };
-      for (const required of ["dist/harness.mjs", "dist/postinstall.mjs", "dist/check-dist-observation.mjs"]) {
+      for (const required of ["postinstall.mjs", "run-dist.mjs", "dist/harness.mjs", "dist/postinstall.mjs", "dist/check-dist-observation.mjs"]) {
         if (!packed.includes(required)) failures.push({ code: "packed-file-missing", file: required, message: `package missing ${required}` });
       }
       if (!observations.package.distHarnessExecutable) {
@@ -259,15 +262,15 @@ function runInstalledPackageSmoke(root, failures, observations) {
   };
 
   expectEqual(failures, "installed-bin-not-dist", pkg.bin?.harness, "dist/harness.mjs", "installed package bin.harness must resolve to dist/harness.mjs");
-  expectEqual(failures, "installed-postinstall-not-dist", pkg.scripts?.postinstall, "node dist/postinstall.mjs", "installed package postinstall must resolve to dist/postinstall.mjs");
-  expectEqual(failures, "installed-observe-dist-not-dist", pkg.scripts?.["observe:dist"], "node dist/check-dist-observation.mjs --skip-pack --skip-install-smoke", "installed observe:dist must resolve to dist/check-dist-observation.mjs");
+  expectScriptIncludes(failures, "installed-postinstall-not-source-safe", pkg.scripts?.postinstall, ["postinstall.mjs"], "installed package postinstall must use the source-safe bootstrap");
+  expectScriptIncludes(failures, "installed-observe-dist-not-source-safe", pkg.scripts?.["observe:dist"], ["run-dist.mjs", "check-dist-observation.mjs"], "installed observe:dist must use the source-safe dist bootstrap");
   if (!binTarget.includes("dist/harness.mjs")) {
     failures.push({ code: "installed-bin-link-not-dist", message: `installed bin link does not target dist/harness.mjs: ${binTarget}` });
   }
   if (!observations.installSmoke.binExecutable) {
     failures.push({ code: "installed-bin-not-executable", file: "dist/harness.mjs", mode: installedBinMode, message: "installed package bin dist/harness.mjs must be executable" });
   }
-  for (const relative of ["dist/harness.mjs", "dist/postinstall.mjs", "dist/check-dist-observation.mjs"]) {
+  for (const relative of ["postinstall.mjs", "run-dist.mjs", "dist/harness.mjs", "dist/postinstall.mjs", "dist/check-dist-observation.mjs"]) {
     if (!fs.existsSync(path.join(packageRoot, relative))) failures.push({ code: "installed-file-missing", file: relative, message: `installed package missing ${relative}` });
   }
   if (observations.installSmoke.hasTests) failures.push({ code: "installed-package-includes-tests", message: "installed package must not include tests/**" });
@@ -289,6 +292,14 @@ function runInstalledPackageSmoke(root, failures, observations) {
   });
   observations.installSmoke.steps.push({ id: "installed-dist-postinstall", status: postinstall.status });
   if (postinstall.status !== 0) failures.push({ code: "installed-postinstall-failed", message: `installed dist postinstall failed\nSTDOUT:\n${postinstall.stdout}\nSTDERR:\n${postinstall.stderr}` });
+
+  const postinstallBootstrap = spawnSync(node24, [path.join(packageRoot, "postinstall.mjs")], {
+    cwd: packageRoot,
+    encoding: "utf8",
+    env: { ...runtimeEnv, CODING_AGENT_HARNESS_SKIP_POSTINSTALL: "1" },
+  });
+  observations.installSmoke.steps.push({ id: "installed-postinstall-bootstrap", status: postinstallBootstrap.status });
+  if (postinstallBootstrap.status !== 0) failures.push({ code: "installed-postinstall-bootstrap-failed", message: `installed postinstall bootstrap failed\nSTDOUT:\n${postinstallBootstrap.stdout}\nSTDERR:\n${postinstallBootstrap.stderr}` });
 
   const installedObservation = spawnSync(
     node24,
@@ -381,6 +392,12 @@ function readJson(file, failures, code) {
 
 function expectEqual(failures, code, actual, expected, message) {
   if (actual !== expected) failures.push({ code, actual, expected, message });
+}
+
+function expectScriptIncludes(failures, code, script, tokens, message) {
+  if (typeof script !== "string" || tokens.some((token) => !script.includes(token)) || script.includes("scripts/")) {
+    failures.push({ code, actual: script, expectedTokens: tokens, message });
+  }
 }
 
 function parseImportSpecifiers(content) {

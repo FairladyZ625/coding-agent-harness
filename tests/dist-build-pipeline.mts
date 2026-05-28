@@ -69,12 +69,15 @@ assert(!buildSummary.files.includes("scripts/harness.mjs"), "dist build must not
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
 assert(packageJson.bin?.harness === "dist/harness.mjs", "package bin should run the dist harness entrypoint");
-assert(packageJson.scripts?.postinstall === "node dist/postinstall.mjs", "package postinstall should run the dist postinstall entrypoint");
-assert(packageJson.scripts?.check === "node dist/harness.mjs check --profile source-package .", "npm check should run through dist");
-assert(packageJson.files.includes("dist/"), "package allowlist should include committed dist artifacts");
+assert(packageJson.scripts?.postinstall === "node postinstall.mjs", "package postinstall should run the source-safe postinstall bootstrap");
+assert(packageJson.scripts?.prepare === "node postinstall.mjs --build-only", "package prepare should build dist for Git/source installs");
+assert(packageJson.scripts?.check === "node run-dist.mjs harness.mjs check --profile source-package .", "npm check should run through source-safe dist bootstrap");
+assert(packageJson.files.includes("dist/"), "package allowlist should include generated dist artifacts");
+assert(packageJson.files.includes("postinstall.mjs"), "package allowlist should include postinstall bootstrap");
+assert(packageJson.files.includes("run-dist.mjs"), "package allowlist should include npm script dist bootstrap");
 assert(!packageJson.files.includes("scripts/"), "package allowlist should not include historical scripts shims after PR-28");
 assert(packageJson.files.includes("tsconfig.dist.json"), "package allowlist should include the dist build config");
-assert(packageJson.scripts?.test === "node dist/run-built-tests.mjs", "test runner should execute built output from tests/**/*.mts");
+assert(packageJson.scripts?.test === "node run-dist.mjs run-built-tests.mjs", "test runner should execute built output from tests/**/*.mts through the bootstrap");
 
 const help = spawnSync(process.execPath, [path.join(distRoot, "harness.mjs"), "--help"], {
   cwd: repoRoot,
@@ -101,16 +104,10 @@ for (const file of collectFiles(distRoot).filter((entry) => entry.endsWith(".mjs
   assert(!/import\s*\(\s*["'][^"']+\.(ts|mts)["']/.test(content), `${path.relative(distRoot, file)} must not dynamically import TypeScript source files`);
 }
 
-for (const emittedFile of buildSummary.files) {
-  const committedPath = path.join(repoRoot, "dist", emittedFile);
-  assert(fs.existsSync(committedPath), `committed dist artifact missing: dist/${emittedFile}`);
-  assert(
-    fs.readFileSync(path.join(distRoot, emittedFile), "utf8") === fs.readFileSync(committedPath, "utf8"),
-    `committed dist artifact drift detected: dist/${emittedFile}`,
-  );
-}
-
-assert(readFile("dist/harness.mjs").startsWith("#!/usr/bin/env node"), "committed dist harness should retain executable shebang");
-assert((fs.statSync(path.join(repoRoot, "dist/harness.mjs")).mode & 0o111) !== 0, "committed dist harness should retain executable mode");
+const gitignore = readFile(".gitignore");
+assert(gitignore.includes("/dist/"), "generated dist/ should be ignored by git");
+const trackedDist = spawnSync("git", ["ls-files", "dist"], { cwd: repoRoot, encoding: "utf8" });
+assert(trackedDist.status === 0, `git ls-files dist should pass\nSTDOUT:\n${trackedDist.stdout}\nSTDERR:\n${trackedDist.stderr}`);
+assert(trackedDist.stdout.trim() === "", "generated dist artifacts should not be tracked by git");
 
 console.log("Dist build pipeline tests passed");

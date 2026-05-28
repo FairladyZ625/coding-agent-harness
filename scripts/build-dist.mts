@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const typescriptVersion = "5.9.3";
@@ -40,9 +40,13 @@ export function buildRuntimeDist({
 
   fs.rmSync(buildOutDir, { recursive: true, force: true });
 
+  const npmArgs = ["exec", "--yes", "--package", `typescript@${typescriptVersion}`, "--", "tsc", "-p", absoluteConfig, "--outDir", buildOutDir, "--noCheck"];
+  const npmExecPath = process.env.npm_execpath;
+  const command = npmExecPath ? process.execPath : process.platform === "win32" ? "npm.cmd" : "npm";
+  const commandArgs = npmExecPath ? [npmExecPath, ...npmArgs] : npmArgs;
   const emit = spawnSync(
-    "npm",
-    ["exec", "--yes", "--package", `typescript@${typescriptVersion}`, "--", "tsc", "-p", absoluteConfig, "--outDir", buildOutDir, "--noCheck"],
+    command,
+    commandArgs,
     {
       cwd: absoluteProjectRoot,
       encoding: "utf8",
@@ -52,7 +56,7 @@ export function buildRuntimeDist({
   if (emit.status !== 0) {
     return {
       ok: false,
-      error: `TypeScript dist build failed\nSTDOUT:\n${emit.stdout}\nSTDERR:\n${emit.stderr}`,
+      error: `TypeScript dist build failed${emit.error ? `\nERROR:\n${emit.error.message}` : ""}\nSTDOUT:\n${emit.stdout ?? ""}\nSTDERR:\n${emit.stderr ?? ""}`,
       status: emit.status,
     };
   }
@@ -196,7 +200,16 @@ function requireValue(argv, index, option) {
   return value;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  try {
+    return fs.realpathSync.native(fileURLToPath(import.meta.url)) === fs.realpathSync.native(process.argv[1]);
+  } catch {
+    return import.meta.url === pathToFileURL(process.argv[1]).href;
+  }
+}
+
+if (isMainModule()) {
   let options;
   try {
     options = parseArgs(process.argv.slice(2));

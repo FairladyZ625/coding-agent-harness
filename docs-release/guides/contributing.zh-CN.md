@@ -24,6 +24,10 @@ PR 尽量聚焦在一类改动上。文档、CLI 行为、目标项目模板、p
 npm install
 ```
 
+源码仓忽略 `dist/`。`npm install`、Git/source `prepare`、`prepack` 和根仓
+npm scripts 会按需重新生成它。npm 包仍然发布 `dist/`，并排除 `scripts/` 和
+`tests/`。
+
 如果改动涉及 GUI 子模块：
 
 ```bash
@@ -39,7 +43,7 @@ npm ci
 | --- | --- |
 | 仅文档 | `git diff --check` |
 | CLI / runtime | `npm test`, `npm run check`, `git diff --check` |
-| 模板或示例 | `npm test`, `node dist/harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
+| 模板或示例 | `npm test`, `npm run build:runtime`, `node dist/harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
 | Dashboard | `npm test`, `npm run smoke:dashboard`, `git diff --check` |
 | Package surface | `npm test`, `npm run pack:dry-run`, `git diff --check` |
 | GUI 子模块 | `cd harness-gui && npm ci && npm run typecheck && npm test && npm run build` |
@@ -47,6 +51,7 @@ npm ci
 完整根仓检查：
 
 ```bash
+npm run build:runtime
 npm test
 npm run smoke:dashboard
 npm run check

@@ -11,7 +11,7 @@ function assert(condition, message) {
 }
 
 const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
-assert(pkg.scripts.test === "node dist/run-built-tests.mjs", "npm test should use the built TS-source test runner");
+assert(pkg.scripts.test === "node run-dist.mjs run-built-tests.mjs", "npm test should use the source-safe built TS-source test runner");
 assert(!fs.existsSync(path.join(repoRoot, "tests/run-all.mjs")), "historical checked-in tests/run-all.mjs shim should be removed after PR-28");
 
 const mainHarness = fs.readFileSync(path.join(repoRoot, "tests/test-harness.mts"), "utf8");
