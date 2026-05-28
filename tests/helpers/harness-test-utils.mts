@@ -4,7 +4,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { spawnSync } from "node:child_process";
 import type { SpawnSyncOptionsWithStringEncoding, SpawnSyncReturns } from "node:child_process";
-import type { WorkbenchRuntime, ZipFixtureEntry } from "./harness-test-types.js";
+import type { HarnessTestLooseJson, WorkbenchRuntime, ZipFixtureEntry } from "./harness-test-types.js";
 
 type TestRunOptions = Omit<SpawnSyncOptionsWithStringEncoding, "encoding"> & {
   encoding?: BufferEncoding;
@@ -58,7 +58,7 @@ export function expectPass(args: string[], options: TestRunOptions = {}): SpawnS
   return result;
 }
 
-export function expectJson<TPayload = unknown>(args: string[], options: TestRunOptions = {}): TPayload {
+export function expectJson<TPayload = HarnessTestLooseJson>(args: string[], options: TestRunOptions = {}): TPayload {
   return JSON.parse(expectPass(args, options).stdout) as TPayload;
 }
 
@@ -144,13 +144,13 @@ export function runInTty(args: string[], options: TtyRunOptions = {}): SpawnSync
   });
 }
 
-export function expectTtyJson<TPayload = unknown>(args: string[], options: TtyRunOptions = {}): TPayload {
+export function expectTtyJson<TPayload = HarnessTestLooseJson>(args: string[], options: TtyRunOptions = {}): TPayload {
   const result = runInTty(args, options);
   assert(result.status === 0, `tty ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return parseJsonFromOutput<TPayload>(result.stdout);
 }
 
-export function parseJsonFromOutput<TPayload = unknown>(output: string): TPayload {
+export function parseJsonFromOutput<TPayload = HarnessTestLooseJson>(output: string): TPayload {
   const start = output.indexOf("{");
   const end = output.lastIndexOf("}");
   assert(start >= 0 && end > start, `output did not contain JSON\n${output}`);

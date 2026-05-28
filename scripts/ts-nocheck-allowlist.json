@@ -5,11 +5,6 @@
     "scripts/lib/task-audit-migration.mts",
     "scripts/lib/task-lesson-sedimentation.mts",
     "tests/lifecycle/lifecycle-queues.mts",
-    "tests/lifecycle/task-lifecycle.mts",
-    "tests/migration-adoption.mts",
-    "tests/preset-engine.mts",
-    "tests/release-closeout-preset.mts",
-    "tests/scripts/snapshot-matrix.mts",
-    "tests/test-harness.mts"
+    "tests/lifecycle/task-lifecycle.mts"
   ]
 }

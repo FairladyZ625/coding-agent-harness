@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
@@ -10,6 +9,27 @@ import {
   tmpRoot,
   todayLocal,
 } from "./helpers/harness-test-utils.mjs";
+
+type ReleaseFixtureOptions = {
+  title?: string;
+  state?: string;
+  tombstone?: string;
+  localPath?: string;
+  confirmedReview?: boolean;
+};
+
+type ReleaseTaskIndexTask = {
+  id: string;
+  state?: string;
+  archiveMetadata?: Record<string, string>;
+};
+
+type ReleaseTaskAggregate = {
+  selector?: { type: string };
+  summary: { totalTasks: number; doneTasks: number };
+  matched: ReleaseTaskIndexTask[];
+  excluded: Array<{ id: string; reason: string }>;
+};
 
 const home = path.join(tmpRoot, "release-closeout-home");
 const env = { ...process.env, HOME: home };
@@ -190,7 +210,7 @@ const directMutationResult = run(["preset", "run", "runner-direct-mutation", "pl
 assert(directMutationResult.status !== 0, "generic preset runner should reject scripts that mutate the target outside manifest materialization");
 assert(`${directMutationResult.stdout}\n${directMutationResult.stderr}`.includes("Preset script mutated target before materialization"), "direct target mutation failure should explain the audit failure");
 
-function writeTaskFixture(slug, { title, state = "done", tombstone = "", localPath = "", confirmedReview = false } = {}) {
+function writeTaskFixture(slug: string, { title, state = "done", tombstone = "", localPath = "", confirmedReview = false }: ReleaseFixtureOptions = {}): string {
   const taskDir = path.join(target, "coding-agent-harness/planning/tasks", slug);
   fs.mkdirSync(taskDir, { recursive: true });
   fs.writeFileSync(path.join(taskDir, "task_plan.md"), `# ${title || slug}
@@ -261,6 +281,7 @@ for (let index = 0; index < 105; index += 1) {
 
 const taskIndex = expectJson(["task-index", "--json", target], { env });
 const genericArchivedTask = taskIndex.tasks.find((task) => task.id.endsWith("release-done-path"));
+assert(genericArchivedTask, "task index should include release-done-path fixture");
 assert(genericArchivedTask.archiveMetadata?.["retention bucket"] === "release-1.0.5", "task index should expose generic tombstone metadata without release-specific fields");
 const blockedArchive = run(["task-archive", "release-blocked", "--reason", "should not archive", target], { env });
 assert(blockedArchive.status !== 0, "generic task-archive should reject blocked tasks");
@@ -277,6 +298,7 @@ assert(`${missingArchivedBy.stdout}\n${missingArchivedBy.stderr}`.includes("task
 expectJson(["task-archive", "release-done-path", "--reason", "release closeout", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "retention bucket=release:1.0.5", "--archive-field", "release package=coding-agent-harness/governance/releases/1.0.5/INDEX.md", target], { env });
 const taskIndexWithArchiveFields = expectJson(["task-index", "--json", target], { env });
 const releaseArchivedTask = taskIndexWithArchiveFields.tasks.find((task) => task.id.endsWith("release-done-path"));
+assert(releaseArchivedTask, "task index should include archived release-done-path fixture");
 assert(releaseArchivedTask.archiveMetadata?.["retention bucket"] === "release:1.0.5", "task index should read generic archive-field retention metadata");
 assert(releaseArchivedTask.archiveMetadata?.["release package"] === "coding-agent-harness/governance/releases/1.0.5/INDEX.md", "task index should read generic archive-field package metadata");
 assert(releaseArchivedTask.archiveMetadata?.["archived by"] === "Release Manager <release@example.invalid>", "task index should expose the accountable archive actor");
@@ -308,7 +330,7 @@ const releaseIndex = fs.readFileSync(path.join(releaseRoot, "INDEX.md"), "utf8")
 const archivePlan = fs.readFileSync(path.join(releaseRoot, "task-archive-plan.md"), "utf8");
 const publicSummary = fs.readFileSync(path.join(releaseRoot, "public-summary.md"), "utf8");
 const publicRedactionReport = JSON.parse(fs.readFileSync(path.join(releaseRoot, "public-redaction-report.json"), "utf8"));
-const aggregate = JSON.parse(fs.readFileSync(path.join(releaseRoot, "task-aggregate.json"), "utf8"));
+const aggregate = JSON.parse(fs.readFileSync(path.join(releaseRoot, "task-aggregate.json"), "utf8")) as ReleaseTaskAggregate;
 assert(releaseIndex.includes("Release Closeout Package") && releaseIndex.includes("1.0.5"), "release package should include a version index");
 assert(aggregate.selector?.type === "task-list", "task-list release aggregation should record selector type");
 assert(aggregate.summary.totalTasks === 2, "task-list release aggregation should include only the selected tasks");
@@ -328,7 +350,7 @@ assert(publicRedactionReport.status === "pass", "release preset should emit a pu
 expectJson(["new-task", "release-closeout-query", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.6", "--task-query", `date:${todayLocal}..${todayLocal} state:done`, target], { env });
 expectJson(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-query", "--json", target], { env });
 const queryReleaseRoot = path.join(target, "coding-agent-harness/governance/releases/1.0.6");
-const queryAggregate = JSON.parse(fs.readFileSync(path.join(queryReleaseRoot, "task-aggregate.json"), "utf8"));
+const queryAggregate = JSON.parse(fs.readFileSync(path.join(queryReleaseRoot, "task-aggregate.json"), "utf8")) as ReleaseTaskAggregate;
 const queryArchivePlan = fs.readFileSync(path.join(queryReleaseRoot, "task-archive-plan.md"), "utf8");
 assert(queryAggregate.selector?.type === "task-query", "task-query release aggregation should record selector type");
 assert(queryAggregate.summary.totalTasks >= 106 && queryAggregate.summary.doneTasks >= 106, "task-query release aggregation should handle large selected task sets");

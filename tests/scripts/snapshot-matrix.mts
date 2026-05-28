@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
@@ -8,6 +7,59 @@ import { fileURLToPath } from "node:url";
 
 const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const harnessScript = "dist/harness.mjs";
+
+type SnapshotCommand = {
+  id: string;
+  args: string[];
+};
+
+type SnapshotCapture = {
+  id: string;
+  command: string;
+  exitCode: number;
+  signal: string | null;
+  durationMs: number | string;
+  stdout: unknown;
+  stderr: unknown;
+};
+
+type SnapshotMatrix = {
+  schemaVersion: number;
+  label: string;
+  generatedAt: string;
+  repoRoot: string;
+  commands: SnapshotCommand[];
+  captures: Record<string, SnapshotCapture>;
+};
+
+type SnapshotOptions = {
+  repoRoot?: string;
+  outDir?: string;
+  label?: string;
+  commands?: SnapshotCommand[];
+};
+
+type SnapshotContext = {
+  repoRoot: string;
+};
+
+type SnapshotDrift = {
+  code: string;
+  command?: string;
+  before?: unknown;
+  after?: unknown;
+};
+
+type ParsedArgs = {
+  command?: string;
+  options: {
+    outDir?: string;
+    label?: string;
+    beforeDir?: string;
+    afterDir?: string;
+    out?: string;
+  };
+};
 
 export const snapshotCommands = [
   { id: "status", args: ["status", "--json", "."] },
@@ -18,14 +70,14 @@ export const snapshotCommands = [
   { id: "migrate-plan", args: ["migrate-plan", "--json", "--limit", "20", "examples/minimal-project"] },
 ];
 
-export function captureSnapshotMatrix({ repoRoot = defaultRepoRoot, outDir, label = "snapshot", commands = snapshotCommands } = {}) {
+export function captureSnapshotMatrix({ repoRoot = defaultRepoRoot, outDir, label = "snapshot", commands = snapshotCommands }: SnapshotOptions = {}): SnapshotMatrix {
   const matrix = {
     schemaVersion: 1,
     label,
     generatedAt: new Date().toISOString(),
     repoRoot,
     commands: commands.map((command) => ({ id: command.id, args: command.args })),
-    captures: {},
+    captures: {} as Record<string, SnapshotCapture>,
   };
 
   for (const command of commands) {
@@ -51,7 +103,7 @@ export function captureSnapshotMatrix({ repoRoot = defaultRepoRoot, outDir, labe
   return matrix;
 }
 
-export function writeSnapshotMatrix(matrix, { repoRoot = defaultRepoRoot, outDir }) {
+export function writeSnapshotMatrix(matrix: SnapshotMatrix, { repoRoot = defaultRepoRoot, outDir }: { repoRoot?: string; outDir: string }): SnapshotMatrix {
   fs.mkdirSync(outDir, { recursive: true });
   const normalized = normalizeSnapshotMatrix(matrix, { repoRoot });
   fs.writeFileSync(path.join(outDir, "matrix.raw.json"), `${JSON.stringify(matrix, null, 2)}\n`);
@@ -62,12 +114,12 @@ export function writeSnapshotMatrix(matrix, { repoRoot = defaultRepoRoot, outDir
   return normalized;
 }
 
-export function normalizeSnapshotMatrix(matrix, { repoRoot = defaultRepoRoot } = {}) {
-  return normalizeValue(matrix, { repoRoot });
+export function normalizeSnapshotMatrix(matrix: SnapshotMatrix, { repoRoot = defaultRepoRoot }: { repoRoot?: string } = {}): SnapshotMatrix {
+  return normalizeValue(matrix, { repoRoot }) as SnapshotMatrix;
 }
 
-export function compareSnapshotMatrices(before, after) {
-  const drifts = [];
+export function compareSnapshotMatrices(before: SnapshotMatrix, after: SnapshotMatrix): { ok: boolean; drifts: SnapshotDrift[]; markdown: string } {
+  const drifts: SnapshotDrift[] = [];
   const commandIds = [...new Set([...Object.keys(before.captures || {}), ...Object.keys(after.captures || {})])].sort();
 
   for (const id of commandIds) {
@@ -109,7 +161,13 @@ export function compareSnapshotMatrices(before, after) {
   return { ok: drifts.length === 0, drifts, markdown };
 }
 
-export function runSnapshotSelfTest({ repoRoot = defaultRepoRoot, outDir = path.join(repoRoot, "tmp", "snapshot-matrix-self-test") } = {}) {
+export function runSnapshotSelfTest({ repoRoot = defaultRepoRoot, outDir = path.join(repoRoot, "tmp", "snapshot-matrix-self-test") }: { repoRoot?: string; outDir?: string } = {}): {
+  ok: boolean;
+  before: SnapshotMatrix;
+  after: SnapshotMatrix;
+  diff: { ok: boolean; drifts: SnapshotDrift[]; markdown: string };
+  outDir: string;
+} {
   const beforeDir = path.join(outDir, "before");
   const afterDir = path.join(outDir, "after");
   const before = normalizeSnapshotMatrix(captureSnapshotMatrix({ repoRoot, outDir: beforeDir, label: "before" }), { repoRoot });
@@ -120,7 +178,7 @@ export function runSnapshotSelfTest({ repoRoot = defaultRepoRoot, outDir = path.
   return { ok: diff.ok, before, after, diff, outDir };
 }
 
-function parseJsonOrText(value) {
+function parseJsonOrText(value: string): unknown {
   const trimmed = String(value || "").trim();
   if (!trimmed) return "";
   try {
@@ -130,11 +188,11 @@ function parseJsonOrText(value) {
   }
 }
 
-function normalizeValue(value, context) {
+function normalizeValue(value: unknown, context: SnapshotContext): unknown {
   if (Array.isArray(value)) return value.map((entry) => normalizeValue(entry, context));
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => {
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => {
         if (isTimestampKey(key)) return [key, "<timestamp>"];
         if (isDurationKey(key)) return [key, "<duration>"];
         return [key, normalizeValue(entry, context)];
@@ -145,7 +203,7 @@ function normalizeValue(value, context) {
   return normalizeString(value, context);
 }
 
-function normalizeString(value, { repoRoot }) {
+function normalizeString(value: string, { repoRoot }: SnapshotContext): string {
   let normalized = value;
   if (repoRoot) normalized = replaceAll(normalized, repoRoot, "<repo>");
   normalized = normalized.replace(/\/private\/var\/folders\/[^\s"',)]+|\/var\/folders\/[^\s"',)]+|\/tmp\/[^\s"',)]+/g, "<tmp>");
@@ -153,43 +211,43 @@ function normalizeString(value, { repoRoot }) {
   return normalized;
 }
 
-function replaceAll(value, search, replacement) {
+function replaceAll(value: string, search: string, replacement: string): string {
   return search ? value.split(search).join(replacement) : value;
 }
 
-function isTimestampKey(key) {
+function isTimestampKey(key: string): boolean {
   return /(?:^|_|\b)(generatedAt|createdAt|updatedAt|startedAt|completedAt|timestamp|date)(?:$|_|\b)/i.test(key);
 }
 
-function isDurationKey(key) {
+function isDurationKey(key: string): boolean {
   return /duration|elapsed/i.test(key);
 }
 
-function shapeOf(value) {
+function shapeOf(value: unknown): string {
   if (Array.isArray(value)) {
     const childShapes = [...new Set(value.map((entry) => shapeOf(entry)))].sort();
     return `[${childShapes.join("|")}]`;
   }
   if (value && typeof value === "object") {
-    return `{${Object.keys(value)
+    return `{${Object.keys(value as Record<string, unknown>)
       .sort()
-      .map((key) => `${key}:${shapeOf(value[key])}`)
+      .map((key) => `${key}:${shapeOf((value as Record<string, unknown>)[key])}`)
       .join(",")}}`;
   }
   return typeof value;
 }
 
-function compareMetric(drifts, command, code, before, after) {
+function compareMetric(drifts: SnapshotDrift[], command: string, code: string, before: unknown, after: unknown): void {
   if (before === undefined || after === undefined || before === after) return;
   drifts.push({ code, command, before, after });
 }
 
-function compareTextOutput(drifts, command, stream, before, after) {
+function compareTextOutput(drifts: SnapshotDrift[], command: string, stream: string, before: unknown, after: unknown): void {
   if (typeof before !== "string" || typeof after !== "string" || before === after) return;
   drifts.push({ code: `${stream}-text`, command, before, after });
 }
 
-function compareMigrationPlanMetrics(drifts, command, before, after) {
+function compareMigrationPlanMetrics(drifts: SnapshotDrift[], command: string, before: unknown, after: unknown): void {
   const left = collectMigrationPlanMetrics(before);
   const right = collectMigrationPlanMetrics(after);
   for (const key of [...new Set([...Object.keys(left), ...Object.keys(right)])].sort()) {
@@ -197,28 +255,29 @@ function compareMigrationPlanMetrics(drifts, command, before, after) {
   }
 }
 
-function collectMigrationPlanMetrics(value) {
+function collectMigrationPlanMetrics(value: unknown): Record<string, number> {
   if (!value || typeof value !== "object") return {};
-  const summary = value.summary && typeof value.summary === "object" ? value.summary : {};
+  const record = value as Record<string, unknown>;
+  const summary = record.summary && typeof record.summary === "object" ? (record.summary as Record<string, unknown>) : {};
   return Object.fromEntries(
     [
-      ["migration-task-actions", countMetricValue(summary.taskActions) ?? countMetricValue(value.taskActions)],
-      ["migration-visual-map-actions", countMetricValue(summary.visualMapActions) ?? countMetricValue(value.visualMapActions)],
-      ["migration-legacy-actions", countMetricValue(summary.legacyReferenceGaps) ?? countMetricValue(summary.legacyActions) ?? countMetricValue(value.legacyActions)],
-      ["migration-legacy-residuals", countMetricValue(summary.legacyResiduals) ?? countMetricValue(value.legacyResiduals)],
+      ["migration-task-actions", countMetricValue(summary.taskActions) ?? countMetricValue(record.taskActions)],
+      ["migration-visual-map-actions", countMetricValue(summary.visualMapActions) ?? countMetricValue(record.visualMapActions)],
+      ["migration-legacy-actions", countMetricValue(summary.legacyReferenceGaps) ?? countMetricValue(summary.legacyActions) ?? countMetricValue(record.legacyActions)],
+      ["migration-legacy-residuals", countMetricValue(summary.legacyResiduals) ?? countMetricValue(record.legacyResiduals)],
     ].filter(([, count]) => count !== undefined),
   );
 }
 
-function countMetricValue(value) {
+function countMetricValue(value: unknown): number | undefined {
   if (Array.isArray(value)) return value.length;
   if (typeof value === "number") return value;
   if (value && typeof value === "object") return Object.keys(value).length;
   return undefined;
 }
 
-function countTasks(value) {
-  const taskArrays = [];
+function countTasks(value: unknown): number | undefined {
+  const taskArrays: number[] = [];
   walkValue(value, (entry, key) => {
     if (key === "tasks" && Array.isArray(entry)) taskArrays.push(entry.length);
   });
@@ -226,8 +285,8 @@ function countTasks(value) {
   return taskArrays.reduce((sum, count) => sum + count, 0);
 }
 
-function countNamedMetric(value, names) {
-  const counts = [];
+function countNamedMetric(value: unknown, names: string[]): number | undefined {
+  const counts: number[] = [];
   const nameSet = new Set(names);
   walkValue(value, (entry, key) => {
     if (!nameSet.has(key)) return;
@@ -239,27 +298,27 @@ function countNamedMetric(value, names) {
   return counts.reduce((sum, count) => sum + count, 0);
 }
 
-function collectPresetIds(value) {
-  const ids = new Set();
+function collectPresetIds(value: unknown): string[] | undefined {
+  const ids = new Set<string>();
   walkValue(value, (entry, key) => {
     if (key !== "presets" || !Array.isArray(entry)) return;
     for (const preset of entry) {
-      if (preset && typeof preset === "object" && typeof preset.id === "string") ids.add(preset.id);
+      if (preset && typeof preset === "object" && typeof (preset as Record<string, unknown>).id === "string") ids.add((preset as Record<string, string>).id);
     }
   });
   return ids.size === 0 ? undefined : [...ids].sort();
 }
 
-function walkValue(value, visit, key = "") {
+function walkValue(value: unknown, visit: (entry: unknown, key: string) => void, key = ""): void {
   visit(value, key);
   if (Array.isArray(value)) {
     value.forEach((entry, index) => walkValue(entry, visit, String(index)));
   } else if (value && typeof value === "object") {
-    for (const [childKey, childValue] of Object.entries(value)) walkValue(childValue, visit, childKey);
+    for (const [childKey, childValue] of Object.entries(value as Record<string, unknown>)) walkValue(childValue, visit, childKey);
   }
 }
 
-function renderDiffMarkdown(drifts) {
+function renderDiffMarkdown(drifts: SnapshotDrift[]): string {
   const lines = ["# Snapshot Matrix Diff", ""];
   if (drifts.length === 0) {
     lines.push("No blocking drift detected.", "");
@@ -273,15 +332,15 @@ function renderDiffMarkdown(drifts) {
   return lines.join("\n");
 }
 
-function markdownCell(value) {
+function markdownCell(value: unknown): string {
   return String(JSON.stringify(value) ?? "")
     .replace(/\|/g, "\\|")
     .replace(/\n/g, "<br>");
 }
 
-function parseArgs(argv) {
+function parseArgs(argv: string[]): ParsedArgs {
   const [command, ...rest] = argv;
-  const options = {};
+  const options: ParsedArgs["options"] = {};
   for (let index = 0; index < rest.length; index += 1) {
     const arg = rest[index];
     if (arg === "--out-dir") options.outDir = rest[++index];

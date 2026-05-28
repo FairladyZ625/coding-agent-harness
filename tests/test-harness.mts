@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
@@ -19,11 +18,11 @@ import {
 
 const { taskMigrationClassification, requiresCanonicalVisualMap } = await import("../scripts/lib/harness-core.mjs");
 
-function readHarnessManifestText(target) {
+function readHarnessManifestText(target: string): string {
   return fs.readFileSync(path.join(target, "coding-agent-harness/harness.yaml"), "utf8");
 }
 
-function manifestHasCapability(target, capability) {
+function manifestHasCapability(target: string, capability: string): boolean {
   return new RegExp(`^\\s*-\\s*${capability}\\s*$`, "m").test(readHarnessManifestText(target));
 }
 

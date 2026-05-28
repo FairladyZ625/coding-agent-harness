@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
@@ -10,6 +9,11 @@ import {
   run,
   tmpRoot,
 } from "./helpers/harness-test-utils.mjs";
+
+type DashboardStatusJson = {
+  tasks: Array<{ id?: string; path: string }>;
+  checkState: { details: { warnings: string[] } };
+};
 
 const legacyPhaseTableTarget = path.join(tmpRoot, "legacy-phase-table");
 fs.mkdirSync(path.join(legacyPhaseTableTarget, "docs/09-PLANNING/TASKS/table-active"), { recursive: true });
@@ -142,7 +146,7 @@ assert(!migratedStatus.checkState.details.warnings.some((warning) => /legacy che
 assert(!migratedStatus.checkState.details.warnings.some((warning) => warning.includes("Archived Review")), "v2 migrated target should not validate archived review files");
 const dashboardDir = path.join(tmpRoot, "structure-migration-dashboard");
 expectPass(["dashboard", "--out-dir", dashboardDir, migrationTarget]);
-const dashboardStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8"));
+const dashboardStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8")) as DashboardStatusJson;
 assert(dashboardStatus.tasks.some((task) => task.path === "TARGET:coding-agent-harness/planning/tasks/old"), "dashboard should display migrated v2 task");
 assert(dashboardStatus.tasks.some((task) => task.path === "TARGET:coding-agent-harness/planning/modules/auth/tasks/auth-old"), "dashboard should display migrated v2 module task");
 assert(!dashboardStatus.checkState.details.warnings.some((warning) => /legacy check failed/i.test(warning)), "v2 migrated dashboard should not run the legacy checker");
