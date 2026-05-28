@@ -23,7 +23,6 @@
     "scripts/lib/preset-engine.mts",
     "scripts/lib/preset-registry.mts",
     "scripts/lib/preset-runner.mts",
-    "scripts/lib/status-builder.mts",
     "scripts/lib/structure-migration.mts",
     "scripts/lib/subagent-authorization-audit.mts",
     "scripts/lib/task-audit-metadata.mts",

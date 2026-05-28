@@ -1,21 +1,133 @@
-// @ts-nocheck
 import path from "node:path";
 import { normalizeTarget, toPosix } from "./core-shared.mjs";
 import { capabilityDefinitions, readCapabilityRegistry } from "./capability-registry.mjs";
 import { summarizeGitState } from "./git-status-summary.mjs";
 import { collectTasks, taskCutoverCounters } from "./task-scanner.mjs";
 
-export function buildStatusData(targetInput, options = {}) {
-  const target = targetInput?.projectRoot ? targetInput : normalizeTarget(targetInput);
+type HarnessTarget = {
+  projectRoot: string;
+  docsOnly: boolean;
+  docsRoot: string;
+};
+
+type StatusTask = {
+  [key: string]: unknown;
+  aliases?: string[];
+  briefPath?: string;
+  briefSource?: string;
+  closeoutStatus?: string;
+  completion?: number;
+  currentPath?: string;
+  deletionState?: string;
+  documentRefs?: unknown[];
+  evidenceBundle?: string;
+  executionStrategyPath?: string;
+  findingsPath?: string;
+  handoffs?: unknown[];
+  hiddenByDefault?: boolean;
+  id?: string;
+  identitySource?: string;
+  inferredModule?: string;
+  lessonCandidateIssues?: unknown[];
+  lessonCandidatePath?: string;
+  lessonCandidateRows?: unknown[];
+  lessonCandidateStatus?: string;
+  lifecycleState?: string;
+  materialIssues?: StatusIssue[];
+  materialsReady?: boolean;
+  module?: string;
+  namespace?: string;
+  originalPath?: string;
+  packageRole?: string;
+  path?: string;
+  presetVersion?: string;
+  progressPath?: string;
+  queueReasons?: StatusIssue[];
+  repairPrompt?: string;
+  reviewPath?: string;
+  reviewStatus?: string;
+  reviewSubmitted?: boolean;
+  risks?: unknown[];
+  shortId?: string;
+  state?: string;
+  stateConflicts?: unknown[];
+  supersededBy?: string;
+  supersedes?: unknown[];
+  taskKind?: string;
+  taskKey?: string;
+  taskPlanPath?: string;
+  taskPreset?: string;
+  taskQueues?: unknown[];
+  taskRootKind?: string;
+  title?: string;
+  visualMapPath?: string;
+  visualMapSource?: string;
+  visualMapStatus?: string;
+  walkthroughPath?: string;
+};
+
+type StatusIssue = {
+  code?: string;
+  message?: string;
+  sourcePath?: string;
+};
+
+type CapabilityStatus = {
+  name: string;
+  state?: string;
+};
+
+type CapabilityRegistry = {
+  mode?: string;
+  capabilities: CapabilityStatus[];
+};
+
+type BuildStatusOptions = {
+  validationMode?: string;
+  gitState?: { summary: unknown };
+  capabilityState?: {
+    registry?: CapabilityRegistry;
+    detected?: string[];
+    warnings?: string[];
+  };
+  failures?: string[];
+  warnings?: string[];
+  legacy?: unknown;
+  tasks?: StatusTask[];
+  requireGeneratedScaffoldProvenance?: boolean;
+  taskPlanPaths?: string[];
+  closeoutContent?: string;
+  generatedAt?: string;
+};
+
+type CollectTasksOptions = {
+  requireGeneratedScaffoldProvenance?: boolean;
+  taskPlanPaths?: string[];
+  closeoutContent?: string;
+};
+
+type CutoverCounters = {
+  legacyVisualOnlyCount: number;
+  unknownClassificationCount: number;
+  weakBriefCount: number;
+  visualMapRequiredCount: number;
+  missingCanonicalVisualMapCount: number;
+};
+
+const collectTasksForStatus = collectTasks as (target: HarnessTarget, options?: CollectTasksOptions) => StatusTask[];
+const taskCutoverCountersForStatus = taskCutoverCounters as (tasks: StatusTask[]) => CutoverCounters;
+
+export function buildStatusData(targetInput: HarnessTarget | string | undefined, options: BuildStatusOptions = {}) {
+  const target = hasProjectRoot(targetInput) ? targetInput : normalizeTarget(targetInput) as HarnessTarget;
   const validationMode = options.validationMode || "data-only";
   const gitState = options.gitState || summarizeGitState(target);
-  const registry = options.capabilityState?.registry || readCapabilityRegistry(target);
+  const registry = (options.capabilityState?.registry || readCapabilityRegistry(target)) as CapabilityRegistry;
   const detected = options.capabilityState?.detected || [];
   const capabilityWarnings = options.capabilityState?.warnings || [];
   const failures = [...(options.failures || [])];
   const warnings = [...(options.warnings || [])];
   const legacy = options.legacy || { status: "skipped", code: 0, stdout: "", stderr: "" };
-  const tasks = options.tasks || collectTasks(target, {
+  const tasks = options.tasks || collectTasksForStatus(target, {
     requireGeneratedScaffoldProvenance: options.requireGeneratedScaffoldProvenance === true,
     taskPlanPaths: options.taskPlanPaths,
     closeoutContent: options.closeoutContent,
@@ -26,7 +138,7 @@ export function buildStatusData(targetInput, options = {}) {
   for (const capability of detected) {
     if (!capabilityNames.has(capability)) capabilityNames.set(capability, { name: capability, state: "configured" });
   }
-  const cutoverCounters = taskCutoverCounters(tasks);
+  const cutoverCounters = taskCutoverCountersForStatus(tasks);
   const fullCutoverEligible =
     validationMode === "validated" &&
     failures.length === 0 &&
@@ -77,7 +189,7 @@ export function buildStatusData(targetInput, options = {}) {
     capabilities: [...capabilityNames.values()].map((capability) => ({
       name: capability.name,
       state: capability.state || "configured",
-      dependencyStatus: capabilityDefinitions[capability.name]?.dependencies.every((dependency) => capabilityNames.has(dependency))
+      dependencyStatus: capabilityDefinitions[capability.name as keyof typeof capabilityDefinitions]?.dependencies.every((dependency: string) => capabilityNames.has(dependency))
         ? "valid"
         : "invalid",
       warnings: capabilityWarnings.filter((warning) => warning.includes(capability.name)),
@@ -86,4 +198,8 @@ export function buildStatusData(targetInput, options = {}) {
     handoffs: tasks.flatMap((task) => task.handoffs || []),
     recentActivity: tasks.slice(0, 8).map((task) => ({ at: new Date().toISOString(), type: "task", summary: task.title })),
   };
+}
+
+function hasProjectRoot(value: unknown): value is HarnessTarget {
+  return Boolean(value && typeof value === "object" && "projectRoot" in value);
 }
