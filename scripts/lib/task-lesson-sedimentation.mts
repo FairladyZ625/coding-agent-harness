@@ -35,7 +35,7 @@ export class LessonSedimentationError extends Error {
   }
 }
 
-export function createLessonSedimentationTask(targetInput, taskRef, candidateId, { dryRun = false, title = "" } = {}) {
+export function createLessonSedimentationTask(targetInput, taskRef, candidateId, { dryRun = false, title = "", deferCommit = false, allowDirtyRelativePaths = [] } = {}) {
   const target = normalizeTarget(targetInput);
   const sourceTaskDir = resolveTaskDirectory(target, taskRef);
   const sourceTaskId = taskIdForDirectory(target, sourceTaskDir);
@@ -90,6 +90,8 @@ export function createLessonSedimentationTask(targetInput, taskRef, candidateId,
       budget: "standard",
       longRunning: true,
       dryRun,
+      deferCommit,
+      allowDirtyRelativePaths,
     });
   } catch (error) {
     if (/Task already exists:/i.test(error.message)) {
@@ -133,7 +135,19 @@ export function createLessonSedimentationTask(targetInput, taskRef, candidateId,
   const changes = [...taskResult.changes];
 
   if (!dryRun) {
-    const governanceContext = beginGovernanceSync(target, { operation: `lesson-sediment ${sourceTaskId} ${candidate.id}` });
+    const deferredDirtyPaths = deferCommit
+      ? [
+        ...governanceRelativePaths(taskResult.changes),
+        toPosix(path.relative(target.projectRoot, candidatePath)),
+        ...(allowDirtyRelativePaths || []),
+      ]
+      : [];
+    const governanceContext = beginGovernanceSync(target, {
+      operation: `lesson-sediment ${sourceTaskId} ${candidate.id}`,
+      allowDirtyWorktree: deferCommit,
+      allowedRelativePaths: deferredDirtyPaths,
+      allowDirtyWriteScope: deferCommit,
+    });
     try {
       appendToFollowUpTask({ followUpDir, sourceTaskId, candidate, prompt, contextPacket, audit });
       updateSourceFollowUpTask(candidatePath, candidate.id, followUpTaskId);
@@ -164,11 +178,14 @@ export function createLessonSedimentationTask(targetInput, taskRef, candidateId,
           action: "update-follow-up-task",
         },
       );
+      const commit = deferCommit
+        ? { committed: false, reason: "deferred", allowedPaths: governanceRelativePaths(changes) }
+        : commitGovernanceSync(governanceContext, governanceRelativePaths(changes), {
+          message: `chore(harness): record lesson sedimentation ${candidate.id}`,
+        });
       taskResult.governance = {
         ...(taskResult.governance || {}),
-        lessonSedimentationCommit: commitGovernanceSync(governanceContext, governanceRelativePaths(changes), {
-          message: `chore(harness): record lesson sedimentation ${candidate.id}`,
-        }),
+        lessonSedimentationCommit: commit,
       };
     } finally {
       releaseGovernanceSync(governanceContext);

@@ -134,7 +134,8 @@ export function validateReviewConfirmationGitAudit({ projectRoot, taskId, review
 
   const subject = git(root, ["show", "-s", "--format=%s", fullCommitSha], { allowFailure: true }).stdout.trim();
   const expectedSubject = `chore: confirm review ${String(taskId || "").replace(/[^A-Za-z0-9._/-]+/g, "-")}`;
-  if (subject !== expectedSubject) addIssue("git-audit-subject-mismatch");
+  const batchSubject = subject === "chore: confirm selected reviews";
+  if (subject !== expectedSubject && !batchSubject) addIssue("git-audit-subject-mismatch");
 
   const changedPaths = git(root, ["diff-tree", "--no-commit-id", "--name-only", "-r", fullCommitSha], { allowFailure: true }).stdout
     .split(/\r?\n/)
@@ -142,7 +143,11 @@ export function validateReviewConfirmationGitAudit({ projectRoot, taskId, review
     .map(toPosix)
     .sort();
   if (expectedPaths.length === 0) addIssue("git-audit-allowlist-missing");
-  if (changedPaths.join("\n") !== expectedPaths.join("\n")) addIssue("git-audit-allowlist-mismatch");
+  if (batchSubject) {
+    const expectedIncluded = expectedPaths.every((expectedPath) => changedPaths.includes(expectedPath));
+    const batchPathsAllowed = changedPaths.every((changedPath) => /(^|\/)coding-agent-harness\/planning\/(?:tasks|modules)\/.+\/INDEX\.md$/.test(changedPath));
+    if (!expectedIncluded || !batchPathsAllowed) addIssue("git-audit-allowlist-mismatch");
+  } else if (changedPaths.join("\n") !== expectedPaths.join("\n")) addIssue("git-audit-allowlist-mismatch");
 
   return {
     valid: issues.length === 0,

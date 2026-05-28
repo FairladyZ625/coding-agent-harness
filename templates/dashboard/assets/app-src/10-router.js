@@ -2,6 +2,10 @@ function t(key) {
   return labels[key] || key;
 }
 
+function formatMessage(key, values = {}) {
+  return escapeHtml(t(key)).replace(/\{([^}]+)\}/g, (_, name) => escapeHtml(values[name] ?? ""));
+}
+
 function setLocale(nextLocale) {
   locale = window.HarnessI18n?.[nextLocale] ? nextLocale : "en";
   labels = window.HarnessI18n?.[locale] || {};

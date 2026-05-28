@@ -40,7 +40,7 @@ import {
 import { getColumn, firstColumn, updateMarkdownTableRow } from "./markdown-utils.mjs";
 import { validateLifecycleTransition, validateReviewEntryGate } from "./task-lifecycle/review-gates.mjs";
 import { advanceLifecyclePhase, autoRecordNoLessonCandidateDecision } from "./task-lifecycle/phase-sync.mjs";
-import { confirmTaskReview as confirmTaskReviewWithContext } from "./task-lifecycle/review-confirm.mjs";
+import { confirmTaskReview as confirmTaskReviewWithContext, finalizeDeferredTaskReviewConfirmation as finalizeDeferredTaskReviewConfirmationWithContext } from "./task-lifecycle/review-confirm.mjs";
 import { appendProgressLog, markWalkthroughClosed } from "./task-lifecycle/text-utils.mjs";
 import { buildScaffoldProvenance } from "./task-lifecycle/scaffold-provenance.mjs";
 import { buildCreationTaskAudit } from "./task-audit-metadata.mjs";
@@ -204,7 +204,7 @@ function resolveTaskIdentity({ target, taskId, title, presetPackage, moduleKey, 
   throw new Error(`Unable to allocate automatic task id for: ${semanticSlug}`);
 }
 
-export function createTask(targetInput, taskId, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard", longRunning = false, preset = "", fromSession = "", presetArgs = [], automaticTaskId = false } = {}) {
+export function createTask(targetInput, taskId, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard", longRunning = false, preset = "", fromSession = "", presetArgs = [], automaticTaskId = false, deferCommit = false, allowDirtyRelativePaths = [] } = {}) {
   const requestedPreset = preset || (moduleKey ? "module" : "");
   const presetTargetInput = resolveImplicitCreateTarget(targetInput, fromSession);
   const normalizedPreset = normalizeTaskPresetInput(requestedPreset, { targetInput: presetTargetInput });
@@ -281,7 +281,13 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
   const plannedGovernance = syncTaskGovernance(target, task, { event: "new-task", state: "planned", message: "task registered by CLI", dryRun: true });
   const plannedWriteScopes = governanceRelativePaths([...plannedChanges, ...plannedGovernance.changes]);
   const changes = [];
-  const governanceContext = beginGovernanceSync(target, { operation: `new-task ${normalizedTaskId}`, dryRun, allowDirtyWorktree: true, allowedRelativePaths: plannedWriteScopes });
+  const governanceContext = beginGovernanceSync(target, {
+    operation: `new-task ${normalizedTaskId}`,
+    dryRun,
+    allowDirtyWorktree: true,
+    allowedRelativePaths: [...plannedWriteScopes, ...(allowDirtyRelativePaths || [])],
+    allowDirtyWriteScope: deferCommit,
+  });
   try {
   if (normalizedModuleKey) {
     const moduleDirectory = target.harness.version === 2
@@ -403,9 +409,11 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
     refreshPresetCommandAudit(target, presetContext, { commandWriteScopes, dryRun });
     task.presetAudit = presetContext.audit;
   }
-  const commit = commitGovernanceSync(governanceContext, commandWriteScopes, {
-    message: `chore(harness): register task ${task.id}`,
-  });
+  const commit = deferCommit
+    ? { committed: false, reason: "deferred", allowedPaths: commandWriteScopes }
+    : commitGovernanceSync(governanceContext, commandWriteScopes, {
+      message: `chore(harness): register task ${task.id}`,
+    });
   return {
     dryRun,
     task,
@@ -498,10 +506,16 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
 }
 
 
-export function confirmTaskReview(targetInput, taskId, { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "" } = {}) {
+export function confirmTaskReview(targetInput, taskId, { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "", deferCommit = false } = {}) {
   const target = normalizeTarget(targetInput);
   const taskDir = resolveTaskDirectory(target, taskId);
-  return confirmTaskReviewWithContext({ target, taskDir, findTaskByDirectory }, { reviewer, message, confirmText, evidence });
+  return confirmTaskReviewWithContext({ target, taskDir, findTaskByDirectory }, { reviewer, message, confirmText, evidence, deferCommit });
+}
+
+export function finalizeDeferredTaskReviewConfirmation(targetInput, taskId, { commitSha = "" } = {}) {
+  const target = normalizeTarget(targetInput);
+  const taskDir = resolveTaskDirectory(target, taskId);
+  return finalizeDeferredTaskReviewConfirmationWithContext({ target, taskDir, findTaskByDirectory }, { commitSha });
 }
 export function updateTaskPhase(targetInput, taskId, phaseId, { state = "", completion = "", evidenceStatus = "" } = {}) {
   const target = normalizeTarget(targetInput);

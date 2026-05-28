@@ -128,6 +128,9 @@ function bind() {
   document.querySelectorAll("[data-review-queue-tab]").forEach((button) => button.addEventListener("click", () => {
     state.reviewQueueTab = button.dataset.reviewQueueTab || "review";
     state.reviewQueuePage = 1;
+    state.reviewBulkSelection = {};
+    state.reviewBulkResult = null;
+    state.lessonBulkResult = null;
     app();
   }));
   document.querySelectorAll("[data-review-reason-filter]").forEach((select) => select.addEventListener("change", () => {
@@ -140,6 +143,51 @@ function bind() {
     state.reviewQueuePage = 1;
     app();
   }));
+  document.querySelectorAll("[data-review-bulk-select]").forEach((input) => input.addEventListener("change", () => {
+    state.reviewBulkSelection = state.reviewBulkSelection || {};
+    state.reviewBulkSelection[input.dataset.reviewBulkSelect || ""] = input.checked;
+    state.reviewBulkResult = null;
+    app();
+  }));
+  document.querySelectorAll("[data-review-bulk-select-all]").forEach((input) => input.addEventListener("change", () => {
+    const activeTab = reviewQueueTabs().find((tab) => tab.id === state.reviewQueueTab) || reviewQueueTabs()[0];
+    const tasks = activeTab.id === "review" ? reviewFilteredTasks(reviewQueueBaseTasks(activeTab)).filter(taskCanBeHumanConfirmed) : [];
+    state.reviewBulkSelection = state.reviewBulkSelection || {};
+    tasks.forEach((task) => {
+      if (input.checked) state.reviewBulkSelection[task.id] = true;
+      else delete state.reviewBulkSelection[task.id];
+    });
+    state.reviewBulkResult = null;
+    app();
+  }));
+  document.querySelectorAll("[data-review-bulk-clear]").forEach((button) => button.addEventListener("click", () => {
+    state.reviewBulkSelection = {};
+    state.reviewBulkResult = null;
+    app();
+  }));
+  document.querySelectorAll("[data-review-bulk-confirm]").forEach((button) => button.addEventListener("click", () => confirmSelectedReviewsFromDashboard(button)));
+  document.querySelectorAll("[data-lesson-bulk-select]").forEach((input) => input.addEventListener("change", () => {
+    state.lessonBulkSelection = state.lessonBulkSelection || {};
+    state.lessonBulkSelection[input.dataset.lessonBulkSelect || ""] = input.checked;
+    state.lessonBulkResult = null;
+    app();
+  }));
+  document.querySelectorAll("[data-lesson-bulk-select-all]").forEach((input) => input.addEventListener("change", () => {
+    state.lessonBulkSelection = state.lessonBulkSelection || {};
+    lessonBulkActionableSelections().forEach((selection) => {
+      const key = lessonBulkSelectionKey(selection.taskId, selection.candidateId);
+      if (input.checked) state.lessonBulkSelection[key] = true;
+      else delete state.lessonBulkSelection[key];
+    });
+    state.lessonBulkResult = null;
+    app();
+  }));
+  document.querySelectorAll("[data-lesson-bulk-clear]").forEach((button) => button.addEventListener("click", () => {
+    state.lessonBulkSelection = {};
+    state.lessonBulkResult = null;
+    app();
+  }));
+  document.querySelectorAll("[data-lesson-bulk-create]").forEach((button) => button.addEventListener("click", () => createSelectedLessonSedimentationFromDashboard(button)));
   document.querySelectorAll("[data-page-kind]").forEach((button) => button.addEventListener("click", () => {
     const page = Math.max(1, Number(button.dataset.page) || 1);
     if (button.dataset.pageKind === "warning") state.warningPage = page;
@@ -251,6 +299,44 @@ async function completeReviewFromDashboard(taskId) {
     setTimeout(() => window.location.reload(), 500);
   } catch (error) {
     if (result) result.textContent = `${t("reviewCompleteFailed")}: ${error.message}`;
+  }
+}
+
+async function confirmSelectedReviewsFromDashboard(button) {
+  const taskIds = reviewBulkSelectedIds();
+  if (!taskIds.length) {
+    state.reviewBulkResult = { ok: false, message: t("reviewBulkNone") };
+    app();
+    return;
+  }
+  button.disabled = true;
+  state.reviewBulkResult = { ok: true, message: t("reviewBulkSubmitting") };
+  app();
+  try {
+    const response = await fetch("/api/tasks/review-complete-bulk", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-harness-csrf": state.runtime?.csrfToken || "",
+      },
+      body: JSON.stringify({
+        taskIds,
+        reviewer: "Human Reviewer",
+        message: "bulk confirmed from dashboard workbench",
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw payload;
+    state.reviewBulkSelection = {};
+    state.reviewBulkResult = {
+      ok: payload.failed === 0,
+      message: payload.failed ? formatMessage("reviewBulkPartial", { confirmed: payload.confirmed || 0, failed: payload.failed || 0 }) : formatMessage("reviewBulkSuccess", { confirmed: payload.confirmed || 0 }),
+    };
+    app();
+    if ((payload.confirmed || 0) > 0) setTimeout(() => window.location.reload(), 1500);
+  } catch (error) {
+    state.reviewBulkResult = { ok: false, message: `${t("reviewCompleteFailed")}: ${error?.error || error?.message || String(error)}` };
+    app();
   }
 }
 
@@ -467,6 +553,40 @@ async function createLessonSedimentationFromDashboard(button) {
   } catch (error) {
     button.disabled = false;
     if (result) result.innerHTML = lessonSedimentationFailure(error);
+  }
+}
+
+async function createSelectedLessonSedimentationFromDashboard(button) {
+  const selections = lessonBulkSelectedSelections();
+  if (!selections.length) {
+    state.lessonBulkResult = { ok: false, message: t("lessonBulkNone") };
+    app();
+    return;
+  }
+  button.disabled = true;
+  state.lessonBulkResult = { ok: true, message: t("lessonBulkSubmitting") };
+  app();
+  try {
+    const response = await fetch("/api/tasks/lesson-sedimentation-bulk", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-harness-csrf": state.runtime?.csrfToken || "",
+      },
+      body: JSON.stringify({ selections }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw payload;
+    state.lessonBulkSelection = {};
+    state.lessonBulkResult = {
+      ok: payload.failed === 0,
+      message: payload.failed ? formatMessage("lessonBulkPartial", { created: payload.created || 0, failed: payload.failed || 0 }) : formatMessage("lessonBulkSuccess", { created: payload.created || 0 }),
+    };
+    app();
+    if ((payload.created || 0) > 0) setTimeout(() => window.location.reload(), 1500);
+  } catch (error) {
+    state.lessonBulkResult = { ok: false, message: `${t("lessonTaskCreateFailed")}: ${error?.error || error?.message || String(error)}` };
+    app();
   }
 }
 

@@ -95,11 +95,12 @@ export class GovernanceSyncError extends Error {
 
 export function beginGovernanceSync(
   target: HarnessTarget,
-  { operation = "governance-sync", dryRun = false, allowDirtyWorktree = false, allowedRelativePaths = [] }: {
+  { operation = "governance-sync", dryRun = false, allowDirtyWorktree = false, allowedRelativePaths = [], allowDirtyWriteScope = false }: {
     operation?: string;
     dryRun?: boolean;
     allowDirtyWorktree?: boolean;
     allowedRelativePaths?: string[];
+    allowDirtyWriteScope?: boolean;
   } = {},
 ): GovernanceSyncContext {
   if (dryRun) return { target, dryRun, operation, git: inspectGit(target.projectRoot), lockPath: "", active: false };
@@ -128,7 +129,7 @@ export function beginGovernanceSync(
     }
     if (gitState.entries.length > 0 && allowDirtyWorktree) {
       try {
-        assertDirtyCompatibleWithWriteScope(gitState.entries, allowed);
+        assertDirtyCompatibleWithWriteScope(gitState.entries, allowed, { allowDirtyWriteScope });
       } catch (error) {
         releaseGovernanceSync({ lockPath, active: true });
         throw error;
@@ -597,10 +598,14 @@ function assertCommitIdentity(root: string): void {
   }
 }
 
-function assertDirtyCompatibleWithWriteScope(entries: GovernanceStatusEntry[], allowedPaths: string[]): void {
+function assertDirtyCompatibleWithWriteScope(
+  entries: GovernanceStatusEntry[],
+  allowedPaths: string[],
+  { allowDirtyWriteScope = false }: { allowDirtyWriteScope?: boolean } = {},
+): void {
   const allowed = new Set(allowedPaths);
   const overlapping = entries.filter((entry) => allowed.has(entry.path));
-  if (overlapping.length > 0) {
+  if (overlapping.length > 0 && !allowDirtyWriteScope) {
     throw new GovernanceSyncError("Governance sync write scope overlaps existing dirty files; refusing to overwrite user-owned changes.", {
       code: "governance-write-scope-dirty",
       details: { overlapping, allowedPaths },

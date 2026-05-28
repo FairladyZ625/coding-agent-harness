@@ -24,6 +24,10 @@ const state = {
   presetSeedForce: false,
   presetUninstallScope: "project",
   presetUninstallConfirm: "",
+  reviewBulkSelection: {},
+  reviewBulkResult: null,
+  lessonBulkSelection: {},
+  lessonBulkResult: null,
   renderMode: "rendered",
   theme: localStorage.getItem("harness.theme") || "system",
   taskLayout: localStorage.getItem("harness.taskLayout") || "list",
@@ -55,6 +59,10 @@ const taskDocTabs = [
 
 function t(key) {
   return labels[key] || key;
+}
+
+function formatMessage(key, values = {}) {
+  return escapeHtml(t(key)).replace(/\{([^}]+)\}/g, (_, name) => escapeHtml(values[name] ?? ""));
 }
 
 function setLocale(nextLocale) {
@@ -1362,6 +1370,10 @@ function reviewQueue() {
   const reasonOptions = reviewReasonOptions(baseTasks);
   normalizeReviewReasonFilter(reasonOptions);
   const tasks = reviewFilteredTasks(baseTasks);
+  const confirmableTasks = activeTab.id === "review" ? tasks.filter(taskCanBeHumanConfirmed) : [];
+  syncReviewBulkSelection(confirmableTasks);
+  if (activeTab.id === "lessons") syncLessonBulkSelection(lessonBulkActionableSelections());
+  else syncLessonBulkSelection([]);
   const pageCount = Math.max(1, Math.ceil(tasks.length / taskPageSize));
   const page = Math.min(Math.max(1, Number(state.reviewQueuePage) || 1), pageCount);
   const visibleTasks = tasks.slice((page - 1) * taskPageSize, page * taskPageSize);
@@ -1397,6 +1409,8 @@ function reviewQueue() {
             </select>
           </div>
         </div>
+        ${activeTab.id === "review" ? reviewBulkBar(confirmableTasks) : ""}
+        ${activeTab.id === "lessons" ? lessonBulkBar() : ""}
         <div class="review-queue-list-shell" tabindex="0" aria-label="${escapeAttr(activeTab.label)} ${escapeAttr(t("reviewQueue"))}">
           <div class="review-queue-list">
             ${visibleTasks.map((task) => reviewQueueCard(task, activeTab)).join("") || emptyState(t("noQueueTasks"))}
@@ -1539,17 +1553,54 @@ function reviewTruthyCount(tasks, key) {
   return tasks.filter((task) => task[key] === true).length;
 }
 
+function reviewBulkSelectedIds() {
+  return Object.entries(state.reviewBulkSelection || {})
+    .filter(([, selected]) => selected === true)
+    .map(([taskId]) => taskId);
+}
+
+function syncReviewBulkSelection(confirmableTasks) {
+  const allowed = new Set(confirmableTasks.map((task) => task.id));
+  for (const taskId of Object.keys(state.reviewBulkSelection || {})) {
+    if (!allowed.has(taskId)) delete state.reviewBulkSelection[taskId];
+  }
+}
+
+function reviewBulkBar(confirmableTasks) {
+  const selectedCount = reviewBulkSelectedIds().length;
+  const allSelected = confirmableTasks.length > 0 && confirmableTasks.every((task) => state.reviewBulkSelection?.[task.id] === true);
+  const disabled = selectedCount === 0 || !canUseWorkbenchAction("review-complete-bulk");
+  const result = state.reviewBulkResult ? `<span class="bulk-action-result ${state.reviewBulkResult.ok ? "success" : "failed"}">${escapeHtml(state.reviewBulkResult.message)}</span>` : "";
+  return `<div class="bulk-action-bar review-bulk-bar">
+    <label class="bulk-select-all">
+      <input type="checkbox" data-review-bulk-select-all ${allSelected ? "checked" : ""} ${confirmableTasks.length ? "" : "disabled"} aria-label="${escapeAttr(t("selectAllReviewTasks"))}">
+      <span>${t("selectAllReviewTasks")}</span>
+    </label>
+    <span class="bulk-selected-count">${formatMessage("reviewBulkSelected", { count: selectedCount })}</span>
+    <button type="button" data-review-bulk-confirm ${disabled ? "disabled" : ""}>${t("reviewBulkConfirm")}</button>
+    <button type="button" data-review-bulk-clear ${selectedCount ? "" : "disabled"}>${t("clearSelection")}</button>
+    ${result}
+  </div>`;
+}
+
 function reviewQueueCard(task, tab) {
   const openMaterial = (task.risks || []).filter((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease)).length;
   const reasons = task.queueReasons || [];
   const canCopyRepairPrompt = tab?.repair && String(task.repairPrompt || "").trim();
   const lessonActions = tab?.id === "lessons" ? lessonCandidatePanel(task, { context: "card", limit: 2 }) : "";
   const displayId = task.shortId || taskFolderName(task) || task.id;
+  const canBulkConfirm = tab?.id === "review" && taskCanBeHumanConfirmed(task);
+  const bulkSelected = state.reviewBulkSelection?.[task.id] === true;
+  const bulkControl = tab?.id === "review" ? `<label class="bulk-card-check">
+      <input type="checkbox" data-review-bulk-select="${escapeAttr(task.id)}" ${canBulkConfirm ? "" : "disabled"} ${bulkSelected ? "checked" : ""} aria-label="${escapeAttr(t("selectReviewTask"))}">
+      <span>${t("select")}</span>
+    </label>` : "";
   return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(task.state)})">
     <div class="card-header">
       <span class="card-id" title="${escapeAttr(task.id)}">${escapeHtml(displayId)}</span>
       ${tag(task.reviewStatus || "missing")}
       ${reviewTaskQueues(task).map(tag).join("")}
+      ${bulkControl}
     </div>
     <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
     <div class="card-meta">
@@ -1577,6 +1628,8 @@ function lessonCandidatePanel(task, { context = "detail", limit = 0 } = {}) {
   const visibleCandidates = limit > 0 ? candidates.slice(0, limit) : candidates;
   const hiddenCount = Math.max(0, candidates.length - visibleCandidates.length);
   const staticNote = canUseWorkbenchAction("lesson-sedimentation-task") ? "" : `<p class="lesson-action-note">${escapeHtml(t("lessonWorkbenchRequired"))}</p>`;
+  syncLessonBulkSelection(lessonBulkActionableSelections());
+  const bulkBar = context === "card" ? "" : lessonBulkBar();
   return `<section class="lesson-candidate-panel ${context === "card" ? "compact" : ""}">
     <div class="lesson-candidate-panel-head">
       <div>
@@ -1586,6 +1639,7 @@ function lessonCandidatePanel(task, { context = "detail", limit = 0 } = {}) {
       <span class="tag">${visibleCandidates.length}/${candidates.length}</span>
     </div>
     ${staticNote}
+    ${bulkBar}
     <div class="lesson-candidate-actions">
       ${visibleCandidates.map((candidate) => lessonCandidateAction(task, candidate)).join("")}
     </div>
@@ -1597,6 +1651,9 @@ function lessonCandidateAction(task, candidate) {
   const followUp = String(candidate.followUpTask || "").trim();
   const hasFollowUp = followUp && !/^pending$/i.test(followUp);
   const prompt = lessonSedimentationPrompt(task, candidate);
+  const selectionKey = lessonBulkSelectionKey(task.id, candidate.id);
+  const canBulkCreate = canUseWorkbenchAction("lesson-sedimentation-bulk") && !hasFollowUp;
+  const selected = state.lessonBulkSelection?.[selectionKey] === true;
   return `<div class="lesson-candidate-action">
     <div class="lesson-candidate-main">
       <strong>${escapeHtml(candidate.id)}</strong>
@@ -1605,10 +1662,70 @@ function lessonCandidateAction(task, candidate) {
     </div>
     <span class="review-result" data-lesson-result="${escapeAttr(task.id)}:${escapeAttr(candidate.id)}"></span>
     <div class="lesson-candidate-command-row">
+      <label class="bulk-card-check lesson-bulk-check">
+        <input type="checkbox" data-lesson-bulk-select="${escapeAttr(selectionKey)}" ${canBulkCreate ? "" : "disabled"} ${selected ? "checked" : ""} aria-label="${escapeAttr(t("selectLessonCandidate"))}">
+        <span>${t("select")}</span>
+      </label>
       ${hasFollowUp ? `<a href="#/tasks/${encodeURIComponent(followUp)}">${t("openFollowUpTask")}</a>` : ""}
       <button data-copy-lesson-prompt="${escapeAttr(task.id)}:${escapeAttr(candidate.id)}" data-lesson-prompt="${escapeAttr(prompt)}">${t("copyLessonPrompt")}</button>
       <button data-create-lesson-sedimentation="${escapeAttr(task.id)}" data-candidate-id="${escapeAttr(candidate.id)}" ${canUseWorkbenchAction("lesson-sedimentation-task") && !hasFollowUp ? "" : "disabled"}>${t("createLessonTask")}</button>
     </div>
+  </div>`;
+}
+
+function lessonBulkSelectionKey(taskId, candidateId) {
+  return `${taskId}::${candidateId}`;
+}
+
+function parseLessonBulkSelectionKey(key) {
+  const separator = String(key || "").lastIndexOf("::");
+  if (separator < 0) return null;
+  const taskId = key.slice(0, separator);
+  const candidateId = key.slice(separator + 2);
+  if (!taskId || !candidateId) return null;
+  return { taskId, candidateId };
+}
+
+function lessonBulkSelectedSelections() {
+  return Object.entries(state.lessonBulkSelection || {})
+    .filter(([, selected]) => selected === true)
+    .map(([key]) => parseLessonBulkSelectionKey(key))
+    .filter(Boolean);
+}
+
+function lessonBulkActionableSelections() {
+  return (bundle.status?.tasks || []).flatMap((task) => (task.lessonCandidateRows || [])
+    .filter((candidate) => ["ready-for-review", "needs-promotion"].includes(candidate.status))
+    .filter((candidate) => {
+      const followUp = String(candidate.followUpTask || "").trim();
+      return !followUp || /^pending$/i.test(followUp);
+    })
+    .map((candidate) => ({ taskId: task.id, candidateId: candidate.id })));
+}
+
+function syncLessonBulkSelection(actionableSelections) {
+  const allowed = new Set(actionableSelections.map((selection) => lessonBulkSelectionKey(selection.taskId, selection.candidateId)));
+  for (const key of Object.keys(state.lessonBulkSelection || {})) {
+    if (!allowed.has(key)) delete state.lessonBulkSelection[key];
+  }
+}
+
+function lessonBulkBar() {
+  const actionableSelections = lessonBulkActionableSelections();
+  syncLessonBulkSelection(actionableSelections);
+  const selectedCount = lessonBulkSelectedSelections().length;
+  const allSelected = actionableSelections.length > 0 && actionableSelections.every((selection) => state.lessonBulkSelection?.[lessonBulkSelectionKey(selection.taskId, selection.candidateId)] === true);
+  const disabled = selectedCount === 0 || !canUseWorkbenchAction("lesson-sedimentation-bulk");
+  const result = state.lessonBulkResult ? `<span class="bulk-action-result ${state.lessonBulkResult.ok ? "success" : "failed"}">${escapeHtml(state.lessonBulkResult.message)}</span>` : "";
+  return `<div class="bulk-action-bar lesson-bulk-bar">
+    <label class="bulk-select-all">
+      <input type="checkbox" data-lesson-bulk-select-all ${allSelected ? "checked" : ""} ${actionableSelections.length ? "" : "disabled"} aria-label="${escapeAttr(t("selectAllLessonCandidates"))}">
+      <span>${t("selectAllLessonCandidates")}</span>
+    </label>
+    <span class="bulk-selected-count">${formatMessage("lessonBulkSelected", { count: selectedCount })}</span>
+    <button type="button" data-lesson-bulk-create ${disabled ? "disabled" : ""}>${t("lessonBulkCreate")}</button>
+    <button type="button" data-lesson-bulk-clear ${selectedCount ? "" : "disabled"}>${t("clearSelection")}</button>
+    ${result}
   </div>`;
 }
 
@@ -2456,6 +2573,9 @@ function bind() {
   document.querySelectorAll("[data-review-queue-tab]").forEach((button) => button.addEventListener("click", () => {
     state.reviewQueueTab = button.dataset.reviewQueueTab || "review";
     state.reviewQueuePage = 1;
+    state.reviewBulkSelection = {};
+    state.reviewBulkResult = null;
+    state.lessonBulkResult = null;
     app();
   }));
   document.querySelectorAll("[data-review-reason-filter]").forEach((select) => select.addEventListener("change", () => {
@@ -2468,6 +2588,51 @@ function bind() {
     state.reviewQueuePage = 1;
     app();
   }));
+  document.querySelectorAll("[data-review-bulk-select]").forEach((input) => input.addEventListener("change", () => {
+    state.reviewBulkSelection = state.reviewBulkSelection || {};
+    state.reviewBulkSelection[input.dataset.reviewBulkSelect || ""] = input.checked;
+    state.reviewBulkResult = null;
+    app();
+  }));
+  document.querySelectorAll("[data-review-bulk-select-all]").forEach((input) => input.addEventListener("change", () => {
+    const activeTab = reviewQueueTabs().find((tab) => tab.id === state.reviewQueueTab) || reviewQueueTabs()[0];
+    const tasks = activeTab.id === "review" ? reviewFilteredTasks(reviewQueueBaseTasks(activeTab)).filter(taskCanBeHumanConfirmed) : [];
+    state.reviewBulkSelection = state.reviewBulkSelection || {};
+    tasks.forEach((task) => {
+      if (input.checked) state.reviewBulkSelection[task.id] = true;
+      else delete state.reviewBulkSelection[task.id];
+    });
+    state.reviewBulkResult = null;
+    app();
+  }));
+  document.querySelectorAll("[data-review-bulk-clear]").forEach((button) => button.addEventListener("click", () => {
+    state.reviewBulkSelection = {};
+    state.reviewBulkResult = null;
+    app();
+  }));
+  document.querySelectorAll("[data-review-bulk-confirm]").forEach((button) => button.addEventListener("click", () => confirmSelectedReviewsFromDashboard(button)));
+  document.querySelectorAll("[data-lesson-bulk-select]").forEach((input) => input.addEventListener("change", () => {
+    state.lessonBulkSelection = state.lessonBulkSelection || {};
+    state.lessonBulkSelection[input.dataset.lessonBulkSelect || ""] = input.checked;
+    state.lessonBulkResult = null;
+    app();
+  }));
+  document.querySelectorAll("[data-lesson-bulk-select-all]").forEach((input) => input.addEventListener("change", () => {
+    state.lessonBulkSelection = state.lessonBulkSelection || {};
+    lessonBulkActionableSelections().forEach((selection) => {
+      const key = lessonBulkSelectionKey(selection.taskId, selection.candidateId);
+      if (input.checked) state.lessonBulkSelection[key] = true;
+      else delete state.lessonBulkSelection[key];
+    });
+    state.lessonBulkResult = null;
+    app();
+  }));
+  document.querySelectorAll("[data-lesson-bulk-clear]").forEach((button) => button.addEventListener("click", () => {
+    state.lessonBulkSelection = {};
+    state.lessonBulkResult = null;
+    app();
+  }));
+  document.querySelectorAll("[data-lesson-bulk-create]").forEach((button) => button.addEventListener("click", () => createSelectedLessonSedimentationFromDashboard(button)));
   document.querySelectorAll("[data-page-kind]").forEach((button) => button.addEventListener("click", () => {
     const page = Math.max(1, Number(button.dataset.page) || 1);
     if (button.dataset.pageKind === "warning") state.warningPage = page;
@@ -2579,6 +2744,44 @@ async function completeReviewFromDashboard(taskId) {
     setTimeout(() => window.location.reload(), 500);
   } catch (error) {
     if (result) result.textContent = `${t("reviewCompleteFailed")}: ${error.message}`;
+  }
+}
+
+async function confirmSelectedReviewsFromDashboard(button) {
+  const taskIds = reviewBulkSelectedIds();
+  if (!taskIds.length) {
+    state.reviewBulkResult = { ok: false, message: t("reviewBulkNone") };
+    app();
+    return;
+  }
+  button.disabled = true;
+  state.reviewBulkResult = { ok: true, message: t("reviewBulkSubmitting") };
+  app();
+  try {
+    const response = await fetch("/api/tasks/review-complete-bulk", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-harness-csrf": state.runtime?.csrfToken || "",
+      },
+      body: JSON.stringify({
+        taskIds,
+        reviewer: "Human Reviewer",
+        message: "bulk confirmed from dashboard workbench",
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw payload;
+    state.reviewBulkSelection = {};
+    state.reviewBulkResult = {
+      ok: payload.failed === 0,
+      message: payload.failed ? formatMessage("reviewBulkPartial", { confirmed: payload.confirmed || 0, failed: payload.failed || 0 }) : formatMessage("reviewBulkSuccess", { confirmed: payload.confirmed || 0 }),
+    };
+    app();
+    if ((payload.confirmed || 0) > 0) setTimeout(() => window.location.reload(), 1500);
+  } catch (error) {
+    state.reviewBulkResult = { ok: false, message: `${t("reviewCompleteFailed")}: ${error?.error || error?.message || String(error)}` };
+    app();
   }
 }
 
@@ -2795,6 +2998,40 @@ async function createLessonSedimentationFromDashboard(button) {
   } catch (error) {
     button.disabled = false;
     if (result) result.innerHTML = lessonSedimentationFailure(error);
+  }
+}
+
+async function createSelectedLessonSedimentationFromDashboard(button) {
+  const selections = lessonBulkSelectedSelections();
+  if (!selections.length) {
+    state.lessonBulkResult = { ok: false, message: t("lessonBulkNone") };
+    app();
+    return;
+  }
+  button.disabled = true;
+  state.lessonBulkResult = { ok: true, message: t("lessonBulkSubmitting") };
+  app();
+  try {
+    const response = await fetch("/api/tasks/lesson-sedimentation-bulk", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-harness-csrf": state.runtime?.csrfToken || "",
+      },
+      body: JSON.stringify({ selections }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw payload;
+    state.lessonBulkSelection = {};
+    state.lessonBulkResult = {
+      ok: payload.failed === 0,
+      message: payload.failed ? formatMessage("lessonBulkPartial", { created: payload.created || 0, failed: payload.failed || 0 }) : formatMessage("lessonBulkSuccess", { created: payload.created || 0 }),
+    };
+    app();
+    if ((payload.created || 0) > 0) setTimeout(() => window.location.reload(), 1500);
+  } catch (error) {
+    state.lessonBulkResult = { ok: false, message: `${t("lessonTaskCreateFailed")}: ${error?.error || error?.message || String(error)}` };
+    app();
   }
 }
 

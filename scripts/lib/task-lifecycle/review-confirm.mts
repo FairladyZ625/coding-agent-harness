@@ -56,13 +56,14 @@ type ConfirmTaskReviewOptions = {
   message?: string;
   confirmText?: string;
   evidence?: string;
+  deferCommit?: boolean;
 };
 
 type AuditFields = Record<string, string>;
 
 export function confirmTaskReview(
   { target, taskDir, findTaskByDirectory }: ReviewConfirmationContext,
-  { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "" }: ConfirmTaskReviewOptions = {},
+  { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "", deferCommit = false }: ConfirmTaskReviewOptions = {},
 ) {
   assertTaskDirectoryInsidePlanning(target, taskDir);
   const canonicalTaskId = taskIdForDirectory(target, taskDir);
@@ -112,6 +113,19 @@ export function confirmTaskReview(
     "Migration Status": baseAuditFields["Migration Status"] || "native",
   });
   fs.writeFileSync(indexPath, ensureTrailingNewline(replaceTaskAuditMetadata(indexContent, buildAuditFields(), { locale: target.locale })));
+  if (deferCommit) {
+    return {
+      event: "review-confirm",
+      task: findTaskByDirectory(target, taskDir) || { id: canonicalTaskId, reviewStatus: "confirmed" },
+      audit: {
+        commitSha: "pending",
+        auditCommitSha: "",
+        auditStatus: "deferred",
+        allowedPaths: gitGate.allowedPaths,
+        message: message || `Human review confirmed by ${reviewer}`,
+      },
+    };
+  }
   const audit = commitReviewConfirmationGate(gitGate, {
     taskId: canonicalTaskId,
     reviewPath: indexPath,
@@ -126,6 +140,29 @@ export function confirmTaskReview(
     event: "review-confirm",
     task: findTaskByDirectory(target, taskDir) || { id: canonicalTaskId, reviewStatus: "confirmed" },
     audit,
+  };
+}
+
+export function finalizeDeferredTaskReviewConfirmation(
+  { target, taskDir, findTaskByDirectory }: ReviewConfirmationContext,
+  { commitSha = "" }: { commitSha?: string } = {},
+) {
+  assertTaskDirectoryInsidePlanning(target, taskDir);
+  if (!commitSha) throw new Error("Missing deferred review confirmation commit SHA");
+  const canonicalTaskId = taskIdForDirectory(target, taskDir);
+  const indexPath = path.join(taskDir, "INDEX.md");
+  const indexContent = readFileSafe(indexPath);
+  const existingAudit = taskAuditFieldsFromIndex(indexContent);
+  const finalIndex = replaceTaskAuditMetadata(indexContent, {
+    ...existingAudit,
+    "Review Commit SHA": commitSha,
+    "Audit Status": "committed",
+  }, { locale: target.locale });
+  fs.writeFileSync(indexPath, ensureTrailingNewline(finalIndex));
+  return {
+    event: "review-confirm-audit",
+    task: findTaskByDirectory(target, taskDir) || { id: canonicalTaskId, reviewStatus: "confirmed" },
+    indexPath,
   };
 }
 

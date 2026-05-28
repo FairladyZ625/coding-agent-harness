@@ -7,9 +7,10 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
-import { confirmTaskReview } from "./task-lifecycle.mjs";
+import { confirmTaskReview, finalizeDeferredTaskReviewConfirmation } from "./task-lifecycle.mjs";
 import { createLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
 import { normalizeTarget } from "./core-shared.mjs";
+import { beginGovernanceSync, commitGovernanceSync, governanceRelativePaths, releaseGovernanceSync } from "./governance-sync.mjs";
 import { dashboardWatchRoots } from "./harness-paths.mjs";
 import { collectTasks } from "./task-scanner.mjs";
 import { writeDashboardFolder } from "./dashboard-data.mjs";
@@ -21,7 +22,7 @@ import {
   uninstallPresetPackage,
 } from "./preset-registry.mjs";
 
-const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
+const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "connection": "close" };
 
 export async function serveDashboardWorkbench(outDir, targetInput, { host = "127.0.0.1", port = 0, localeOverride = "", autoRefresh = false, open = false, label = "dashboard workbench", recoverGeneratedDashboard = false, replaceExistingDashboardOutput = false } = {}) {
   if (host !== "127.0.0.1") throw new Error("dashboard workbench only supports --host 127.0.0.1");
@@ -47,7 +48,7 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
         writeJson(response, 200, {
           mode: "workbench",
           csrfToken,
-          writableActions: ["review-complete", "lesson-sedimentation-task", "preset-check", "preset-install", "preset-seed", "preset-uninstall"],
+          writableActions: ["review-complete", "review-complete-bulk", "lesson-sedimentation-task", "lesson-sedimentation-bulk", "preset-check", "preset-install", "preset-seed", "preset-uninstall"],
           target: target.projectRoot,
           autoRefresh: autoRefresh === true,
           snapshotVersion,
@@ -83,6 +84,66 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
         return;
       }
 
+      if (requestUrl.pathname === "/api/tasks/review-complete-bulk" && request.method === "POST") {
+        assertTrustedWorkbenchRequest(request, { origin, csrfToken });
+        const body = await readJsonBody(request);
+        const requestedTaskIds = Array.isArray(body.taskIds) ? body.taskIds.map((id) => String(id || "").trim()).filter(Boolean) : [];
+        const taskIds = uniqueValues(requestedTaskIds);
+        if (taskIds.length === 0) {
+          writeJson(response, 400, { error: "No review tasks selected" });
+          return;
+        }
+        const results = [];
+        for (const taskId of taskIds) {
+          const task = collectTasks(target).find((item) => item.id === taskId);
+          if (!task) {
+            results.push({ taskId, ok: false, status: 404, error: "Task not found" });
+            continue;
+          }
+          if (!isTaskInReviewQueue(task)) {
+            results.push({ taskId, ok: false, status: 409, ...reviewQueueRejectionPayload(task) });
+            continue;
+          }
+          if (task.reviewStatus === "confirmed") {
+            results.push({ taskId, ok: false, status: 409, error: "Review is already confirmed." });
+            continue;
+          }
+          try {
+            const result = confirmTaskReview(target.projectRoot, taskId, {
+              reviewer: body.reviewer || "Human Reviewer",
+              message: body.message || "bulk confirmed from dashboard workbench",
+              evidence: body.evidence || "",
+              confirmText: task.shortId || task.id,
+              deferCommit: true,
+            });
+            results.push({ taskId, ok: true, status: 200, audit: result.audit, task: { id: result.task?.id || taskId } });
+          } catch (error) {
+            results.push({ taskId, ok: false, status: error.status || 400, ...errorPayload(error) });
+          }
+        }
+        const confirmed = results.filter((result) => result.ok).length;
+        const failed = results.length - confirmed;
+        if (confirmed > 0) {
+          const allowedPaths = uniqueValues(results.filter((result) => result.ok).flatMap((result) => result.audit?.allowedPaths || []));
+          const confirmCommit = commitWorkbenchBatch(target, allowedPaths, { operation: "review-complete-bulk", message: "chore: confirm selected reviews" });
+          for (const result of results.filter((item) => item.ok)) {
+            finalizeDeferredTaskReviewConfirmation(target.projectRoot, result.taskId, { commitSha: confirmCommit.commitSha });
+          }
+          const auditCommit = commitWorkbenchBatch(target, allowedPaths, { operation: "review-complete-bulk-audit", message: "chore: record selected review confirmation audit" });
+          for (const result of results.filter((item) => item.ok)) {
+            result.audit = {
+              ...result.audit,
+              commitSha: confirmCommit.commitSha,
+              auditCommitSha: auditCommit.commitSha,
+              auditStatus: "committed",
+              allowedPaths,
+            };
+          }
+        }
+        writeJson(response, confirmed > 0 ? 200 : 409, { ok: failed === 0, confirmed, failed, results });
+        return;
+      }
+
       if (requestUrl.pathname === "/api/tasks/lesson-sedimentation" && request.method === "POST") {
         assertTrustedWorkbenchRequest(request, { origin, csrfToken });
         const body = await readJsonBody(request);
@@ -102,6 +163,53 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
         });
         regenerate();
         writeJson(response, 200, result);
+        return;
+      }
+
+      if (requestUrl.pathname === "/api/tasks/lesson-sedimentation-bulk" && request.method === "POST") {
+        assertTrustedWorkbenchRequest(request, { origin, csrfToken });
+        const body = await readJsonBody(request);
+        const selections = normalizeBulkLessonSelections(body.selections);
+        if (selections.length === 0) {
+          writeJson(response, 400, { error: "No lesson candidates selected" });
+          return;
+        }
+        const results = [];
+        let allowedPaths = [];
+        for (const selection of selections) {
+          const task = collectTasks(target).find((item) => item.id === selection.taskId);
+          if (!task) {
+            results.push({ ...selection, ok: false, status: 404, error: "Task not found" });
+            continue;
+          }
+          if (!selection.candidateId) {
+            results.push({ ...selection, ok: false, status: 400, error: "Missing lesson candidate id" });
+            continue;
+          }
+          try {
+            const result = createLessonSedimentationTask(target.projectRoot, selection.taskId, selection.candidateId, {
+              title: body.title || "",
+              deferCommit: true,
+              allowDirtyRelativePaths: allowedPaths,
+            });
+            allowedPaths = uniqueValues([...allowedPaths, ...governanceRelativePaths(result.changes)]);
+            results.push({ ...selection, ok: true, status: 200, followUpTask: result.followUpTask, prompt: result.prompt, governance: result.governance });
+          } catch (error) {
+            results.push({ ...selection, ok: false, status: error.status || 400, ...errorPayload(error) });
+          }
+        }
+        const created = results.filter((result) => result.ok).length;
+        const failed = results.length - created;
+        if (created > 0) {
+          const batchCommit = commitWorkbenchBatch(target, allowedPaths, { operation: "lesson-sedimentation-bulk", message: "chore(harness): record selected lesson sedimentation tasks" });
+          for (const result of results.filter((item) => item.ok)) {
+            result.governance = {
+              ...(result.governance || {}),
+              commit: batchCommit,
+            };
+          }
+        }
+        writeJson(response, created > 0 ? 200 : 409, { ok: failed === 0, created, failed, results });
         return;
       }
 
@@ -175,6 +283,7 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
         writeJson(response, 405, { error: "Method not allowed" });
         return;
       }
+      if (request.method === "GET" && isDashboardDataRequest(requestUrl.pathname)) regenerate();
       serveStaticFile(response, outputDir, requestUrl.pathname, request.method === "HEAD");
     } catch (error) {
       const status = error.status || (/CSRF|Origin|Host/.test(error.message) ? 403 : 400);
@@ -207,6 +316,52 @@ function normalizePresetScope(value) {
   const scope = String(value || "project");
   if (scope !== "project" && scope !== "user") throw new Error(`Invalid preset scope: ${scope}`);
   return scope;
+}
+
+function isDashboardDataRequest(urlPath) {
+  return urlPath === "/assets/dashboard-data.js" || urlPath.startsWith("/data/");
+}
+
+function commitWorkbenchBatch(target, allowedPaths, { operation, message }) {
+  const paths = uniqueValues(allowedPaths || []);
+  const context = beginGovernanceSync(target, {
+    operation,
+    allowDirtyWorktree: true,
+    allowedRelativePaths: paths,
+    allowDirtyWriteScope: true,
+  });
+  try {
+    return commitGovernanceSync(context, paths, { message });
+  } finally {
+    releaseGovernanceSync(context);
+  }
+}
+
+function uniqueValues(values) {
+  const seen = new Set();
+  const result = [];
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+function normalizeBulkLessonSelections(rawSelections) {
+  if (!Array.isArray(rawSelections)) return [];
+  const seen = new Set();
+  const result = [];
+  for (const selection of rawSelections) {
+    const taskId = String(selection?.taskId || "").trim();
+    const candidateId = String(selection?.candidateId || "").trim();
+    if (!taskId || !candidateId) continue;
+    const key = `${taskId}\n${candidateId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ taskId, candidateId });
+  }
+  return result;
 }
 
 function isTaskInReviewQueue(task) {
