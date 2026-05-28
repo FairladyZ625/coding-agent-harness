@@ -1,30 +1,51 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncReturns } from "node:child_process";
 import { buildDashboardBundle } from "../scripts/lib/dashboard-data.mjs";
 import { normalizeTarget, readJsonSafe, walkFiles } from "../scripts/lib/core-shared.mjs";
 import { collectTasks, listTaskPlanPaths } from "../scripts/lib/task-scanner.mjs";
 import { buildStatusData } from "../scripts/lib/status-builder.mjs";
 
-function assert(condition, message) {
+type DashboardDocument = {
+  path: string;
+  partial?: boolean;
+};
+
+type DashboardBundleSnapshot = {
+  status: {
+    tasks: unknown[];
+    git: { dirty?: boolean };
+    checkState: {
+      validationMode?: string;
+      failures?: number;
+      details: { warnings: string[] };
+    };
+    summary: { fullCutoverEligible?: boolean };
+  };
+  documents: {
+    documents: DashboardDocument[];
+  };
+};
+
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-architecture-health-"));
 
-function copyMinimalProject(name) {
+function copyMinimalProject(name: string): string {
   const target = path.join(tmpRoot, name);
   fs.cpSync(path.join(repoRoot, "examples/minimal-project"), target, { recursive: true });
   return target;
 }
 
 const statusBuilderTarget = normalizeTarget("examples/minimal-project");
-const status = buildStatusData(statusBuilderTarget);
+const status = buildStatusData(statusBuilderTarget as Parameters<typeof buildStatusData>[0]);
 assert(status.schemaVersion === 2, "status-builder should preserve status schema version");
 assert(status.tasks.length === 1, "status-builder should collect tasks without validator orchestration");
 assert(status.checkState.validationMode === "data-only", "status-builder should mark data-only status as validationMode=data-only");
@@ -36,7 +57,7 @@ fs.writeFileSync(
   path.join(invalidReviewTarget, "coding-agent-harness/planning/tasks/demo-task/review.md"),
   "# Broken Review\n\nThis intentionally lacks required review sections.\n",
 );
-const bundle = buildDashboardBundle(invalidReviewTarget);
+const bundle = buildDashboardBundle(invalidReviewTarget) as DashboardBundleSnapshot;
 assert(bundle.status.tasks.length === 1, "dashboard bundle should still include task data");
 assert(bundle.status.checkState.validationMode === "data-only", "dashboard should use status-builder data-only status");
 assert(bundle.status.checkState.failures === 0, "dashboard data collection should not run validator failures");
@@ -49,7 +70,7 @@ git(dirtyDashboardTarget, ["config", "user.email", "harness-test@example.invalid
 git(dirtyDashboardTarget, ["add", "."]);
 git(dirtyDashboardTarget, ["commit", "-m", "baseline"]);
 fs.writeFileSync(path.join(dirtyDashboardTarget, "DIRTY.txt"), "dirty\n");
-const dirtyBundle = buildDashboardBundle(dirtyDashboardTarget);
+const dirtyBundle = buildDashboardBundle(dirtyDashboardTarget) as DashboardBundleSnapshot;
 assert(dirtyBundle.status.git.dirty === true, "dashboard status should expose dirty git state");
 assert(
   dirtyBundle.status.checkState.details.warnings.some((warning) => warning.includes("dirty-state")),
@@ -79,7 +100,7 @@ fs.mkdirSync(path.join(historicalTaskDir, "artifacts"), { recursive: true });
 fs.writeFileSync(path.join(historicalTaskDir, "references/INDEX.md"), "# References\n\nheavy reference index\n");
 fs.writeFileSync(path.join(historicalTaskDir, "artifacts/INDEX.md"), "# Artifacts\n\nheavy artifact index\n");
 fs.writeFileSync(path.join(historicalTaskDir, "walkthrough.md"), "# Demo Task Walkthrough\n\nCloseout Status: closed\n");
-const historicalBundle = buildDashboardBundle(historicalDashboardTarget);
+const historicalBundle = buildDashboardBundle(historicalDashboardTarget) as DashboardBundleSnapshot;
 const historicalDocs = historicalBundle.documents.documents.filter((document) => document.path.includes("/demo-task/"));
 assert(historicalDocs.some((document) => document.path.endsWith("/brief.md") && document.partial === true), "closed historical tasks should keep a partial brief document");
 assert(!historicalDocs.some((document) => document.path.endsWith("/task_plan.md")), "closed historical tasks should not eagerly load task_plan.md");
@@ -92,7 +113,7 @@ fs.mkdirSync(path.join(walkRoot, "keep"), { recursive: true });
 fs.mkdirSync(path.join(walkRoot, "skip"), { recursive: true });
 fs.writeFileSync(path.join(walkRoot, "keep/visible.txt"), "visible\n");
 fs.writeFileSync(path.join(walkRoot, "skip/hidden.txt"), "hidden\n");
-const filteredFiles = walkFiles(walkRoot, { dirFilter: (dirName) => dirName !== "skip" }).map((file) => path.relative(walkRoot, file));
+const filteredFiles = walkFiles(walkRoot, { dirFilter: (dirName: string) => dirName !== "skip" }).map((file) => path.relative(walkRoot, file));
 assert(filteredFiles.includes("keep/visible.txt"), "walkFiles dirFilter should keep accepted directories");
 assert(!filteredFiles.includes("skip/hidden.txt"), "walkFiles dirFilter should skip rejected directories");
 
@@ -104,7 +125,7 @@ assert(readJsonSafe(validJson, { ok: false }).ok === true, "readJsonSafe should 
 assert(readJsonSafe(path.join(tmpRoot, "missing.json"), { missing: true }).missing === true, "readJsonSafe should return fallback for missing files");
 assert(readJsonSafe(invalidJson, { invalid: true }).invalid === true, "readJsonSafe should return fallback for invalid JSON");
 
-function git(cwd, args) {
+function git(cwd: string, args: string[]): SpawnSyncReturns<string> {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   assert(result.status === 0, `git ${args.join(" ")} failed: ${result.stderr || result.stdout}`);
   return result;

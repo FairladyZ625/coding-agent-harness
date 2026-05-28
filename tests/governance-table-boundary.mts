@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
@@ -9,6 +8,16 @@ import {
   run,
   tmpRoot,
 } from "./helpers/harness-test-utils.mjs";
+
+type AdoptionWarning = {
+  type?: string;
+  phase?: string;
+  id: string;
+  status?: string;
+};
+type AdoptionPayload = {
+  warnings: AdoptionWarning[];
+};
 
 const target = path.join(tmpRoot, "governance-table-boundary-target");
 fs.mkdirSync(target);
@@ -71,7 +80,7 @@ assert(!check.stderr.includes("HL-LEGACY-001"), "legacy overloaded row should no
 const dashboardDir = path.join(tmpRoot, "governance-table-boundary-dashboard");
 const dashboard = run(["dashboard", "--out-dir", dashboardDir, target]);
 assert(dashboard.status === 0, `dashboard generation should tolerate report-only legacy rows\n${dashboard.stderr}`);
-const adoption = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/adoption.json"), "utf8"));
+const adoption = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/adoption.json"), "utf8")) as AdoptionPayload;
 const entropyWarnings = adoption.warnings.filter((warning) => warning.type === "governance-table-entropy");
 assert(entropyWarnings.length >= 3, "dashboard adoption data should expose governance table entropy warnings");
 assert(entropyWarnings.every((warning) => warning.phase === "global-table-boundary"), "entropy warnings should use a stable dashboard phase");
