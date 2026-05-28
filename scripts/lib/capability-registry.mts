@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -33,8 +32,74 @@ import {
   safeAdoptionCapability,
   v2HarnessRoot,
 } from "./harness-paths.mjs";
+import type { HarnessManifest } from "./harness-paths.mjs";
 
-export const capabilityDefinitions = {
+type StringRecord = Record<string, unknown>;
+type CapabilityDefinition = {
+  description: string;
+  selectWhen: string;
+  default: boolean;
+  dependencies: string[];
+  artifacts: string[];
+};
+type CapabilityEntry = { name: string; state: string };
+type CapabilityRegistry = {
+  mode: string;
+  path: string;
+  capabilities: CapabilityEntry[];
+  locale: string;
+  raw: StringRecord | null;
+  errors: string[];
+};
+type CapabilityHarness = {
+  version?: number;
+  manifest?: HarnessManifest | null;
+  manifestPath?: string;
+  projectRoot?: string;
+  harnessRoot?: string;
+  planningRoot?: string;
+  tasksRoot?: string;
+  modulesRoot?: string;
+  externalRoot?: string;
+  governanceRoot?: string;
+  generatedRoot?: string;
+  regressionRoot?: string;
+  ledgerPath?: string;
+  closeoutIndexPath?: string;
+};
+type CapabilityTarget = {
+  projectRoot: string;
+  docsRoot: string;
+  harness?: CapabilityHarness | null;
+  manifestPath?: string;
+};
+type CapabilityChange = {
+  destination: string;
+  source?: string;
+  action: string;
+  ownership?: string;
+  pathFindings?: string[];
+};
+type TemplateProjectionEntry = {
+  destination: string;
+  source: string;
+  ownership: string;
+  renderedSha256: string;
+  sourceSha256: string;
+  paths: Record<string, string>;
+  updatedAt: string;
+};
+type TemplateProjectionManifest = {
+  schemaVersion: string;
+  entries: TemplateProjectionEntry[];
+};
+type PlannedPathOptions = { locale?: string; paths?: CapabilityHarness | null };
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error || "unknown error");
+}
+
+export const capabilityDefinitions: Record<string, CapabilityDefinition> = {
   core: {
     description: "Planning loop and task execution records.",
     selectWhen: "Always install. This is the required document kernel.",
@@ -86,12 +151,12 @@ export const capabilityDefinitions = {
   },
 };
 
-export const capabilityAliases = {
+export const capabilityAliases: Record<string, string> = {
   "review-contract": "adversarial-review",
 };
 
 export const allowedCapabilityStates = new Set(["scaffolded", "configured", "verified"]);
-export const userInstallTargets = {
+export const userInstallTargets: Record<string, string[]> = {
   codex: [".codex", "skills", "coding-agent-harness"],
   claude: [".claude", "skills", "coding-agent-harness"],
   gemini: [".gemini", "skills", "coding-agent-harness"],
@@ -99,11 +164,11 @@ export const userInstallTargets = {
   agents: [".agents", "skills", "coding-agent-harness"],
 };
 
-export function readCapabilityRegistry(target) {
+export function readCapabilityRegistry(target: CapabilityTarget): CapabilityRegistry {
   if (target.harness?.version === 2 && target.harness.manifest) {
     return {
       mode: "v2-manifest",
-      path: target.harness.manifestPath,
+      path: target.harness.manifestPath || target.manifestPath || "",
       capabilities: (target.harness.manifest.capabilities || ["core"]).map((name) => ({
         name: normalizeCapabilityName(name),
         state: "configured",
@@ -125,27 +190,28 @@ export function readCapabilityRegistry(target) {
     };
   }
 
-  let readError = null;
-  const raw = readJsonSafe(registryPath, null, { onError: (error) => { readError = error; } });
+  let readError: unknown = null;
+  const raw = readJsonSafe<StringRecord | null>(registryPath, null, { onError: (error) => { readError = error; } });
   if (raw) {
-    const locale = normalizeLocale(raw.locale);
+    const locale = normalizeLocale(String(raw.locale || ""));
     const capabilities = Array.isArray(raw.capabilities)
       ? raw.capabilities.map((entry) =>
           typeof entry === "string"
             ? { name: normalizeCapabilityName(entry), state: "scaffolded" }
-            : { name: normalizeCapabilityName(entry.name), state: entry.state || "scaffolded" },
+            : { name: normalizeCapabilityName((entry as StringRecord).name), state: String((entry as StringRecord).state || "scaffolded") },
         )
       : [];
     return { mode: "declared-capability", path: registryPath, capabilities, raw, locale, errors: [] };
   }
-  return { mode: "declared-capability", path: registryPath, capabilities: [], raw: null, errors: [readError?.message || "invalid .harness-capabilities.json"] };
+  return { mode: "declared-capability", path: registryPath, capabilities: [], locale: "en-US", raw: null, errors: [errorMessage(readError) || "invalid .harness-capabilities.json"] };
 }
 
-export function normalizeCapabilityName(name) {
-  return capabilityAliases[name] || name;
+export function normalizeCapabilityName(name: unknown): string {
+  const normalized = String(name || "");
+  return capabilityAliases[normalized] || normalized;
 }
 
-export function validateSourcePackageBoundary(targetInput = ".") {
+export function validateSourcePackageBoundary(targetInput = "."): { failures: string[]; warnings: string[] } {
   const root = path.resolve(targetInput || ".");
   const gitProbe = spawnSync("git", ["-C", root, "rev-parse", "--is-inside-work-tree"], { encoding: "utf8" });
   if (gitProbe.status !== 0) return { failures: [], warnings: [] };
@@ -176,11 +242,11 @@ export function validateSourcePackageBoundary(targetInput = ".") {
   };
 }
 
-function validateDashboardAppAssembly(root) {
+function validateDashboardAppAssembly(root: string): string[] {
   return validateDashboardAssetAssembly(root, "app.manifest.json", "app.js", "dashboard assets/app.js does not match app-src manifest assembly");
 }
 
-function validateDashboardAssetAssembly(root, manifestName, assetName, driftMessage) {
+function validateDashboardAssetAssembly(root: string, manifestName: string, assetName: string, driftMessage: string): string[] {
   const assetsDir = path.join(root, "templates/dashboard/assets");
   const manifestPath = path.join(assetsDir, manifestName);
   const assetPath = path.join(assetsDir, assetName);
@@ -198,16 +264,16 @@ function validateDashboardAssetAssembly(root, manifestName, assetName, driftMess
     const trackedAsset = fs.readFileSync(assetPath, "utf8");
     return trackedAsset === assembled ? [] : [driftMessage];
   } catch (error) {
-    return [`could not validate dashboard asset assembly (${assetName}): ${error.message}`];
+    return [`could not validate dashboard asset assembly (${assetName}): ${errorMessage(error)}`];
   }
 }
 
-export function detectCapabilities(target) {
+export function detectCapabilities(target: CapabilityTarget): string[] {
   const detected = new Set(["core"]);
   if (target.harness?.version === 2) {
-    if (fs.existsSync(path.join(target.harness.modulesRoot, "Module-Registry.md"))) detected.add("module-parallel");
-    if (fs.existsSync(path.join(target.harness.governanceRoot, "standards/adversarial-review-standard.md"))) detected.add("adversarial-review");
-    if (fs.existsSync(path.join(target.harness.tasksRoot, "_task-template/long-running-task-contract.md"))) detected.add("long-running-task");
+    if (fs.existsSync(path.join(target.harness.modulesRoot || "", "Module-Registry.md"))) detected.add("module-parallel");
+    if (fs.existsSync(path.join(target.harness.governanceRoot || "", "standards/adversarial-review-standard.md"))) detected.add("adversarial-review");
+    if (fs.existsSync(path.join(target.harness.tasksRoot || "", "_task-template/long-running-task-contract.md"))) detected.add("long-running-task");
     return [...detected];
   }
   if (existsInDocs(target, "09-PLANNING/Module-Registry.md")) detected.add("module-parallel");
@@ -221,7 +287,7 @@ export function detectCapabilities(target) {
   return [...detected];
 }
 
-export function buildInstallReport({ target, locale, capabilities, changes, dryRun = false, operation = "init" }) {
+export function buildInstallReport({ target, locale, capabilities, changes, dryRun = false, operation = "init" }: { target: CapabilityTarget; locale: string; capabilities: string[]; changes: CapabilityChange[]; dryRun?: boolean; operation?: string }) {
   const selected = new Set(capabilities.map(normalizeCapabilityName));
   return {
     operation,
@@ -254,31 +320,31 @@ export function buildInstallReport({ target, locale, capabilities, changes, dryR
   };
 }
 
-function packageVersion() {
+function packageVersion(): string {
   try {
-    const pkg = readJsonSafe(path.join(repoRoot, "package.json"), {});
-    return pkg.version || "";
+    const pkg = readJsonSafe<StringRecord>(path.join(repoRoot, "package.json"), {});
+    return String(pkg.version || "");
   } catch {
     return "";
   }
 }
 
-function userHome(home = "") {
+function userHome(home = ""): string {
   return path.resolve(home || os.homedir());
 }
 
-function normalizeUserAgent(agent = "codex") {
+function normalizeUserAgent(agent = "codex"): string[] {
   const normalized = String(agent || "codex").toLowerCase();
   if (normalized === "all") return Object.keys(userInstallTargets);
   if (!userInstallTargets[normalized]) throw new Error(`Unknown user agent target: ${agent}`);
   return [normalized];
 }
 
-function targetForUserAgent(agent, home = "") {
+function targetForUserAgent(agent: string, home = ""): string {
   return path.join(userHome(home), ...userInstallTargets[agent]);
 }
 
-function skillPackageEntries() {
+function skillPackageEntries(): string[] {
   return [
     "README.md",
     "CHANGELOG.md",
@@ -295,7 +361,7 @@ function skillPackageEntries() {
   ];
 }
 
-function listPackageFiles() {
+function listPackageFiles(): string[] {
   return skillPackageEntries()
     .flatMap((entry) => {
       const fullPath = path.join(repoRoot, entry);
@@ -306,8 +372,8 @@ function listPackageFiles() {
     .sort();
 }
 
-function copySkillPackage(targetRoot, { dryRun = false, force = false } = {}) {
-  const changes = [];
+function copySkillPackage(targetRoot: string, { dryRun = false, force = false }: { dryRun?: boolean; force?: boolean } = {}): CapabilityChange[] {
+  const changes: CapabilityChange[] = [];
   for (const relativeFile of listPackageFiles()) {
     const source = path.join(repoRoot, relativeFile);
     const destination = path.join(targetRoot, relativeFile);
@@ -321,7 +387,7 @@ function copySkillPackage(targetRoot, { dryRun = false, force = false } = {}) {
   return changes;
 }
 
-export function installUserSkill({ agent = "codex", home = "", dryRun = false, force = false, seedPresets = true } = {}) {
+export function installUserSkill({ agent = "codex", home = "", dryRun = false, force = false, seedPresets = true }: { agent?: string; home?: string; dryRun?: boolean; force?: boolean; seedPresets?: boolean } = {}) {
   const agents = normalizeUserAgent(agent);
   const targets = agents.map((targetAgent) => {
     const target = targetForUserAgent(targetAgent, home);
@@ -352,16 +418,16 @@ export function installUserSkill({ agent = "codex", home = "", dryRun = false, f
   };
 }
 
-function readInstalledVersion(targetRoot) {
+function readInstalledVersion(targetRoot: string): string {
   try {
-    const pkg = readJsonSafe(path.join(targetRoot, "package.json"), {});
-    return pkg.version || "";
+    const pkg = readJsonSafe<StringRecord>(path.join(targetRoot, "package.json"), {});
+    return String(pkg.version || "");
   } catch {
     return "";
   }
 }
 
-function commandOnPath(command) {
+function commandOnPath(command: string): string {
   const paths = (process.env.PATH || "").split(path.delimiter).filter(Boolean);
   const extensions = process.platform === "win32" ? (process.env.PATHEXT || ".EXE;.CMD;.BAT").split(";") : [""];
   for (const base of paths) {
@@ -373,7 +439,7 @@ function commandOnPath(command) {
   return "";
 }
 
-export function doctorUserSkill({ agent = "codex", home = "" } = {}) {
+export function doctorUserSkill({ agent = "codex", home = "" }: { agent?: string; home?: string } = {}) {
   const required = [
     "SKILL.md",
     "package.json",
@@ -413,7 +479,7 @@ export function doctorUserSkill({ agent = "codex", home = "" } = {}) {
   };
 }
 
-export function validateCapabilities(target) {
+export function validateCapabilities(target: CapabilityTarget) {
   const registry = readCapabilityRegistry(target);
   const detected = detectCapabilities(target);
   const failures = [];
@@ -452,19 +518,19 @@ export function validateCapabilities(target) {
   return { registry, detected, failures, warnings };
 }
 
-function capabilityArtifactsForTarget(target, capabilityName) {
+function capabilityArtifactsForTarget(target: CapabilityTarget, capabilityName: string): string[] {
   if (target.harness?.version !== 2) return capabilityDefinitions[capabilityName].artifacts;
-  const relative = (absolutePath) => toPosix(path.relative(target.projectRoot, absolutePath));
+  const relative = (absolutePath: string) => toPosix(path.relative(target.projectRoot, absolutePath));
   const paths = target.harness;
   switch (capabilityName) {
     case "core":
-      return [relative(paths.planningRoot)];
+      return [relative(paths.planningRoot || "")];
     case "module-parallel":
-      return [relative(path.join(paths.modulesRoot, "Module-Registry.md")), relative(paths.modulesRoot)];
+      return [relative(path.join(paths.modulesRoot || "", "Module-Registry.md")), relative(paths.modulesRoot || "")];
     case "subagent-worker":
-      return [relative(paths.modulesRoot)];
+      return [relative(paths.modulesRoot || "")];
     case "adversarial-review":
-      return [relative(paths.tasksRoot)];
+      return [relative(paths.tasksRoot || "")];
     case "long-running-task":
       return [];
     default:
@@ -473,12 +539,12 @@ function capabilityArtifactsForTarget(target, capabilityName) {
 }
 
 
-export function plannedInitFiles(capabilities = ["core"], { locale = "en-US", paths = null } = {}) {
-  const root = paths ? toPosix(path.relative(paths.projectRoot, paths.harnessRoot)) : v2HarnessRoot;
-  const modulesRoot = paths ? toPosix(path.relative(paths.projectRoot, paths.modulesRoot)) : `${root}/planning/modules`;
-  const regressionRoot = paths ? toPosix(path.relative(paths.projectRoot, paths.regressionRoot)) : `${root}/governance/regression`;
+export function plannedInitFiles(capabilities: string[] = ["core"], { locale = "en-US", paths = null }: PlannedPathOptions = {}): Array<[string, string]> {
+  const root = paths ? toPosix(path.relative(paths.projectRoot || "", paths.harnessRoot || "")) : v2HarnessRoot;
+  const modulesRoot = paths ? toPosix(path.relative(paths.projectRoot || "", paths.modulesRoot || "")) : `${root}/planning/modules`;
+  const regressionRoot = paths ? toPosix(path.relative(paths.projectRoot || "", paths.regressionRoot || "")) : `${root}/governance/regression`;
   const contextRoot = `${root}/context`;
-  const governanceRoot = paths ? toPosix(path.relative(paths.projectRoot, paths.governanceRoot)) : `${root}/governance`;
+  const governanceRoot = paths ? toPosix(path.relative(paths.projectRoot || "", paths.governanceRoot || "")) : `${root}/governance`;
   const files = [
     ["AGENTS.md", "templates/AGENTS.md.template"],
     ["CLAUDE.md", "templates/CLAUDE.md.template"],
@@ -514,11 +580,11 @@ export function plannedInitFiles(capabilities = ["core"], { locale = "en-US", pa
   return files.map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
 }
 
-function plannedInitDirectories(capabilities = ["core"], { paths = null } = {}) {
-  const planningRoot = paths ? toPosix(path.relative(paths.projectRoot, paths.planningRoot)) : `${v2HarnessRoot}/planning`;
-  const tasksRoot = paths ? toPosix(path.relative(paths.projectRoot, paths.tasksRoot)) : `${v2HarnessRoot}/planning/tasks`;
-  const modulesRoot = paths ? toPosix(path.relative(paths.projectRoot, paths.modulesRoot)) : `${v2HarnessRoot}/planning/modules`;
-  const generatedRoot = paths ? toPosix(path.relative(paths.projectRoot, paths.generatedRoot)) : `${v2HarnessRoot}/governance/generated`;
+function plannedInitDirectories(capabilities: string[] = ["core"], { paths = null }: { paths?: CapabilityHarness | null } = {}): string[] {
+  const planningRoot = paths ? toPosix(path.relative(paths.projectRoot || "", paths.planningRoot || "")) : `${v2HarnessRoot}/planning`;
+  const tasksRoot = paths ? toPosix(path.relative(paths.projectRoot || "", paths.tasksRoot || "")) : `${v2HarnessRoot}/planning/tasks`;
+  const modulesRoot = paths ? toPosix(path.relative(paths.projectRoot || "", paths.modulesRoot || "")) : `${v2HarnessRoot}/planning/modules`;
+  const generatedRoot = paths ? toPosix(path.relative(paths.projectRoot || "", paths.generatedRoot || "")) : `${v2HarnessRoot}/governance/generated`;
   const directories = [
     planningRoot,
     tasksRoot,
@@ -528,8 +594,8 @@ function plannedInitDirectories(capabilities = ["core"], { paths = null } = {}) 
   return directories;
 }
 
-export function writeInitFiles(targetInput, capabilities, { dryRun = true, locale = "en-US", addNpmScripts = false } = {}) {
-  let target = normalizeTarget(targetInput);
+export function writeInitFiles(targetInput: string, capabilities: string[], { dryRun = true, locale = "en-US", addNpmScripts = false }: { dryRun?: boolean; locale?: string; addNpmScripts?: boolean } = {}) {
+  let target = normalizeTarget(targetInput) as CapabilityTarget;
   const normalizedCapabilities = [...new Set(capabilities.map(normalizeCapabilityName))];
   const normalizedLocale = normalizeLocale(locale);
   const existingRegistry = readCapabilityRegistry(target);
@@ -553,7 +619,7 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true, local
   if (!dryRun && !manifestExists) {
     fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
     fs.writeFileSync(manifestPath, renderHarnessManifest({ locale: normalizedLocale, capabilities: normalizedCapabilities }));
-    target = normalizeTarget(target.projectRoot);
+    target = normalizeTarget(target.projectRoot) as CapabilityTarget;
   }
   for (const directory of plannedInitDirectories(normalizedCapabilities)) {
     const directoryPath = path.join(target.projectRoot, directory);
@@ -582,7 +648,7 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true, local
   return { target, capabilities: normalizedCapabilities, locale: normalizedLocale, changes, presetSeed, nextCommands: initNextCommands(), report };
 }
 
-function renderHarnessManifest({ locale, capabilities, structure = null }) {
+function renderHarnessManifest({ locale, capabilities, structure = null }: { locale: string; capabilities: string[]; structure?: Record<string, string> | null }): string {
   const manifestStructure = structure || {
     harnessRoot: v2HarnessRoot,
     planningRoot: `${v2HarnessRoot}/planning`,
@@ -603,18 +669,18 @@ function renderHarnessManifest({ locale, capabilities, structure = null }) {
   ].join("\n");
 }
 
-function initNextCommands() {
+function initNextCommands(): string[] {
   return [
     "npx --yes coding-agent-harness dev .",
     "npx --yes coding-agent-harness dashboard --out-dir tmp/harness-dashboard .",
   ];
 }
 
-function writeNpmScripts(target, { dryRun = true } = {}) {
+function writeNpmScripts(target: CapabilityTarget, { dryRun = true }: { dryRun?: boolean } = {}): CapabilityChange[] {
   const packagePath = path.join(target.projectRoot, "package.json");
   if (!fs.existsSync(packagePath)) throw new Error("init --add-npm-scripts requires an existing package.json");
-  const pkg = readJsonSafe(packagePath, {});
-  const scripts = { ...(pkg.scripts || {}) };
+  const pkg = readJsonSafe<StringRecord>(packagePath, {});
+  const scripts = { ...((pkg.scripts as Record<string, string> | undefined) || {}) };
   const additions = {
     "harness:dev": "npx --yes coding-agent-harness dev .",
     "harness:dashboard": "npx --yes coding-agent-harness dashboard --out-dir tmp/harness-dashboard .",
@@ -636,13 +702,13 @@ function writeNpmScripts(target, { dryRun = true } = {}) {
   return [{ destination: "package.json", source: "npm-scripts", action: dryRun ? "would-update-scripts" : "update-scripts" }, ...scriptChanges];
 }
 
-function renderInstallTemplate(source, target) {
+function renderInstallTemplate(source: string, target: CapabilityTarget): string {
   return renderHarnessTemplate(readBundledTemplate(source), { paths: targetPathContext(target) });
 }
 
-function targetPathContext(target) {
+function targetPathContext(target: CapabilityTarget): Record<string, string> {
   const paths = target.harness || {};
-  const projectRoot = paths.projectRoot || target.projectRoot;
+  const projectRoot = String(paths.projectRoot || target.projectRoot);
   const fields = [
     "harnessRoot",
     "planningRoot",
@@ -656,29 +722,29 @@ function targetPathContext(target) {
     "closeoutIndexPath",
   ];
   return Object.fromEntries(fields.map((field) => {
-    const value = paths[field] || "";
+    const value = String(paths[field as keyof CapabilityHarness] || "");
     const rendered = value && path.isAbsolute(value) ? toPosix(path.relative(projectRoot, value)) : toPosix(String(value || ""));
     return [field, rendered];
   }));
 }
 
-function templateProjectionManifestPath(target) {
+function templateProjectionManifestPath(target: CapabilityTarget): string {
   const effectiveTarget = target.harness?.version === 2 || !fs.existsSync(path.join(target.projectRoot, v2HarnessRoot, "harness.yaml"))
     ? target
-    : normalizeTarget(target.projectRoot);
+    : normalizeTarget(target.projectRoot) as CapabilityTarget;
   const generatedRoot = effectiveTarget.harness?.generatedRoot || path.join(effectiveTarget.projectRoot, v2HarnessRoot, "governance/generated");
   return path.join(generatedRoot, "Template-Projections.json");
 }
 
-function readTemplateProjectionManifest(target) {
+function readTemplateProjectionManifest(target: CapabilityTarget): TemplateProjectionManifest {
   const currentPath = templateProjectionManifestPath(target);
-  if (fs.existsSync(currentPath)) return readJsonSafe(currentPath, { schemaVersion: "template-projections/v1", entries: [] });
+  if (fs.existsSync(currentPath)) return readJsonSafe<TemplateProjectionManifest>(currentPath, { schemaVersion: "template-projections/v1", entries: [] });
   const fallback = walkFiles(target.projectRoot)
     .find((filePath) => path.basename(filePath) === "Template-Projections.json");
-  return fallback ? readJsonSafe(fallback, { schemaVersion: "template-projections/v1", entries: [] }) : { schemaVersion: "template-projections/v1", entries: [] };
+  return fallback ? readJsonSafe<TemplateProjectionManifest>(fallback, { schemaVersion: "template-projections/v1", entries: [] }) : { schemaVersion: "template-projections/v1", entries: [] };
 }
 
-function writeTemplateProjectionManifest(target, entries) {
+function writeTemplateProjectionManifest(target: CapabilityTarget, entries: TemplateProjectionEntry[]): void {
   if (!entries.length) return;
   const manifestPath = templateProjectionManifestPath(target);
   const current = readTemplateProjectionManifest(target);
@@ -693,7 +759,7 @@ function writeTemplateProjectionManifest(target, entries) {
   fs.writeFileSync(manifestPath, `${JSON.stringify(next, null, 2)}\n`);
 }
 
-function templateProjectionEntry({ destination, source, target, rendered }) {
+function templateProjectionEntry({ destination, source, target, rendered }: { destination: string; source: string; target: CapabilityTarget; rendered: string }): TemplateProjectionEntry {
   return {
     destination,
     source,
@@ -705,7 +771,7 @@ function templateProjectionEntry({ destination, source, target, rendered }) {
   };
 }
 
-function pathFindings(content, target) {
+function pathFindings(content: string, target: CapabilityTarget): string[] {
   const findings = [];
   const text = String(content || "");
   if (text.includes("{{paths.")) findings.push("unresolved-path-token");
@@ -717,7 +783,7 @@ function pathFindings(content, target) {
   return [...new Set(findings)];
 }
 
-function scanProjectAuthoredPathFindings(target, plannedDestinations) {
+function scanProjectAuthoredPathFindings(target: CapabilityTarget, plannedDestinations: Set<string>): CapabilityChange[] {
   const root = target.harness?.harnessRoot || target.docsRoot;
   if (!root || !fs.existsSync(root)) return [];
   return walkFiles(root)
@@ -728,15 +794,15 @@ function scanProjectAuthoredPathFindings(target, plannedDestinations) {
       const findings = pathFindings(readFileSafe(path.join(target.projectRoot, relative)), target);
       return findings.length ? { destination: relative, ownership: "project-authored", action: "report-only", pathFindings: findings } : null;
     })
-    .filter(Boolean);
+    .filter((change): change is NonNullable<typeof change> => Boolean(change));
 }
 
-function sha256(content) {
+function sha256(content: unknown): string {
   return crypto.createHash("sha256").update(String(content)).digest("hex");
 }
 
-export function addCapability(targetInput, capabilityName, { dryRun = true, locale = "" } = {}) {
-  const target = normalizeTarget(targetInput);
+export function addCapability(targetInput: string, capabilityName: string, { dryRun = true, locale = "" }: { dryRun?: boolean; locale?: string } = {}) {
+  const target = normalizeTarget(targetInput) as CapabilityTarget;
   const normalizedCapability = normalizeCapabilityName(capabilityName);
   if (!capabilityDefinitions[normalizedCapability]) throw new Error(`Unknown capability: ${capabilityName}`);
   const registry = readCapabilityRegistry(target);
@@ -748,8 +814,8 @@ export function addCapability(targetInput, capabilityName, { dryRun = true, loca
   if (!capabilityMap.has(normalizedCapability)) capabilityMap.set(normalizedCapability, { name: normalizedCapability, state: "scaffolded" });
   const nextCapabilities = [...capabilityMap.keys()];
   const scaffold = plannedInitFiles([...capabilityMap.keys()], { locale: normalizedLocale, paths: target.harness?.version === 2 ? target.harness : null });
-  const changes = [];
-  const projectionEntries = [];
+  const changes: CapabilityChange[] = [];
+  const projectionEntries: TemplateProjectionEntry[] = [];
   for (const directory of plannedInitDirectories(nextCapabilities, { paths: target.harness?.version === 2 ? target.harness : null })) {
     const destinationPath = path.join(target.projectRoot, directory);
     const existsAlready = fs.existsSync(destinationPath);
@@ -769,11 +835,11 @@ export function addCapability(targetInput, capabilityName, { dryRun = true, loca
     }
   }
   if (!dryRun) {
-    const manifestPath = target.harness.version === 2
+    const manifestPath = target.harness?.version === 2 && target.manifestPath
       ? target.manifestPath
       : path.join(target.projectRoot, v2HarnessRoot, "harness.yaml");
     fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
-    fs.writeFileSync(manifestPath, renderHarnessManifest({ locale: normalizedLocale, capabilities: nextCapabilities, structure: target.harness.manifest?.structure }));
+    fs.writeFileSync(manifestPath, renderHarnessManifest({ locale: normalizedLocale, capabilities: nextCapabilities, structure: target.harness?.manifest?.structure }));
     writeTemplateProjectionManifest(target, projectionEntries);
   }
   const report = buildInstallReport({ target, locale: normalizedLocale, capabilities: [...capabilityMap.keys()], changes, dryRun, operation: "add-capability" });
@@ -787,7 +853,7 @@ export function addCapability(targetInput, capabilityName, { dryRun = true, loca
 }
 
 export function auditTemplateProjections(targetInput = ".") {
-  const target = normalizeTarget(targetInput);
+  const target = normalizeTarget(targetInput) as CapabilityTarget;
   const registry = readCapabilityRegistry(target);
   const capabilities = registry.capabilities.map((capability) => capability.name);
   const planned = plannedInitFiles(capabilities, { locale: registry.locale, paths: target.harness?.version === 2 ? target.harness : null });
@@ -846,11 +912,11 @@ export function auditTemplateProjections(targetInput = ".") {
   };
 }
 
-export function refreshTemplateProjections(targetInput = ".", { apply = false } = {}) {
-  const target = normalizeTarget(targetInput);
+export function refreshTemplateProjections(targetInput = ".", { apply = false }: { apply?: boolean } = {}) {
+  const target = normalizeTarget(targetInput) as CapabilityTarget;
   const audit = auditTemplateProjections(targetInput);
-  const changes = [];
-  const entries = [];
+  const changes: CapabilityChange[] = [];
+  const entries: TemplateProjectionEntry[] = [];
   for (const item of audit.projections) {
     if (!["would-create", "would-refresh"].includes(item.action)) continue;
     const rendered = renderInstallTemplate(item.source, target);
