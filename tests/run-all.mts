@@ -1,12 +1,10 @@
 #!/usr/bin/env node
-// @ts-nocheck
-
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const runnerRoot = process.env.HARNESS_TEST_RUNNER_OUT_DIR || repoRoot;
-const suites = [
+const suites: string[] = [
   "tests/meta-test-layout.mjs",
   "tests/directory-structure-v2.mjs",
   "tests/hard-cutover-guards.mjs",

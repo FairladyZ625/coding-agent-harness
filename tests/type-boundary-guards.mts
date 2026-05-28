@@ -1,19 +1,22 @@
 #!/usr/bin/env node
-// @ts-nocheck
-
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const { checkTypeBoundaries } = await import(pathToFileURL(path.join(repoRoot, "dist/check-type-boundaries.mjs")));
+type BoundaryViolation = { code: string; file: string; message: string };
+type BoundaryResult = { ok: boolean; violations: BoundaryViolation[] };
+type BoundaryModule = {
+  checkTypeBoundaries(options: { repoRoot: string; escapeAllowlistPath?: string }): BoundaryResult;
+};
+const { checkTypeBoundaries } = (await import(pathToFileURL(path.join(repoRoot, "dist/check-type-boundaries.mjs")).href)) as BoundaryModule;
 
-function assert(condition, message) {
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-function writeFixture(root, relativePath, content) {
+function writeFixture(root: string, relativePath: string, content: string): void {
   const absolutePath = path.join(root, relativePath);
   fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
   fs.writeFileSync(absolutePath, content);

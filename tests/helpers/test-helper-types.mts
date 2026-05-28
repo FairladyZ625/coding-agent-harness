@@ -1,12 +1,10 @@
 #!/usr/bin/env node
-// @ts-nocheck
-
 import fs from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 
-function assert(condition, message) {
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
@@ -17,7 +15,10 @@ assert(fs.existsSync(typeIsland), "test helper type island should exist");
 assert(fs.existsSync(typeConsumer), "test helper type consumer should exist");
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
-assert(!packageJson.files.some((entry) => entry === "tests/" || entry.startsWith("tests/")), "test helper types must stay outside the package allowlist");
+assert(
+  !packageJson.files.some((entry: string) => entry === "tests/" || entry.startsWith("tests/")),
+  "test helper types must stay outside the package allowlist",
+);
 
 const consumerContent = fs.readFileSync(typeConsumer, "utf8");
 assert(consumerContent.includes('import type {'), "test helper type consumer should use import type");

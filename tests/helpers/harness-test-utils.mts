@@ -1,9 +1,31 @@
-// @ts-nocheck
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncOptionsWithStringEncoding, SpawnSyncReturns } from "node:child_process";
+import type { WorkbenchRuntime, ZipFixtureEntry } from "./harness-test-types.js";
+
+type TestRunOptions = Omit<SpawnSyncOptionsWithStringEncoding, "encoding"> & {
+  encoding?: BufferEncoding;
+};
+
+type TtyRunOptions = TestRunOptions & {
+  input?: string;
+  timeout?: number;
+};
+
+type WorkbenchChild = {
+  kill(signal?: NodeJS.Signals): boolean;
+  stdout: NodeJS.ReadableStream;
+  stderr: NodeJS.ReadableStream;
+  on(event: "exit", listener: (code: number | null) => void): unknown;
+};
+
+type GraphLike = {
+  nodes?: Array<{ id: string }>;
+  edges?: Array<{ from: string; to: string }>;
+};
 
 export const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 export const packageVersion = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")).version;
@@ -18,7 +40,7 @@ export const todayLocal = (() => {
   return `${y}-${m}-${d}`;
 })();
 
-export function run(args, options = {}) {
+export function run(args: string[], options: TestRunOptions = {}): SpawnSyncReturns<string> {
   return spawnSync(node, [cli, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -26,21 +48,21 @@ export function run(args, options = {}) {
   });
 }
 
-export function assert(condition, message) {
+export function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-export function expectPass(args, options = {}) {
+export function expectPass(args: string[], options: TestRunOptions = {}): SpawnSyncReturns<string> {
   const result = run(args, options);
   assert(result.status === 0, `${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;
 }
 
-export function expectJson(args, options = {}) {
-  return JSON.parse(expectPass(args, options).stdout);
+export function expectJson<TPayload = unknown>(args: string[], options: TestRunOptions = {}): TPayload {
+  return JSON.parse(expectPass(args, options).stdout) as TPayload;
 }
 
-export function waitForWorkbench(child) {
+export function waitForWorkbench(child: WorkbenchChild): Promise<WorkbenchRuntime> {
   return new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";
@@ -67,25 +89,29 @@ export function waitForWorkbench(child) {
   });
 }
 
-export async function waitForCondition(fn, message, { timeout = 8000, interval = 200 } = {}) {
+export async function waitForCondition<TValue>(
+  fn: () => TValue | Promise<TValue>,
+  message: string,
+  { timeout = 8000, interval = 200 }: { timeout?: number; interval?: number } = {},
+): Promise<NonNullable<TValue>> {
   const started = Date.now();
-  let lastValue;
+  let lastValue: TValue | undefined;
   while (Date.now() - started < timeout) {
     lastValue = await fn();
-    if (lastValue) return lastValue;
+    if (lastValue) return lastValue as NonNullable<TValue>;
     await new Promise((resolve) => setTimeout(resolve, interval));
   }
   throw new Error(`${message}: ${JSON.stringify(lastValue)}`);
 }
 
-export function commandExists(command) {
+export function commandExists(command: string): boolean {
   const result = spawnSync(command, ["-v"], { encoding: "utf8" });
   return !result.error && result.status === 0;
 }
 
-export function writeZipFromDirectory(sourceDir, zipPath, { rootName = path.basename(sourceDir) } = {}) {
-  const entries = [];
-  const visit = (directory, prefix = "") => {
+export function writeZipFromDirectory(sourceDir: string, zipPath: string, { rootName = path.basename(sourceDir) }: { rootName?: string } = {}): void {
+  const entries: ZipFixtureEntry[] = [];
+  const visit = (directory: string, prefix = ""): void => {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       const absolute = path.join(directory, entry.name);
       const relative = path.posix.join(prefix, entry.name);
@@ -97,7 +123,7 @@ export function writeZipFromDirectory(sourceDir, zipPath, { rootName = path.base
   writeZipEntries(entries, zipPath, { method: 8 });
 }
 
-export function runInTty(args, options = {}) {
+export function runInTty(args: string[], options: TtyRunOptions = {}): SpawnSyncReturns<string> {
   const input = options.input || "";
   const timeout = options.timeout;
   const expectLines = [
@@ -118,24 +144,24 @@ export function runInTty(args, options = {}) {
   });
 }
 
-export function expectTtyJson(args, options = {}) {
+export function expectTtyJson<TPayload = unknown>(args: string[], options: TtyRunOptions = {}): TPayload {
   const result = runInTty(args, options);
   assert(result.status === 0, `tty ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
-  return parseJsonFromOutput(result.stdout);
+  return parseJsonFromOutput<TPayload>(result.stdout);
 }
 
-export function parseJsonFromOutput(output) {
+export function parseJsonFromOutput<TPayload = unknown>(output: string): TPayload {
   const start = output.indexOf("{");
   const end = output.lastIndexOf("}");
   assert(start >= 0 && end > start, `output did not contain JSON\n${output}`);
-  return JSON.parse(output.slice(start, end + 1));
+  return JSON.parse(output.slice(start, end + 1)) as TPayload;
 }
 
-function tclWord(value) {
+function tclWord(value: string): string {
   return `{${String(value).replace(/\\/g, "\\\\").replace(/}/g, "\\}")}}`;
 }
 
-export function writeZipEntries(entries, zipPath, { method = 0 } = {}) {
+export function writeZipEntries(entries: ZipFixtureEntry[], zipPath: string, { method = 0 }: { method?: 0 | 8 } = {}): void {
   const fileRecords = [];
   const localParts = [];
   let offset = 0;
@@ -198,7 +224,7 @@ export function writeZipEntries(entries, zipPath, { method = 0 } = {}) {
   fs.writeFileSync(zipPath, Buffer.concat([...localParts, ...centralParts, eocd]));
 }
 
-function crc32(buffer) {
+function crc32(buffer: Uint8Array): number {
   let crc = 0xffffffff;
   for (const byte of buffer) {
     crc ^= byte;
@@ -207,7 +233,7 @@ function crc32(buffer) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-export function acceptNoLessonCandidate(taskDir) {
+export function acceptNoLessonCandidate(taskDir: string): void {
   const candidatePath = path.join(taskDir, "lesson_candidates.md");
   let content = fs.readFileSync(candidatePath, "utf8");
   content = content
@@ -222,11 +248,11 @@ export function acceptNoLessonCandidate(taskDir) {
   fs.writeFileSync(candidatePath, content);
 }
 
-export function hasLocalAbsolutePath(content) {
+export function hasLocalAbsolutePath(content: string): boolean {
   return /(?:^|[\s"'(])(?:\/Users\/|\/Volumes\/|\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/home\/|[A-Za-z]:\\)/.test(content);
 }
 
-export function assertGraphIntegrity(graph, label) {
+export function assertGraphIntegrity(graph: GraphLike, label: string): void {
   const nodes = new Set((graph.nodes || []).map((node) => node.id));
   for (const edge of graph.edges || []) {
     assert(nodes.has(edge.from), `${label} has dangling edge source ${edge.from}`);

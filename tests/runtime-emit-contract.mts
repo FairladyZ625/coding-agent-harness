@@ -1,20 +1,23 @@
 #!/usr/bin/env node
-// @ts-nocheck
-
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const { checkRuntimeEmitContract } = await import(pathToFileURL(path.join(repoRoot, "dist/check-runtime-emit.mjs")));
+type RuntimeEmitViolation = { code: string; file?: string; message: string };
+type RuntimeEmitResult = { ok: boolean; violations: RuntimeEmitViolation[] };
+type RuntimeEmitModule = {
+  checkRuntimeEmitContract(options: { projectRoot: string; configPath?: string; expectedDir?: string }): RuntimeEmitResult;
+};
+const { checkRuntimeEmitContract } = (await import(pathToFileURL(path.join(repoRoot, "dist/check-runtime-emit.mjs")).href)) as RuntimeEmitModule;
 const fixtureSource = path.join(repoRoot, "fixtures/runtime-emit");
 
-function assert(condition, message) {
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-function writeFixture(root, relativePath, content) {
+function writeFixture(root: string, relativePath: string, content: string): void {
   const absolutePath = path.join(root, relativePath);
   fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
   fs.writeFileSync(absolutePath, content);

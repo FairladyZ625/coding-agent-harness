@@ -30,6 +30,7 @@
     "scripts/lib/migration-support.mts",
     "scripts/lib/preset-engine.mts",
     "scripts/lib/preset-registry.mts",
+    "scripts/lib/preset-runner.mts",
     "scripts/lib/status-builder.mts",
     "scripts/lib/structure-migration.mts",
     "scripts/lib/subagent-authorization-audit.mts",
@@ -63,8 +64,6 @@
     "tests/governance-sync.mts",
     "tests/governance-table-boundary.mts",
     "tests/hard-cutover-guards.mts",
-    "tests/helpers/harness-test-utils.mts",
-    "tests/helpers/test-helper-types.mts",
     "tests/import-graph-gate.mts",
     "tests/lifecycle-queues.mts",
     "tests/lifecycle/governance-sync.mts",
@@ -75,10 +74,9 @@
     "tests/meta-test-layout.mts",
     "tests/migration-adoption.mts",
     "tests/preset-engine.mts",
+    "tests/release-closeout-preset.mts",
     "tests/review-confirm-git-gate.mts",
-    "tests/run-all.mts",
     "tests/run-built.mts",
-    "tests/runtime-emit-contract.mts",
     "tests/scripts/snapshot-matrix.mts",
     "tests/shared-type-islands.mts",
     "tests/smoke-dashboard.mts",
@@ -86,7 +84,6 @@
     "tests/source-package-boundary.mts",
     "tests/task-lifecycle.mts",
     "tests/template-governance.mts",
-    "tests/test-harness.mts",
-    "tests/type-boundary-guards.mts"
+    "tests/test-harness.mts"
   ]
 }
