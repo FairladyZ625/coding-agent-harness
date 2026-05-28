@@ -40,7 +40,6 @@
     "scripts/lib/task-lifecycle/review-gates.mts",
     "scripts/lib/task-lifecycle/review-submission.mts",
     "scripts/lib/task-lifecycle/scaffold-provenance.mts",
-    "scripts/lib/task-metadata.mts",
     "scripts/lib/task-scanner.mts",
     "scripts/lib/task-tombstone-commands.mts",
     "scripts/postinstall.mts",

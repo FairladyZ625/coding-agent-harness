@@ -1,36 +1,56 @@
-// @ts-nocheck
 // Dynamic metadata parsing stays behavior-first until the metadata domain model PR.
 
 import {
   allowedTaskStates,
-  allowedTaskBudgets,
   taskContractMarker,
 } from "./core-shared.mjs";
 import { tableAfterHeading, firstColumn } from "./markdown-utils.mjs";
 
-export function parseTaskState(progressContent) {
+type TaskState = "not_started" | "planned" | "in_progress" | "review" | "blocked" | "done" | "unknown";
+type KnownTaskState = Exclude<TaskState, "unknown">;
+type TaskStateSource = "explicit" | "invalid" | "legacy-table" | "missing";
+type TaskStateInfo = {
+  state: TaskState;
+  source: TaskStateSource;
+  raw: string;
+};
+type TaskBudget = "simple" | "standard" | "complex";
+type TaskMetadata = {
+  kind: string;
+  preset: string;
+  presetVersion: string;
+  migrationTargetLevel: string;
+  migrationAchievedLevel: string;
+  evidenceBundle: string;
+};
+type TaskContractInfo = {
+  version: string;
+  generated: boolean;
+};
+
+export function parseTaskState(progressContent: string): TaskState {
   return parseTaskStateInfo(progressContent).state;
 }
 
-export function parseTaskBudget(taskPlanContent) {
+export function parseTaskBudget(taskPlanContent: unknown): TaskBudget {
   const match =
     String(taskPlanContent || "").match(/^Selected budget\s*[:：]\s*([^\n]+)/im) ||
     String(taskPlanContent || "").match(/^选择预算\s*[:：]\s*([^\n]+)/im);
   if (!match) return "standard";
   const raw = match[1].replace(/`/g, "").trim().toLowerCase();
   const normalized = raw.replaceAll("_", "-").replace(/\s+/g, "-");
-  if (allowedTaskBudgets.has(normalized)) return normalized;
+  if (isTaskBudget(normalized)) return normalized;
   if (["long-running", "longrunning", "module-parallel"].includes(normalized)) return "complex";
   return "standard";
 }
 
-function parseMetadataLine(content, labels) {
+function parseMetadataLine(content: unknown, labels: string[]): string {
   const escaped = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   const match = String(content || "").match(new RegExp(`^(?:${escaped})\\s*[:：]\\s*([^\\n]+)`, "im"));
   return match ? match[1].replace(/`/g, "").trim() : "";
 }
 
-function normalizeMetadataValue(value, fallback = "") {
+function normalizeMetadataValue(value: unknown, fallback = ""): string {
   const normalized = String(value || "")
     .replace(/`/g, "")
     .trim()
@@ -40,7 +60,7 @@ function normalizeMetadataValue(value, fallback = "") {
   return normalized || fallback;
 }
 
-export function parseTaskMetadata(taskPlanContent) {
+export function parseTaskMetadata(taskPlanContent: unknown): TaskMetadata {
   const content = String(taskPlanContent || "");
   const kind = normalizeMetadataValue(parseMetadataLine(content, ["Task Kind", "任务类型"]), "general");
   const preset = normalizeMetadataValue(parseMetadataLine(content, ["Task Preset", "Preset", "任务预设"]), "none");
@@ -64,7 +84,7 @@ export function parseTaskMetadata(taskPlanContent) {
   };
 }
 
-export function parseTaskContractInfo(taskPlanContent) {
+export function parseTaskContractInfo(taskPlanContent: unknown): TaskContractInfo {
   const content = String(taskPlanContent || "");
   const explicit =
     content.match(/^Task Contract\s*[:：]\s*`?([^`\n]+)`?\s*$/im) ||
@@ -76,7 +96,7 @@ export function parseTaskContractInfo(taskPlanContent) {
   };
 }
 
-export function parseTaskStateInfo(progressContent) {
+export function parseTaskStateInfo(progressContent: string): TaskStateInfo {
   const match = progressContent.match(/^##\s*(?:Current Status|Status|状态)\s*[:：]?\s*(?:\n\s*)?([^\n]+)/im);
   if (!match) return inferLegacyTaskState(progressContent);
   const raw = match[1].replace(/`/g, "").trim();
@@ -91,16 +111,16 @@ export function parseTaskStateInfo(progressContent) {
     ["pending", "planned"],
   ]);
   const normalized = aliases.get(raw) || raw.toLowerCase().replaceAll("-", "_").replaceAll(" ", "_");
-  return allowedTaskStates.has(normalized)
+  return isKnownTaskState(normalized)
     ? { state: normalized, source: "explicit", raw }
     : { state: "unknown", source: "invalid", raw };
 }
 
-function inferLegacyTaskState(progressContent) {
+function inferLegacyTaskState(progressContent: string): TaskStateInfo {
   const { header, rows } = tableAfterHeading(progressContent, /^(Status|状态)$/i);
   const statusIndex = firstColumn(header, ["Status", "状态"]);
   if (statusIndex < 0 || rows.length === 0) return { state: "unknown", source: "missing", raw: "" };
-  const states = rows.map((row) => normalizeLegacyState(row[statusIndex])).filter(Boolean);
+  const states = rows.map((row) => normalizeLegacyState(row[statusIndex])).filter(isKnownTaskState);
   if (states.includes("blocked")) return { state: "blocked", source: "legacy-table", raw: "blocked" };
   if (states.includes("in_progress")) return { state: "in_progress", source: "legacy-table", raw: "in_progress" };
   if (states.includes("review")) return { state: "review", source: "legacy-table", raw: "review" };
@@ -109,7 +129,7 @@ function inferLegacyTaskState(progressContent) {
   return { state: "unknown", source: "missing", raw: "" };
 }
 
-function normalizeLegacyState(value) {
+function normalizeLegacyState(value: unknown): KnownTaskState | "" {
   const raw = String(value || "").replace(/`/g, "").trim().toLowerCase();
   if (!raw || /^(none|n\/a|na|-|—|–|无)$/.test(raw)) return "";
   if (/block|阻塞|blocked/.test(raw)) return "blocked";
@@ -118,4 +138,12 @@ function normalizeLegacyState(value) {
   if (/done|complete|completed|merged|closed|完成|已完成/.test(raw)) return "done";
   if (/pending|planned|todo|not[-_\s]?started|未开始|计划/.test(raw)) return "planned";
   return "";
+}
+
+function isKnownTaskState(value: unknown): value is KnownTaskState {
+  return typeof value === "string" && allowedTaskStates.has(value);
+}
+
+function isTaskBudget(value: unknown): value is TaskBudget {
+  return value === "simple" || value === "standard" || value === "complex";
 }
