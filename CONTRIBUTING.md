@@ -40,7 +40,7 @@ docs row. For larger PRs or when you are unsure, run the full root suite.
 | Change type | Minimum local checks |
 | --- | --- |
 | Docs only | `git diff --check` |
-| CLI/runtime | `npm test`, `npm run check`, `git diff --check` |
+| CLI/runtime | `npm run typecheck`, `npm run typecheck:guards`, `npm test`, `npm run check`, `git diff --check` |
 | Templates or examples | `npm test`, `npm run build:runtime`, `node dist/harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
 | Dashboard | `npm test`, `npm run smoke:dashboard`, `git diff --check` |
 | Package surface | `npm test`, `npm run pack:dry-run`, `git diff --check` |
@@ -51,6 +51,8 @@ Full root suite:
 ```bash
 npm install
 npm run build:runtime
+npm run typecheck
+npm run typecheck:guards
 npm test
 npm run smoke:dashboard
 npm run check
@@ -95,6 +97,6 @@ Use draft PRs for work that still needs design review, incomplete checks, or fol
 
 ## CI Expectations
 
-GitHub Actions validates the root package, source/package boundary, minimal target project, dashboard smoke path, npm package dry run, and GUI submodule typecheck/test/build path. A local run should match the CI commands closely enough that failures are reproducible.
+GitHub Actions validates the root TypeScript integrity gate (`npm run typecheck` and `npm run typecheck:guards`), root package tests, source/package boundary, minimal target project, dashboard smoke path, npm package dry run, and GUI submodule typecheck/test/build path. A local run should match the CI commands closely enough that failures are reproducible.
 
 Repository owners may configure branch protection and required checks separately in GitHub. Contributors do not need to manage those settings.

@@ -43,7 +43,7 @@ the full root suite.
 | Change type | Minimum local checks |
 | --- | --- |
 | Docs only | `git diff --check` |
-| CLI/runtime | `npm test`, `npm run check`, `git diff --check` |
+| CLI/runtime | `npm run typecheck`, `npm run typecheck:guards`, `npm test`, `npm run check`, `git diff --check` |
 | Templates or examples | `npm test`, `npm run build:runtime`, `node dist/harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
 | Dashboard | `npm test`, `npm run smoke:dashboard`, `git diff --check` |
 | Package surface | `npm test`, `npm run pack:dry-run`, `git diff --check` |
@@ -53,6 +53,8 @@ Full root suite:
 
 ```bash
 npm run build:runtime
+npm run typecheck
+npm run typecheck:guards
 npm test
 npm run smoke:dashboard
 npm run check
@@ -102,4 +104,4 @@ GitHub Actions runs the same broad gates contributors should run locally:
 - npm package dry run
 - GUI submodule typecheck, tests, and build
 
-Repository owners manage branch protection and required checks in GitHub. Contributors only need to keep their PRs focused, documented, and verified.
+Repository owners manage branch protection and required checks in GitHub. The root CI includes the enforced TypeScript integrity gate: `npm run typecheck` plus `npm run typecheck:guards`, including the no-`@ts-nocheck` regression check. Contributors only need to keep their PRs focused, documented, and verified.

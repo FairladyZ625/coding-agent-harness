@@ -320,7 +320,7 @@ npx --yes coding-agent-harness new-task --budget complex --preset legacy-migrati
 
 ## 参与贡献
 
-外部贡献者请先阅读 [`CONTRIBUTING.md`](CONTRIBUTING.md)。它说明仓库结构、PR 要求、根包检查、Dashboard smoke test、npm package dry run 和 GUI 子模块验证。中文详细流程见 [`docs-release/guides/contributing.zh-CN.md`](docs-release/guides/contributing.zh-CN.md)。
+外部贡献者请先阅读 [`CONTRIBUTING.md`](CONTRIBUTING.md)。它说明仓库结构、PR 要求、enforced TypeScript integrity 检查、根包检查、Dashboard smoke test、npm package dry run 和 GUI 子模块验证。中文详细流程见 [`docs-release/guides/contributing.zh-CN.md`](docs-release/guides/contributing.zh-CN.md)。
 
 如果你想让自己的 Coding Agent 帮你改这个仓库，可以把下面这段发给它：
 
@@ -331,7 +331,7 @@ npx --yes coding-agent-harness new-task --budget complex --preset legacy-migrati
 
 改动要保持聚焦。只使用公开仓库文件；不要依赖维护者本地状态、隐藏工作流、凭据、生成的 Dashboard、临时文件或被 ignore 的本地专用文件。
 
-根据改动范围运行检查。仅文档改动至少运行 git diff --check。根包相关改动按需运行 npm install、npm run build:runtime、npm test、npm run smoke:dashboard、npm run check、node dist/harness.mjs check --profile target-project examples/minimal-project、npm run pack:dry-run 和 git diff --check。如果改到 harness-gui，还要运行 cd harness-gui && npm ci && npm run typecheck && npm test && npm run build。源码仓不跟踪 `dist/`；npm install、prepare、prepack 和根仓 npm scripts 会按需重新生成。
+根据改动范围运行检查。仅文档改动至少运行 git diff --check。根包相关改动按需运行 npm install、npm run build:runtime、npm run typecheck、npm run typecheck:guards、npm test、npm run smoke:dashboard、npm run check、node dist/harness.mjs check --profile target-project examples/minimal-project、npm run pack:dry-run 和 git diff --check。如果改到 harness-gui，还要运行 cd harness-gui && npm ci && npm run typecheck && npm test && npm run build。源码仓不跟踪 `dist/`；npm install、prepare、prepack 和根仓 npm scripts 会按需重新生成。
 
 完成后，请总结改了什么，列出验证结果，说明任何未运行检查及原因，并按仓库 PR 模板准备 PR。
 ```
