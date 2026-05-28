@@ -184,6 +184,7 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
   if (["task-delete", "task-archive", "task-reopen"].includes(command)) {
     const soft = takeFlag("--soft");
     const reason = takeOption("--reason", "");
+    const archiveFields = command === "task-archive" ? takeRepeatedKeyValueOptions(args, "--archive-field") : {};
     const taskId = args.shift();
     if (!taskId) {
       console.error("Missing task id");
@@ -195,7 +196,7 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
         command === "task-delete"
           ? softDeleteTask(targetArg(), taskId, { reason })
           : command === "task-archive"
-            ? archiveTask(targetArg(), taskId, { reason })
+            ? archiveTask(targetArg(), taskId, { reason, archiveFields })
             : reopenTask(targetArg(), taskId, { reason });
       console.log(JSON.stringify(result, null, 2));
     } catch (error) {
@@ -327,4 +328,24 @@ function formatTaskCommandError(error) {
   if (error.details?.stderr) lines.push("", error.details.stderr);
   if (error.details?.stdout) lines.push("", error.details.stdout);
   return lines.join("\n");
+}
+
+function takeRepeatedKeyValueOptions(args, flag) {
+  const fields = {};
+  for (let index = 0; index < args.length;) {
+    if (args[index] !== flag) {
+      index += 1;
+      continue;
+    }
+    const raw = args[index + 1] || "";
+    args.splice(index, 2);
+    const separator = raw.indexOf("=");
+    if (separator <= 0) throw new Error(`${flag} requires key=value`);
+    const key = raw.slice(0, separator).trim();
+    const value = raw.slice(separator + 1).trim();
+    if (!key || /[\r\n|]/.test(key)) throw new Error(`${flag} has invalid field key: ${key || "<empty>"}`);
+    if (Object.prototype.hasOwnProperty.call(fields, key)) throw new Error(`${flag} duplicate field key: ${key}`);
+    fields[key] = value;
+  }
+  return fields;
 }

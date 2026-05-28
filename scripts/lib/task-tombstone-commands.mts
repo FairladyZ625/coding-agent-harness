@@ -48,11 +48,11 @@ export function softDeleteTask(targetInput, taskRef, { reason = "" } = {}) {
   return writeDeletionState(target, task, "soft-deleted", reason || "soft-delete", "task-delete --soft");
 }
 
-export function archiveTask(targetInput, taskRef, { reason = "" } = {}) {
+export function archiveTask(targetInput, taskRef, { reason = "", archiveFields = {} } = {}) {
   const target = normalizeTarget(targetInput);
   const task = resolveTask(target, taskRef);
   assertArchiveEligible(task);
-  return writeDeletionState(target, task, "archived", reason || "archive", "task-archive");
+  return writeDeletionState(target, task, "archived", reason || "archive", "task-archive", archiveFields);
 }
 
 export function reopenTask(targetInput, taskRef, { reason = "" } = {}) {
@@ -74,7 +74,8 @@ export function reopenTask(targetInput, taskRef, { reason = "" } = {}) {
   }
 }
 
-function writeDeletionState(target, task, deletionState, reason, action) {
+function writeDeletionState(target, task, deletionState, reason, action, archiveFields = {}) {
+  const normalizedArchiveFields = normalizeArchiveFields(archiveFields);
   const governanceContext = beginGovernanceSync(target, { operation: `${action} ${task.id}` });
   try {
     writeTombstone(target, task, {
@@ -84,6 +85,7 @@ function writeDeletionState(target, task, deletionState, reason, action) {
       Timestamp: nowTimestamp(),
       "Reopen Eligible": "yes",
       "Archive Eligible": deletionState === "archived" ? "yes" : "no",
+      ...normalizedArchiveFields,
     });
     appendProgress(target, task, action, reason);
     const commit = commitGovernanceSync(governanceContext, taskPaths(target, task), {
@@ -150,4 +152,19 @@ function appendProgress(target, task, action, reason) {
 
 function escapeCell(value) {
   return String(value || "").replace(/\r?\n/g, " ").replaceAll("|", "\\|").trim();
+}
+
+function normalizeArchiveFields(fields) {
+  const entries = Object.entries(fields || {});
+  const normalized = {};
+  const seen = new Set();
+  for (const [rawKey, rawValue] of entries) {
+    const key = String(rawKey || "").trim();
+    if (!key || /[\r\n|]/.test(key)) throw new Error(`Invalid archive field key: ${key || "<empty>"}`);
+    const normalizedKey = key.toLowerCase();
+    if (seen.has(normalizedKey)) throw new Error(`Duplicate archive field key: ${key}`);
+    seen.add(normalizedKey);
+    normalized[key] = String(rawValue || "").replace(/\r?\n/g, " ").trim();
+  }
+  return normalized;
 }

@@ -235,7 +235,24 @@ const blockedArchive = run(["task-archive", "release-blocked", "--reason", "shou
 assert(blockedArchive.status !== 0, "generic task-archive should reject blocked tasks");
 assert(`${blockedArchive.stdout}\n${blockedArchive.stderr}`.includes("blocked tasks cannot be archived"), "blocked archive failure should explain the generic guard");
 
-const releaseTask = expectJson(["new-task", "release-closeout-1-0-5", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.5", target], { env });
+expectJson(["task-archive", "release-done-path", "--reason", "release closeout", "--archive-field", "retention bucket=release:1.0.5", "--archive-field", "release package=coding-agent-harness/governance/releases/1.0.5/INDEX.md", target], { env });
+const taskIndexWithArchiveFields = expectJson(["task-index", "--json", target], { env });
+const releaseArchivedTask = taskIndexWithArchiveFields.tasks.find((task) => task.id.endsWith("release-done-path"));
+assert(releaseArchivedTask.archiveMetadata?.["retention bucket"] === "release:1.0.5", "task index should read generic archive-field retention metadata");
+assert(releaseArchivedTask.archiveMetadata?.["release package"] === "coding-agent-harness/governance/releases/1.0.5/INDEX.md", "task index should read generic archive-field package metadata");
+
+expectJson(["new-task", "release-closeout-no-selector", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.4", target], { env });
+const noSelector = run(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-no-selector", "--json", target], { env });
+assert(noSelector.status !== 0, "release-closeout scaffold should fail without an explicit task selector");
+assert(`${noSelector.stdout}\n${noSelector.stderr}`.includes("release-closeout requires --task-list or --task-query"), "missing selector failure should explain the required selector");
+
+const taskListPath = path.join(tmpRoot, "release-closeout-task-list.json");
+fs.writeFileSync(taskListPath, JSON.stringify({
+  schemaVersion: "release-closeout-task-list/v1",
+  release: "1.0.5",
+  taskIds: [`${todayLocal}-release-done-path`],
+}, null, 2));
+const releaseTask = expectJson(["new-task", "release-closeout-1-0-5", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.5", "--task-list", taskListPath, target], { env });
 const releaseTaskPlanPath = path.join(target, releaseTask.task.path.replace(/^TARGET:/, ""), "task_plan.md");
 const releaseTaskPlan = fs.readFileSync(releaseTaskPlanPath, "utf8");
 assert(releaseTaskPlan.includes("Release Version: 1.0.5"), "release closeout task should include release metadata");
@@ -251,13 +268,29 @@ const publicSummary = fs.readFileSync(path.join(releaseRoot, "public-summary.md"
 const publicRedactionReport = JSON.parse(fs.readFileSync(path.join(releaseRoot, "public-redaction-report.json"), "utf8"));
 const aggregate = JSON.parse(fs.readFileSync(path.join(releaseRoot, "task-aggregate.json"), "utf8"));
 assert(releaseIndex.includes("Release Closeout Package") && releaseIndex.includes("1.0.5"), "release package should include a version index");
+assert(aggregate.selector?.type === "task-list", "task-list release aggregation should record selector type");
+assert(aggregate.summary.totalTasks === 1, "task-list release aggregation should include only the selected task");
+assert(aggregate.matched.map((task) => task.id).join(",") === `${todayLocal}-release-done-path`, "task-list release aggregation should match only requested task IDs");
+assert(aggregate.excluded.some((task) => task.id.endsWith("release-blocked") && task.reason === "not-selected"), "task-list release aggregation should record unselected tasks as excluded");
+assert(archivePlan.includes("task-archive") && archivePlan.includes("--archive-field \"retention bucket=release:1.0.5\""), "release archive plan should emit executable generic archive-field commands");
+assert(archivePlan.includes("--archive-field \"release package=coding-agent-harness/governance/releases/1.0.5/INDEX.md\""), "release archive plan should include release package archive metadata");
 assert(archivePlan.includes("release-done-path"), "release archive plan should include completed eligible tasks");
 const eligibleSection = archivePlan.split("## Not Eligible")[0];
-assert(!eligibleSection.includes("release-blocked"), "release archive plan should not mark blocked tasks eligible for archive");
-assert(aggregate.summary.totalTasks >= 107 && aggregate.summary.doneTasks >= 106, "release aggregation should handle large task sets");
+assert(!eligibleSection.includes("release-blocked"), "release archive plan should not emit archive commands for blocked tasks");
 assert(!/\/Users\/|LOCAL_PATH_REDACTED\/secret/.test(publicSummary), "public release summary should redact local absolute paths");
 assert(publicSummary.includes("LOCAL_PATH_REDACTED") || !publicSummary.includes("secret"), "public release summary should avoid leaking local paths");
 assert(publicRedactionReport.status === "pass", "release preset should emit a public redaction report for public-facing output");
+
+expectJson(["new-task", "release-closeout-query", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.6", "--task-query", `date:${todayLocal}..${todayLocal} state:done`, target], { env });
+expectJson(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-query", "--json", target], { env });
+const queryReleaseRoot = path.join(target, "coding-agent-harness/governance/releases/1.0.6");
+const queryAggregate = JSON.parse(fs.readFileSync(path.join(queryReleaseRoot, "task-aggregate.json"), "utf8"));
+const queryArchivePlan = fs.readFileSync(path.join(queryReleaseRoot, "task-archive-plan.md"), "utf8");
+assert(queryAggregate.selector?.type === "task-query", "task-query release aggregation should record selector type");
+assert(queryAggregate.summary.totalTasks >= 106 && queryAggregate.summary.doneTasks >= 106, "task-query release aggregation should handle large selected task sets");
+assert(queryAggregate.matched.every((task) => task.state === "done"), "task-query state filter should only match done tasks");
+assert(!queryAggregate.matched.some((task) => task.id.endsWith("release-blocked")), "task-query state filter should exclude blocked tasks");
+assert(!queryArchivePlan.split("## Not Eligible")[0].includes("release-blocked"), "task-query archive plan should not emit archive commands for blocked tasks");
 const check = expectJson(["preset", "run", "release-closeout", "check", "--task", "release-closeout-1-0-5", "--json", target], { env });
 assert(check.status === "pass", "release closeout check entrypoint should pass after scaffold materializes the version package");
 
