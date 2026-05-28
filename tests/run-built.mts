@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
-
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";

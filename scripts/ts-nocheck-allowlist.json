@@ -10,7 +10,6 @@
     "scripts/postinstall.mts",
     "scripts/run-built-tests.mts",
     "tests/architecture-health.mts",
-    "tests/cli-help.mts",
     "tests/dashboard-generation.mts",
     "tests/dashboard-preset-ui.mts",
     "tests/dashboard-workbench.mts",
@@ -28,19 +27,12 @@
     "tests/lifecycle/review-confirm-git-gate.mts",
     "tests/lifecycle/task-index-audit-metadata.mts",
     "tests/lifecycle/task-lifecycle.mts",
-    "tests/meta-test-layout.mts",
     "tests/migration-adoption.mts",
     "tests/preset-engine.mts",
     "tests/release-closeout-preset.mts",
     "tests/review-confirm-git-gate.mts",
-    "tests/run-built.mts",
     "tests/scripts/snapshot-matrix.mts",
-    "tests/shared-type-islands.mts",
-    "tests/smoke-dashboard.mts",
-    "tests/snapshot-matrix-tooling.mts",
-    "tests/source-package-boundary.mts",
     "tests/task-lifecycle.mts",
-    "tests/template-governance.mts",
     "tests/test-harness.mts"
   ]
 }

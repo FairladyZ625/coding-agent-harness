@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
-
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -17,9 +15,33 @@ const {
   normalizeSnapshotMatrix,
   runSnapshotSelfTest,
   snapshotCommands,
-} = await import(pathToFileURL(snapshotMatrixCli));
+} = await import(pathToFileURL(snapshotMatrixCli).href) as {
+  compareSnapshotMatrices: (before: SnapshotMatrix, after: SnapshotMatrix) => SnapshotDiff;
+  normalizeSnapshotMatrix: (matrix: SnapshotMatrix, options: { repoRoot: string }) => SnapshotMatrix;
+  runSnapshotSelfTest: (options: { repoRoot: string; outDir: string }) => { ok: boolean; diff: SnapshotDiff };
+  snapshotCommands: SnapshotCommand[];
+};
 
-function assert(condition, message) {
+type SnapshotCommand = { id: string };
+type SnapshotDrift = { code: string };
+type SnapshotDiff = {
+  ok: boolean;
+  markdown: string;
+  drifts: SnapshotDrift[];
+};
+type SnapshotCapture = {
+  exitCode?: number;
+  stdout?: unknown;
+  stderr?: string;
+  command?: string;
+  durationMs?: number;
+};
+type SnapshotMatrix = {
+  generatedAt?: string;
+  captures?: Record<string, SnapshotCapture>;
+};
+
+function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
 }
 
@@ -53,11 +75,13 @@ const normalized = normalizeSnapshotMatrix(
 );
 
 assert(normalized.generatedAt === "<timestamp>", "top-level generatedAt should normalize");
-assert(normalized.captures.status.command.includes("<repo>"), "command should normalize repo path");
-assert(normalized.captures.status.stdout.generatedAt === "<timestamp>", "nested timestamp should normalize");
-assert(normalized.captures.status.stdout.durationMs === "<duration>", "duration field should normalize");
-assert(normalized.captures.status.stdout.target === "<repo>", "repo path should normalize");
-assert(normalized.captures.status.stdout.temp.includes("<tmp>"), "tmp path should normalize");
+const normalizedStatus = normalized.captures?.status;
+const normalizedStdout = normalizedStatus?.stdout as { generatedAt: string; durationMs: string; target: string; temp: string };
+assert(typeof normalizedStatus?.command === "string" && normalizedStatus.command.includes("<repo>"), "command should normalize repo path");
+assert(normalizedStdout.generatedAt === "<timestamp>", "nested timestamp should normalize");
+assert(normalizedStdout.durationMs === "<duration>", "duration field should normalize");
+assert(normalizedStdout.target === "<repo>", "repo path should normalize");
+assert(normalizedStdout.temp.includes("<tmp>"), "tmp path should normalize");
 
 const before = {
   captures: {

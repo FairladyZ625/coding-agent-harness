@@ -1,17 +1,20 @@
 #!/usr/bin/env node
-// @ts-nocheck
-
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncOptionsWithStringEncoding, SpawnSyncReturns } from "node:child_process";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const node = process.execPath;
 const cli = path.join(repoRoot, "dist/harness.mjs");
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-source-boundary-"));
 
-function run(args, options = {}) {
+type HarnessStatusJson = { tasks: unknown[] };
+type PackEntry = { path: string; mode?: number };
+type PackResult = { files: PackEntry[] };
+
+function run(args: string[], options: Omit<SpawnSyncOptionsWithStringEncoding, "encoding"> = {}): SpawnSyncReturns<string> {
   return spawnSync(node, [cli, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -20,23 +23,23 @@ function run(args, options = {}) {
   });
 }
 
-function assert(condition, message) {
+function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
 }
 
-function expectPass(args) {
+function expectPass(args: string[]): SpawnSyncReturns<string> {
   const result = run(args);
   assert(result.status === 0, `${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;
 }
 
-function expectJson(args) {
-  return JSON.parse(expectPass(args).stdout);
+function expectJson(args: string[]): HarnessStatusJson {
+  return JSON.parse(expectPass(args).stdout) as HarnessStatusJson;
 }
 
-function readManifestBundle(assetsDir, manifestName) {
+function readManifestBundle(assetsDir: string, manifestName: string): string {
   const manifestPath = path.join(assetsDir, manifestName);
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as string[];
   assert(Array.isArray(manifest) && manifest.length > 0, `${manifestName} must list dashboard source files`);
   return `${manifest.map((relativePath) => fs.readFileSync(path.join(assetsDir, relativePath), "utf8").trimEnd()).join("\n\n")}\n`;
 }
@@ -78,7 +81,7 @@ assert(sourceBoundaryCheck.stderr.includes("internal test/smoke file in publisha
 
 const packDryRun = spawnSync("npm", ["pack", "--dry-run", "--json"], { cwd: repoRoot, encoding: "utf8" });
 assert(packDryRun.status === 0, `npm pack dry run failed\nSTDOUT:\n${packDryRun.stdout}\nSTDERR:\n${packDryRun.stderr}`);
-const packedEntries = JSON.parse(packDryRun.stdout)[0].files;
+const packedEntries = (JSON.parse(packDryRun.stdout) as PackResult[])[0]?.files || [];
 const packedFiles = packedEntries.map((file) => file.path);
 const packedFileByPath = new Map(packedEntries.map((file) => [file.path, file]));
 assert(!packedFiles.includes("harness-dashboard.html"), "npm package must not include root dashboard output");
@@ -88,7 +91,8 @@ assert(!packedFiles.some((file) => file.startsWith("tests/")), "npm package must
 assert(packedFiles.includes("postinstall.mjs"), "npm package must include source-safe postinstall bootstrap");
 assert(packedFiles.includes("run-dist.mjs"), "npm package must include npm script dist bootstrap");
 assert(packedFiles.includes("dist/harness.mjs"), "npm package must include dist harness runtime entrypoint");
-assert((packedFileByPath.get("dist/harness.mjs")?.mode & 0o111) !== 0, "npm package dist harness runtime entrypoint must be executable");
+const packedHarnessEntry = packedFileByPath.get("dist/harness.mjs");
+assert(Boolean(packedHarnessEntry) && ((packedHarnessEntry?.mode || 0) & 0o111) !== 0, "npm package dist harness runtime entrypoint must be executable");
 assert(packedFiles.includes("dist/postinstall.mjs"), "npm package must include dist postinstall runtime entrypoint");
 assert(!packedFiles.some((file) => file.startsWith("scripts/")), "npm package must not include historical scripts/ shims after PR-28");
 for (const required of [

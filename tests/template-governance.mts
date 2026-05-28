@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
-
 import fs from "node:fs";
 import path from "node:path";
 
@@ -12,7 +10,16 @@ const sampleOpenFindingPattern = /^\|\s*(?:F|R|SR|V|RR|HL)-\d+\s*\|.*\|\s*(?:ope
 const englishFirstZhHeadingPattern = /^#{1,6}\s+(?:Reviewer Identity|Confidence Challenge|Material Findings|Non-Material Notes|Evidence Checked|Final Confidence Basis|Follow-Up Routing|Phase Graph|Phase Table|Context Packet|Artifact Index|Stop Condition|Pause Conditions|Deliverables|Module Session Prompt|Subagent\s*\/\s*Worker|Coordinator|Worktree|Slice ID|Parent Phase|Inputs|Verifier\b|Harness\b|Closeout\b|Lessons\b)/m;
 const zhMechanicalEnglishWorkflowPattern = /^\s*\d+\.\s*(?:implement|run locally|self-review|rerun evidence)\b/im;
 const zhMechanicalEvidencePhrasePattern = /\b(?:local smoke|browser or UI inspection|live environment smoke|reviewer findings|PR checks\s*\/\s*workflow run)\b/i;
-const pathTokenAllowlist = JSON.parse(fs.readFileSync(path.join(repoRoot, "tests/fixtures/path-token-allowlist.json"), "utf8")).allowed || [];
+type PathTokenAllowlistEntry = {
+  file: string;
+  classification?: string;
+  reason?: string;
+};
+type PathTokenAllowlist = {
+  allowed?: PathTokenAllowlistEntry[];
+};
+
+const pathTokenAllowlist = (JSON.parse(fs.readFileSync(path.join(repoRoot, "tests/fixtures/path-token-allowlist.json"), "utf8")) as PathTokenAllowlist).allowed || [];
 const allowedPathTokenFiles = new Set(pathTokenAllowlist.map((entry) => entry.file));
 const manualLifecycleTablePatterns = [
   /Feature SSoT entry/i,
@@ -30,7 +37,7 @@ const manualLifecycleTablePatterns = [
   /功能进度写入 Feature SSoT/,
 ];
 
-function assert(condition, message) {
+function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
 }
 
@@ -110,12 +117,12 @@ for (const relativeFile of pathTokenGovernedFiles()) {
 assert(staleRuntimePathOffenders.length === 0, `runtime templates and presets must use {{paths.*}} or an allowlist entry:\n${staleRuntimePathOffenders.join("\n")}`);
 for (const entry of pathTokenAllowlist) {
   assert(fs.existsSync(path.join(repoRoot, entry.file)), `path token allowlist entry points at a missing file: ${entry.file}`);
-  assert(entry.classification && entry.reason, `path token allowlist entry must include classification and reason: ${entry.file}`);
+  assert(Boolean(entry.classification && entry.reason), `path token allowlist entry must include classification and reason: ${entry.file}`);
 }
 
-function relativeFiles(root) {
-  const results = [];
-  function walk(dir) {
+function relativeFiles(root: string): string[] {
+  const results: string[] = [];
+  function walk(dir: string): void {
     for (const entry of fs.readdirSync(dir)) {
       const full = path.join(dir, entry);
       const stat = fs.statSync(full);
@@ -130,11 +137,11 @@ function relativeFiles(root) {
   return results.sort();
 }
 
-function toPosix(value) {
+function toPosix(value: string): string {
   return value.split(path.sep).join("/");
 }
 
-function lifecycleContractFiles() {
+function lifecycleContractFiles(): string[] {
   return [
     "SKILL.md",
     "templates/AGENTS.md.template",
@@ -151,7 +158,7 @@ function lifecycleContractFiles() {
   ];
 }
 
-function pathTokenGovernedFiles() {
+function pathTokenGovernedFiles(): string[] {
   return [
     ...relativeFiles(path.join(repoRoot, "templates")).map((file) => `templates/${file}`),
     ...relativeFiles(path.join(repoRoot, "templates-zh-CN")).map((file) => `templates-zh-CN/${file}`),

@@ -1,14 +1,19 @@
 #!/usr/bin/env node
-// @ts-nocheck
-
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const { checkTypeBoundaries } = await import(pathToFileURL(path.join(repoRoot, "dist/check-type-boundaries.mjs")));
+type TypeBoundaryResult = {
+  ok: boolean;
+  violations: Array<{ message: string }>;
+};
 
-function assert(condition, message) {
+const { checkTypeBoundaries } = await import(pathToFileURL(path.join(repoRoot, "dist/check-type-boundaries.mjs")).href) as {
+  checkTypeBoundaries: (options: { repoRoot: string }) => TypeBoundaryResult;
+};
+
+function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
 }
 

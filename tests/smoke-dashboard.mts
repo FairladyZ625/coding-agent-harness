@@ -1,17 +1,28 @@
 #!/usr/bin/env node
-// @ts-nocheck
-
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncReturns } from "node:child_process";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const node = process.execPath;
 const cli = path.join(repoRoot, "dist/harness.mjs");
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dashboard-smoke-"));
 
-function run(args) {
+type DashboardDocuments = { documents: Array<{ path: string }> };
+type DashboardTables = { tables: Array<{ source: string }> };
+type DashboardStatus = {
+  summary?: {
+    fullCutoverEligible?: boolean;
+    legacyVisualOnlyCount?: number;
+    unknownClassificationCount?: number;
+    weakBriefCount?: number;
+    missingCanonicalVisualMapCount?: number;
+  };
+};
+
+function run(args: string[]): SpawnSyncReturns<string> {
   const result = spawnSync(node, [cli, ...args], { cwd: repoRoot, encoding: "utf8" });
   if (result.status !== 0) {
     throw new Error(`${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
@@ -19,15 +30,15 @@ function run(args) {
   return result;
 }
 
-function runRaw(args) {
+function runRaw(args: string[]): SpawnSyncReturns<string> {
   return spawnSync(node, [cli, ...args], { cwd: repoRoot, encoding: "utf8" });
 }
 
-function assert(condition, message) {
+function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
 }
 
-function smokeTarget(target, name) {
+function smokeTarget(target: string, name: string): string {
   const outDir = path.join(tmpRoot, name);
   const outFile = path.join(tmpRoot, `${name}.html`);
   run(["dashboard", "--out-dir", outDir, target]);
@@ -61,9 +72,9 @@ function smokeTarget(target, name) {
     assert(!content.includes("/Users/lizeyu"), `${name} ${generated} leaked local user path`);
     assert(!content.includes("file://"), `${name} ${generated} leaked file URL`);
   }
-  const docs = JSON.parse(fs.readFileSync(path.join(outDir, "data/documents.json"), "utf8"));
-  const tables = JSON.parse(fs.readFileSync(path.join(outDir, "data/tables.json"), "utf8"));
-  const status = JSON.parse(fs.readFileSync(path.join(outDir, "data/status.json"), "utf8"));
+  const docs = JSON.parse(fs.readFileSync(path.join(outDir, "data/documents.json"), "utf8")) as DashboardDocuments;
+  const tables = JSON.parse(fs.readFileSync(path.join(outDir, "data/tables.json"), "utf8")) as DashboardTables;
+  const status = JSON.parse(fs.readFileSync(path.join(outDir, "data/status.json"), "utf8")) as DashboardStatus;
   assert(typeof status.summary?.fullCutoverEligible === "boolean", `${name} missing fullCutoverEligible`);
   assert(Number.isFinite(Number(status.summary?.legacyVisualOnlyCount)), `${name} missing legacyVisualOnlyCount`);
   assert(Number.isFinite(Number(status.summary?.unknownClassificationCount)), `${name} missing unknownClassificationCount`);

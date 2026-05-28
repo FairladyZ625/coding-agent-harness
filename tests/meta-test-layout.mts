@@ -1,12 +1,10 @@
 #!/usr/bin/env node
-// @ts-nocheck
-
 import fs from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 
-function assert(condition, message) {
+function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
 }
 

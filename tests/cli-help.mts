@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
-
 import fs from "node:fs";
 import path from "node:path";
 import { assert, expectPass, run, tmpRoot } from "./helpers/harness-test-utils.mjs";
