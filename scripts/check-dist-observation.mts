@@ -141,9 +141,9 @@ function runMatrix(root, failures, commandMatrix) {
   const distHarness = path.join(root, "dist/harness.mjs");
   const matrix = [
     { id: "help", args: ["--help"] },
-    { id: "status", args: ["status", "--json", "."] },
-    { id: "task-list", args: ["task-list", "--json", "."] },
-    { id: "preset-list", args: ["preset", "list", "--json", "."] },
+    { id: "status", args: ["status", "--json", "examples/minimal-project"] },
+    { id: "task-list", args: ["task-list", "--json", "examples/minimal-project"] },
+    { id: "preset-list", args: ["preset", "list", "--json", "examples/minimal-project"] },
     { id: "source-check", args: ["check", "--profile", "source-package", "."] },
     { id: "target-check", args: ["check", "--profile", "target-project", "examples/minimal-project"] },
     { id: "migrate-plan", args: ["migrate-plan", "--json", "--limit", "20", "examples/minimal-project"] },
@@ -298,9 +298,9 @@ function runInstalledPackageSmoke(root, failures, observations) {
 function runInstalledMatrix(root, runtimeEnv, failures, steps) {
   const matrix = [
     { id: "installed-help", cwd: root, args: ["--help"] },
-    { id: "installed-status", cwd: root, args: ["status", "--json", "."] },
-    { id: "installed-task-list", cwd: root, args: ["task-list", "--json", "."] },
-    { id: "installed-preset-list", cwd: root, args: ["preset", "list", "--json", "."] },
+    { id: "installed-status", cwd: root, args: ["status", "--json", "examples/minimal-project"] },
+    { id: "installed-task-list", cwd: root, args: ["task-list", "--json", "examples/minimal-project"] },
+    { id: "installed-preset-list", cwd: root, args: ["preset", "list", "--json", "examples/minimal-project"] },
     { id: "installed-source-check", cwd: root, args: ["check", "--profile", "source-package", "."] },
     { id: "installed-target-check", cwd: root, args: ["check", "--profile", "target-project", "examples/minimal-project"] },
     { id: "installed-migrate-plan", cwd: root, args: ["migrate-plan", "--json", "--limit", "20", "examples/minimal-project"] },
