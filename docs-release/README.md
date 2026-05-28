@@ -71,6 +71,7 @@ Not every document is written for the same reader.
 - `guides/migration-playbook.md` / `guides/migration-playbook.en-US.md` — smooth migration guide for existing legacy harness projects. 旧 Harness 项目的平滑迁移指南。
 - `guides/legacy-migration-agent-prompt.md` / `guides/legacy-migration-agent-prompt.zh-CN.md` — prompt contract for agents running baseline or full legacy migration. 给迁移 Agent 使用的执行合同。
 - `guides/full-legacy-migration-subagent-strategy.md` / `guides/full-legacy-migration-subagent-strategy.zh-CN.md` — full readable cutover strategy with subagent roles, adversarial review, and dashboard/CLI proof gates. 完整可读迁移的 subagent 分工、对抗审查和 Dashboard/CLI 证据门禁。
+- `guides/typescript-runtime-migration-closeout.md` — public closeout for the TypeScript runtime source-twin migration and the remaining `.mjs` shim policy. TypeScript runtime source twin 迁移收口和剩余 `.mjs` shim 策略。
 
 ## Repository Operating Models / 仓库运行模式
 
