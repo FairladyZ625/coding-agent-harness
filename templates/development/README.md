@@ -12,8 +12,8 @@ This folder is the development input pack. It tells agents how to work in this r
 ## Boundary
 
 - Put local setup, codebase map, external service development summaries, mocks, stubs, and cross-repo debugging here.
-- Put long-lived system structure in `coding-agent-harness/context/architecture/`.
-- Put concrete API/event/webhook contracts in `coding-agent-harness/context/integrations/`.
+- Put long-lived system structure in `{{paths.harnessRoot}}/context/architecture/`.
+- Put concrete API/event/webhook contracts in `{{paths.harnessRoot}}/context/integrations/`.
 
 ## Structure Contract
 
@@ -30,21 +30,21 @@ This folder is the development input pack. It tells agents how to work in this r
 
 If this repository depends on multiple microservices, do not write all external knowledge into one large document. For any external service that affects local development or testing, create:
 
-- `coding-agent-harness/context/architecture/services/<service-key>.md`: what the service is and what it owns.
-- `coding-agent-harness/context/development/external-context/<service-key>.md`: how this repository mocks, stubs, or debugs it.
-- `coding-agent-harness/context/integrations/<contract>.md`: concrete API/event/webhook contracts.
+- `{{paths.harnessRoot}}/context/architecture/services/<service-key>.md`: what the service is and what it owns.
+- `{{paths.harnessRoot}}/context/development/external-context/<service-key>.md`: how this repository mocks, stubs, or debugs it.
+- `{{paths.harnessRoot}}/context/integrations/<contract>.md`: concrete API/event/webhook contracts.
 
 `context/development` only answers how to work with the external service during development. Do not maintain full system topology here, and do not put payload schemas here.
 
 ## External Source Pack Rule
 
-If an external team provides many documents, screenshots, exported packets, meeting notes, or links, do not place them directly into `context/{architecture,development,integrations}`. Read `coding-agent-harness/governance/standards/external-source-intake-standard.md` first, then decide whether `external-source-packs/<source-key>/` is needed.
+If an external team provides many documents, screenshots, exported packets, meeting notes, or links, do not place them directly into `context/{architecture,development,integrations}`. Read `{{paths.harnessRoot}}/governance/standards/external-source-intake-standard.md` first, then decide whether `external-source-packs/<source-key>/` is needed.
 
 `external-source-packs/` owns source indexes, digests, and projection status only. Stable conclusions must be written back to:
 
-- `coding-agent-harness/context/architecture/services/<service-key>.md`
-- `coding-agent-harness/context/development/external-context/<service-key>.md`
-- `coding-agent-harness/context/integrations/<contract>.md`
+- `{{paths.harnessRoot}}/context/architecture/services/<service-key>.md`
+- `{{paths.harnessRoot}}/context/development/external-context/<service-key>.md`
+- `{{paths.harnessRoot}}/context/integrations/<contract>.md`
 
 ## External Context Index
 

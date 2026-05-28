@@ -15,4 +15,4 @@ Declare lanes before dispatching workers.
 
 | Lane ID | Allowed globs | Forbidden globs | Shared file owner | Worktree / branch | Handoff path | Merge order | Verification command |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| coordinator | coding-agent-harness/planning/tasks/** | AGENTS.md, CLAUDE.md, coding-agent-harness/governance/generated/Harness-Ledger.md until closeout | coordinator | current | progress.md | 1 | harness check --profile target-project . |
+| coordinator | {{paths.harnessRoot}}/planning/tasks/** | AGENTS.md, CLAUDE.md, {{paths.harnessRoot}}/governance/generated/Harness-Ledger.md until closeout | coordinator | current | progress.md | 1 | harness check --profile target-project . |

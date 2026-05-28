@@ -12,6 +12,6 @@ Confidence: low
 
 ## Boundary Rule
 
-这个目录只放服务责任、接口摘要和跳转链接。Payload、auth、error code、event schema 放 `coding-agent-harness/context/integrations/`。
+这个目录只放服务责任、接口摘要和跳转链接。Payload、auth、error code、event schema 放 `{{paths.harnessRoot}}/context/integrations/`。
 
-一个服务或微服务只占一行。只要该服务影响本仓开发或判断，就补 `services/<service-key>.md`、`coding-agent-harness/context/development/external-context/<service-key>.md` 和相关 `coding-agent-harness/context/integrations/<contract>.md` 链接。
+一个服务或微服务只占一行。只要该服务影响本仓开发或判断，就补 `services/<service-key>.md`、`{{paths.harnessRoot}}/context/development/external-context/<service-key>.md` 和相关 `{{paths.harnessRoot}}/context/integrations/<contract>.md` 链接。

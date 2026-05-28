@@ -12,6 +12,8 @@ const sampleOpenFindingPattern = /^\|\s*(?:F|R|SR|V|RR|HL)-\d+\s*\|.*\|\s*(?:ope
 const englishFirstZhHeadingPattern = /^#{1,6}\s+(?:Reviewer Identity|Confidence Challenge|Material Findings|Non-Material Notes|Evidence Checked|Final Confidence Basis|Follow-Up Routing|Phase Graph|Phase Table|Context Packet|Artifact Index|Stop Condition|Pause Conditions|Deliverables|Module Session Prompt|Subagent\s*\/\s*Worker|Coordinator|Worktree|Slice ID|Parent Phase|Inputs|Verifier\b|Harness\b|Closeout\b|Lessons\b)/m;
 const zhMechanicalEnglishWorkflowPattern = /^\s*\d+\.\s*(?:implement|run locally|self-review|rerun evidence)\b/im;
 const zhMechanicalEvidencePhrasePattern = /\b(?:local smoke|browser or UI inspection|live environment smoke|reviewer findings|PR checks\s*\/\s*workflow run)\b/i;
+const pathTokenAllowlist = JSON.parse(fs.readFileSync(path.join(repoRoot, "tests/fixtures/path-token-allowlist.json"), "utf8")).allowed || [];
+const allowedPathTokenFiles = new Set(pathTokenAllowlist.map((entry) => entry.file));
 const manualLifecycleTablePatterns = [
   /Feature SSoT entry/i,
   /Feature SSoT:\s*`?docs\/09-PLANNING\/Feature-SSoT\.md`?/i,
@@ -88,6 +90,29 @@ for (const relativeFile of lifecycleContractFiles()) {
   }
 }
 
+const staleRuntimePathOffenders = [];
+for (const relativeFile of pathTokenGovernedFiles()) {
+  if (allowedPathTokenFiles.has(relativeFile)) continue;
+  const content = fs.readFileSync(path.join(repoRoot, relativeFile), "utf8");
+  const lines = content.split(/\r?\n/);
+  for (const [index, line] of lines.entries()) {
+    if (/\bcoding-agent-harness\/(?:planning|governance|context)\//.test(line)) {
+      staleRuntimePathOffenders.push(`${relativeFile}:${index + 1}: ${line.trim()}`);
+    }
+    const tokenMatches = [...line.matchAll(/\{\{\s*paths\.([A-Za-z0-9_.-]+)\s*\}\}/g)];
+    for (const match of tokenMatches) {
+      if (!["harnessRoot", "planningRoot", "tasksRoot", "modulesRoot", "externalRoot", "governanceRoot", "generatedRoot", "regressionRoot", "ledgerPath", "closeoutIndexPath"].includes(match[1])) {
+        staleRuntimePathOffenders.push(`${relativeFile}:${index + 1}: unknown path token ${match[0]}`);
+      }
+    }
+  }
+}
+assert(staleRuntimePathOffenders.length === 0, `runtime templates and presets must use {{paths.*}} or an allowlist entry:\n${staleRuntimePathOffenders.join("\n")}`);
+for (const entry of pathTokenAllowlist) {
+  assert(fs.existsSync(path.join(repoRoot, entry.file)), `path token allowlist entry points at a missing file: ${entry.file}`);
+  assert(entry.classification && entry.reason, `path token allowlist entry must include classification and reason: ${entry.file}`);
+}
+
 function relativeFiles(root) {
   const results = [];
   function walk(dir) {
@@ -124,6 +149,14 @@ function lifecycleContractFiles() {
     "docs-release/guides/migration-playbook.md",
     "docs-release/guides/migration-playbook.en-US.md",
   ];
+}
+
+function pathTokenGovernedFiles() {
+  return [
+    ...relativeFiles(path.join(repoRoot, "templates")).map((file) => `templates/${file}`),
+    ...relativeFiles(path.join(repoRoot, "templates-zh-CN")).map((file) => `templates-zh-CN/${file}`),
+    ...relativeFiles(path.join(repoRoot, "presets")).map((file) => `presets/${file}`),
+  ].filter((file) => /\.(md|mjs|js|json|yaml|yml|template)$/.test(file));
 }
 
 console.log("Template governance tests passed");

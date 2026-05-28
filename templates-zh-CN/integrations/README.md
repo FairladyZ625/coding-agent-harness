@@ -13,8 +13,8 @@ Keep the English field names and section headings because CLI checks rely on the
 
 ## Boundary
 
-- 服务拓扑和职责归属放 `coding-agent-harness/context/architecture/`。
-- 开发 mock 和调试说明放 `coding-agent-harness/context/development/`。
+- 服务拓扑和职责归属放 `{{paths.harnessRoot}}/context/architecture/`。
+- 开发 mock 和调试说明放 `{{paths.harnessRoot}}/context/development/`。
 - endpoint、payload、error、auth、event、webhook、SDK 契约放这里。
 
 ## Structure Contract
@@ -30,8 +30,8 @@ Keep the English field names and section headings because CLI checks rely on the
 
 每个接口契约必须是独立文件，并链接回对应服务：
 
-- 服务职责和上下游关系：`coding-agent-harness/context/architecture/service-catalog.md` 或 `services/<service-key>.md`
-- 本地 mock / stub / debug：`coding-agent-harness/context/development/external-context/<service-key>.md`
+- 服务职责和上下游关系：`{{paths.harnessRoot}}/context/architecture/service-catalog.md` 或 `services/<service-key>.md`
+- 本地 mock / stub / debug：`{{paths.harnessRoot}}/context/development/external-context/<service-key>.md`
 - 具体 payload、auth、error、contract test：本文件夹
 
 不要在一个“接口说明”大文档里混写多个服务。多个微服务就维护多个契约文件；README 里的 Contract Index 负责让人和 Agent 快速定位。

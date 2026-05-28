@@ -7,6 +7,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {
+  absoluteHarnessPathContext,
+  harnessPathContext,
   normalizeTarget,
   readFileSafe,
   readJsonSafe,
@@ -18,7 +20,7 @@ import { beginGovernanceSync, commitGovernanceSync, releaseGovernanceSync } from
 import { parseTaskMetadata } from "./task-metadata.mjs";
 import { taskIdForDirectory } from "./task-scanner.mjs";
 import { resolveTaskDirectory } from "./task-lifecycle.mjs";
-import { evaluateTemplateValues, assertPresetWriteScope } from "./preset-engine.mjs";
+import { evaluateTemplateValues, assertPresetWriteScope, resolvePresetScopes } from "./preset-engine.mjs";
 import { buildPresetAudit, readPresetPackage } from "./preset-registry.mjs";
 
 const materializationSchemaVersion = "preset-materialization/v1";
@@ -38,7 +40,8 @@ export function runPresetEntrypoint(presetId, entrypointName, { taskRef = "", ta
   if (metadata.preset !== preset.id) throw new Error(`Task ${taskRef} was created by preset ${metadata.preset || "none"}, not ${preset.id}`);
   const taskId = taskIdForDirectory(target, taskDir);
   const resolvedInputs = readResolvedInputs(target, metadata);
-  const values = evaluateTemplateValues(preset, resolvedInputs, { taskId, taskTitle: taskId, moduleKey: "" });
+  const values = evaluateTemplateValues(preset, resolvedInputs, { taskId, taskTitle: taskId, moduleKey: "", target });
+  const resolvedScopes = resolvePresetScopes(preset, target);
   const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), `harness-preset-${preset.id}-${entrypointName}-`));
   const manifestPath = path.join(outputRoot, "materialization-manifest.json");
   const contextPath = path.join(outputRoot, "preset-context.json");
@@ -58,13 +61,15 @@ export function runPresetEntrypoint(presetId, entrypointName, { taskRef = "", ta
       targetRootPolicy: "read-only; direct target mutation before manifest materialization is a hard failure",
       outputRoot,
       materializationManifestPath: manifestPath,
+      paths: harnessPathContext(target),
+      absolutePaths: absoluteHarnessPathContext(target),
       inputs: sanitizeDeep(resolvedInputs),
       values: sanitizeDeep(values),
       audit: buildPresetAudit(preset, {
         taskId,
         targetRoot: target.projectRoot,
         entrypoint: entrypointName,
-        writeScopes: entrypoint.writes,
+        writeScopes: resolvedScopes.entrypoints[entrypointName] || entrypoint.writes,
         resolvedInputs,
       }),
     };
@@ -87,7 +92,7 @@ export function runPresetEntrypoint(presetId, entrypointName, { taskRef = "", ta
     const afterScriptSnapshot = targetSnapshot(target.projectRoot);
     assertSnapshotsEqual(beforeSnapshot, afterScriptSnapshot, "Preset script mutated target before materialization");
     const manifest = readMaterializationManifest(manifestPath);
-    const materialization = validateMaterializationManifest(preset, entrypoint, manifest, { outputRoot, targetRoot: target.projectRoot });
+    const materialization = validateMaterializationManifest(preset, entrypoint, manifest, { outputRoot, target, entrypointName });
     const governanceContext = beginGovernanceSync(target, {
       operation: `preset-run ${preset.id}.${entrypointName}`,
       allowDirtyWorktree: true,
@@ -137,14 +142,15 @@ function readMaterializationManifest(manifestPath) {
   return manifest;
 }
 
-function validateMaterializationManifest(preset, entrypoint, manifest, { outputRoot, targetRoot }) {
+function validateMaterializationManifest(preset, entrypoint, manifest, { outputRoot, target, entrypointName }) {
+  const targetRoot = target.projectRoot;
   const seenDestinations = new Set();
   const writes = manifest.writes.map((write, index) => {
     const source = normalizeManifestRelativePath(write.source, "Manifest source");
     const destination = normalizeManifestRelativePath(write.destination, "Manifest destination");
     if (seenDestinations.has(destination)) throw new Error(`Duplicate materialization destination: ${destination}`);
     seenDestinations.add(destination);
-    assertEntrypointWriteScope(preset, entrypoint, destination);
+    assertEntrypointWriteScope(preset, entrypoint, destination, target, entrypointName);
     const sourcePath = path.join(outputRoot, source);
     assertOutputSource(outputRoot, sourcePath, source);
     const stat = fs.lstatSync(sourcePath);
@@ -195,9 +201,10 @@ function assertDestinationParent(targetRoot, destination) {
   }
 }
 
-function assertEntrypointWriteScope(preset, entrypoint, destination) {
-  assertPresetWriteScope(preset, destination);
-  if (!entrypoint.writes.some((scope) => matchesScope(scope, destination))) {
+function assertEntrypointWriteScope(preset, entrypoint, destination, target, entrypointName) {
+  assertPresetWriteScope(preset, destination, target);
+  const resolved = resolvePresetScopes(preset, target).entrypoints[entrypointName] || entrypoint.writes;
+  if (!resolved.some((scope) => matchesScope(scope, destination))) {
     throw new Error(`Preset write scope violation for ${destination}`);
   }
 }

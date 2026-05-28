@@ -9,7 +9,7 @@ Confidence: low
 
 | Service Profile | Source Pack | Integration Contracts | Last Verified | Confidence |
 | --- | --- | --- | --- | --- |
-| `coding-agent-harness/context/architecture/services/<service-key>.md` | `coding-agent-harness/context/development/external-source-packs/<source-key>/README.md` 或 N/A | `coding-agent-harness/context/integrations/<contract>.md` | unknown | low |
+| `{{paths.harnessRoot}}/context/architecture/services/<service-key>.md` | `{{paths.harnessRoot}}/context/development/external-source-packs/<source-key>/README.md` 或 N/A | `{{paths.harnessRoot}}/context/integrations/<contract>.md` | unknown | low |
 
 ## Development Use
 

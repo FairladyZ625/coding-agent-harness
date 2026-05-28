@@ -1,0 +1,14 @@
+{
+  "allowed": [
+    {
+      "file": "templates/dashboard/assets/app-src/40-modules.js",
+      "classification": "dashboard-default-fallback",
+      "reason": "Dashboard module brief fallback is a display fallback when older status payloads do not carry module paths."
+    },
+    {
+      "file": "templates/dashboard/assets/app.js",
+      "classification": "generated-dashboard-bundle",
+      "reason": "Assembled dashboard asset mirrors app-src and is checked by the dashboard asset assembly gate."
+    }
+  ]
+}

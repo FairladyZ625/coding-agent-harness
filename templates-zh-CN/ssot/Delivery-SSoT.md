@@ -33,11 +33,11 @@
 
 ## 归档索引
 
-> 已完成交付块在 release 或阶段收口后移入 `coding-agent-harness/planning/_archive/Delivery-SSoT-archive-YYYY-QN.md`，活跃表只保留当前仍会影响集成决策的内容。
+> 已完成交付块在 release 或阶段收口后移入 `{{paths.harnessRoot}}/planning/_archive/Delivery-SSoT-archive-YYYY-QN.md`，活跃表只保留当前仍会影响集成决策的内容。
 
 | 归档文件 | 覆盖范围 | 移入日期 | 说明 |
 | --- | --- | --- | --- |
-| `coding-agent-harness/planning/_archive/Delivery-SSoT-archive-YYYY-QN.md` | DB-... 至 DB-... | YYYY-MM-DD | [说明] |
+| `{{paths.harnessRoot}}/planning/_archive/Delivery-SSoT-archive-YYYY-QN.md` | DB-... 至 DB-... | YYYY-MM-DD | [说明] |
 
 ## 状态说明
 

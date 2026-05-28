@@ -6,7 +6,7 @@ import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
 import zlib from "node:zlib";
-import { builtinPresetRoot, projectPresetRoot, repoRoot, toPosix, userPresetRoot, userPresetRootForHome } from "./core-shared.mjs";
+import { builtinPresetRoot, projectPresetRoot, repoRoot, renderHarnessTemplate, toPosix, validateHarnessPathTemplateTokens, userPresetRoot, userPresetRootForHome } from "./core-shared.mjs";
 
 const allowedEntrypoints = new Set(["newTask", "plan", "scaffold", "check"]);
 const allowedEntrypointTypes = new Set(["template", "script", "check"]);
@@ -197,6 +197,45 @@ export function seedBundledPresets({ force = false, scope = "user", targetInput 
   };
 }
 
+export function auditBundledPresetDrift({ scope = "user", targetInput = ".", home = "" } = {}) {
+  const targetRoot = scope === "project" ? projectPresetRoot(targetInput) : userPresetRootForHome(home);
+  const presets = listBundledPresetIds().map((id) => {
+    const builtin = readPresetPackageFromPath(path.join(builtinPresetRoot, id), "builtin");
+    const installedPath = path.join(targetRoot, id, "preset.yaml");
+    const installed = fs.existsSync(installedPath) ? readPresetPackageFromPath(path.dirname(installedPath), scope) : null;
+    const sameHash = Boolean(installed && installed.manifestSha256 === builtin.manifestSha256);
+    const sameVersion = Boolean(installed && installed.version === builtin.version);
+    const sameVersionDifferentHash = Boolean(installed && sameVersion && !sameHash);
+    const action = !installed
+      ? "install-available"
+      : sameHash
+        ? "up-to-date"
+        : installed.source === "project" || installed.source === "user"
+          ? "manual-review"
+          : "upgrade-available";
+    return {
+      id,
+      scope,
+      source: installed ? installed.source : "missing",
+      effective: installed ? true : false,
+      builtinVersion: builtin.version,
+      installedVersion: installed?.version || null,
+      builtinSha256: builtin.manifestSha256,
+      installedSha256: installed?.manifestSha256 || null,
+      sameVersionDifferentHash,
+      upgradeAction: action,
+      installedPath: installed ? installed.manifestRelativePath : toPosix(installedPath),
+    };
+  });
+  return {
+    operation: "preset-audit",
+    scope,
+    target: toPosix(targetRoot),
+    presets,
+    stale: presets.filter((preset) => preset.upgradeAction !== "up-to-date").length,
+  };
+}
+
 export function validatePresetPackage(preset) {
   const failures = [];
   const warnings = [];
@@ -234,6 +273,7 @@ export function validatePresetPackage(preset) {
     if (!allowedEntrypointTypes.has(entrypoint.type)) failures.push(`${name} has unsupported type: ${entrypoint.type || "(missing)"}`);
     if (!entrypoint.writes.length) failures.push(`${name} missing write scope manifest`);
     for (const writeScope of entrypoint.writes) {
+      failures.push(...validateHarnessPathTemplateTokens(writeScope, `${name} write scope`));
       if (!preset.writeScopes.some((scope) => scope.path === writeScope)) {
         failures.push(`${name} writes undeclared scope: ${writeScope}`);
       }
@@ -245,9 +285,14 @@ export function validatePresetPackage(preset) {
       const entryPath = path.join(preset.directory, entrypoint.command || "");
       if (!entrypoint.command) failures.push(`${name} missing command`);
       else if (!isInside(preset.directory, entryPath)) failures.push(`${name} command escapes preset package`);
-      else validatePresetPackageFile(preset, entrypoint.command, `${name} command`, failures);
+      else {
+        validatePresetPackageFile(preset, entrypoint.command, `${name} command`, failures);
+        warnOnRuntimePathLiterals(entryPath, `${name} command`, warnings);
+      }
     }
+    for (const readScope of entrypoint.reads || []) failures.push(...validateHarnessPathTemplateTokens(readScope, `${name} read scope`));
   }
+  for (const scope of preset.writeScopes) failures.push(...validateHarnessPathTemplateTokens(scope.path, `${scope.name || "write scope"} path`));
   for (const [templateKey, templatePath] of Object.entries(preset.newTaskTemplates)) {
     if (!allowedNewTaskTemplateKeys.has(templateKey)) {
       failures.push(`unsupported newTask template: ${templateKey}`);
@@ -284,10 +329,7 @@ export function renderPresetTemplate(preset, templatePath, values) {
   const absolute = path.join(preset.directory, templatePath);
   if (!isInside(preset.directory, absolute)) throw new Error(`Preset template escapes package: ${templatePath}`);
   const content = fs.readFileSync(absolute, "utf8");
-  return content.replace(/\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/g, (_match, key) => {
-    const value = getValue(values, key);
-    return value == null ? "" : String(value);
-  });
+  return renderHarnessTemplate(content, values, { missing: "empty" });
 }
 
 function normalizePresetId(id) {
@@ -505,9 +547,24 @@ function newTaskWriteScopeAllowed(writeScope) {
   return (
     normalized === "coding-agent-harness/planning/**" ||
     normalized.startsWith("coding-agent-harness/planning/") ||
+    normalized === "{{paths.planningRoot}}/**" ||
+    normalized.startsWith("{{paths.planningRoot}}/") ||
+    normalized === "{{paths.tasksRoot}}/**" ||
+    normalized.startsWith("{{paths.tasksRoot}}/") ||
+    normalized === "{{paths.modulesRoot}}/**" ||
+    normalized.startsWith("{{paths.modulesRoot}}/") ||
     normalized === `${legacyPlanningScope}/**` ||
     normalized.startsWith(`${legacyPlanningScope}/`)
   );
+}
+
+function warnOnRuntimePathLiterals(filePath, label, warnings) {
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return;
+  const content = fs.readFileSync(filePath, "utf8");
+  const runtimeLiteralPattern = /coding-agent-harness\/(?:planning|governance|context)\//;
+  if (runtimeLiteralPattern.test(content) && !content.includes("context.paths") && !content.includes("context.absolutePaths")) {
+    warnings.push(`${label} contains default harness path literals; prefer context.paths from the preset runner`);
+  }
 }
 
 function validatePresetPackageFile(preset, relativePath, label, failures) {

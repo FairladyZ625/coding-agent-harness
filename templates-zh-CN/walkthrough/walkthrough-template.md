@@ -47,13 +47,13 @@
 | 是否出现跨模块、跨阶段、跨 agent 的重复问题？ | [有 / 无，写一句理由] |
 | 下次 agent 是否可能在同类任务中重复踩坑？ | [有 / 无，写一句理由] |
 | Lessons 结果 | `checked-candidate: LC-...` / `queued-promotion: LC-...` / `checked-created: L-YYYY-MM-DD-NNN` / 旧任务 `checked-none: [一句话原因]` |
-| Lessons 详情文档 | `lesson_candidates.md` / `coding-agent-harness/governance/lessons/[file].md` / `none` |
+| Lessons 详情文档 | `lesson_candidates.md` / `{{paths.harnessRoot}}/governance/lessons/[file].md` / `none` |
 
 ## 关联索引
 
-- 任务计划：`coding-agent-harness/planning/tasks/[task]/task_plan.md`
-- 进度记录：`coding-agent-harness/planning/tasks/[task]/progress.md`
-- 审查报告：`coding-agent-harness/planning/tasks/[task]/review.md` / `n/a`
+- 任务计划：`{{paths.harnessRoot}}/planning/tasks/[task]/task_plan.md`
+- 进度记录：`{{paths.harnessRoot}}/planning/tasks/[task]/progress.md`
+- 审查报告：`{{paths.harnessRoot}}/planning/tasks/[task]/review.md` / `n/a`
 - 功能 SSoT：[F-...]
 - Delivery SSoT：[DB-...] / `n/a`
 - 回归 Gate：[RG-...] / `n/a`

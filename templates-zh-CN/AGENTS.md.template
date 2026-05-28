@@ -1,7 +1,7 @@
 # [项目名称]
 
 这个文件是 Agent 进入本仓库时的工作入口。它只负责说明硬规则和阅读路由；
-详细规范放在 `coding-agent-harness/governance/standards/`，不要把操作手册全部塞进这里。
+详细规范放在 `{{paths.harnessRoot}}/governance/standards/`，不要把操作手册全部塞进这里。
 
 ## 项目概况
 
@@ -13,9 +13,9 @@
 
 ## 不可违反的规则
 
-1. 遵守 `coding-agent-harness/governance/standards/engineering-standard.md` 中的架构边界。
+1. 遵守 `{{paths.harnessRoot}}/governance/standards/engineering-standard.md` 中的架构边界。
 2. 不提交密钥、令牌、私有接口、用户隐私数据或生产凭据。
-3. 非平凡任务先用 Harness CLI 在 `coding-agent-harness/planning/tasks/` 下建立任务目录。
+3. 非平凡任务先用 Harness CLI 在 `{{paths.harnessRoot}}/planning/tasks/` 下建立任务目录。
 4. 声称完成前必须记录证据。
 5. 保护无关工作区改动，不回滚任务范围外文件。
 6. 已验证的、有意义的工作切片要主动提交。除非用户明确暂停提交、检查失败、dirty 归属不清，或安全边界导致无法形成干净提交，否则不要把已完成工作只留在未提交文件里；不能提交时，必须在 progress、handoff 或 closeout 中写明 no-commit reason、owner 和下一步。不要把无关 dirty 改动混入本任务提交。
@@ -27,23 +27,23 @@
 
 | 任务类型 | 先读文件 |
 | --- | --- |
-| 架构、核心模块、跨模块改动 | `coding-agent-harness/governance/standards/engineering-standard.md` |
-| 系统地图、服务职责、外部系统关系 | `coding-agent-harness/context/architecture/README.md`、`coding-agent-harness/context/architecture/service-catalog.md` |
-| 本地开发、mock、stub、跨仓调试 | `coding-agent-harness/context/development/README.md`、`coding-agent-harness/context/development/codebase-map.md` |
-| API、event、webhook、SDK、第三方契约 | `coding-agent-harness/context/integrations/README.md` 和相关契约文件 |
-| 测试、冒烟、回归 | `coding-agent-harness/governance/standards/testing-standard.md`、`coding-agent-harness/governance/regression/Regression-SSoT.md` |
-| 开发执行、提交、PR、发布 | `coding-agent-harness/governance/standards/execution-workflow-standard.md`、`coding-agent-harness/governance/standards/repo-governance-standard.md`、`coding-agent-harness/governance/standards/pull-request-standard.md`、`coding-agent-harness/governance/standards/ci-cd-standard.md` |
-| 创建或推进任务 | `coding-agent-harness/planning/tasks/` 下的当前任务目录；如果本项目已配置 Harness CLI，使用 `harness new-task` / lifecycle 命令 |
+| 架构、核心模块、跨模块改动 | `{{paths.harnessRoot}}/governance/standards/engineering-standard.md` |
+| 系统地图、服务职责、外部系统关系 | `{{paths.harnessRoot}}/context/architecture/README.md`、`{{paths.harnessRoot}}/context/architecture/service-catalog.md` |
+| 本地开发、mock、stub、跨仓调试 | `{{paths.harnessRoot}}/context/development/README.md`、`{{paths.harnessRoot}}/context/development/codebase-map.md` |
+| API、event、webhook、SDK、第三方契约 | `{{paths.harnessRoot}}/context/integrations/README.md` 和相关契约文件 |
+| 测试、冒烟、回归 | `{{paths.harnessRoot}}/governance/standards/testing-standard.md`、`{{paths.harnessRoot}}/governance/regression/Regression-SSoT.md` |
+| 开发执行、提交、PR、发布 | `{{paths.harnessRoot}}/governance/standards/execution-workflow-standard.md`、`{{paths.harnessRoot}}/governance/standards/repo-governance-standard.md`、`{{paths.harnessRoot}}/governance/standards/pull-request-standard.md`、`{{paths.harnessRoot}}/governance/standards/ci-cd-standard.md` |
+| 创建或推进任务 | `{{paths.harnessRoot}}/planning/tasks/` 下的当前任务目录；如果本项目已配置 Harness CLI，使用 `harness new-task` / lifecycle 命令 |
 | Brief、Execution Strategy、Visual Map | 当前任务的 `brief.md`、`execution_strategy.md`、`visual_map.md` |
 | 长程任务 | 当前任务的 `long-running-task-contract.md`（如存在） |
-| reviewer、subagent、对抗性审查 | 当前任务 `review.md`、`coding-agent-harness/governance/standards/review-routing-standard.md` |
-| 多人协作、多仓交付、阶段性交付 | `coding-agent-harness/governance/standards/delivery-operating-model-standard.md`、`coding-agent-harness/planning/Delivery-SSoT.md` |
-| 模块并行 | `coding-agent-harness/planning/modules/Module-Registry.md` 和相关 module plan |
-| 文档治理或 Harness 更新 | `coding-agent-harness/governance/standards/docs-library-standard.md`、`coding-agent-harness/harness.yaml` |
-| 外部资料摄取 | `coding-agent-harness/governance/standards/external-source-intake-standard.md` |
-| Regression SSoT 维护 | `coding-agent-harness/governance/standards/regression-ssot-governance.md` |
-| 收口、walkthrough、Lessons | `coding-agent-harness/governance/standards/walkthrough-standard.md`、当前任务 `walkthrough.md`、当前任务 `lesson_candidates.md`、`coding-agent-harness/governance/lessons/` |
-| Worktree、并行开发隔离 | `coding-agent-harness/governance/standards/worktree-standard.md` |
+| reviewer、subagent、对抗性审查 | 当前任务 `review.md`、`{{paths.harnessRoot}}/governance/standards/review-routing-standard.md` |
+| 多人协作、多仓交付、阶段性交付 | `{{paths.harnessRoot}}/governance/standards/delivery-operating-model-standard.md`、`{{paths.harnessRoot}}/planning/Delivery-SSoT.md` |
+| 模块并行 | `{{paths.harnessRoot}}/planning/modules/Module-Registry.md` 和相关 module plan |
+| 文档治理或 Harness 更新 | `{{paths.harnessRoot}}/governance/standards/docs-library-standard.md`、`{{paths.harnessRoot}}/harness.yaml` |
+| 外部资料摄取 | `{{paths.harnessRoot}}/governance/standards/external-source-intake-standard.md` |
+| Regression SSoT 维护 | `{{paths.harnessRoot}}/governance/standards/regression-ssot-governance.md` |
+| 收口、walkthrough、Lessons | `{{paths.harnessRoot}}/governance/standards/walkthrough-standard.md`、当前任务 `walkthrough.md`、当前任务 `lesson_candidates.md`、`{{paths.harnessRoot}}/governance/lessons/` |
+| Worktree、并行开发隔离 | `{{paths.harnessRoot}}/governance/standards/worktree-standard.md` |
 
 ## 标准执行流程
 
@@ -72,14 +72,14 @@
 
 ## 单一事实源
 
-- Harness Ledger：`coding-agent-harness/governance/generated/Harness-Ledger.md`（任务生命周期总账，由 CLI 生成）
-- Delivery SSoT：`coding-agent-harness/planning/Delivery-SSoT.md`
-- Module Registry：`coding-agent-harness/planning/modules/Module-Registry.md`
-- Regression SSoT：`coding-agent-harness/governance/regression/Regression-SSoT.md`
-- Cadence Ledger：`coding-agent-harness/governance/regression/Cadence-Ledger.md`
+- Harness Ledger：`{{paths.harnessRoot}}/governance/generated/Harness-Ledger.md`（任务生命周期总账，由 CLI 生成）
+- Delivery SSoT：`{{paths.harnessRoot}}/planning/Delivery-SSoT.md`
+- Module Registry：`{{paths.harnessRoot}}/planning/modules/Module-Registry.md`
+- Regression SSoT：`{{paths.harnessRoot}}/governance/regression/Regression-SSoT.md`
+- Cadence Ledger：`{{paths.harnessRoot}}/governance/regression/Cadence-Ledger.md`
 - Lesson Candidates：当前任务 `lesson_candidates.md`
-- Lesson Detail Docs：`coding-agent-harness/governance/lessons/`
-- Generated Closeout Index：`coding-agent-harness/governance/generated/Closeout-Index.md`
+- Lesson Detail Docs：`{{paths.harnessRoot}}/governance/lessons/`
+- Generated Closeout Index：`{{paths.harnessRoot}}/governance/generated/Closeout-Index.md`
 
 ## 本地命令
 

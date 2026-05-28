@@ -10,7 +10,7 @@
 外部原始资料 -> source pack 索引 -> digest 摘要 -> context/{architecture,development,integrations} 执行投影
 ```
 
-`context/architecture`、`context/development`、`context/integrations` 只保存已经提炼并可用于执行的事实。外部团队丢来的原文、长文档、截图、聊天记录、导出包和历史资料先进入 `coding-agent-harness/context/development/external-source-packs/`，不能直接污染执行文档。
+`context/architecture`、`context/development`、`context/integrations` 只保存已经提炼并可用于执行的事实。外部团队丢来的原文、长文档、截图、聊天记录、导出包和历史资料先进入 `{{paths.harnessRoot}}/context/development/external-source-packs/`，不能直接污染执行文档。
 
 ## 何时询问用户
 
@@ -33,14 +33,14 @@
 | 场景 | 存储方式 |
 | --- | --- |
 | 只有 1-4 个稳定外部文档 | 不必建独立 source pack；在对应 `context/{architecture,development,integrations}` 的 `Source Evidence` 中链接即可 |
-| 外部资料超过 5 份、跨多个主题、或会持续增长 | 创建 `coding-agent-harness/context/development/external-source-packs/<source-key>/` |
+| 外部资料超过 5 份、跨多个主题、或会持续增长 | 创建 `{{paths.harnessRoot}}/context/development/external-source-packs/<source-key>/` |
 | 资料含敏感信息、密钥、客户数据或不能进仓 | 不复制原文；在 source pack README 记录外部路径、owner、访问条件和摘要 |
 | 资料是可公开或可入仓的原始文档 | 可放 `raw/`，但仍要经过 digest 后才能投影到执行文档 |
 
 建议结构：
 
 ```text
-coding-agent-harness/context/development/external-source-packs/<source-key>/
+{{paths.harnessRoot}}/context/development/external-source-packs/<source-key>/
 ├── README.md              # 资料索引和投影状态
 ├── digests/               # 每份或每组资料的摘要
 ├── raw/                   # 可入仓原文；禁止放密钥、隐私或客户数据
@@ -49,10 +49,10 @@ coding-agent-harness/context/development/external-source-packs/<source-key>/
 
 不要为每个微服务复制一套完整 `context/{architecture,development,integrations}` 目录。source pack 是资料入口；稳定执行入口仍然是：
 
-- `coding-agent-harness/context/architecture/service-catalog.md`
-- `coding-agent-harness/context/architecture/services/<service-key>.md`
-- `coding-agent-harness/context/development/external-context/<service-key>.md`
-- `coding-agent-harness/context/integrations/<contract>.md`
+- `{{paths.harnessRoot}}/context/architecture/service-catalog.md`
+- `{{paths.harnessRoot}}/context/architecture/services/<service-key>.md`
+- `{{paths.harnessRoot}}/context/development/external-context/<service-key>.md`
+- `{{paths.harnessRoot}}/context/integrations/<contract>.md`
 
 ## 摄取流程
 
@@ -68,9 +68,9 @@ coding-agent-harness/context/development/external-source-packs/<source-key>/
 
 | 资料内容 | 投影位置 |
 | --- | --- |
-| 服务职责、上下游、owner、数据归属、系统拓扑 | `coding-agent-harness/context/architecture/service-catalog.md` 或 `services/<service-key>.md` |
-| 本仓开发时如何 mock、stub、启动、联调、排查 | `coding-agent-harness/context/development/external-context/<service-key>.md` |
-| endpoint、payload、auth、error、event、webhook、SDK、contract test | `coding-agent-harness/context/integrations/<contract>.md` |
+| 服务职责、上下游、owner、数据归属、系统拓扑 | `{{paths.harnessRoot}}/context/architecture/service-catalog.md` 或 `services/<service-key>.md` |
+| 本仓开发时如何 mock、stub、启动、联调、排查 | `{{paths.harnessRoot}}/context/development/external-context/<service-key>.md` |
+| endpoint、payload、auth、error、event、webhook、SDK、contract test | `{{paths.harnessRoot}}/context/integrations/<contract>.md` |
 | 仍未确认、来源冲突、过期或只作为背景参考 | 留在 source pack README / digest，不进入执行文档 |
 
 ## 禁止事项

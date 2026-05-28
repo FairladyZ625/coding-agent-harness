@@ -24,8 +24,8 @@ Keep the English field names and file names because CLI checks rely on them.
 ## Boundary
 
 - 系统结构、服务责任、归属关系、关键流程放这里。
-- Payload、endpoint 参数、event schema、SDK 细节放 `coding-agent-harness/context/integrations/`。
-- 本地启动、mock、stub、跨仓调试经验放 `coding-agent-harness/context/development/`。
+- Payload、endpoint 参数、event schema、SDK 细节放 `{{paths.harnessRoot}}/context/integrations/`。
+- 本地启动、mock、stub、跨仓调试经验放 `{{paths.harnessRoot}}/context/development/`。
 
 ## Structure Contract
 

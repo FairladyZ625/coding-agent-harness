@@ -256,7 +256,7 @@ assert(legacyPresetInspect.id === "legacy-migration", "preset inspect should loa
 assert(legacyPresetInspect.version === 2, "legacy-migration preset package should report version 2");
 assert(legacyPresetInspect.compatibleBudgets?.includes("complex"), "legacy-migration preset should declare complex budget compatibility");
 assert(legacyPresetInspect.audit?.manifestRequired === true, "preset package should require manifest audit evidence");
-assert(legacyPresetInspect.writeScopes?.some((scope) => scope.path === "coding-agent-harness/planning/tasks/**"), "preset package should declare task write scope");
+assert(legacyPresetInspect.writeScopes?.some((scope) => scope.path === "{{paths.tasksRoot}}/**"), "preset package should declare structure-aware task write scope");
 assert(legacyPresetInspect.workbench?.migrationQueueSchema === "workbench/migration-queue.schema.json", "legacy-migration preset should declare a workbench migration queue schema");
 const legacyPresetCheck = expectJson(["preset", "check", "legacy-migration", "--json", lifecycleTarget]);
 assert(legacyPresetCheck.status === "pass", "preset check legacy-migration should pass");

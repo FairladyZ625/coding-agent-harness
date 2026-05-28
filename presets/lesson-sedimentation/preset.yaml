@@ -9,14 +9,14 @@ task:
 entrypoints:
   newTask:
     type: template
-    writes: [coding-agent-harness/planning/tasks/**]
-    reads: [coding-agent-harness/planning/tasks/**/lesson_candidates.md]
+    writes: [{{paths.tasksRoot}}/**]
+    reads: [{{paths.tasksRoot}}/**/lesson_candidates.md]
     audit: true
     templates:
       prompt: templates/prompt.md
 writeScopes:
   taskDocs:
-    path: coding-agent-harness/planning/tasks/**
+    path: {{paths.tasksRoot}}/**
     access: write
 audit:
   manifestRequired: true

@@ -12,7 +12,7 @@ Repo Governance / CI-CD changes remain routed through their reference standards 
 
 | ID | Scope | Module | Task | State | Queues | Plan | Review | Lessons Check | Closeout | Residual | Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| HL-YYYY-MM-DD-001 | task | none | Short operational title | planned | none | coding-agent-harness/planning/tasks/.../task_plan.md | pending | pending | pending | none | YYYY-MM-DD |
+| HL-YYYY-MM-DD-001 | task | none | Short operational title | planned | none | {{paths.harnessRoot}}/planning/tasks/.../task_plan.md | pending | pending | pending | none | YYYY-MM-DD |
 
 ## Field Rules
 

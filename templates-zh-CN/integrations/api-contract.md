@@ -13,7 +13,7 @@ API
 
 | Service Profile | Development Context | Contract Index | Last Verified | Confidence |
 | --- | --- | --- | --- | --- |
-| `coding-agent-harness/context/architecture/services/<service-key>.md` | `coding-agent-harness/context/development/external-context/<service-key>.md` | `coding-agent-harness/context/integrations/README.md` | unknown | low |
+| `{{paths.harnessRoot}}/context/architecture/services/<service-key>.md` | `{{paths.harnessRoot}}/context/development/external-context/<service-key>.md` | `{{paths.harnessRoot}}/context/integrations/README.md` | unknown | low |
 
 ## Auth
 

@@ -29,6 +29,8 @@ type RenderTemplateOptions = {
   longRunning?: boolean;
   scaffoldProvenance?: Record<string, string>;
   taskAudit?: Record<string, string>;
+  target?: HarnessTarget;
+  paths?: Record<string, string>;
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,6 +47,19 @@ export function userPresetRootForHome(home = ""): string {
   return path.join(path.resolve(home || os.homedir()), ".coding-agent-harness/presets");
 }
 export const userPresetRoot = userPresetRootForHome();
+
+export const harnessPathTemplateFields = [
+  "harnessRoot",
+  "planningRoot",
+  "tasksRoot",
+  "modulesRoot",
+  "externalRoot",
+  "governanceRoot",
+  "generatedRoot",
+  "regressionRoot",
+  "ledgerPath",
+  "closeoutIndexPath",
+];
 
 
 export const supportedLocales = new Set(["zh-CN", "en-US"]);
@@ -129,6 +144,72 @@ export function readBundledTemplate(source: string): string {
   const content = fs.readFileSync(sourcePath, "utf8");
   if (!content.trim()) throw new Error(`Bundled template is empty: ${source}`);
   return content;
+}
+
+export function harnessPathContext(targetOrPaths: unknown): Record<string, string> {
+  const paths = ((targetOrPaths as Record<string, unknown>)?.harness || targetOrPaths || {}) as Record<string, unknown>;
+  const projectRoot = String(paths.projectRoot || (targetOrPaths as Record<string, unknown>)?.projectRoot || "");
+  const result: Record<string, string> = {};
+  for (const field of harnessPathTemplateFields) {
+    const value = String(paths[field] || "");
+    if (!value) continue;
+    result[field] = projectRoot && path.isAbsolute(value)
+      ? toPosix(path.relative(projectRoot, value))
+      : toPosix(value);
+  }
+  return result;
+}
+
+export function absoluteHarnessPathContext(targetOrPaths: unknown): Record<string, string> {
+  const paths = ((targetOrPaths as Record<string, unknown>)?.harness || targetOrPaths || {}) as Record<string, unknown>;
+  const projectRoot = String(paths.projectRoot || (targetOrPaths as Record<string, unknown>)?.projectRoot || "");
+  const result: Record<string, string> = {};
+  for (const field of harnessPathTemplateFields) {
+    const value = String(paths[field] || "");
+    if (!value) continue;
+    result[field] = path.isAbsolute(value) ? value : path.join(projectRoot, value);
+  }
+  return result;
+}
+
+export function renderHarnessTemplate(content: string, context: Record<string, unknown> = {}, { strict = false, missing = "preserve" } = {}): string {
+  return String(content).replace(/\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/g, (match, key) => {
+    const value = getTemplateValue(context, key);
+    if (value == null) {
+      if (strict) throw new Error(`Unknown template token: ${key}`);
+      return missing === "empty" ? "" : match;
+    }
+    return String(value);
+  });
+}
+
+export function validateHarnessPathTemplateTokens(content: string, label = "template"): string[] {
+  const failures: string[] = [];
+  for (const match of String(content || "").matchAll(/\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/g)) {
+    const key = match[1];
+    if (!key.startsWith("paths.")) continue;
+    const field = key.slice("paths.".length);
+    if (!harnessPathTemplateFields.includes(field)) failures.push(`${label} uses unknown path token: ${key}`);
+  }
+  return failures;
+}
+
+export function resolveHarnessPathTemplate(value: string, target: HarnessTarget, label = "path"): string {
+  const rendered = renderHarnessTemplate(String(value || ""), { paths: harnessPathContext(target) }, { strict: true });
+  const normalized = toPosix(path.normalize(rendered));
+  if (!rendered.trim()) throw new Error(`${label} resolved to an empty path`);
+  if (path.isAbsolute(rendered) || normalized === "." || normalized === ".." || normalized.startsWith("../") || normalized.includes("/../")) {
+    throw new Error(`${label} escapes target root: ${value}`);
+  }
+  return normalized;
+}
+
+function getTemplateValue(context: Record<string, unknown>, key: string): unknown {
+  return String(key).split(".").reduce<unknown>((cursor, part) => (
+    cursor && typeof cursor === "object" && Object.prototype.hasOwnProperty.call(cursor, part)
+      ? (cursor as Record<string, unknown>)[part]
+      : undefined
+  ), context);
 }
 
 export function walkFiles(root: string, options: { dirFilter?: (entry: string, fullPath: string) => boolean } = {}): string[] {
@@ -254,6 +335,8 @@ export function renderTaskTemplate(
     longRunning = false,
     scaffoldProvenance = {},
     taskAudit = {},
+    target,
+    paths = target ? harnessPathContext(target) : {},
   }: RenderTemplateOptions,
 ): string {
   const date = todayDate();
@@ -265,7 +348,7 @@ export function renderTaskTemplate(
     templateSource: scaffoldProvenance.templateSource || "templates/planning/brief.md",
     exceptionReason: scaffoldProvenance.exceptionReason || "n/a",
   };
-  return String(content)
+  return renderHarnessTemplate(String(content), { paths })
     .replaceAll("{{TASK_ID}}", taskId)
     .replaceAll("{{TASK_TITLE}}", title)
     .replaceAll("{{DATE}}", date)

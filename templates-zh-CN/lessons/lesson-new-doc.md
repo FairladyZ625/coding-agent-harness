@@ -4,9 +4,9 @@
 
 - **ID**: L-[YYYY-MM-DD-NNN]
 - **日期**: YYYY-MM-DD
-- **来源**: `coding-agent-harness/planning/tasks/<task>/walkthrough.md`
+- **来源**: `{{paths.harnessRoot}}/planning/tasks/<task>/walkthrough.md`
 - **类型**: new-doc
-- **建议路径**: `coding-agent-harness/governance/standards/[建议文件名].md`
+- **建议路径**: `{{paths.harnessRoot}}/governance/standards/[建议文件名].md`
 - **提出者**: [agent session / model / human]
 
 ## 背景
@@ -23,7 +23,7 @@
 
 ## 建议路径
 
-`coding-agent-harness/governance/standards/[建议文件名].md`
+`{{paths.harnessRoot}}/governance/standards/[建议文件名].md`
 
 ## 建议文档内容
 

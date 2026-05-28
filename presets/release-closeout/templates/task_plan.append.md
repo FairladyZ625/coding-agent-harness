@@ -17,8 +17,8 @@ Run these preset entrypoints from the target root. The task scaffold only record
 
 | Output | Owner |
 | --- | --- |
-| `coding-agent-harness/governance/releases/{{release}}/INDEX.md` | `presets/release-closeout` |
-| `coding-agent-harness/governance/releases/{{release}}/task-aggregate.json` | `presets/release-closeout` |
-| `coding-agent-harness/governance/releases/{{release}}/task-archive-plan.md` | `presets/release-closeout` |
-| `coding-agent-harness/governance/releases/{{release}}/public-summary.md` | `presets/release-closeout` |
-| `coding-agent-harness/governance/releases/{{release}}/public-redaction-report.json` | `presets/release-closeout` |
+| `{{paths.governanceRoot}}/releases/{{release}}/INDEX.md` | `presets/release-closeout` |
+| `{{paths.governanceRoot}}/releases/{{release}}/task-aggregate.json` | `presets/release-closeout` |
+| `{{paths.governanceRoot}}/releases/{{release}}/task-archive-plan.md` | `presets/release-closeout` |
+| `{{paths.governanceRoot}}/releases/{{release}}/public-summary.md` | `presets/release-closeout` |
+| `{{paths.governanceRoot}}/releases/{{release}}/public-redaction-report.json` | `presets/release-closeout` |
