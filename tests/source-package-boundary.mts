@@ -83,6 +83,9 @@ assert(!packedFiles.includes("harness-dashboard.html"), "npm package must not in
 assert(!packedFiles.includes("scripts/test-harness.mjs"), "npm package must not include internal test harness");
 assert(!packedFiles.includes("scripts/smoke-dashboard.mjs"), "npm package must not include internal dashboard smoke script");
 assert(!packedFiles.some((file) => file.startsWith("tests/")), "npm package must not include tests/");
+assert(packedFiles.includes("dist/harness.mjs"), "npm package must include dist harness runtime entrypoint");
+assert(packedFiles.includes("dist/postinstall.mjs"), "npm package must include dist postinstall runtime entrypoint");
+assert(packedFiles.includes("scripts/harness.mjs"), "PR-25 package should retain historical scripts harness shim");
 for (const required of [
   "scripts/lib/harness-paths.mjs",
   "scripts/lib/structure-migration.mjs",

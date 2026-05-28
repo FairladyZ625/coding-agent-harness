@@ -23,19 +23,20 @@
     "url": "https://github.com/FairladyZ625/coding-agent-harness/issues"
   },
   "bin": {
-    "harness": "scripts/harness.mjs"
+    "harness": "dist/harness.mjs"
   },
   "scripts": {
-    "check": "node scripts/harness.mjs check --profile source-package .",
-    "check:private": "node scripts/harness.mjs check --profile private-harness .harness-private",
+    "check": "node dist/harness.mjs check --profile source-package .",
+    "check:private": "node dist/harness.mjs check --profile private-harness .harness-private",
     "build:runtime": "node scripts/build-dist.mjs",
+    "prepack": "node scripts/build-dist.mjs --quiet",
     "typecheck": "npm exec --yes --package typescript@5.9.3 -- tsc -p tsconfig.json",
     "typecheck:guards": "node scripts/check-type-boundaries.mjs",
-    "status": "node scripts/harness.mjs status --json .",
-    "dashboard": "node scripts/harness.mjs dashboard --out tmp/harness-dashboard.html examples/minimal-project",
-    "dashboard:folder": "node scripts/harness.mjs dashboard --out-dir tmp/harness-dashboard examples/minimal-project",
+    "status": "node dist/harness.mjs status --json .",
+    "dashboard": "node dist/harness.mjs dashboard --out tmp/harness-dashboard.html examples/minimal-project",
+    "dashboard:folder": "node dist/harness.mjs dashboard --out-dir tmp/harness-dashboard examples/minimal-project",
     "pack:dry-run": "npm pack --dry-run --json",
-    "postinstall": "node scripts/postinstall.mjs",
+    "postinstall": "node dist/postinstall.mjs",
     "smoke:dashboard": "node tests/smoke-dashboard.mjs",
     "test": "node tests/run-all.mjs"
   },
@@ -56,6 +57,7 @@
     "presets/",
     "templates/",
     "templates-zh-CN/",
+    "dist/",
     "scripts/",
     "docs-release/",
     "examples/"

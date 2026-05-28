@@ -23,6 +23,7 @@ const packageAllow = [
     /^docs-release\/guides\/migration-playbook/,
     /^docs-release\/guides\/full-legacy-migration/,
     /^references\/legacy-/,
+    /^dist\//,
     /^scripts\//,
     /^scripts\/check-harness\.mjs$/,
     /^scripts\/lib\/migration-/,

@@ -121,12 +121,15 @@ function parseArgs(argv) {
     configPath: path.join(repoRoot, "tsconfig.dist.json"),
     outDir: path.join(repoRoot, "dist"),
     json: false,
+    quiet: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--json") {
       options.json = true;
+    } else if (arg === "--quiet") {
+      options.quiet = true;
     } else if (arg === "--out-dir") {
       options.outDir = path.resolve(options.projectRoot, requireValue(argv, index, arg));
       index += 1;
@@ -159,9 +162,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const result = buildRuntimeDist(options);
   if (options.json) {
     console.log(JSON.stringify(result, null, 2));
-  } else if (result.ok) {
+  } else if (result.ok && !options.quiet) {
     console.log(`Runtime dist build completed: ${path.relative(repoRoot, result.outDir) || "."} (${result.files.length} files)`);
-  } else {
+  } else if (!result.ok) {
     console.error(result.error);
   }
 
