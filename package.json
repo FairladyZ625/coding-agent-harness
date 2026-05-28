@@ -31,7 +31,8 @@
     "build:runtime": "node scripts/build-dist.mts",
     "prepack": "node scripts/build-dist.mts --quiet",
     "typecheck": "npm exec --yes --package typescript@5.9.3 -- tsc -p tsconfig.json",
-    "typecheck:guards": "node dist/check-type-boundaries.mjs",
+    "typecheck:guards": "node dist/check-type-boundaries.mjs && node dist/check-no-ts-nocheck.mjs",
+    "check:nocheck": "node dist/check-no-ts-nocheck.mjs",
     "status": "node dist/harness.mjs status --json .",
     "dashboard": "node dist/harness.mjs dashboard --out tmp/harness-dashboard.html examples/minimal-project",
     "dashboard:folder": "node dist/harness.mjs dashboard --out-dir tmp/harness-dashboard examples/minimal-project",
@@ -62,6 +63,9 @@
     "docs-release/",
     "examples/"
   ],
+  "devDependencies": {
+    "@types/node": "24"
+  },
   "engines": {
     "node": ">=24"
   },

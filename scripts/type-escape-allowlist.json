@@ -1,0 +1,83 @@
+{
+  "generated_at": "2026-05-28",
+  "escapes": [
+    {
+      "file": "scripts/lib/dashboard-writer.mts",
+      "line": 4,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    },
+    {
+      "file": "scripts/lib/dashboard-writer.mts",
+      "line": 12,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    },
+    {
+      "file": "scripts/lib/preset-audit-contracts.mts",
+      "line": 3,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    },
+    {
+      "file": "scripts/lib/preset-audit-contracts.mts",
+      "line": 6,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    },
+    {
+      "file": "scripts/lib/preset-resource-contracts.mts",
+      "line": 3,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    },
+    {
+      "file": "scripts/lib/preset-resource-contracts.mts",
+      "line": 6,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    },
+    {
+      "file": "scripts/lib/review-confirm-git-gate.mts",
+      "line": 4,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    },
+    {
+      "file": "scripts/lib/review-confirm-git-gate.mts",
+      "line": 7,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    },
+    {
+      "file": "scripts/lib/status-dashboard-renderer.mts",
+      "line": 3,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    },
+    {
+      "file": "scripts/lib/status-dashboard-renderer.mts",
+      "line": 99,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    },
+    {
+      "file": "scripts/lib/task-completion-consistency.mts",
+      "line": 3,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    },
+    {
+      "file": "scripts/lib/task-lifecycle/template-files.mts",
+      "line": 1,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    },
+    {
+      "file": "scripts/lib/task-lifecycle/text-utils.mts",
+      "line": 1,
+      "code": "ts-escape-hatch",
+      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
+    }
+  ]
+}
