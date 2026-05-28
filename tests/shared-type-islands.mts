@@ -17,6 +17,7 @@ const expectedFiles = [
   "scripts/lib/types/review.ts",
   "scripts/lib/types/snapshot.ts",
   "scripts/lib/types/task.ts",
+  "scripts/lib/types/task-lifecycle.ts",
 ];
 
 for (const file of expectedFiles) {

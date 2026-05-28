@@ -18,7 +18,6 @@
     "scripts/lib/task-audit-migration.mts",
     "scripts/lib/task-lesson-candidates.mts",
     "scripts/lib/task-lesson-sedimentation.mts",
-    "scripts/lib/task-lifecycle.mts",
     "scripts/lib/task-tombstone-commands.mts",
     "scripts/postinstall.mts",
     "scripts/run-built-tests.mts",
