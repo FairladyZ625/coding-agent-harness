@@ -41,10 +41,19 @@ Before writing files, answer these in the task notes or your response:
 
 Use the bundled references before writing files:
 
+- `references/structure-aware-paths.md`
 - `references/complex-task-skeleton/`
 - `references/preset-package-skeleton.md`
 
-The complex task skeleton reference contains the base `brief.md`, `task_plan.md`, `execution_strategy.md`, `visual_map.md`, `findings.md`, `lesson_candidates.md`, `progress.md`, `review.md`, `references/INDEX.md`, and `artifacts/INDEX.md` contracts. The preset package skeleton contains a copyable package tree, a complete `preset.yaml`, starter Markdown resources, and the verification checklist. Keep this `SKILL.md` focused on method and judgment; use the references when the task has moved from design to file creation.
+The structure-aware paths reference is mandatory before writing `preset.yaml`;
+it defines `{{paths.*}}`, safe write scopes, drift audit, and template refresh.
+The complex task skeleton reference contains the base `brief.md`, `task_plan.md`,
+`execution_strategy.md`, `visual_map.md`, `findings.md`,
+`lesson_candidates.md`, `progress.md`, `review.md`, `references/INDEX.md`, and
+`artifacts/INDEX.md` contracts. The preset package skeleton contains a copyable
+package tree, a complete `preset.yaml`, starter Markdown resources, and the
+verification checklist. Keep this `SKILL.md` focused on method and judgment; use
+the references when the task has moved from design to file creation.
 
 Use a simple package:
 
@@ -60,6 +69,19 @@ my-preset/
     artifacts/
       input-packet.md
 ```
+
+## Structure-Aware Paths
+
+Preset authors must not hard-code Harness runtime paths such as
+`coding-agent-harness/planning/tasks/**`. Repositories may move the Harness
+folder, so every runtime write/read scope must use the target's resolved
+`{{paths.*}}` context.
+
+Before creating or reviewing a preset, read
+`references/structure-aware-paths.md`. For normal task-creating presets, use
+`{{paths.tasksRoot}}/**` in both `entrypoints.newTask.writes` and
+`writeScopes.*.path`. These values must match exactly; do not rely on partial
+overlap.
 
 ## Required Manifest Sections
 
@@ -92,6 +114,11 @@ Templates and resource index summaries can use `{{valueName}}` placeholders from
 Supported input types are `text`, `flag`, and `json-file`. Resource `index.type`, `usedBy`, and `producedBy` are labels for readers; use stable simple words such as `code`, `runbook`, `doc`, `fixture`, `preset`, `worker`, `reviewer`, and `coordinator`.
 
 Every value in `entrypoints.newTask.writes` must exactly match one `writeScopes.*.path` entry. Do not rely on partial overlap.
+
+For runtime paths in manifests or rendered Markdown, use `{{paths.*}}`.
+For ordinary preset values, use `{{valueName}}` from `templateValues`.
+Do not mix the two: `{{paths.*}}` is supplied by Harness from the target
+`harness.yaml`, while `{{valueName}}` is supplied by the preset manifest.
 
 ## Reference Bundle Pattern
 
@@ -146,6 +173,7 @@ Do not confuse artifacts with evidence. Artifacts can be input packets or fixtur
 ## Safety Rules
 
 - `writeScopes` must be as narrow as possible.
+- Runtime write/read scopes must use `{{paths.*}}`, usually `{{paths.tasksRoot}}/**`.
 - Generated files must stay under the created task directory.
 - A preset must not mutate source code, Git state, or global governance tables during `new-task`.
 - Do not add JavaScript for `new-task` behavior.
@@ -159,13 +187,15 @@ Do not confuse artifacts with evidence. Artifacts can be input packets or fixtur
 2. For complex presets, open `references/complex-task-skeleton/README.md` and inspect the base task files the preset will overlay.
 3. Open `references/preset-package-skeleton.md` and copy only the files the preset actually needs.
 4. Create the preset directory with `preset.yaml`, templates, and resources.
-5. Keep task creation declarative: manifest inputs, `templateValues`, `metadata`, Markdown templates, `resources`, evidence declarations, and `writeScopes`.
-6. Run `harness preset check <path>`.
-7. Install with `harness preset install <path> --force` in a disposable or user-approved environment.
-8. Smoke test with `harness new-task <id> --budget <budget> --preset <preset-id> ... <target>`.
-9. For reference-bundle presets, create two different tasks from the same preset and verify both contain the same shared references but independent audit/evidence bundles.
-10. Run `harness status --json <target>`, `harness task-index --json <target>`, and `harness check --profile target-project <target>`.
-11. Inspect the generated `task_plan.md`, `references/INDEX.md`, and `artifacts/INDEX.md` manually before declaring success.
+5. Use `{{paths.tasksRoot}}/**` or another supported `{{paths.*}}` field for every runtime write/read scope; never hard-code `coding-agent-harness/...`.
+6. Keep task creation declarative: manifest inputs, `templateValues`, `metadata`, Markdown templates, `resources`, evidence declarations, and `writeScopes`.
+7. Run `harness preset check <path>`.
+8. Install with `harness preset install <path> --force` in a disposable or user-approved environment.
+9. Smoke test with `harness new-task <id> --budget <budget> --preset <preset-id> ... <target>`.
+10. For reference-bundle presets, create two different tasks from the same preset and verify both contain the same shared references but independent audit/evidence bundles.
+11. Run `harness status --json <target>`, `harness task-index --json <target>`, and `harness check --profile target-project <target>`.
+12. Run `harness preset audit --json` or `harness preset audit --project --json <target>` before replacing installed presets.
+13. Inspect the generated `task_plan.md`, `references/INDEX.md`, and `artifacts/INDEX.md` manually before declaring success.
 
 ## Quality Checklist
 
@@ -175,5 +205,7 @@ Do not confuse artifacts with evidence. Artifacts can be input packets or fixtur
 - Every required read points to a real `REF-*` row.
 - Every `REF-*` row explains why that reference matters.
 - Every generated artifact has an `ART-*` row when artifacts are used.
+- No runtime path is hard-coded to `coding-agent-harness/...`; scopes use `{{paths.*}}`.
+- `entrypoints.newTask.writes` and `writeScopes.*.path` match exactly.
 - The preset passes `preset check`, task creation, `status --json`, `task-index --json`, and target check.
 - A downstream agent can create a valid preset from this skill without editing Harness source.
