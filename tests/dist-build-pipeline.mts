@@ -82,6 +82,7 @@ const help = spawnSync(process.execPath, [path.join(distRoot, "harness.mjs"), "-
 });
 assert(help.status === 0, `dist harness help should run\nSTDOUT:\n${help.stdout}\nSTDERR:\n${help.stderr}`);
 assert(help.stdout.includes("Usage:"), "dist harness help should print usage");
+assert((fs.statSync(path.join(distRoot, "harness.mjs")).mode & 0o111) !== 0, "dist harness should be executable for npm bin links");
 
 const postinstall = spawnSync(process.execPath, [path.join(distRoot, "postinstall.mjs")], {
   cwd: repoRoot,
@@ -110,5 +111,6 @@ for (const emittedFile of buildSummary.files) {
 }
 
 assert(readFile("dist/harness.mjs").startsWith("#!/usr/bin/env node"), "committed dist harness should retain executable shebang");
+assert((fs.statSync(path.join(repoRoot, "dist/harness.mjs")).mode & 0o111) !== 0, "committed dist harness should retain executable mode");
 
 console.log("Dist build pipeline tests passed");

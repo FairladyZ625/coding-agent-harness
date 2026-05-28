@@ -78,12 +78,15 @@ assert(sourceBoundaryCheck.stderr.includes("internal test/smoke file in publisha
 
 const packDryRun = spawnSync("npm", ["pack", "--dry-run", "--json"], { cwd: repoRoot, encoding: "utf8" });
 assert(packDryRun.status === 0, `npm pack dry run failed\nSTDOUT:\n${packDryRun.stdout}\nSTDERR:\n${packDryRun.stderr}`);
-const packedFiles = JSON.parse(packDryRun.stdout)[0].files.map((file) => file.path);
+const packedEntries = JSON.parse(packDryRun.stdout)[0].files;
+const packedFiles = packedEntries.map((file) => file.path);
+const packedFileByPath = new Map(packedEntries.map((file) => [file.path, file]));
 assert(!packedFiles.includes("harness-dashboard.html"), "npm package must not include root dashboard output");
 assert(!packedFiles.includes("scripts/test-harness.mjs"), "npm package must not include internal test harness");
 assert(!packedFiles.includes("scripts/smoke-dashboard.mjs"), "npm package must not include internal dashboard smoke script");
 assert(!packedFiles.some((file) => file.startsWith("tests/")), "npm package must not include tests/");
 assert(packedFiles.includes("dist/harness.mjs"), "npm package must include dist harness runtime entrypoint");
+assert((packedFileByPath.get("dist/harness.mjs")?.mode & 0o111) !== 0, "npm package dist harness runtime entrypoint must be executable");
 assert(packedFiles.includes("dist/postinstall.mjs"), "npm package must include dist postinstall runtime entrypoint");
 assert(!packedFiles.some((file) => file.startsWith("scripts/")), "npm package must not include historical scripts/ shims after PR-28");
 for (const required of [

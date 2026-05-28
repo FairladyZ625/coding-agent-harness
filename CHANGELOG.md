@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.8
+
+- Preserve the executable bit for the packaged `dist/harness.mjs` npm bin
+  entry during dist builds and prepack.
+- Extend release observation checks to fail if the packed or installed
+  `harness` bin is not executable.
+- Add `migrate-structure --plan` to the dist and installed-package command
+  smoke matrix.
+
 ## 1.0.7
 
 - Generate `harness init --add-npm-scripts` commands with

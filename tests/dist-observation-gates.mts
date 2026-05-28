@@ -35,12 +35,14 @@ assert(result.observations.commandMatrix.every((entry) => entry.status === 0), "
 const releaseResult = checkDistObservation({ projectRoot: repoRoot });
 assert(releaseResult.ok === true, `release observation should pass:\n${JSON.stringify(releaseResult.failures, null, 2)}`);
 assert(releaseResult.observations.package.hasDistHarness === true, "package should include dist harness");
+assert(releaseResult.observations.package.distHarnessExecutable === true, "package dist harness should be executable");
 assert(releaseResult.observations.package.hasDistPostinstall === true, "package should include dist postinstall");
 assert(releaseResult.observations.package.hasDistObservationGate === true, "package should include dist observation gate");
 assert(releaseResult.observations.package.hasScriptsHarness === false, "package should not retain historical scripts harness shim after PR-28");
 assert(releaseResult.observations.package.hasScripts === false, "package should not include scripts after PR-28");
 assert(releaseResult.observations.package.hasTests === false, "package should not include tests");
 assert(releaseResult.observations.installSmoke.bin === "dist/harness.mjs", "installed package bin must be dist");
+assert(releaseResult.observations.installSmoke.binExecutable === true, "installed package bin must be executable");
 assert(releaseResult.observations.installSmoke.nodeVersion.startsWith("v24."), "installed package smoke must run on Node 24");
 assert(releaseResult.observations.installSmoke.postinstall === "node dist/postinstall.mjs", "installed postinstall must be dist");
 assert(releaseResult.observations.installSmoke.observeDist === "node dist/check-dist-observation.mjs --skip-pack --skip-install-smoke", "installed observe:dist must be dist");
@@ -50,6 +52,7 @@ assert(releaseResult.observations.installSmoke.hasScripts === false, "installed 
 assert(releaseResult.observations.installSmoke.scriptsDisabled.length === 0, "installed package should have no scripts tree to disable after PR-28");
 assert(releaseResult.observations.installSmoke.steps.some((entry) => entry.id === "installed-source-check"), "installed command matrix should include source check");
 assert(releaseResult.observations.installSmoke.steps.some((entry) => entry.id === "installed-target-check"), "installed command matrix should include target check");
+assert(releaseResult.observations.installSmoke.steps.some((entry) => entry.id === "installed-migrate-structure-plan"), "installed command matrix should include migrate-structure plan");
 assert(releaseResult.observations.installSmoke.steps.some((entry) => entry.id === "installed-dashboard"), "installed command matrix should include dashboard");
 assert(releaseResult.observations.installSmoke.steps.every((entry) => entry.status === 0), "installed package smoke steps should pass");
 assert(releaseResult.observations.installSmoke.observationOk === true, "installed dist observation should pass");

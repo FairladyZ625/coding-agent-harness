@@ -62,6 +62,11 @@ export function buildRuntimeDist({
     fs.rmSync(buildOutDir, { recursive: true, force: true });
   }
 
+  restoreExecutableEntrypoints({
+    outDir: absoluteOutDir,
+    binRelativePaths: ["harness.mjs"],
+  });
+
   const files = collectFiles(absoluteOutDir).filter((file) => file.endsWith(".mjs")).sort();
   const relativeFiles = files.map((file) => toPosix(path.relative(absoluteOutDir, file)));
   const requiredFiles = [
@@ -140,6 +145,15 @@ function syncDirectory(sourceDir, targetDir) {
     if (sourceEntries.has(entry)) continue;
     if (entry.includes(".tmp-")) continue;
     fs.rmSync(path.join(targetDir, entry), { recursive: true, force: true });
+  }
+}
+
+function restoreExecutableEntrypoints({ outDir, binRelativePaths }) {
+  for (const relativePath of binRelativePaths) {
+    const file = path.join(outDir, relativePath);
+    if (!fs.existsSync(file)) continue;
+    const stat = fs.statSync(file);
+    fs.chmodSync(file, stat.mode | 0o755);
   }
 }
 

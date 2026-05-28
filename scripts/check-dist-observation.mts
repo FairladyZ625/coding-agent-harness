@@ -58,7 +58,10 @@ export function checkDistObservation({
     if (pack.status !== 0) {
       failures.push({ code: "pack-dry-run-failed", message: `npm pack dry-run failed\nSTDOUT:\n${pack.stdout}\nSTDERR:\n${pack.stderr}` });
     } else {
-      const packed = JSON.parse(pack.stdout)[0].files.map((file) => file.path).sort();
+      const packedEntries = JSON.parse(pack.stdout)[0].files;
+      const packed = packedEntries.map((file) => file.path).sort();
+      const packedModeByPath = new Map(packedEntries.map((file) => [file.path, file.mode]));
+      const distHarnessMode = packedModeByPath.get("dist/harness.mjs");
       observations.package = {
         entryCount: packed.length,
         hasDistHarness: packed.includes("dist/harness.mjs"),
@@ -67,9 +70,14 @@ export function checkDistObservation({
         hasScriptsHarness: packed.includes("scripts/harness.mjs"),
         hasScripts: packed.some((file) => file.startsWith("scripts/")),
         hasTests: packed.some((file) => file.startsWith("tests/")),
+        distHarnessMode,
+        distHarnessExecutable: typeof distHarnessMode === "number" && Boolean(distHarnessMode & 0o111),
       };
       for (const required of ["dist/harness.mjs", "dist/postinstall.mjs", "dist/check-dist-observation.mjs"]) {
         if (!packed.includes(required)) failures.push({ code: "packed-file-missing", file: required, message: `package missing ${required}` });
+      }
+      if (!observations.package.distHarnessExecutable) {
+        failures.push({ code: "packed-bin-not-executable", file: "dist/harness.mjs", mode: distHarnessMode, message: "package bin dist/harness.mjs must be executable" });
       }
       if (observations.package.hasScripts) failures.push({ code: "package-includes-scripts", message: "package must not include scripts/** after historical shim deletion" });
       if (observations.package.hasTests) failures.push({ code: "package-includes-tests", message: "package must not include tests/**" });
@@ -147,6 +155,7 @@ function runMatrix(root, failures, commandMatrix) {
     { id: "source-check", args: ["check", "--profile", "source-package", "."] },
     { id: "target-check", args: ["check", "--profile", "target-project", "examples/minimal-project"] },
     { id: "migrate-plan", args: ["migrate-plan", "--json", "--limit", "20", "examples/minimal-project"] },
+    { id: "migrate-structure-plan", args: ["migrate-structure", "--plan", "--json", "examples/minimal-project"] },
     { id: "dashboard", args: ["dashboard", "--out-dir", path.join("tmp", `pr-27-observation-dashboard-${process.pid}`), "examples/minimal-project"] },
   ];
 
@@ -232,11 +241,15 @@ function runInstalledPackageSmoke(root, failures, observations) {
   if (!pkg) return;
 
   const binTarget = fs.existsSync(bin) ? fs.readlinkSync(bin) : "";
+  const installedBinFile = path.join(packageRoot, "dist/harness.mjs");
+  const installedBinMode = fs.existsSync(installedBinFile) ? fs.statSync(installedBinFile).mode : undefined;
   observations.installSmoke = {
     nodeVersion,
     tempRoot,
     binTarget,
     bin: pkg.bin?.harness,
+    binMode: installedBinMode,
+    binExecutable: typeof installedBinMode === "number" && Boolean(installedBinMode & 0o111),
     postinstall: pkg.scripts?.postinstall,
     observeDist: pkg.scripts?.["observe:dist"],
     hasTests: fs.existsSync(path.join(packageRoot, "tests")),
@@ -250,6 +263,9 @@ function runInstalledPackageSmoke(root, failures, observations) {
   expectEqual(failures, "installed-observe-dist-not-dist", pkg.scripts?.["observe:dist"], "node dist/check-dist-observation.mjs --skip-pack --skip-install-smoke", "installed observe:dist must resolve to dist/check-dist-observation.mjs");
   if (!binTarget.includes("dist/harness.mjs")) {
     failures.push({ code: "installed-bin-link-not-dist", message: `installed bin link does not target dist/harness.mjs: ${binTarget}` });
+  }
+  if (!observations.installSmoke.binExecutable) {
+    failures.push({ code: "installed-bin-not-executable", file: "dist/harness.mjs", mode: installedBinMode, message: "installed package bin dist/harness.mjs must be executable" });
   }
   for (const relative of ["dist/harness.mjs", "dist/postinstall.mjs", "dist/check-dist-observation.mjs"]) {
     if (!fs.existsSync(path.join(packageRoot, relative))) failures.push({ code: "installed-file-missing", file: relative, message: `installed package missing ${relative}` });
@@ -304,6 +320,7 @@ function runInstalledMatrix(root, runtimeEnv, failures, steps) {
     { id: "installed-source-check", cwd: root, args: ["check", "--profile", "source-package", "."] },
     { id: "installed-target-check", cwd: root, args: ["check", "--profile", "target-project", "examples/minimal-project"] },
     { id: "installed-migrate-plan", cwd: root, args: ["migrate-plan", "--json", "--limit", "20", "examples/minimal-project"] },
+    { id: "installed-migrate-structure-plan", cwd: root, args: ["migrate-structure", "--plan", "--json", "examples/minimal-project"] },
     { id: "installed-dashboard", cwd: root, args: ["dashboard", "--out-dir", path.join("tmp", `pr-27-installed-observation-dashboard-${process.pid}`), "examples/minimal-project"] },
   ];
 
