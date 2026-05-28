@@ -1,10 +1,36 @@
-// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
 import { inspectGit } from "./governance-sync.mjs";
 
-export function summarizeGitState(target) {
-  const state = inspectGit(target.projectRoot);
+type HarnessTarget = {
+  projectRoot: string;
+};
+
+type GitStatusEntry = {
+  path: string;
+  index: string;
+  worktree: string;
+};
+
+type GitInspection = {
+  inGit: boolean;
+  gitRoot: string;
+  entries: GitStatusEntry[];
+};
+
+type GitSummary = {
+  summary: {
+    inGit: boolean;
+    root: string;
+    dirty: boolean;
+    entries: GitStatusEntry[];
+    blocksCliAutoCommit: boolean;
+  };
+  warnings: string[];
+};
+
+export function summarizeGitState(target: HarnessTarget): GitSummary {
+  const state = inspectGit(target.projectRoot) as GitInspection;
   if (!state.inGit) {
     return {
       summary: {
@@ -26,7 +52,7 @@ export function summarizeGitState(target) {
     worktree: entry.worktree,
   })) : [];
   const dirty = entries.length > 0;
-  const warnings = [];
+  const warnings: string[] = [];
   if (dirty) {
     warnings.push(`dirty-state: ${entries.length} uncommitted Git path(s) may block CLI-owned auto-commit when they overlap a command write scope or are staged; commit them or record owner/no-commit reason before lifecycle commands.`);
   }
@@ -42,6 +68,6 @@ export function summarizeGitState(target) {
   };
 }
 
-function real(filePath) {
+function real(filePath: string): string {
   return fs.realpathSync(filePath);
 }

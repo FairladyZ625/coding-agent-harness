@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { sanitizeText, slug } from "./core-shared.mjs";
 export function markdownTableRows(content) {
     return content

@@ -1,9 +1,35 @@
-// @ts-nocheck
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveHarnessPaths } from "./harness-paths.mjs";
+
+type HarnessTarget = {
+  projectRoot: string;
+  docsRoot: string;
+  [key: string]: unknown;
+};
+
+type NormalizedTargetInput = {
+  input: string;
+  projectRoot: string;
+  docsRoot: string;
+  docsOnly: boolean;
+};
+
+type RenderTemplateOptions = {
+  taskId: string;
+  title: string;
+  locale: string;
+  budget?: string;
+  moduleKey?: string;
+  preset?: string;
+  presetVersion?: string;
+  evidenceBundle?: string;
+  longRunning?: boolean;
+  scaffoldProvenance?: Record<string, string>;
+  taskAudit?: Record<string, string>;
+};
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(__dirname, "../..");
@@ -15,7 +41,7 @@ export const lessonCandidatesFile = "lesson_candidates.md";
 export const longRunningTaskContractFile = "long-running-task-contract.md";
 export const taskContractMarker = "Task Contract: harness-task/v1";
 export const builtinPresetRoot = path.join(repoRoot, "presets");
-export function userPresetRootForHome(home = "") {
+export function userPresetRootForHome(home = ""): string {
   return path.join(path.resolve(home || os.homedir()), ".coding-agent-harness/presets");
 }
 export const userPresetRoot = userPresetRootForHome();
@@ -36,14 +62,14 @@ export const allowedTaskBudgets = new Set(["simple", "standard", "complex"]);
 export const allowedPhaseStates = new Set(["planned", "in_progress", "review", "blocked", "done", "skipped"]);
 export const allowedEvidenceStatus = new Set(["missing", "partial", "present", "waived"]);
 
-export function normalizeTarget(input = ".") {
+export function normalizeTarget(input = "."): HarnessTarget {
   const target = path.resolve(input);
   const siblingV2Manifest = path.join(path.dirname(target), "coding-agent-harness", "harness.yaml");
   const isDocsRoot =
     path.basename(target) === "docs" &&
     (fs.existsSync(path.join(target, "09-PLANNING")) || fs.existsSync(path.join(target, "11-REFERENCE")) || fs.existsSync(siblingV2Manifest));
   const isHarnessRoot = path.basename(target) === "coding-agent-harness" && fs.existsSync(path.join(target, "harness.yaml"));
-  const normalized = {
+  const normalized: NormalizedTargetInput = {
     input: target,
     projectRoot: isDocsRoot || isHarnessRoot ? path.dirname(target) : target,
     docsRoot: isDocsRoot ? target : path.join(target, "docs"),
@@ -62,23 +88,23 @@ export function normalizeTarget(input = ".") {
   };
 }
 
-export function projectPresetRoot(targetInput = ".") {
+export function projectPresetRoot(targetInput = "."): string {
   return path.join(normalizeTarget(targetInput).projectRoot, ".coding-agent-harness/presets");
 }
 
-export function toPosix(value) {
+export function toPosix(value: string): string {
   return value.split(path.sep).join("/");
 }
 
-export function exists(target, relativePath) {
+export function exists(target: HarnessTarget, relativePath: string): boolean {
   return fs.existsSync(path.join(target.projectRoot, relativePath));
 }
 
-export function existsInDocs(target, relativePath) {
+export function existsInDocs(target: HarnessTarget, relativePath: string): boolean {
   return fs.existsSync(path.join(target.docsRoot, relativePath));
 }
 
-export function readFileSafe(filePath) {
+export function readFileSafe(filePath: string): string {
   try {
     return fs.readFileSync(filePath, "utf8");
   } catch {
@@ -86,7 +112,9 @@ export function readFileSafe(filePath) {
   }
 }
 
-export function readJsonSafe(filePath, fallback = null, { onError } = {}) {
+export function readJsonSafe(filePath: string, fallback: null, options?: { onError?: (error: unknown) => void }): unknown | null;
+export function readJsonSafe<TValue>(filePath: string, fallback: TValue, options?: { onError?: (error: unknown) => void }): TValue;
+export function readJsonSafe(filePath: string, fallback: unknown = null, { onError }: { onError?: (error: unknown) => void } = {}): unknown {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
   } catch (error) {
@@ -95,7 +123,7 @@ export function readJsonSafe(filePath, fallback = null, { onError } = {}) {
   }
 }
 
-export function readBundledTemplate(source) {
+export function readBundledTemplate(source: string): string {
   const sourcePath = path.join(repoRoot, source);
   if (!fs.existsSync(sourcePath)) throw new Error(`Bundled template missing: ${source}`);
   const content = fs.readFileSync(sourcePath, "utf8");
@@ -103,11 +131,11 @@ export function readBundledTemplate(source) {
   return content;
 }
 
-export function walkFiles(root, options = {}) {
-  const results = [];
+export function walkFiles(root: string, options: { dirFilter?: (entry: string, fullPath: string) => boolean } = {}): string[] {
+  const results: string[] = [];
   if (!fs.existsSync(root)) return results;
   const dirFilter = typeof options.dirFilter === "function" ? options.dirFilter : () => true;
-  function walk(dir) {
+  function walk(dir: string): void {
     for (const entry of fs.readdirSync(dir)) {
       const full = path.join(dir, entry);
       const stat = fs.statSync(full);
@@ -124,7 +152,7 @@ export function walkFiles(root, options = {}) {
   return results;
 }
 
-export function isArchivedHarnessPath(filePath) {
+export function isArchivedHarnessPath(filePath: string): boolean {
   const normalized = `/${toPosix(filePath)}/`;
   return normalized.includes("/_archive/") || normalized.includes("/governance/archive/");
 }
@@ -133,7 +161,7 @@ export function normalizeLocale(locale = "en-US") {
   return supportedLocales.has(locale) ? locale : "en-US";
 }
 
-export function inferProjectLocale(target, fallback = "en-US") {
+export function inferProjectLocale(target: HarnessTarget, fallback = "en-US"): string {
   const candidates = [
     path.join(target.projectRoot, "AGENTS.md"),
     path.join(target.projectRoot, "CLAUDE.md"),
@@ -147,7 +175,7 @@ export function inferProjectLocale(target, fallback = "en-US") {
   return normalizeLocale(fallback);
 }
 
-export function slug(value) {
+export function slug(value: unknown): string {
   return String(value || "item")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -155,11 +183,11 @@ export function slug(value) {
     .slice(0, 80) || "item";
 }
 
-export function prefixedPath(target, filePath) {
+export function prefixedPath(target: HarnessTarget, filePath: string): string {
   return `TARGET:${toPosix(path.relative(target.projectRoot, filePath))}`;
 }
 
-export function sanitizeText(value) {
+export function sanitizeText(value: unknown): string {
   return String(value ?? "")
     .replace(/file:\/\/\/[^\s)"'`<>\]]+/g, "LOCAL_FILE_URL_REDACTED")
     .replaceAll("file://", "LOCAL_FILE_URL_REDACTED")
@@ -171,7 +199,7 @@ export function sanitizeText(value) {
     .replace(/[A-Za-z]:\\[^\s)"'`<>\]]+(?:\\[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED");
 }
 
-export function sanitizeDeep(value) {
+export function sanitizeDeep(value: unknown): unknown {
   if (typeof value === "string") return sanitizeText(value);
   if (Array.isArray(value)) return value.map(sanitizeDeep);
   if (value && typeof value === "object") {
@@ -180,12 +208,12 @@ export function sanitizeDeep(value) {
   return value;
 }
 
-export function titleFromMarkdown(content, fallback) {
+export function titleFromMarkdown(content: string, fallback: string): string {
   const match = content.match(/^#\s+(.+)$/m);
   return match ? match[1].trim() : fallback;
 }
 
-export function localizedTemplateSource(source, locale) {
+export function localizedTemplateSource(source: string, locale?: string): string {
   const localeSource = normalizeLocale(locale) === "zh-CN" ? source.replace(/^templates\//, "templates-zh-CN/") : source;
   return fs.existsSync(path.join(repoRoot, localeSource)) ? localeSource : source;
 }
@@ -208,11 +236,26 @@ export function nowTimestamp() {
   return new Date().toISOString().replace("T", " ").slice(0, 16);
 }
 
-export function normalizeTaskId(value) {
+export function normalizeTaskId(value: unknown): string {
   return slug(value || "task");
 }
 
-export function renderTaskTemplate(content, { taskId, title, locale, budget = "standard", moduleKey = "", preset = "none", presetVersion = "", evidenceBundle = "", longRunning = false, scaffoldProvenance = {}, taskAudit = {} }) {
+export function renderTaskTemplate(
+  content: string,
+  {
+    taskId,
+    title,
+    locale,
+    budget = "standard",
+    moduleKey = "",
+    preset = "none",
+    presetVersion = "",
+    evidenceBundle = "",
+    longRunning = false,
+    scaffoldProvenance = {},
+    taskAudit = {},
+  }: RenderTemplateOptions,
+): string {
   const date = todayDate();
   const provenance = {
     createdBy: scaffoldProvenance.createdBy || "harness new-task",
