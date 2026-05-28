@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
 import { normalizeTarget, readFileSafe, toPosix } from "./core-shared.mjs";
@@ -15,9 +14,70 @@ import {
   stripLegacyAuditBlocks,
   taskAuditFieldOrder,
 } from "./task-audit-metadata.mjs";
+import type { TaskAuditFields } from "./task-audit-metadata.mjs";
 import { firstColumn, markdownTableRows } from "./markdown-utils.mjs";
 
-const scaffoldFieldMap = new Map([
+type ExtraEntry = [string, string];
+type LegacyBlock = NonNullable<ReturnType<typeof extractLegacyBlock>>;
+type MigrationAction = {
+  taskId: string;
+  path: string;
+  legacyBlocks: string[];
+  fields: TaskAuditFields;
+};
+type MigrationFailure = {
+  taskId: string;
+  path: string;
+  failure: string;
+};
+type MigrationPlan = {
+  operation: string;
+  target: string;
+  result: "blocked" | "planned" | "applied";
+  summary: {
+    tasks: number;
+    actions: number;
+    failures: number;
+    legacyAuditBlocks: number;
+  };
+  actions: MigrationAction[];
+  failures: MigrationFailure[];
+};
+type MigrationWrite = {
+  indexPath: string;
+  briefPath: string;
+  reviewPath: string;
+  before: {
+    indexContent: string;
+    briefContent: string;
+    reviewContent: string;
+  };
+  indexContent: string;
+  briefContent: string;
+  reviewContent: string;
+};
+type LegacyAuditInput = {
+  taskId: string;
+  indexContent: string;
+  scaffoldBlock: LegacyBlock | null;
+  reviewBlock: LegacyBlock | null;
+};
+type LegacyReviewShape = "field-value" | "loose";
+type MergeLegacyExtraResult = { json: string; failure?: never } | { failure: string; json?: never };
+
+class TaskAuditMigrationError extends Error {
+  plan?: MigrationPlan;
+  override cause?: unknown;
+
+  constructor(message: string, { plan, cause }: { plan?: MigrationPlan; cause?: unknown } = {}) {
+    super(message);
+    this.name = "TaskAuditMigrationError";
+    this.plan = plan;
+    this.cause = cause;
+  }
+}
+
+const scaffoldFieldMap = new Map<string, string>([
   ["created by", "Created By"],
   ["command", "Command Shape"],
   ["command shape", "Command Shape"],
@@ -27,7 +87,7 @@ const scaffoldFieldMap = new Map([
   ["exception reason", "Exception Reason"],
 ]);
 
-const reviewFieldMap = new Map([
+const reviewFieldMap = new Map<string, string>([
   ["confirmation id", "Confirmation ID"],
   ["confirmed at", "Confirmed At"],
   ["reviewer", "Reviewer"],
@@ -44,10 +104,10 @@ const reviewFieldMap = new Map([
 const requiredScaffold = ["Created By", "Created At", "Command Shape", "Budget", "Template Source"];
 const requiredReview = ["Confirmation ID", "Confirmed At", "Reviewer", "Reviewer Email", "Confirm Text", "Evidence Checked", "Review Commit SHA", "Audit Status"];
 
-export function planTaskAuditIndexMigration(targetInput) {
+export function planTaskAuditIndexMigration(targetInput: string): MigrationPlan {
   const target = normalizeTarget(targetInput);
-  const actions = [];
-  const failures = [];
+  const actions: MigrationAction[] = [];
+  const failures: MigrationFailure[] = [];
   for (const taskPlanPath of listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
     const taskId = taskIdForDirectory(target, taskDir);
@@ -88,15 +148,13 @@ export function planTaskAuditIndexMigration(targetInput) {
   };
 }
 
-export function applyTaskAuditIndexMigration(targetInput) {
+export function applyTaskAuditIndexMigration(targetInput: string): MigrationPlan {
   const target = normalizeTarget(targetInput);
   const plan = planTaskAuditIndexMigration(targetInput);
   if (plan.failures.length) {
-    const error = new Error(`Task audit INDEX migration failed during plan: ${plan.failures.map((failure) => `${failure.taskId}: ${failure.failure}`).join("; ")}`);
-    error.plan = plan;
-    throw error;
+    throw new TaskAuditMigrationError(`Task audit INDEX migration failed during plan: ${plan.failures.map((failure) => `${failure.taskId}: ${failure.failure}`).join("; ")}`, { plan });
   }
-  const writes = [];
+  const writes: MigrationWrite[] = [];
   for (const action of plan.actions) {
     const taskDir = path.join(target.projectRoot, action.path.replace(/^TARGET:/, ""));
     const indexPath = path.join(taskDir, "INDEX.md");
@@ -128,15 +186,12 @@ export function applyTaskAuditIndexMigration(targetInput) {
       fs.writeFileSync(write.briefPath, write.before.briefContent);
       fs.writeFileSync(write.reviewPath, write.before.reviewContent);
     }
-    const error = new Error(`Task audit INDEX migration apply failed and was rolled back: ${cause.message}`);
-    error.cause = cause;
-    error.plan = plan;
-    throw error;
+    throw new TaskAuditMigrationError(`Task audit INDEX migration apply failed and was rolled back: ${errorMessage(cause)}`, { cause, plan });
   }
   return { ...plan, result: "applied" };
 }
 
-function verifyAppliedWrites(writes) {
+function verifyAppliedWrites(writes: MigrationWrite[]): void {
   for (const write of writes) {
     const audit = parseTaskAuditMetadata(readFileSafe(write.indexPath), { required: true });
     if (audit.issues.length) throw new Error(`${write.indexPath}: ${audit.issues.map((issue) => issue.message).join("; ")}`);
@@ -145,12 +200,12 @@ function verifyAppliedWrites(writes) {
   }
 }
 
-function parseLegacyAudit({ taskId, indexContent, scaffoldBlock, reviewBlock }) {
+function parseLegacyAudit({ taskId, indexContent, scaffoldBlock, reviewBlock }: LegacyAuditInput): { fields: TaskAuditFields; failures: string[] } {
   const audit = parseTaskAuditMetadata(indexContent);
-  const fields = {};
+  const fields: TaskAuditFields = {};
   for (const field of taskAuditFieldOrder) fields[field] = audit.fields.get(field.toLowerCase()) || "n/a";
-  const failures = [];
-  const extraEntries = [];
+  const failures: string[] = [];
+  const extraEntries: ExtraEntry[] = [];
   applyHistoricalBackfillDefaults(fields, taskId);
   normalizeExistingAuditFields(fields, taskId, extraEntries);
 
@@ -158,7 +213,7 @@ function parseLegacyAudit({ taskId, indexContent, scaffoldBlock, reviewBlock }) 
     const scaffold = fieldsFromMarkdownBlock(scaffoldBlock.body);
     for (const [legacyKey, canonical] of scaffoldFieldMap) {
       const value = scaffold.get(legacyKey);
-      if (isConcreteAuditField(value)) fields[canonical] = value;
+      if (isConcreteAuditField(value)) fields[canonical] = value || "";
     }
     for (const field of requiredScaffold) {
       if (!isConcreteAuditField(fields[field])) failures.push(`Scaffold Provenance missing ${field}`);
@@ -178,7 +233,7 @@ function parseLegacyAudit({ taskId, indexContent, scaffoldBlock, reviewBlock }) 
     } else {
       for (const [legacyKey, canonical] of reviewFieldMap) {
         const value = review.get(legacyKey);
-        if (isConcreteAuditField(value)) fields[canonical] = value;
+        if (isConcreteAuditField(value)) fields[canonical] = value || "";
       }
       const legacyTaskKey = review.get("task key") || "";
       if (isConcreteAuditField(legacyTaskKey) && legacyTaskKey !== taskId && !taskId.endsWith(`/${legacyTaskKey}`)) failures.push(`Human Review Confirmation Task Key mismatch: ${legacyTaskKey}`);
@@ -215,15 +270,15 @@ function parseLegacyAudit({ taskId, indexContent, scaffoldBlock, reviewBlock }) 
   }
 
   if (extraEntries.length) {
-    const mergedExtra = mergeLegacyExtraFields(fields["Legacy Extra Fields"], extraEntries);
-    if (mergedExtra.failure) failures.push(mergedExtra.failure);
+    const mergedExtra = mergeLegacyExtraFields(fields["Legacy Extra Fields"] || "", extraEntries);
+    if (mergedExtra.failure !== undefined) failures.push(mergedExtra.failure);
     else fields["Legacy Extra Fields"] = mergedExtra.json;
   }
   return { fields, failures };
 }
 
-function mergeLegacyExtraFields(existingValue, entries) {
-  let merged = {};
+function mergeLegacyExtraFields(existingValue: string, entries: ExtraEntry[]): MergeLegacyExtraResult {
+  let merged: Record<string, unknown> = {};
   if (isConcreteAuditField(existingValue)) {
     try {
       merged = JSON.parse(existingValue);
@@ -241,7 +296,7 @@ function mergeLegacyExtraFields(existingValue, entries) {
   return { json: JSON.stringify(merged) };
 }
 
-function applyHistoricalBackfillDefaults(fields, taskId) {
+function applyHistoricalBackfillDefaults(fields: TaskAuditFields, taskId: string): void {
   const createdAt = String(taskId || "").match(/\d{4}-\d{2}-\d{2}/)?.[0] || "legacy-unavailable";
   const defaults = {
     "Created By": "historical-backfill",
@@ -261,7 +316,7 @@ function applyHistoricalBackfillDefaults(fields, taskId) {
   }
 }
 
-function normalizeExistingAuditFields(fields, taskId, extraEntries) {
+function normalizeExistingAuditFields(fields: TaskAuditFields, taskId: string, extraEntries: ExtraEntry[]): void {
   const allowedCreatedBy = new Set(["harness-new-task", "manual-exception", "historical-backfill"]);
   const allowedBudget = new Set(["simple", "standard", "complex", "legacy-unavailable"]);
   const allowedCreatorSource = new Set(["git-config", "git-config-missing", "git-unavailable", "legacy-unavailable"]);
@@ -286,15 +341,15 @@ function normalizeExistingAuditFields(fields, taskId, extraEntries) {
   }
 }
 
-function replacePreserving(fields, extraEntries, field, replacement) {
-  if (isConcreteAuditField(fields[field])) extraEntries.push([`Original ${field}`, fields[field]]);
+function replacePreserving(fields: TaskAuditFields, extraEntries: ExtraEntry[], field: string, replacement: string): void {
+  if (isConcreteAuditField(fields[field])) extraEntries.push([`Original ${field}`, fields[field] || ""]);
   fields[field] = replacement;
 }
 
-function parseLegacyReviewFields(body) {
+function parseLegacyReviewFields(body: string): { fields: Map<string, string>; shape: LegacyReviewShape } {
   const fields = fieldsFromMarkdownBlock(body);
   const rows = markdownTableRows(body);
-  let shape = hasFieldValueTable(rows) ? "field-value" : "loose";
+  let shape: LegacyReviewShape = hasFieldValueTable(rows) ? "field-value" : "loose";
   for (const row of rows.slice(1).filter((candidate) => !candidate.every((cell) => /^:?-{3,}:?$/.test(cell)))) {
     const header = rows[0] || [];
     const confirmedAtIndex = firstColumn(header, ["Confirmed At"]);
@@ -310,12 +365,12 @@ function parseLegacyReviewFields(body) {
   return { fields, shape };
 }
 
-function hasFieldValueTable(rows) {
+function hasFieldValueTable(rows: string[][]): boolean {
   const header = rows[0] || [];
   return firstColumn(header, ["Field", "字段"]) >= 0 && firstColumn(header, ["Value", "值"]) >= 0;
 }
 
-function concreteReviewConfirmationValues(fields) {
+function concreteReviewConfirmationValues(fields: Map<string, string>): string[] {
   const confirmationKeys = [
     "confirmation id",
     "confirmed at",
@@ -327,10 +382,10 @@ function concreteReviewConfirmationValues(fields) {
     "commit sha",
     "review commit sha",
   ];
-  return confirmationKeys.map((key) => fields.get(key)).filter(isConcreteAuditField);
+  return confirmationKeys.map((key) => fields.get(key)).filter((value): value is string => isConcreteAuditField(value));
 }
 
-function titleField(value) {
+function titleField(value: unknown): string {
   return String(value || "")
     .split(/\s+/)
     .filter(Boolean)
@@ -338,14 +393,18 @@ function titleField(value) {
     .join(" ");
 }
 
-function normalizeToken(value) {
+function normalizeToken(value: unknown): string {
   return String(value || "").replace(/`/g, "").trim().toLowerCase().replaceAll("_", "-").replace(/\s+/g, "-");
 }
 
-function isValidDateOnly(value) {
+function isValidDateOnly(value: unknown): boolean {
   const raw = String(value || "").trim();
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return false;
   const date = new Date(`${raw}T00:00:00.000Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === raw;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

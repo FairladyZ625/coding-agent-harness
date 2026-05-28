@@ -1,10 +1,66 @@
-// @ts-nocheck
 // Dynamic audit metadata parsing stays behavior-first until the metadata domain model PR.
 
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { toPosix } from "./core-shared.mjs";
 import { firstColumn, markdownTableRows } from "./markdown-utils.mjs";
+
+export type TaskAuditFields = Record<string, string>;
+export type TaskAuditIssue = {
+  code: string;
+  message: string;
+};
+export type TaskAuditParseResult = {
+  present: boolean;
+  fields: Map<string, string>;
+  issues: TaskAuditIssue[];
+  summary: ReturnType<typeof taskAuditSummary>;
+};
+
+type HarnessTarget = {
+  projectRoot: string;
+};
+type GitIdentity = {
+  name: string;
+  email: string;
+  display: string;
+  source: string;
+};
+type ScaffoldProvenance = Partial<{
+  createdBy: string;
+  createdAt: string;
+  command: string;
+  budget: string;
+  templateSource: string;
+  exceptionReason: string;
+}>;
+type RenderTaskAuditOptions = {
+  locale?: string;
+};
+type HeadingBlock = {
+  start: number;
+  headingEnd: number;
+  end: number;
+};
+type LegacyHeadingBlock = HeadingBlock & {
+  body: string;
+  raw: string;
+};
+type MaterialIssue = {
+  code: string;
+  severity: string;
+  queue: string;
+  sourcePath: string;
+  sourceLine: number;
+  owner: string;
+  message: string;
+  allowedWritePaths: string[];
+  forbiddenActions: string[];
+  validationCommands: string[];
+  confidence: string;
+  repairable: boolean;
+};
+type TaskAuditLike = Partial<TaskAuditParseResult> | null | undefined;
 
 export const taskAuditHeadingPattern = /^##\s*(?:Task Audit Metadata|任务审计元数据)\s*$/im;
 export const scaffoldProvenanceHeadingPattern = /^##\s*(?:Scaffold Provenance|脚手架来源)\s*$/im;
@@ -36,7 +92,7 @@ export const taskAuditFieldOrder = [
   "Migration Notes",
 ];
 
-export function readGitIdentity(projectRoot) {
+export function readGitIdentity(projectRoot: string): GitIdentity {
   const gitRoot = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: projectRoot, encoding: "utf8" });
   if (gitRoot.status !== 0) {
     return { name: "n/a", email: "n/a", display: "n/a", source: "git-unavailable" };
@@ -48,7 +104,7 @@ export function readGitIdentity(projectRoot) {
   return { name: name || "n/a", email: email || "n/a", display, source: "git-config" };
 }
 
-export function buildCreationTaskAudit(scaffoldProvenance, { projectRoot }) {
+export function buildCreationTaskAudit(scaffoldProvenance: ScaffoldProvenance, { projectRoot }: { projectRoot: string }): TaskAuditFields {
   const creator = readGitIdentity(projectRoot);
   return {
     "Created By": scaffoldProvenance.createdBy || "harness new-task",
@@ -77,8 +133,8 @@ export function buildCreationTaskAudit(scaffoldProvenance, { projectRoot }) {
   };
 }
 
-export function taskAuditTemplateValues(fields = {}) {
-  const values = {};
+export function taskAuditTemplateValues(fields: TaskAuditFields = {}): Record<string, string> {
+  const values: Record<string, string> = {};
   for (const field of taskAuditFieldOrder) {
     const key = `TASK_AUDIT_${field.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "")}`;
     values[key] = markdownCell(fields[field] || "n/a");
@@ -86,13 +142,13 @@ export function taskAuditTemplateValues(fields = {}) {
   return values;
 }
 
-export function renderTaskAuditMetadata(fields = {}, { locale = "en-US" } = {}) {
+export function renderTaskAuditMetadata(fields: TaskAuditFields = {}, { locale = "en-US" }: RenderTaskAuditOptions = {}): string {
   const heading = locale === "zh-CN" ? "## 任务审计元数据" : "## Task Audit Metadata";
   const rows = taskAuditFieldOrder.map((field) => `| ${field} | ${markdownCell(fields[field] ?? "n/a")} |`);
   return `${heading}\n\n| Field | Value |\n| --- | --- |\n${rows.join("\n")}\n`;
 }
 
-export function replaceTaskAuditMetadata(content, fields, options = {}) {
+export function replaceTaskAuditMetadata(content: unknown, fields: TaskAuditFields, options: RenderTaskAuditOptions = {}): string {
   const rendered = renderTaskAuditMetadata(fields, options).trimEnd();
   const text = String(content || "").trimEnd();
   const match = findHeadingBlock(text, taskAuditHeadingPattern);
@@ -104,10 +160,10 @@ export function replaceTaskAuditMetadata(content, fields, options = {}) {
   return `${text}\n\n${rendered}\n`;
 }
 
-export function parseTaskAuditMetadata(content, { required = false } = {}) {
+export function parseTaskAuditMetadata(content: unknown, { required = false }: { required?: boolean } = {}): TaskAuditParseResult {
   const block = extractTaskAuditBlock(content);
-  const fields = block ? fieldsFromMarkdownBlock(block.body) : new Map();
-  const issues = [];
+  const fields = block ? fieldsFromMarkdownBlock(block.body) : new Map<string, string>();
+  const issues: TaskAuditIssue[] = [];
   if (required && fields.size === 0) issues.push({ code: "missing-task-audit-metadata", message: "missing Task Audit Metadata section" });
   if (fields.size > 0) {
     for (const field of ["Created By", "Created At", "Budget", "Template Source", "Task Creator Source", "Human Review Status", "Audit Status"]) {
@@ -154,8 +210,8 @@ export function parseTaskAuditMetadata(content, { required = false } = {}) {
   };
 }
 
-export function legacyAuditIssues(target, taskDir, { briefContent = "", reviewContent = "" } = {}) {
-  const issues = [];
+export function legacyAuditIssues(target: HarnessTarget, taskDir: string, { briefContent = "", reviewContent = "" }: { briefContent?: string; reviewContent?: string } = {}): MaterialIssue[] {
+  const issues: MaterialIssue[] = [];
   const relativeDir = toPosix(path.relative(target.projectRoot, taskDir));
   if (scaffoldProvenanceHeadingPattern.test(briefContent)) {
     issues.push(legacyIssue(`${relativeDir}/brief.md`, "legacy-scaffold-provenance", "legacy Scaffold Provenance must be migrated to INDEX.md"));
@@ -166,7 +222,7 @@ export function legacyAuditIssues(target, taskDir, { briefContent = "", reviewCo
   return issues;
 }
 
-export function taskAuditMaterialIssues(target, taskDir, audit) {
+export function taskAuditMaterialIssues(target: HarnessTarget, taskDir: string, audit: Pick<TaskAuditParseResult, "issues">): MaterialIssue[] {
   const relativeIndexPath = `${toPosix(path.relative(target.projectRoot, taskDir))}/INDEX.md`;
   return (audit.issues || []).map((issue) => ({
     code: issue.code,
@@ -184,24 +240,26 @@ export function taskAuditMaterialIssues(target, taskDir, audit) {
   }));
 }
 
-export function scaffoldProvenanceSummaryFromTaskAudit(audit) {
-  const fields = audit?.fields || new Map();
+export function scaffoldProvenanceSummaryFromTaskAudit(audit: TaskAuditLike) {
+  const parsed = normalizeTaskAuditLike(audit);
+  const fields = parsed.fields;
   return {
     required: true,
-    present: Boolean(audit?.present),
+    present: parsed.present,
     createdBy: normalizeToken(fields.get("created by")),
     command: fields.get("command shape") || "",
     createdAt: fields.get("created at") || "",
     budget: normalizeToken(fields.get("budget")),
     templateSource: fields.get("template source") || "",
     exceptionReason: fields.get("exception reason") || "",
-    issues: audit?.issues || [],
+    issues: parsed.issues,
   };
 }
 
-export function reviewConfirmationFromTaskAudit(audit, { taskKey = "" } = {}) {
-  const fields = audit?.fields || new Map();
-  if (!audit?.present) return null;
+export function reviewConfirmationFromTaskAudit(audit: unknown, { taskKey = "" }: { taskKey?: string } = {}) {
+  const parsed = normalizeTaskAuditLike(audit);
+  const fields = parsed.fields;
+  if (!parsed.present) return null;
   const status = normalizeToken(fields.get("human review status"));
   if (status !== "confirmed") return { confirmed: false, missingFields: [] };
   const required = ["Confirmation ID", "Confirmed At", "Reviewer", "Reviewer Email", "Confirm Text", "Evidence Checked", "Review Commit SHA", "Audit Status"];
@@ -242,11 +300,11 @@ export function reviewConfirmationFromTaskAudit(audit, { taskKey = "" } = {}) {
   };
 }
 
-export function stripLegacyAuditBlocks(content) {
+export function stripLegacyAuditBlocks(content: unknown): string {
   return stripHeadingBlock(stripHeadingBlock(content, scaffoldProvenanceHeadingPattern), humanReviewConfirmationHeadingPattern);
 }
 
-export function extractLegacyBlock(content, pattern) {
+export function extractLegacyBlock(content: unknown, pattern: RegExp): LegacyHeadingBlock | null {
   const block = findHeadingBlock(content, pattern);
   if (!block) return null;
   return {
@@ -256,9 +314,9 @@ export function extractLegacyBlock(content, pattern) {
   };
 }
 
-export function fieldsFromMarkdownBlock(block) {
-  const fields = new Map();
-  const tableRows = markdownTableRows(block);
+export function fieldsFromMarkdownBlock(block: unknown): Map<string, string> {
+  const fields = new Map<string, string>();
+  const tableRows = markdownTableRows(String(block || ""));
   const header = tableRows[0] || [];
   const fieldIndex = firstColumn(header, ["Field", "字段"]);
   const valueIndex = firstColumn(header, ["Value", "值"]);
@@ -276,13 +334,13 @@ export function fieldsFromMarkdownBlock(block) {
   return fields;
 }
 
-export function isConcreteAuditField(value) {
+export function isConcreteAuditField(value: unknown): boolean {
   const raw = String(value || "").replace(/`/g, "").trim();
   return Boolean(raw) && !/^(n\/a|na|none|pending(?:[-_ ].*)?|todo|tbd|\[.*\]|-|—|–|不适用|无|待定|\{\})$/i.test(raw) && !/\{\{[^}]+\}\}/.test(raw);
 }
 
-export function legacyExtraFieldsJson(entries) {
-  const extra = {};
+export function legacyExtraFieldsJson(entries: Array<readonly [string, string]>): string {
+  const extra: Record<string, string> = {};
   for (const [field, value] of entries) {
     if (!field || !isConcreteAuditField(value)) continue;
     extra[field] = value;
@@ -290,13 +348,13 @@ export function legacyExtraFieldsJson(entries) {
   return JSON.stringify(extra);
 }
 
-function extractTaskAuditBlock(content) {
+function extractTaskAuditBlock(content: unknown): (HeadingBlock & { body: string }) | null {
   const block = findHeadingBlock(content, taskAuditHeadingPattern);
   if (!block) return null;
   return { ...block, body: String(content || "").slice(block.headingEnd, block.end) };
 }
 
-function findHeadingBlock(content, pattern) {
+function findHeadingBlock(content: unknown, pattern: RegExp): HeadingBlock | null {
   const text = String(content || "");
   const match = text.match(pattern);
   if (!match || match.index === undefined) return null;
@@ -307,14 +365,14 @@ function findHeadingBlock(content, pattern) {
   return { start: match.index, headingEnd: bodyStart, end };
 }
 
-function stripHeadingBlock(content, pattern) {
+function stripHeadingBlock(content: unknown, pattern: RegExp): string {
   const text = String(content || "");
   const block = findHeadingBlock(text, pattern);
   if (!block) return text;
   return `${text.slice(0, block.start).trimEnd()}\n\n${text.slice(block.end).trimStart()}`.replace(/\n{3,}/g, "\n\n");
 }
 
-function taskAuditSummary(fields, issues) {
+function taskAuditSummary(fields: Map<string, string>, issues: TaskAuditIssue[]) {
   return {
     present: fields.size > 0,
     createdBy: normalizeToken(fields.get("created by")),
@@ -344,7 +402,7 @@ function taskAuditSummary(fields, issues) {
   };
 }
 
-function legacyIssue(relativePath, code, message) {
+function legacyIssue(relativePath: string, code: string, message: string): MaterialIssue {
   return {
     code,
     severity: "P1",
@@ -361,28 +419,43 @@ function legacyIssue(relativePath, code, message) {
   };
 }
 
-function markdownCell(value) {
+function markdownCell(value: unknown): string {
   return String(value ?? "").replace(/\r?\n/g, "<br>").replace(/\|/g, "\\|");
 }
 
-function normalizeToken(value) {
+function normalizeToken(value: unknown): string {
   return String(value || "").replace(/`/g, "").trim().toLowerCase().replaceAll("_", "-").replace(/\s+/g, "-");
 }
 
-function slugField(value) {
+function slugField(value: unknown): string {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-function taskKeysMatch(candidate, expected) {
+function taskKeysMatch(candidate: unknown, expected: unknown): boolean {
   const left = String(candidate || "").replace(/`/g, "").trim();
   const right = String(expected || "").replace(/`/g, "").trim();
   return left === right || right.endsWith(`/${left}`);
 }
 
-function isValidDateOnly(value) {
+function isValidDateOnly(value: unknown): boolean {
   const raw = String(value || "").trim();
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return false;
   const date = new Date(`${raw}T00:00:00.000Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === raw;
+}
+
+function normalizeTaskAuditLike(audit: unknown): TaskAuditParseResult {
+  if (!audit || typeof audit !== "object") {
+    return { present: false, fields: new Map<string, string>(), issues: [], summary: taskAuditSummary(new Map<string, string>(), []) };
+  }
+  const record = audit as Partial<TaskAuditParseResult>;
+  const fields = record.fields instanceof Map ? record.fields : new Map<string, string>();
+  const issues = Array.isArray(record.issues) ? record.issues : [];
+  return {
+    present: Boolean(record.present),
+    fields,
+    issues,
+    summary: record.summary || taskAuditSummary(fields, issues),
+  };
 }

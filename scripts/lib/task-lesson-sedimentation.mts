@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -21,11 +20,60 @@ import {
   governanceRelativePaths,
   releaseGovernanceSync,
 } from "./governance-sync.mjs";
+import type { LifecycleChange, LifecycleTarget } from "./types/task-lifecycle.js";
+import type { PresetPackage } from "./types/preset.js";
 
 const presetId = "lesson-sedimentation";
 
+type LessonTarget = ReturnType<typeof normalizeTarget> & LifecycleTarget;
+type LessonCandidateRow = ReturnType<typeof parseLessonCandidateStatus>["rows"][number];
+type LessonSelection = {
+  taskId: string;
+  candidateId: string;
+};
+type LessonEntry = {
+  sourceTaskDir: string;
+  sourceTaskId: string;
+  sourceShortId: string;
+  candidatePath: string;
+  candidate: LessonCandidateRow;
+};
+type LessonSedimentationErrorOptions = {
+  code?: string;
+  status?: number;
+  details?: Record<string, unknown>;
+  recovery?: string[];
+};
+type CreatedTaskResult = {
+  task: {
+    id: string;
+    path: string;
+  };
+  changes: LifecycleChange[];
+  governance?: Record<string, unknown> | null;
+};
+type GovernanceRelativeChange = Parameters<typeof governanceRelativePaths>[0][number];
+type PresetAudit = ReturnType<typeof buildPresetAudit>;
+type DetailArtifact = {
+  path: string;
+  prefixedPath: string;
+};
+type LessonPromptValues = {
+  target: LessonTarget;
+  sourceTaskDir: string;
+  sourceTaskId: string;
+  sourceShortId: string;
+  candidate: LessonCandidateRow;
+  followUpTaskId: string;
+};
+
 export class LessonSedimentationError extends Error {
-  constructor(message, { code = "lesson-sedimentation-failed", status = 400, details = {}, recovery = [] } = {}) {
+  code: string;
+  status: number;
+  details: Record<string, unknown>;
+  recovery: string[];
+
+  constructor(message: string, { code = "lesson-sedimentation-failed", status = 400, details = {}, recovery = [] }: LessonSedimentationErrorOptions = {}) {
     super(message);
     this.name = "LessonSedimentationError";
     this.code = code;
@@ -35,8 +83,18 @@ export class LessonSedimentationError extends Error {
   }
 }
 
-export function createLessonSedimentationTask(targetInput, taskRef, candidateId, { dryRun = false, title = "", deferCommit = false, allowDirtyRelativePaths = [] } = {}) {
-  const target = normalizeTarget(targetInput);
+export function createLessonSedimentationTask(
+  targetInput: string,
+  taskRef: string,
+  candidateId: string,
+  { dryRun = false, title = "", deferCommit = false, allowDirtyRelativePaths = [] }: {
+    dryRun?: boolean;
+    title?: string;
+    deferCommit?: boolean;
+    allowDirtyRelativePaths?: string[];
+  } = {},
+) {
+  const target = normalizeTarget(targetInput) as LessonTarget;
   const sourceTaskDir = resolveTaskDirectory(target, taskRef);
   const sourceTaskId = taskIdForDirectory(target, sourceTaskDir);
   const sourceShortId = path.basename(sourceTaskDir);
@@ -82,7 +140,7 @@ export function createLessonSedimentationTask(targetInput, taskRef, candidateId,
   const slug = normalizeTaskId(`lesson-${sourceShortId.replace(/^\d{4}-\d{2}-\d{2}-/, "")}-${candidate.id}`);
   const taskTitle = title || `Lesson sedimentation for ${candidate.id}`;
   const locale = readCapabilityRegistry(target).locale;
-  let taskResult;
+  let taskResult: CreatedTaskResult;
   try {
     taskResult = createTask(target.projectRoot, slug, {
       title: taskTitle,
@@ -93,10 +151,10 @@ export function createLessonSedimentationTask(targetInput, taskRef, candidateId,
       deferCommit,
       allowDirtyRelativePaths,
     });
-  } catch (error) {
-    if (/Task already exists:/i.test(error.message)) {
+  } catch (error: unknown) {
+    if (/Task already exists:/i.test(errorMessage(error))) {
       const existingTask = `TASKS/${localDate()}-${slug}`;
-      throw new LessonSedimentationError(error.message, {
+      throw new LessonSedimentationError(errorMessage(error), {
         code: "lesson-follow-up-directory-exists",
         status: 409,
         details: { candidateId, existingTask, sourceTask: sourceTaskId },
@@ -132,12 +190,12 @@ export function createLessonSedimentationTask(targetInput, taskRef, candidateId,
     followUpTaskId,
     audit,
   });
-  const changes = [...taskResult.changes];
+  const changes: Array<LifecycleChange | GovernanceRelativeChange> = [...taskResult.changes];
 
   if (!dryRun) {
     const deferredDirtyPaths = deferCommit
       ? [
-        ...governanceRelativePaths(taskResult.changes),
+        ...governanceRelativePaths(asGovernanceChanges(taskResult.changes)),
         toPosix(path.relative(target.projectRoot, candidatePath)),
         ...(allowDirtyRelativePaths || []),
       ]
@@ -179,8 +237,8 @@ export function createLessonSedimentationTask(targetInput, taskRef, candidateId,
         },
       );
       const commit = deferCommit
-        ? { committed: false, reason: "deferred", allowedPaths: governanceRelativePaths(changes) }
-        : commitGovernanceSync(governanceContext, governanceRelativePaths(changes), {
+        ? { committed: false, reason: "deferred", allowedPaths: governanceRelativePaths(asGovernanceChanges(changes)) }
+        : commitGovernanceSync(governanceContext, governanceRelativePaths(asGovernanceChanges(changes)), {
           message: `chore(harness): record lesson sedimentation ${candidate.id}`,
         });
       taskResult.governance = {
@@ -209,8 +267,8 @@ export function createLessonSedimentationTask(targetInput, taskRef, candidateId,
   };
 }
 
-export function createAggregateLessonSedimentationTask(targetInput, selections, { dryRun = false, title = "" } = {}) {
-  const target = normalizeTarget(targetInput);
+export function createAggregateLessonSedimentationTask(targetInput: string, selections: unknown, { dryRun = false, title = "" }: { dryRun?: boolean; title?: string } = {}) {
+  const target = normalizeTarget(targetInput) as LessonTarget;
   const normalizedSelections = normalizeAggregateSelections(selections);
   if (normalizedSelections.length === 0) {
     throw new LessonSedimentationError("No lesson candidates selected", {
@@ -245,13 +303,13 @@ export function createAggregateLessonSedimentationTask(targetInput, selections, 
   });
   const prompt = renderAggregateLessonSedimentationPrompt({ target, entries, followUpTaskId });
   const contextPacket = renderAggregateContextPacket({ target, entries, followUpTaskId, audit });
-  const changes = [...taskResult.changes];
+  const changes: Array<LifecycleChange | GovernanceRelativeChange> = [...taskResult.changes];
   if (!dryRun) {
     const candidatePaths = [...new Set(entries.map((entry) => toPosix(path.relative(target.projectRoot, entry.candidatePath))))];
     const governanceContext = beginGovernanceSync(target, {
       operation: `lesson-sediment-aggregate ${followUpTaskId}`,
       allowDirtyWorktree: true,
-      allowedRelativePaths: [...governanceRelativePaths(taskResult.changes), ...candidatePaths],
+      allowedRelativePaths: [...governanceRelativePaths(asGovernanceChanges(taskResult.changes)), ...candidatePaths],
       allowDirtyWriteScope: true,
     });
     try {
@@ -286,7 +344,7 @@ export function createAggregateLessonSedimentationTask(targetInput, selections, 
       );
       taskResult.governance = {
         ...(taskResult.governance || {}),
-        commit: commitGovernanceSync(governanceContext, governanceRelativePaths(changes), {
+        commit: commitGovernanceSync(governanceContext, governanceRelativePaths(asGovernanceChanges(changes)), {
           message: `chore(harness): record aggregate lesson sedimentation ${followUpTaskId}`,
         }),
       };
@@ -315,12 +373,13 @@ export function createAggregateLessonSedimentationTask(targetInput, selections, 
   };
 }
 
-function normalizeAggregateSelections(selections) {
-  const seen = new Set();
-  const normalized = [];
+function normalizeAggregateSelections(selections: unknown): LessonSelection[] {
+  const seen = new Set<string>();
+  const normalized: LessonSelection[] = [];
   for (const selection of Array.isArray(selections) ? selections : []) {
-    const taskId = String(selection?.taskId || "").trim();
-    const candidateId = String(selection?.candidateId || "").trim();
+    const record = asRecord(selection);
+    const taskId = String(record.taskId || "").trim();
+    const candidateId = String(record.candidateId || "").trim();
     if (!taskId || !candidateId) continue;
     const key = `${taskId}\n${candidateId}`;
     if (seen.has(key)) continue;
@@ -330,7 +389,7 @@ function normalizeAggregateSelections(selections) {
   return normalized;
 }
 
-function resolveLessonCandidate(target, taskRef, candidateId) {
+function resolveLessonCandidate(target: LessonTarget, taskRef: string, candidateId: string): LessonEntry {
   const sourceTaskDir = resolveTaskDirectory(target, taskRef);
   const sourceTaskId = taskIdForDirectory(target, sourceTaskDir);
   const sourceShortId = path.basename(sourceTaskDir);
@@ -373,14 +432,14 @@ function resolveLessonCandidate(target, taskRef, candidateId) {
   return { sourceTaskDir, sourceTaskId, sourceShortId, candidatePath, candidate };
 }
 
-function commonSourceShort(entries) {
+function commonSourceShort(entries: LessonEntry[]): string {
   const unique = [...new Set(entries.map((entry) => entry.sourceShortId.replace(/^\d{4}-\d{2}-\d{2}-/, "")))];
   return unique.length === 1 ? unique[0] : "";
 }
 
-function renderLessonSedimentationPrompt(preset, values) {
+function renderLessonSedimentationPrompt(preset: PresetPackage, values: LessonPromptValues): string {
   const detailArtifact = resolveDetailArtifact(values.target, values.sourceTaskDir, values.candidate);
-  const prompt = renderPresetTemplate(preset, preset.entrypoints.newTask?.templates?.prompt, {
+  const prompt = renderPresetTemplate(preset, preset.entrypoints.newTask?.templates?.prompt || "", {
     sourceTaskId: values.sourceTaskId,
     sourceShortId: values.sourceShortId,
     candidateId: values.candidate.id,
@@ -398,7 +457,14 @@ function renderLessonSedimentationPrompt(preset, values) {
   return prompt.trim();
 }
 
-function renderContextPacket({ target, sourceTaskDir, sourceTaskId, candidate, followUpTaskId, audit }) {
+function renderContextPacket({ target, sourceTaskDir, sourceTaskId, candidate, followUpTaskId, audit }: {
+  target: LessonTarget;
+  sourceTaskDir: string;
+  sourceTaskId: string;
+  candidate: LessonCandidateRow;
+  followUpTaskId: string;
+  audit: PresetAudit;
+}): string {
   const sourceLessonPath = `TARGET:${toPosix(path.relative(target.projectRoot, path.join(sourceTaskDir, lessonCandidatesFile)))}`;
   const detailArtifact = resolveDetailArtifact(target, sourceTaskDir, candidate);
   const sourceReview = summarizeMarkdown(readFileSafe(path.join(sourceTaskDir, "review.md")));
@@ -434,7 +500,7 @@ function renderContextPacket({ target, sourceTaskDir, sourceTaskId, candidate, f
   ].join("\n");
 }
 
-function renderAggregateLessonSedimentationPrompt({ target, entries, followUpTaskId }) {
+function renderAggregateLessonSedimentationPrompt({ target, entries, followUpTaskId }: { target: LessonTarget; entries: LessonEntry[]; followUpTaskId: string }): string {
   const candidateBlocks = entries.map((entry, index) => {
     const detailArtifact = resolveDetailArtifact(target, entry.sourceTaskDir, entry.candidate);
     return [
@@ -474,7 +540,7 @@ function renderAggregateLessonSedimentationPrompt({ target, entries, followUpTas
   ].join("\n");
 }
 
-function renderAggregateContextPacket({ target, entries, followUpTaskId, audit }) {
+function renderAggregateContextPacket({ target, entries, followUpTaskId, audit }: { target: LessonTarget; entries: LessonEntry[]; followUpTaskId: string; audit: PresetAudit }): string {
   const rows = entries.map((entry) => {
     const detailArtifact = resolveDetailArtifact(target, entry.sourceTaskDir, entry.candidate);
     const sourceLessonPath = `TARGET:${toPosix(path.relative(target.projectRoot, path.join(entry.sourceTaskDir, lessonCandidatesFile)))}`;
@@ -506,7 +572,7 @@ function renderAggregateContextPacket({ target, entries, followUpTaskId, audit }
   ].join("\n");
 }
 
-function resolveDetailArtifact(target, sourceTaskDir, candidate) {
+function resolveDetailArtifact(target: LessonTarget, sourceTaskDir: string, candidate: LessonCandidateRow): DetailArtifact {
   const raw = String(candidate.detailArtifact || "").trim();
   if (!raw || /^(?:n\/a|none|pending)$/i.test(raw)) return { path: "", prefixedPath: "" };
   const absolute = raw.startsWith("TARGET:")
@@ -519,7 +585,14 @@ function resolveDetailArtifact(target, sourceTaskDir, candidate) {
   };
 }
 
-function appendToFollowUpTask({ followUpDir, sourceTaskId, candidate, prompt, contextPacket, audit }) {
+function appendToFollowUpTask({ followUpDir, sourceTaskId, candidate, prompt, contextPacket, audit }: {
+  followUpDir: string;
+  sourceTaskId: string;
+  candidate: LessonCandidateRow;
+  prompt: string;
+  contextPacket: string;
+  audit: PresetAudit;
+}): void {
   const taskPlanPath = path.join(followUpDir, "task_plan.md");
   const progressPath = path.join(followUpDir, "progress.md");
   const artifactsDir = path.join(followUpDir, "artifacts");
@@ -560,7 +633,13 @@ function appendToFollowUpTask({ followUpDir, sourceTaskId, candidate, prompt, co
   );
 }
 
-function appendToAggregateFollowUpTask({ followUpDir, entries, prompt, contextPacket, audit }) {
+function appendToAggregateFollowUpTask({ followUpDir, entries, prompt, contextPacket, audit }: {
+  followUpDir: string;
+  entries: LessonEntry[];
+  prompt: string;
+  contextPacket: string;
+  audit: PresetAudit;
+}): void {
   const taskPlanPath = path.join(followUpDir, "task_plan.md");
   const progressPath = path.join(followUpDir, "progress.md");
   const artifactsDir = path.join(followUpDir, "artifacts");
@@ -600,7 +679,7 @@ function appendToAggregateFollowUpTask({ followUpDir, entries, prompt, contextPa
   ].join("\n"));
 }
 
-function updateSourceFollowUpTask(candidatePath, candidateId, followUpTaskId) {
+function updateSourceFollowUpTask(candidatePath: string, candidateId: string, followUpTaskId: string): void {
   const content = readFileSafe(candidatePath);
   const update = updateMarkdownTableRow(content, /^ID$/i, (header, row) => {
     const idIndex = firstColumn(header, ["ID", "候选 ID"]);
@@ -614,14 +693,26 @@ function updateSourceFollowUpTask(candidatePath, candidateId, followUpTaskId) {
   fs.writeFileSync(candidatePath, update.content.endsWith("\n") ? update.content : `${update.content}\n`);
 }
 
-function markdownCell(value) {
+function markdownCell(value: unknown): string {
   return String(value || "").replace(/\r?\n/g, " ").replaceAll("|", "\\|").trim();
 }
 
-function summarizeMarkdown(content) {
+function summarizeMarkdown(content: unknown): string {
   const lines = String(content || "")
     .split(/\r?\n/)
     .map((line) => line.replace(/^#+\s*/, "").trim())
     .filter((line) => line && !/^\|?\s*-{3,}/.test(line));
   return lines.slice(0, 4).join(" / ") || "not recorded";
+}
+
+function asGovernanceChanges(changes: Array<LifecycleChange | GovernanceRelativeChange>): GovernanceRelativeChange[] {
+  return changes.map((change) => ({ surface: "task", ...change }));
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? value as Record<string, unknown> : {};
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
