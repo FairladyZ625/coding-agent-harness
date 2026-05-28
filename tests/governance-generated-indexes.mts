@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncReturns } from "node:child_process";
 import {
   assert,
   expectJson,
@@ -11,6 +11,31 @@ import {
   tmpRoot,
   todayLocal,
 } from "./helpers/harness-test-utils.mjs";
+
+type NewTaskResponse = {
+  governance?: { commit?: { committed?: boolean } };
+};
+type GovernanceRebuildResponse = {
+  dryRun?: boolean;
+  archive?: boolean;
+  applied?: boolean;
+  commit?: { committed?: boolean };
+  changes: Array<{ surface: string; action: string }>;
+  archiveDir?: string;
+};
+type IndexedTask = {
+  title?: string;
+  closeoutStatus?: string;
+  lessonCandidateRows?: unknown[];
+  risks?: unknown[];
+  residual?: string;
+  reviewStatus: string;
+  lessonCandidateStatus: string;
+  taskQueues: string[];
+};
+type TaskListResponse = {
+  tasks: IndexedTask[];
+};
 
 const target = path.join(tmpRoot, "governance-generated-indexes-target");
 fs.mkdirSync(target);
@@ -21,8 +46,8 @@ git(target, ["config", "user.email", "harness-test@example.invalid"]);
 git(target, ["add", "."]);
 git(target, ["commit", "-m", "test fixture baseline"]);
 
-const first = expectJson(["new-task", "generated-index-alpha", "--title", "Generated Index Alpha", "--locale", "en-US", target]);
-const second = expectJson(["new-task", "generated-index-beta", "--title", "Generated Index Beta", "--locale", "en-US", target]);
+const first = expectJson<NewTaskResponse>(["new-task", "generated-index-alpha", "--title", "Generated Index Alpha", "--locale", "en-US", target]);
+const second = expectJson<NewTaskResponse>(["new-task", "generated-index-beta", "--title", "Generated Index Beta", "--locale", "en-US", target]);
 assert(first.governance?.commit?.committed === true, "new-task should leave governance committed");
 assert(second.governance?.commit?.committed === true, "second new-task should leave governance committed");
 
@@ -37,17 +62,17 @@ fs.appendFileSync(ledgerPath, "\n| HL-STALE | stale ledger | coordinator | activ
 git(target, ["add", "coding-agent-harness/planning/Feature-SSoT.md", "coding-agent-harness/planning/Private-Feature-SSoT.md", "coding-agent-harness/governance/generated/Harness-Ledger.md"]);
 git(target, ["commit", "-m", "add stale generated table rows"]);
 
-const dryRun = expectJson(["governance", "rebuild", "--dry-run", "--archive", target]);
+const dryRun = expectJson<GovernanceRebuildResponse>(["governance", "rebuild", "--dry-run", "--archive", target]);
 assert(dryRun.dryRun === true, "governance rebuild --dry-run should report dryRun true");
 assert(dryRun.archive === true, "governance rebuild --archive should report archive true");
 assert(!dryRun.changes.some((change) => change.surface === "feature-ssot" && /rebuild/.test(change.action)), "dry-run must not rebuild Feature SSoT");
 assert(dryRun.changes.some((change) => change.surface === "legacy-feature-ssot" && /archive/.test(change.action)), "dry-run should archive legacy Feature SSoT");
 assert(fs.readFileSync(featurePath, "utf8").includes("F-STALE"), "dry-run must not rewrite Feature SSoT");
-const contradictoryDryRun = expectJson(["governance", "rebuild", "--dry-run", "--apply", target]);
+const contradictoryDryRun = expectJson<GovernanceRebuildResponse>(["governance", "rebuild", "--dry-run", "--apply", target]);
 assert(contradictoryDryRun.applied === false, "--dry-run should win over --apply");
 assert(fs.readFileSync(featurePath, "utf8").includes("F-STALE"), "--dry-run --apply must not rewrite Feature SSoT");
 
-const rebuilt = expectJson(["governance", "rebuild", "--archive", "--apply", target]);
+const rebuilt = expectJson<GovernanceRebuildResponse>(["governance", "rebuild", "--archive", "--apply", target]);
 assert(rebuilt.applied === true, "governance rebuild --apply should report applied true");
 assert(rebuilt.commit?.committed === true, "governance rebuild --apply should commit generated indexes in git targets");
 const ledgerAfter = fs.readFileSync(ledgerPath, "utf8");
@@ -62,40 +87,40 @@ assert(fs.existsSync(path.join(target, rebuilt.archiveDir, "coding-agent-harness
 assert(fs.existsSync(path.join(target, rebuilt.archiveDir, "coding-agent-harness/governance/generated/Harness-Ledger.md")), "archive should preserve old Harness Ledger before rewriting");
 assert(git(target, ["status", "--short"]).stdout.trim() === "", "governance rebuild should leave git clean");
 
-const secondRebuild = expectJson(["governance", "rebuild", "--archive", "--apply", target]);
+const secondRebuild = expectJson<GovernanceRebuildResponse>(["governance", "rebuild", "--archive", "--apply", target]);
 assert(secondRebuild.archiveDir !== rebuilt.archiveDir, "repeated archive rebuilds should use unique archive directories");
 
-const search = expectJson(["task-list", "--json", "--search", "beta", target]);
+const search = expectJson<TaskListResponse>(["task-list", "--json", "--search", "beta", target]);
 assert(search.tasks.length === 1, "task-list --search should narrow task results");
 assert(search.tasks[0].title === "Generated Index Beta", "task-list --search should return the matching task");
 assert("closeoutStatus" in search.tasks[0], "task-list should expose closeout status for ledger replacement");
 assert("lessonCandidateRows" in search.tasks[0], "task-list should expose lesson detail rows for ledger replacement");
 assert("risks" in search.tasks[0], "task-list should expose review risks for ledger replacement");
-const taskIndex = expectJson(["task-index", "--json", target]);
+const taskIndex = expectJson<TaskListResponse>(["task-index", "--json", target]);
 const betaIndex = taskIndex.tasks.find((task) => task.title === "Generated Index Beta");
 assert(betaIndex?.closeoutStatus, "task-index should include closeout status");
 assert(Array.isArray(betaIndex?.lessonCandidateRows), "task-index should include lesson candidate rows");
 assert(Array.isArray(betaIndex?.risks), "task-index should include review risks");
 assert(typeof betaIndex?.residual === "string", "task-index should include residual summary");
-const noMissingMaterials = expectJson(["task-list", "--json", "--missing-materials", target]);
+const noMissingMaterials = expectJson<TaskListResponse>(["task-list", "--json", "--missing-materials", target]);
 assert(Array.isArray(noMissingMaterials.tasks), "task-list --missing-materials should return a task array");
-const presetNone = expectJson(["task-list", "--json", "--preset", "none", "--search", "alpha", target]);
+const presetNone = expectJson<TaskListResponse>(["task-list", "--json", "--preset", "none", "--search", "alpha", target]);
 assert(presetNone.tasks.length === 1 && presetNone.tasks[0].title === "Generated Index Alpha", "task-list should combine preset and search filters");
-const reviewFiltered = expectJson(["task-list", "--json", "--review", search.tasks[0].reviewStatus, "--search", "beta", target]);
+const reviewFiltered = expectJson<TaskListResponse>(["task-list", "--json", "--review", search.tasks[0].reviewStatus, "--search", "beta", target]);
 assert(reviewFiltered.tasks.length === 1, "task-list --review should match scanned review status");
-const reviewNormalized = expectJson(["task-list", "--json", "--review", search.tasks[0].reviewStatus.replaceAll("-", "_"), "--search", "beta", target]);
+const reviewNormalized = expectJson<TaskListResponse>(["task-list", "--json", "--review", search.tasks[0].reviewStatus.replaceAll("-", "_"), "--search", "beta", target]);
 assert(reviewNormalized.tasks.length === 1, "task-list --review should normalize underscores and hyphens");
-const lessonFiltered = expectJson(["task-list", "--json", "--lesson", search.tasks[0].lessonCandidateStatus.replaceAll("-", "_"), "--search", "beta", target]);
+const lessonFiltered = expectJson<TaskListResponse>(["task-list", "--json", "--lesson", search.tasks[0].lessonCandidateStatus.replaceAll("-", "_"), "--search", "beta", target]);
 assert(lessonFiltered.tasks.length === 1, "task-list --lesson should match scanned lesson status");
 if (search.tasks[0].taskQueues.length > 0) {
   const queue = search.tasks[0].taskQueues[0].replaceAll("-", "_");
-  const queueFiltered = expectJson(["task-list", "--json", "--queue", queue, "--search", "beta", target]);
+  const queueFiltered = expectJson<TaskListResponse>(["task-list", "--json", "--queue", queue, "--search", "beta", target]);
   assert(queueFiltered.tasks.length === 1, "task-list --queue should normalize underscores and hyphens");
 }
-const noMatch = expectJson(["task-list", "--json", "--search", "does-not-exist", target]);
+const noMatch = expectJson<TaskListResponse>(["task-list", "--json", "--search", "does-not-exist", target]);
 assert(noMatch.tasks.length === 0, "task-list filters should return empty results on no match");
 
-const pipeTitle = expectJson(["new-task", "module-pipe-title", "--module", "pipe", "--title", "Pipe | Title", target]);
+const pipeTitle = expectJson<NewTaskResponse>(["new-task", "module-pipe-title", "--module", "pipe", "--title", "Pipe | Title", target]);
 const pipeVisual = fs.readFileSync(path.join(target, "coding-agent-harness/planning/modules/pipe/visual_map.md"), "utf8");
 const incrementalLedger = fs.readFileSync(ledgerPath, "utf8");
 assert(pipeVisual.includes("Pipe \\| Title"), "generated module visual map should escape table pipes in task titles");
@@ -164,7 +189,7 @@ assert(resolvedGate.status === 0, `resolved worker gate should pass\nSTDOUT:\n${
 
 console.log("Governance generated index tests passed");
 
-function git(cwd, args) {
+function git(cwd: string, args: string[]): SpawnSyncReturns<string> {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   assert(result.status === 0, `git ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
 import {
   assert,
   cli,
@@ -14,6 +14,29 @@ import {
   waitForWorkbench,
   writeZipFromDirectory,
 } from "./helpers/harness-test-utils.mjs";
+
+type JsonPayload = Record<string, unknown>;
+type PresetApiBody = JsonPayload & {
+  id?: string;
+  status?: string;
+  error?: string;
+  operation?: string;
+  scope?: string;
+};
+type PresetApiResponse = {
+  status: number;
+  body: PresetApiBody;
+  text: string;
+};
+type PresetPackageOptions = {
+  id: string;
+  purpose: string;
+  kind: string;
+};
+type RawPostResult = {
+  status: number | undefined;
+  text: string;
+};
 
 const target = path.join(tmpRoot, "preset-workbench-target");
 const home = path.join(tmpRoot, "preset-workbench-home");
@@ -50,7 +73,7 @@ const runtime = await waitForWorkbench(workbench);
 const origin = runtime.url.replace(/\/$/, "");
 
 try {
-  const runtimePayload = await (await fetch(new URL("api/runtime", runtime.url))).json();
+  const runtimePayload = await (await fetch(new URL("api/runtime", runtime.url))).json() as { writableActions: string[] };
   for (const action of ["preset-check", "preset-install", "preset-seed", "preset-uninstall"]) {
     assert(runtimePayload.writableActions.includes(action), `workbench runtime should expose ${action}`);
   }
@@ -61,7 +84,7 @@ try {
 
   const builtinUninstall = await postJson("api/presets/uninstall", { id: "module", scope: "project", confirmText: "module" });
   assert(builtinUninstall.status === 409, `builtin uninstall should be rejected, got ${builtinUninstall.status}: ${builtinUninstall.text}`);
-  assert(builtinUninstall.body.error.includes("Builtin preset cannot be uninstalled"), "builtin uninstall error should explain immutable builtin source");
+  assert(String(builtinUninstall.body.error).includes("Builtin preset cannot be uninstalled"), "builtin uninstall error should explain immutable builtin source");
 
   const missingCsrf = await fetch(new URL("api/presets/check", runtime.url), {
     method: "POST",
@@ -118,7 +141,7 @@ try {
 
 console.log("Dashboard workbench preset API tests passed");
 
-async function postJson(relativePath, body) {
+async function postJson(relativePath: string, body: JsonPayload): Promise<PresetApiResponse> {
   const response = await fetch(new URL(relativePath, runtime.url), {
     method: "POST",
     headers: {
@@ -129,14 +152,14 @@ async function postJson(relativePath, body) {
     body: JSON.stringify(body),
   });
   const text = await response.text();
-  let parsed = {};
+  let parsed: PresetApiBody = {};
   try {
-    parsed = text ? JSON.parse(text) : {};
+    parsed = text ? JSON.parse(text) as PresetApiBody : {};
   } catch {}
   return { status: response.status, body: parsed, text };
 }
 
-function rawPost(relativePath, body, headers) {
+function rawPost(relativePath: string, body: JsonPayload, headers: IncomingHttpHeaders): Promise<RawPostResult> {
   const url = new URL(relativePath, runtime.url);
   const payload = JSON.stringify(body);
   return new Promise((resolve, reject) => {
@@ -149,7 +172,7 @@ function rawPost(relativePath, body, headers) {
         "content-length": Buffer.byteLength(payload),
         ...headers,
       },
-    }, (response) => {
+    }, (response: IncomingMessage) => {
       let text = "";
       response.setEncoding("utf8");
       response.on("data", (chunk) => { text += chunk; });
@@ -160,7 +183,7 @@ function rawPost(relativePath, body, headers) {
   });
 }
 
-function writePresetPackage(directory, { id, purpose, kind }) {
+function writePresetPackage(directory: string, { id, purpose, kind }: PresetPackageOptions): void {
   fs.mkdirSync(path.join(directory, "templates"), { recursive: true });
   fs.writeFileSync(path.join(directory, "templates/task_plan.append.md"), `## ${id}\n\nPreset: {{title}}\n`);
   fs.writeFileSync(

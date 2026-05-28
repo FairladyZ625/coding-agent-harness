@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
@@ -10,12 +9,51 @@ const appJs = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/ap
   .replace(/\nwindow\.addEventListener\("hashchange", app\);\napp\(\);\nloadRuntime\(\);\n?$/, "\n");
 const i18nJs = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/i18n.js"), "utf8");
 
-function assert(condition, message) {
+type PresetLayer = {
+  id: string;
+  source: string;
+  version: number;
+  effective: boolean;
+  purpose: string;
+  taskKind: string;
+  compatibleBudgets: string[];
+  manifestPath: string;
+  inputCount: number;
+  referenceCount: number;
+  artifactCount: number;
+  writeScopeCount: number;
+  requiredReadCount: number;
+  key?: string;
+};
+
+type RenderResult = {
+  selectedKey?: string;
+  hasProjectSourceDetail?: boolean;
+  hasUserSourceDetail?: boolean;
+  confirm?: string;
+  html: string;
+};
+
+type DashboardSandbox = {
+  window: {
+    HarnessI18n?: Record<string, unknown>;
+    __HARNESS_LOCALE__: string;
+    __HARNESS_WORKBENCH__: boolean;
+    __HARNESS_DASHBOARD__: Record<string, unknown>;
+  };
+  navigator: Record<string, unknown>;
+  localStorage: Record<string, unknown>;
+  setInterval(): number;
+  clearInterval(): void;
+  __result?: RenderResult | string;
+};
+
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-function renderWithState(mutator) {
-  const sandbox = {
+function renderWithState<TResult extends RenderResult | string>(mutator: string): TResult {
+  const sandbox: DashboardSandbox = {
     window: {
       __HARNESS_LOCALE__: "en",
       __HARNESS_WORKBENCH__: true,
@@ -47,10 +85,12 @@ function renderWithState(mutator) {
   sandbox.window.HarnessI18n = {};
   vm.createContext(sandbox);
   vm.runInContext(`${i18nJs}\n${appJs}\n${mutator}`, sandbox);
-  return sandbox.__result;
+  const result = sandbox.__result;
+  assert(result !== undefined, "dashboard preset UI test did not return a result");
+  return result as TResult;
 }
 
-function preset(overrides) {
+function preset(overrides: Partial<PresetLayer>): PresetLayer {
   return {
     id: "dup",
     source: "project",
@@ -69,7 +109,7 @@ function preset(overrides) {
   };
 }
 
-const hiddenSelection = renderWithState(`
+const hiddenSelection = renderWithState<RenderResult>(`
   state.runtime = { mode: "workbench", writableActions: ["preset-check", "preset-install", "preset-seed", "preset-uninstall"] };
   state.presetSourceFilter = "user";
   state.selectedPresetKey = "project:dup";
@@ -85,7 +125,7 @@ assert(hiddenSelection.selectedKey === "user:dup", "source filter should move se
 assert(!hiddenSelection.hasProjectSourceDetail, "filtered user view must not keep hidden project detail actionable");
 assert(hiddenSelection.hasUserSourceDetail, "filtered user view should show user-layer detail");
 
-const searchEmpty = renderWithState(`
+const searchEmpty = renderWithState<RenderResult>(`
   state.runtime = { mode: "workbench", writableActions: ["preset-check", "preset-install", "preset-seed", "preset-uninstall"] };
   state.presetSourceFilter = "user";
   state.presetQuery = "solo";
@@ -96,7 +136,7 @@ const searchEmpty = renderWithState(`
 assert(searchEmpty.selectedKey === "", "empty filtered result should clear selected preset");
 assert(!searchEmpty.html.includes('data-preset-uninstall="dup"'), "empty filtered result must not keep hidden uninstall target");
 
-const shadowedLayer = renderWithState(`
+const shadowedLayer = renderWithState<RenderResult>(`
   state.runtime = { mode: "workbench", writableActions: ["preset-check", "preset-install", "preset-seed", "preset-uninstall"] };
   state.presetSourceFilter = "builtin";
   state.selectedPresetKey = "builtin:dup";
@@ -107,7 +147,7 @@ assert(shadowedLayer.html.includes("CLI inspect/check commands resolve the effec
 assert(shadowedLayer.html.includes('data-preset-check="dup" disabled'), "shadowed layer check action should be disabled");
 assert(!shadowedLayer.html.includes('data-copy-preset-command="harness preset inspect dup --json ."'), "shadowed layer should not expose copyable inspect command for the wrong layer");
 
-const confirmGateClosed = renderWithState(`
+const confirmGateClosed = renderWithState<string>(`
   state.runtime = { mode: "workbench", writableActions: ["preset-check", "preset-install", "preset-seed", "preset-uninstall"] };
   state.presetSourceFilter = "user";
   state.selectedPresetKey = "user:dup";
@@ -117,7 +157,7 @@ const confirmGateClosed = renderWithState(`
 assert(confirmGateClosed.includes('data-preset-uninstall="dup" disabled'), "uninstall should stay disabled until confirmation matches the selected id");
 assert(confirmGateClosed.includes("Use the selected ID before uninstalling."), "uninstall confirmation gate should explain the required action");
 
-const confirmGateOpen = renderWithState(`
+const confirmGateOpen = renderWithState<string>(`
   state.runtime = { mode: "workbench", writableActions: ["preset-check", "preset-install", "preset-seed", "preset-uninstall"] };
   state.presetSourceFilter = "user";
   state.selectedPresetKey = "user:dup";
@@ -126,7 +166,7 @@ const confirmGateOpen = renderWithState(`
 `);
 assert(confirmGateOpen.includes('data-preset-uninstall="dup" >'), "uninstall should enable only after confirmation matches the selected id");
 
-const staleConfirmAfterFilter = renderWithState(`
+const staleConfirmAfterFilter = renderWithState<RenderResult>(`
   state.runtime = { mode: "workbench", writableActions: ["preset-check", "preset-install", "preset-seed", "preset-uninstall"] };
   state.presetSourceFilter = "project";
   state.selectedPresetKey = "";

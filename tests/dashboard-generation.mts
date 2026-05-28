@@ -1,19 +1,95 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
 import { spawn, spawnSync } from "node:child_process";
+import type { SpawnSyncOptionsWithStringEncoding, SpawnSyncReturns } from "node:child_process";
 import { buildDashboardBundle } from "../scripts/lib/dashboard-data.mjs";
+
+type TestRunOptions = Omit<SpawnSyncOptionsWithStringEncoding, "encoding"> & {
+  encoding?: BufferEncoding;
+};
+type DashboardDocument = { path: string };
+type DashboardDocuments = { documents: DashboardDocument[] };
+type DashboardStatus = {
+  schemaVersion: number;
+  tasks: Array<{ visualMapSource?: string; roadmapSource?: string }>;
+  summary: {
+    fullCutoverEligible?: boolean;
+    legacyVisualOnlyCount?: number;
+    weakBriefCount?: number;
+    unknownClassificationCount?: number;
+    missingCanonicalVisualMapCount?: number;
+  };
+};
+type DashboardTables = { tables: Array<{ kind?: string }> };
+type DashboardGraph = {
+  nodes: Array<{ id: string; type?: string; kind?: unknown }>;
+  edges: Array<{ from: string; to: string }>;
+};
+type PresetLayer = {
+  id: string;
+  key?: string;
+  source: string;
+  version?: unknown;
+  effective?: boolean;
+  purpose?: string;
+  compatibleBudgets?: unknown[];
+  manifestPath?: string;
+  taskKind?: string;
+  inputCount?: number;
+  referenceCount?: number;
+  artifactCount?: number;
+};
+type PresetCatalog = {
+  summary: { total: number; project: number; user: number; builtin: number };
+  roots: Array<{ source: string }>;
+  presets: PresetLayer[];
+};
+type RuntimeBundle = {
+  status: {
+    checkState: { status: string; validationMode: string; failures: number; warnings: number };
+    tasks: unknown[];
+    summary: Record<string, unknown>;
+  };
+};
+type RuntimeRenderOptions = {
+  locale?: string;
+  workbench?: boolean;
+};
+type PresetPackageOptions = {
+  id: string;
+  purpose: string;
+  kind: string;
+};
+type VmElement = {
+  innerHTML: string;
+  dataset: Record<string, string>;
+  querySelectorAll(): unknown[];
+  addEventListener(): void;
+  classList: { add(): void; remove(): void; toggle(): void };
+};
+type StatusStripContext = {
+  window: Record<string, unknown>;
+  localStorage: Record<string, unknown>;
+  navigator: Record<string, unknown>;
+  document: Record<string, unknown>;
+  setInterval(): void;
+  clearInterval(): void;
+  fetch(): Promise<{ ok: boolean }>;
+  console: Console;
+  globalThis?: unknown;
+  statusStrip?: () => string;
+};
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const node = process.execPath;
 const cli = path.join(repoRoot, "dist/harness.mjs");
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dashboard-generation-"));
 
-function run(args, options = {}) {
+function run(args: string[], options: TestRunOptions = {}): SpawnSyncReturns<string> {
   return spawnSync(node, [cli, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -21,12 +97,12 @@ function run(args, options = {}) {
   });
 }
 
-function assert(condition, message) {
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-function expectPass(args) {
-  const result = run(args);
+function expectPass(args: string[], options: TestRunOptions = {}): SpawnSyncReturns<string> {
+  const result = run(args, options);
   assert(result.status === 0, `${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;
 }
@@ -68,7 +144,7 @@ assert(folderIndex.includes("dashboard-data.js"), "dashboard folder index missin
 assert(folderIndex.includes("rel=\"icon\""), "dashboard index should suppress favicon request");
 const folderApp = fs.readFileSync(path.join(dashboardDir, "assets/app.js"), "utf8");
 assert(folderApp.includes("snapshotNotValidated"), "dashboard data-only UI should label status as snapshot-only");
-const folderStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8"));
+const folderStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8")) as DashboardStatus;
 assert(folderStatus.tasks[0].visualMapSource === "canonical", "folder status should use canonical visual_map.md");
 assert(folderStatus.tasks[0].roadmapSource === "canonical", "folder status should preserve roadmapSource compatibility as canonical");
 assert(folderStatus.schemaVersion === 2, "dashboard folder status should expose schemaVersion 2");
@@ -77,22 +153,22 @@ assert(folderStatus.summary.legacyVisualOnlyCount === 0, "minimal project should
 assert(folderStatus.summary.weakBriefCount === 0, "minimal project should expose zero weak briefs");
 assert(folderStatus.summary.unknownClassificationCount === 0, "minimal project should expose zero unknown migration classifications");
 assert(folderStatus.summary.missingCanonicalVisualMapCount === 0, "minimal project should expose zero missing canonical visual maps");
-const documents = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/documents.json"), "utf8"));
+const documents = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/documents.json"), "utf8")) as DashboardDocuments;
 assert(documents.documents.some((doc) => doc.path.endsWith("/brief.md")), "documents should include task briefs");
 assert(documents.documents.some((doc) => doc.path.endsWith("/task_plan.md")), "documents should include task plan fallback");
 assert(documents.documents.some((doc) => doc.path.endsWith("execution_strategy.md")), "documents missing execution strategy");
 assert(documents.documents.some((doc) => doc.path.endsWith("visual_map.md")), "documents missing visual map");
 assert(documents.documents.some((doc) => doc.path.endsWith("lesson_candidates.md")), "documents missing lesson candidates");
-const tables = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/tables.json"), "utf8"));
+const tables = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/tables.json"), "utf8")) as DashboardTables;
 assert(tables.tables.some((table) => table.kind === "harness-ledger"), "documents missing harness ledger table");
 assert(JSON.stringify(tables).includes("alpha|beta"), "markdown table parser should preserve escaped pipes");
-const graph = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/graph.json"), "utf8"));
+const graph = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/graph.json"), "utf8")) as DashboardGraph;
 assert(graph.edges.length > 0, "graph should include task/phase edges");
 assert(graph.nodes.some((node) => node.type === "phase" && node.kind), "phase graph nodes should expose phase kind");
 assertGraphIntegrity(graph, "example graph");
 const presetCatalogPath = path.join(dashboardDir, "data/presetCatalog.json");
 assert(fs.existsSync(presetCatalogPath), "dashboard folder should write presetCatalog.json");
-const presetCatalog = JSON.parse(fs.readFileSync(presetCatalogPath, "utf8"));
+const presetCatalog = JSON.parse(fs.readFileSync(presetCatalogPath, "utf8")) as PresetCatalog;
 assert(presetCatalog.summary.total >= 1, "preset catalog should summarize available presets");
 assert(Array.isArray(presetCatalog.roots) && presetCatalog.roots.some((root) => root.source === "builtin"), "preset catalog should include builtin root");
 assert(presetCatalog.presets.some((preset) => preset.id === "legacy-migration" && ["user", "builtin"].includes(preset.source)), "preset catalog should include discoverable bundled presets");
@@ -278,7 +354,7 @@ const presetCatalogDir = path.join(tmpRoot, "preset-catalog-dashboard");
 expectPass(["dashboard", "--out-dir", presetCatalogDir, presetCatalogTarget], {
   env: { ...process.env, HOME: presetCatalogHome },
 });
-const layeredCatalog = JSON.parse(fs.readFileSync(path.join(presetCatalogDir, "data/presetCatalog.json"), "utf8"));
+const layeredCatalog = JSON.parse(fs.readFileSync(path.join(presetCatalogDir, "data/presetCatalog.json"), "utf8")) as PresetCatalog;
 assert(layeredCatalog.summary.project >= 1, "preset catalog should count project presets");
 assert(layeredCatalog.roots.some((root) => root.source === "builtin"), "preset catalog should keep builtin root visible even when user presets shadow bundled ids");
 assert(layeredCatalog.presets.some((preset) => preset.id === "project-catalog" && preset.source === "project"), "preset catalog should include project presets");
@@ -290,7 +366,7 @@ assert(layeredCatalog.presets.find((preset) => preset.id === "project-catalog")?
 assert(layeredCatalog.presets.find((preset) => preset.id === "project-catalog")?.inputCount === 0, "preset catalog should expose input count");
 assert(layeredCatalog.presets.find((preset) => preset.id === "project-catalog")?.referenceCount === 0, "preset catalog should expose reference count");
 assert(layeredCatalog.presets.find((preset) => preset.id === "project-catalog")?.artifactCount === 0, "preset catalog should expose artifact count");
-const isolatedHomeCatalog = buildDashboardBundle(presetCatalogTarget, { home: presetCatalogHome }).presetCatalog;
+const isolatedHomeCatalog = buildDashboardBundle(presetCatalogTarget, { home: presetCatalogHome }).presetCatalog as PresetCatalog;
 assert(isolatedHomeCatalog.summary.user >= 1, "preset catalog should count user presets when a home override is supplied");
 assert(isolatedHomeCatalog.summary.builtin >= 1, "preset catalog should count builtin presets when user ids do not shadow them");
 assert(isolatedHomeCatalog.presets.some((preset) => preset.id === "user-catalog" && preset.source === "user"), "preset catalog should include user presets");
@@ -365,18 +441,18 @@ const redactionData = fs.readFileSync(path.join(redactionDir, "assets/dashboard-
 assert(redactionData.includes("LOCAL_PATH_REDACTED"), "dashboard data should include redacted local paths");
 assert(!hasLocalAbsolutePath(redactionData), "dashboard data leaked generic local path");
 
-function hasLocalAbsolutePath(content) {
+function hasLocalAbsolutePath(content: string): boolean {
   return /(?:^|[\s"'(])(?:\/Users\/|\/Volumes\/|\/tmp\/|\/private\/tmp\/|\/var\/folders\/|\/home\/|[A-Za-z]:\\)/.test(content);
 }
 
-function defaultDevOutDir(targetInput) {
+function defaultDevOutDir(targetInput: string): string {
   const target = path.resolve(targetInput || ".");
   const name = path.basename(target) || "project";
   const hash = Buffer.from(target).toString("hex").slice(0, 16);
   return path.join(os.tmpdir(), "coding-agent-harness-dev", `${name}-${hash}`);
 }
 
-function writeStaleDashboardLikeDirectory(outDir) {
+function writeStaleDashboardLikeDirectory(outDir: string): void {
   fs.mkdirSync(path.join(outDir, "assets"), { recursive: true });
   fs.mkdirSync(path.join(outDir, "data"), { recursive: true });
   fs.writeFileSync(path.join(outDir, "index.html"), "<!doctype html><title>stale</title>\n");
@@ -386,7 +462,7 @@ function writeStaleDashboardLikeDirectory(outDir) {
   fs.writeFileSync(path.join(outDir, "data/status.json"), "{}\n");
 }
 
-function writePartialGeneratedDashboardDirectory(outDir) {
+function writePartialGeneratedDashboardDirectory(outDir: string): void {
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(
     path.join(outDir, "README.md"),
@@ -394,8 +470,8 @@ function writePartialGeneratedDashboardDirectory(outDir) {
   );
 }
 
-function renderStatusStripForRuntime(bundle, { locale = "zh", workbench = false } = {}) {
-  const element = {
+function renderStatusStripForRuntime(bundle: RuntimeBundle, { locale = "zh", workbench = false }: RuntimeRenderOptions = {}): string {
+  const element: VmElement = {
     innerHTML: "",
     dataset: {},
     querySelectorAll() {
@@ -404,7 +480,7 @@ function renderStatusStripForRuntime(bundle, { locale = "zh", workbench = false 
     addEventListener() {},
     classList: { add() {}, remove() {}, toggle() {} },
   };
-  const context = {
+  const context: StatusStripContext = {
     window: {
       __HARNESS_DASHBOARD__: bundle,
       __HARNESS_LOCALE__: locale,
@@ -438,10 +514,12 @@ function renderStatusStripForRuntime(bundle, { locale = "zh", workbench = false 
   context.globalThis = context;
   vm.createContext(context);
   vm.runInContext(`${dashboardI18n}\n${dashboardApp}`, context);
-  return context.statusStrip();
+  const statusStrip = context.statusStrip;
+  assert(typeof statusStrip === "function", "dashboard runtime did not expose statusStrip");
+  return statusStrip();
 }
 
-function writePresetPackage(directory, { id, purpose, kind }) {
+function writePresetPackage(directory: string, { id, purpose, kind }: PresetPackageOptions): void {
   fs.mkdirSync(path.join(directory, "templates"), { recursive: true });
   fs.writeFileSync(path.join(directory, "templates/task_plan.append.md"), `## ${id}\n\nPreset: {{title}}\n`);
   fs.writeFileSync(
@@ -474,7 +552,7 @@ writeScopes:
   );
 }
 
-function expectDevStarts(args) {
+function expectDevStarts(args: string[]): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(node, [cli, ...args], { cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
@@ -501,7 +579,7 @@ function expectDevStarts(args) {
   });
 }
 
-function assertGraphIntegrity(graph, label) {
+function assertGraphIntegrity(graph: DashboardGraph, label: string): void {
   const nodes = new Set((graph.nodes || []).map((node) => node.id));
   for (const edge of graph.edges || []) {
     assert(nodes.has(edge.from), `${label} has dangling edge source ${edge.from}`);

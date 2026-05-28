@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
@@ -13,6 +12,25 @@ import {
 import { taskScannerVersion } from "../scripts/lib/task-review-model.mjs";
 import { normalizeTarget } from "../scripts/lib/core-shared.mjs";
 import { dashboardWatchRoots } from "../scripts/lib/harness-paths.mjs";
+import type { ResolvedHarnessPaths } from "../scripts/lib/harness-paths.mjs";
+
+type StatusTask = {
+  id?: string;
+  path?: string;
+  currentPath?: string;
+  walkthroughPath?: string;
+  closeoutStatus?: string;
+};
+type StatusJson = {
+  mode?: string;
+  schemaVersion?: number;
+  project?: { root?: string };
+  tasks: StatusTask[];
+  checkState?: { details: { failures: string[] } };
+};
+type TaskListJson = { tasks: StatusTask[] };
+type DashboardDocuments = { documents: Array<{ path: string }> };
+type DashboardGraph = { nodes: Array<{ id: string; briefPath?: string }> };
 
 const target = path.join(tmpRoot, "directory-structure-v2-target");
 const taskId = "2026-05-27-v2-only-task";
@@ -171,21 +189,21 @@ assert(!fs.existsSync(path.join(target, "docs/09-PLANNING")), "fixture must not 
 assert(!fs.existsSync(path.join(target, "docs/10-WALKTHROUGH")), "fixture must not contain legacy walkthrough root");
 assert(!fs.existsSync(path.join(target, "docs/Harness-Ledger.md")), "fixture must not contain legacy ledger");
 
-const status = expectJson(["status", "--json", target]);
+const status = expectJson<StatusJson>(["status", "--json", target]);
 assert(status.schemaVersion === 2, "status should preserve schemaVersion 2");
 assert(status.tasks.length === 1, `v2-only status should discover one task, got ${status.tasks.length}`);
 assert(status.tasks[0].id === `TASKS/${taskId}`, `v2 task id mismatch: ${status.tasks[0].id}`);
 assert(status.tasks[0].path === `TARGET:coding-agent-harness/planning/tasks/${taskId}`, `v2 task path mismatch: ${status.tasks[0].path}`);
 assert(status.tasks[0].walkthroughPath === `TARGET:coding-agent-harness/planning/tasks/${taskId}/walkthrough.md`, "status should expose task-local walkthrough");
 assert(!JSON.stringify(status).includes("docs/09-PLANNING"), "v2 status should not expose legacy active task paths");
-const docsAliasStatus = expectJson(["status", "--json", path.join(target, "docs")]);
+const docsAliasStatus = expectJson<StatusJson>(["status", "--json", path.join(target, "docs")]);
 assert(docsAliasStatus.mode === "v2-manifest", "v2 target/docs alias should resolve to the sibling project manifest");
 assert(docsAliasStatus.tasks[0].path === `TARGET:coding-agent-harness/planning/tasks/${taskId}`, "v2 target/docs alias should preserve v2 task paths");
 
-const taskList = expectJson(["task-list", "--json", target]);
+const taskList = expectJson<TaskListJson>(["task-list", "--json", target]);
 assert(taskList.tasks.length === 1, "task-list should discover v2-only task");
 
-const taskIndex = expectJson(["task-index", "--json", target]);
+const taskIndex = expectJson<TaskListJson>(["task-index", "--json", target]);
 assert(taskIndex.tasks.length === 1, "task-index should discover v2-only task");
 assert(taskIndex.tasks[0].currentPath === `TARGET:coding-agent-harness/planning/tasks/${taskId}`, "task-index should expose v2 task path");
 
@@ -193,8 +211,8 @@ const dashboardDir = path.join(tmpRoot, "directory-structure-v2-dashboard");
 expectPass(["dashboard", "--out-dir", dashboardDir, target]);
 const dashboardAliasDir = path.join(tmpRoot, "directory-structure-v2-dashboard-docs-alias");
 expectPass(["dashboard", "--out-dir", dashboardAliasDir, path.join(target, "docs")]);
-const dashboardStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8"));
-const dashboardDocuments = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/documents.json"), "utf8"));
+const dashboardStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8")) as StatusJson;
+const dashboardDocuments = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/documents.json"), "utf8")) as DashboardDocuments;
 assert(dashboardStatus.tasks.length === 1, "dashboard status should include v2-only task");
 assert(dashboardDocuments.documents.some((doc) => doc.path === `TARGET:coding-agent-harness/planning/tasks/${taskId}/walkthrough.md`), "dashboard documents should include task-local walkthrough");
 
@@ -204,8 +222,9 @@ fs.writeFileSync(
   `| id | task | walkthrough | status |\n| --- | --- | --- | --- |\n| HL-1 | coding-agent-harness/planning/tasks/${taskId}/task_plan.md | docs/10-WALKTHROUGH/legacy.md | closed |\n`,
 );
 fs.rmSync(path.join(taskDir, "walkthrough.md"), { force: true });
-const legacyCloseoutIgnored = expectJson(["status", "--json", target]);
+const legacyCloseoutIgnored = expectJson<StatusJson>(["status", "--json", target]);
 const legacyCloseoutTask = legacyCloseoutIgnored.tasks.find((task) => task.id === `TASKS/${taskId}`);
+assert(legacyCloseoutTask, "v2 status should include the fixture task after removing task-local walkthrough");
 assert(legacyCloseoutTask.walkthroughPath === "", "v2 status should not read legacy Closeout SSoT walkthrough paths");
 assert(legacyCloseoutTask.closeoutStatus !== "closed", "v2 status should not close tasks from legacy Closeout SSoT rows");
 
@@ -214,7 +233,8 @@ expectPass(["init", "--locale", "en-US", "--capabilities", "core", invalidContex
 fs.writeFileSync(path.join(invalidContextTarget, "coding-agent-harness/context/architecture/service-catalog.md"), "# Service Catalog\n\n| Service / Component |\n| --- |\n| api |\n");
 const invalidContextStatus = run(["status", "--json", invalidContextTarget]);
 assert(invalidContextStatus.status !== 0, "v2 status should fail when context docs violate the contract");
-const invalidContext = JSON.parse(invalidContextStatus.stdout);
+const invalidContext = JSON.parse(invalidContextStatus.stdout) as StatusJson;
+assert(invalidContext.checkState, "invalid context status should return checkState details");
 assert(
   invalidContext.checkState.details.failures.some((failure) => failure.includes("coding-agent-harness/context/architecture/service-catalog.md missing Context Doc Type")),
   "v2 context validation should scan manifest-resolved context roots",
@@ -225,7 +245,8 @@ expectPass(["init", "--locale", "en-US", "--capabilities", "core,module-parallel
 fs.rmSync(path.join(invalidCapabilityTarget, "coding-agent-harness/planning/modules/Module-Registry.md"), { force: true });
 const invalidCapabilityStatus = run(["status", "--json", invalidCapabilityTarget]);
 assert(invalidCapabilityStatus.status !== 0, "v2 status should fail when manifest-declared capability artifacts are missing");
-const invalidCapability = JSON.parse(invalidCapabilityStatus.stdout);
+const invalidCapability = JSON.parse(invalidCapabilityStatus.stdout) as StatusJson;
+assert(invalidCapability.checkState, "invalid capability status should return checkState details");
 assert(
   invalidCapability.checkState.details.failures.some((failure) => failure.includes("capability module-parallel missing required artifact: coding-agent-harness/planning/modules/Module-Registry.md")),
   "v2 capability validation should check manifest-declared artifacts against v2 paths",
@@ -268,14 +289,14 @@ fs.writeFileSync(path.join(customRootTarget, "custom-governance/regression/Regre
 fs.writeFileSync(path.join(customRootTarget, "custom-governance/regression/Cadence-Ledger.md"), "# Cadence Ledger\n");
 const customDashboardDir = path.join(tmpRoot, "directory-structure-v2-custom-dashboard");
 expectPass(["dashboard", "--out-dir", customDashboardDir, customRootTarget]);
-const customDocuments = JSON.parse(fs.readFileSync(path.join(customDashboardDir, "data/documents.json"), "utf8"));
-const customGraph = JSON.parse(fs.readFileSync(path.join(customDashboardDir, "data/graph.json"), "utf8"));
+const customDocuments = JSON.parse(fs.readFileSync(path.join(customDashboardDir, "data/documents.json"), "utf8")) as DashboardDocuments;
+const customGraph = JSON.parse(fs.readFileSync(path.join(customDashboardDir, "data/graph.json"), "utf8")) as DashboardGraph;
 assert(customDocuments.documents.some((doc) => doc.path === "TARGET:custom-modules/alpha/brief.md"), "dashboard should collect custom modulesRoot briefs");
 assert(customDocuments.documents.some((doc) => doc.path === "TARGET:custom-planning/generated/task-index.md"), "dashboard should collect custom planning generated indexes");
 assert(customDocuments.documents.some((doc) => doc.path === "TARGET:custom-governance/lessons/L-test.md"), "dashboard should collect custom governance lessons");
 const alphaModule = customGraph.nodes.find((node) => node.id === "module:alpha");
 assert(alphaModule?.briefPath === "TARGET:custom-modules/alpha/brief.md", "dashboard graph should expose custom module brief paths");
-const customRoots = dashboardWatchRoots(normalizeTarget(customRootTarget).harness).map((root) => path.relative(customRootTarget, root).split(path.sep).join("/"));
+const customRoots = dashboardWatchRoots(normalizeTarget(customRootTarget).harness as ResolvedHarnessPaths).map((root) => path.relative(customRootTarget, root).split(path.sep).join("/"));
 assert(customRoots.includes("custom-modules"), "dashboard watch roots should include manifest custom modulesRoot");
 assert(customRoots.includes("custom-generated"), "dashboard watch roots should include manifest custom generatedRoot");
 
@@ -308,10 +329,11 @@ fs.writeFileSync(path.join(customHarnessTaskDir, "task_plan.md"), "# Custom Harn
 fs.writeFileSync(path.join(customHarnessTaskDir, "progress.md"), "# Progress\n\n## Status\n\nplanned\n");
 fs.writeFileSync(path.join(customHarnessTaskDir, "visual_map.md"), "# Visual Map\n\nVisual Map Contract: v1.0\n\n| Phase ID | Kind | Depends On | State | Completion | Output | Required Evidence | Exit Command | Actor | Evidence Status | Blocking Risk | Owner / Handoff |\n| --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- |\n| CHR-01 | execution | none | planned | 0 | fixture | status | n/a | agent | present | none | coordinator |\n");
 fs.writeFileSync(path.join(customHarnessTaskDir, "walkthrough.md"), "# Walkthrough\n\nCustom harness root walkthrough.\n");
-const customHarnessRootStatus = expectJson(["status", "--json", customHarnessRootTarget]);
+const customHarnessRootStatus = expectJson<StatusJson>(["status", "--json", customHarnessRootTarget]);
 assert(customHarnessRootStatus.mode === "v2-manifest", "project root should auto-discover a unique custom harness root manifest");
 assert(customHarnessRootStatus.tasks[0].path === "TARGET:.project-control/harness-state/planning/tasks/custom-harness-root-task", "custom harness root status should keep paths relative to project root");
-const explicitCustomHarnessRootStatus = expectJson(["status", "--json", customHarnessRoot]);
+const explicitCustomHarnessRootStatus = expectJson<StatusJson>(["status", "--json", customHarnessRoot]);
+assert(explicitCustomHarnessRootStatus.project, "explicit custom harness root status should include project metadata");
 assert(explicitCustomHarnessRootStatus.project.root === "TARGET:.", "explicit custom harness-root target should resolve back to the project root");
 assert(explicitCustomHarnessRootStatus.tasks[0].path === "TARGET:.project-control/harness-state/planning/tasks/custom-harness-root-task", "explicit custom harness-root target should preserve project-root relative task paths");
 expectJson(["add-capability", "dashboard", customHarnessRootTarget]);
@@ -355,9 +377,9 @@ fs.writeFileSync(path.join(topHarnessRoot, "planning/tasks/top-task/progress.md"
 fs.writeFileSync(path.join(topHarnessRoot, "planning/tasks/top-task/visual_map.md"), "# Visual Map\n\nVisual Map Contract: v1.0\n\n| Phase ID | Kind | Depends On | State | Completion | Output | Required Evidence | Exit Command | Actor | Evidence Status | Blocking Risk | Owner / Handoff |\n| --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- |\n| NP-01 | execution | none | planned | 0 | fixture | status | n/a | agent | present | none | coordinator |\n");
 fs.writeFileSync(path.join(topHarnessRoot, "planning/tasks/top-task/walkthrough.md"), "# Walkthrough\n");
 fs.writeFileSync(path.join(childHarnessRoot, "planning/tasks/child-task/task_plan.md"), "# Child Task\n\nTask Contract: harness-task/v1\n");
-const nestedPriorityStatus = expectJson(["status", "--json", nestedHarnessPriorityTarget]);
+const nestedPriorityStatus = expectJson<StatusJson>(["status", "--json", nestedHarnessPriorityTarget]);
 assert(nestedPriorityStatus.tasks.some((task) => task.path === "TARGET:ops/harness/planning/tasks/top-task"), "project root discovery should prefer the shallowest harness manifest");
-assert(!nestedPriorityStatus.tasks.some((task) => task.path.includes("packages/child")), "project root discovery should not prefer a deeper child-project harness");
+assert(!nestedPriorityStatus.tasks.some((task) => String(task.path).includes("packages/child")), "project root discovery should not prefer a deeper child-project harness");
 
 const pathEscapeTarget = path.join(tmpRoot, "directory-structure-v2-path-escape");
 fs.mkdirSync(path.join(pathEscapeTarget, "coding-agent-harness"), { recursive: true });
