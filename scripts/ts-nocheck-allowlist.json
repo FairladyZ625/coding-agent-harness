@@ -11,20 +11,12 @@
     "scripts/run-built-tests.mts",
     "tests/dist-build-pipeline.mts",
     "tests/dist-observation-gates.mts",
-    "tests/hard-cutover-guards.mts",
-    "tests/import-graph-gate.mts",
-    "tests/lifecycle-queues.mts",
-    "tests/lifecycle/governance-sync.mts",
     "tests/lifecycle/lifecycle-queues.mts",
-    "tests/lifecycle/review-confirm-git-gate.mts",
-    "tests/lifecycle/task-index-audit-metadata.mts",
     "tests/lifecycle/task-lifecycle.mts",
     "tests/migration-adoption.mts",
     "tests/preset-engine.mts",
     "tests/release-closeout-preset.mts",
-    "tests/review-confirm-git-gate.mts",
     "tests/scripts/snapshot-matrix.mts",
-    "tests/task-lifecycle.mts",
     "tests/test-harness.mts"
   ]
 }

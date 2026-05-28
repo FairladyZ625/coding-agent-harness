@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncOptionsWithStringEncoding, SpawnSyncReturns } from "node:child_process";
 import {
   acceptNoLessonCandidate,
   assert,
@@ -16,11 +16,27 @@ import {
   todayLocal,
 } from "../helpers/harness-test-utils.mjs";
 
+type RunOptions = Omit<SpawnSyncOptionsWithStringEncoding, "cwd" | "encoding"> & {
+  env?: NodeJS.ProcessEnv;
+};
+type ReviewFixture = {
+  target: string;
+  taskId: string;
+  taskDir: string;
+  shortId: string;
+};
+type StatusResponse = {
+  tasks: Array<{ id?: string; reviewStatus?: string }>;
+};
+type ReviewConfirmPayload = {
+  audit: { commitSha: string; auditCommitSha?: string };
+};
+
 const gitEnv = {
   ...process.env,
 };
 
-function runHarness(args, options = {}) {
+function runHarness(args: string[], options: RunOptions = {}): SpawnSyncReturns<string> {
   return spawnSync(node, [cli, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -29,13 +45,13 @@ function runHarness(args, options = {}) {
   });
 }
 
-function expectHarnessJson(args, options = {}) {
+function expectHarnessJson<TPayload = unknown>(args: string[], options: RunOptions = {}): TPayload {
   const result = runHarness(args, options);
   assert(result.status === 0, `${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
-  return JSON.parse(result.stdout);
+  return JSON.parse(result.stdout) as TPayload;
 }
 
-function git(target, args, options = {}) {
+function git(target: string, args: string[], options: RunOptions = {}): SpawnSyncReturns<string> {
   return spawnSync("git", args, {
     cwd: target,
     encoding: "utf8",
@@ -44,13 +60,13 @@ function git(target, args, options = {}) {
   });
 }
 
-function expectGit(target, args, options = {}) {
+function expectGit(target: string, args: string[], options: RunOptions = {}): SpawnSyncReturns<string> {
   const result = git(target, args, options);
   assert(result.status === 0, `git ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;
 }
 
-function prepareReviewTarget(name) {
+function prepareReviewTarget(name: string): ReviewFixture {
   const target = path.join(tmpRoot, name);
   fs.mkdirSync(target);
   expectHarnessJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard", target]);
@@ -72,7 +88,7 @@ function prepareReviewTarget(name) {
   return { target, taskId, taskDir, shortId: `${todayLocal}-${name}` };
 }
 
-function reviewConfirm(fixture, options = {}) {
+function reviewConfirm(fixture: ReviewFixture, options: RunOptions & { message?: string } = {}): SpawnSyncReturns<string> {
   return runHarness([
     "review-confirm",
     fixture.shortId,
@@ -86,11 +102,11 @@ function reviewConfirm(fixture, options = {}) {
   ], options);
 }
 
-function readReview(fixture) {
+function readReview(fixture: ReviewFixture): string {
   return fs.readFileSync(path.join(fixture.taskDir, "review.md"), "utf8");
 }
 
-function readIndex(fixture) {
+function readIndex(fixture: ReviewFixture): string {
   return fs.readFileSync(path.join(fixture.taskDir, "INDEX.md"), "utf8");
 }
 
@@ -110,7 +126,7 @@ function readIndex(fixture) {
       .replace("| Audit Status | created |", "| Audit Status | committed |")
       .replace("| Message | n/a |", "| Message | forged committed block |"),
   );
-  const status = expectHarnessJson(["status", "--json", fixture.target]);
+  const status = expectHarnessJson<StatusResponse>(["status", "--json", fixture.target]);
   const task = status.tasks.find((candidate) => candidate.id === fixture.taskId);
   assert(task?.reviewStatus !== "confirmed", "status must reject forged committed review confirmation with fake SHA");
   const complete = runHarness(["task-complete", fixture.shortId, "--message", "done", fixture.target]);
@@ -122,7 +138,7 @@ function readIndex(fixture) {
   const fixture = prepareReviewTarget("git-gate-clean-success");
   const result = reviewConfirm(fixture);
   assert(result.status === 0, `clean review-confirm should pass\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
-  const payload = JSON.parse(result.stdout);
+  const payload = JSON.parse(result.stdout) as ReviewConfirmPayload;
   assert(/^[0-9a-f]{7,40}$/.test(payload.audit?.commitSha || ""), "review-confirm should return the confirmation commit SHA");
   assert(/^[0-9a-f]{7,40}$/.test(payload.audit?.auditCommitSha || ""), "review-confirm should return the audit finalization commit SHA");
   const index = readIndex(fixture);
@@ -137,12 +153,12 @@ function readIndex(fixture) {
   fs.writeFileSync(path.join(fixture.target, "README.md"), "unrelated change\n");
   const result = reviewConfirm(fixture);
   assert(result.status === 0, `review-confirm should ignore unrelated dirty files\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
-  const payload = JSON.parse(result.stdout);
+  const payload = JSON.parse(result.stdout) as ReviewConfirmPayload;
   const committedFiles = expectGit(fixture.target, ["show", "--name-only", "--format=", payload.audit.commitSha]).stdout.trim().split(/\r?\n/).filter(Boolean);
   assert(committedFiles.length === 1, `review-confirm should commit only INDEX.md, got ${committedFiles.join(", ")}`);
   assert(committedFiles[0] === `coding-agent-harness/planning/tasks/${fixture.shortId}/INDEX.md`, "review-confirm commit should not include unrelated dirty files");
   assert(git(fixture.target, ["status", "--porcelain"]).stdout.includes("README.md"), "unrelated dirty file should remain dirty after review-confirm");
-  const status = expectHarnessJson(["status", "--json", fixture.target]);
+  const status = expectHarnessJson<StatusResponse>(["status", "--json", fixture.target]);
   const task = status.tasks.find((candidate) => candidate.id === fixture.taskId);
   assert(task?.reviewStatus === "confirmed", "unrelated dirty state should not keep the task in review after confirmation");
 }

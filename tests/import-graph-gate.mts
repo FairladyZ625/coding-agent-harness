@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import os from "node:os";
@@ -7,20 +6,49 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const { buildImportGraph, checkImportGraph } = await import(pathToFileURL(path.join(repoRoot, "dist/check-import-graph.mjs")));
+type ImportGraphNode = {
+  path: string;
+  reachableFromBin?: boolean;
+  reachableFromHarnessCore?: boolean;
+  barrelReachable?: boolean;
+  layer: number;
+};
+type ImportGraph = {
+  summary: {
+    fileCount: number;
+    localEdgeCount: number;
+    unresolvedLocalEdges: number;
+    cycleNodes: number;
+    runtimeMjsToTsEdges: number;
+    typesValueImports: number;
+  };
+  nodes: ImportGraphNode[];
+};
+type ImportGraphViolation = { code: string; message: string };
+type ImportGraphCheck = {
+  ok: boolean;
+  violations: ImportGraphViolation[];
+};
+type ImportGraphApi = {
+  buildImportGraph(options: { repoRoot: string }): ImportGraph;
+  checkImportGraph(options: { repoRoot: string; expectNodes?: number; expectEdges?: number }): ImportGraphCheck;
+};
+const { buildImportGraph, checkImportGraph } = await import(pathToFileURL(path.join(repoRoot, "dist/check-import-graph.mjs")).href) as ImportGraphApi;
 
-function assert(condition, message) {
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-function writeFixture(root, relativePath, content) {
+function writeFixture(root: string, relativePath: string, content: string): void {
   const absolutePath = path.join(root, relativePath);
   fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
   fs.writeFileSync(absolutePath, content);
 }
 
-function nodeByPath(graph, relativePath) {
-  return graph.nodes.find((node) => node.path === relativePath);
+function nodeByPath(graph: ImportGraph, relativePath: string): ImportGraphNode {
+  const node = graph.nodes.find((candidate) => candidate.path === relativePath);
+  assert(node, `missing graph node ${relativePath}`);
+  return node;
 }
 
 const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-import-graph-"));

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncReturns } from "node:child_process";
 import {
   assert,
   expectJson,
@@ -19,6 +19,20 @@ import {
   releaseGovernanceSync,
 } from "../../scripts/lib/governance-sync.mjs";
 
+type GovernanceCommit = { committed?: boolean };
+type HarnessTask = { id: string; shortId?: string; path?: string };
+type NewTaskResponse = {
+  task: HarnessTask;
+  governance?: { commit?: GovernanceCommit };
+};
+type StatusResponse = {
+  git?: { dirty?: boolean; blocksCliAutoCommit?: boolean };
+  checkState: { details: { warnings: string[] } };
+};
+type LessonPromoteResponse = {
+  governance?: { commit?: GovernanceCommit };
+};
+
 const target = path.join(tmpRoot, "governance-sync-target");
 fs.mkdirSync(target);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core,module-parallel", target]);
@@ -28,7 +42,7 @@ git(target, ["config", "user.email", "harness-test@example.invalid"]);
 git(target, ["add", "."]);
 git(target, ["commit", "-m", "test fixture baseline"]);
 
-const created = expectJson(["new-task", "governance-owned", "--title", "Governance Owned", "--locale", "en-US", "--module", "sync", target]);
+const created = expectJson<NewTaskResponse>(["new-task", "governance-owned", "--title", "Governance Owned", "--locale", "en-US", "--module", "sync", target]);
 assert(created.governance?.commit?.committed === true, "new-task should auto-commit governance sync in git targets");
 assert(git(target, ["status", "--short"]).stdout.trim() === "", "new-task governance sync should leave git clean");
 assert(git(target, ["log", "-1", "--format=%s"]).stdout.trim() === `chore(harness): register task ${created.task.id}`, "new-task commit subject should identify registered task");
@@ -48,13 +62,13 @@ assert(fs.readFileSync(modulePlanPath, "utf8").includes(ownedTaskPlan), "new-tas
 assert(fs.readFileSync(moduleVisualPath, "utf8").includes(ownedTaskPlan), "new-task --module should regenerate module visual map index");
 
 fs.writeFileSync(path.join(target, "UNRELATED.txt"), "dirty\n");
-const dirtyResult = expectJson(["new-task", "dirty-allowed", "--title", "Dirty Allowed", target]);
+const dirtyResult = expectJson<NewTaskResponse>(["new-task", "dirty-allowed", "--title", "Dirty Allowed", target]);
 assert(dirtyResult.governance?.commit?.committed === true, "new-task should commit CLI-owned paths even when unrelated dirty files exist");
 const dirtyAllowedStatus = git(target, ["status", "--short"]).stdout.trim().split(/\r?\n/).filter(Boolean);
 assert(dirtyAllowedStatus.length === 1 && dirtyAllowedStatus[0] === "?? UNRELATED.txt", `new-task should leave unrelated dirty state untouched, got ${dirtyAllowedStatus.join(", ")}`);
 const dirtyAllowedCommittedPaths = git(target, ["show", "--name-only", "--format=", "HEAD"]).stdout.trim().split(/\r?\n/).filter(Boolean);
 assert(dirtyAllowedCommittedPaths.every((file) => file.startsWith("coding-agent-harness/") || file.startsWith(".harness/")), "new-task scoped commit should not include unrelated dirty files");
-const dirtyStatus = expectJson(["status", "--json", target]);
+const dirtyStatus = expectJson<StatusResponse>(["status", "--json", target]);
 assert(dirtyStatus.git?.dirty === true, "status should expose dirty git state");
 assert(dirtyStatus.git?.blocksCliAutoCommit === true, "dirty status should conservatively report that generic CLI auto-commit is blocked");
 assert(
@@ -100,7 +114,7 @@ try {
   fs.writeFileSync(path.join(sideEffectTarget, "SIDE_EFFECT.txt"), "unexpected\n");
   commitGovernanceSync(sideEffectContext, [sideEffectAllowed], { message: "side effect fixture" });
 } catch (error) {
-  sideEffectRejected = String(error.message).includes("outside its write scope");
+  sideEffectRejected = errorMessage(error).includes("outside its write scope");
 } finally {
   releaseGovernanceSync(sideEffectContext);
 }
@@ -128,7 +142,7 @@ try {
   fs.writeFileSync(path.join(dirtyMutationTarget, "UNRELATED.txt"), "mutated dirty\n");
   commitGovernanceSync(dirtyMutationContext, [dirtyMutationAllowed], { message: "dirty mutation fixture" });
 } catch (error) {
-  dirtyMutationRejected = String(error.message).includes("outside its write scope");
+  dirtyMutationRejected = errorMessage(error).includes("outside its write scope");
 } finally {
   releaseGovernanceSync(dirtyMutationContext);
 }
@@ -151,7 +165,7 @@ const hookContext = beginGovernanceSync(normalizeTarget(hookSideEffectTarget), {
   allowDirtyWorktree: true,
   allowedRelativePaths: [hookAllowed],
 });
-let hookSideEffectCommit;
+let hookSideEffectCommit: GovernanceCommit | undefined;
 try {
   fs.mkdirSync(path.dirname(path.join(hookSideEffectTarget, hookAllowed)), { recursive: true });
   fs.writeFileSync(path.join(hookSideEffectTarget, hookAllowed), "# Direct Hook Side Effect\n");
@@ -184,7 +198,7 @@ const preCommitContext = beginGovernanceSync(normalizeTarget(preCommitStageTarge
   allowDirtyWorktree: true,
   allowedRelativePaths: [preCommitAllowed],
 });
-let preCommitResult;
+let preCommitResult: GovernanceCommit | undefined;
 try {
   fs.mkdirSync(path.dirname(path.join(preCommitStageTarget, preCommitAllowed)), { recursive: true });
   fs.writeFileSync(path.join(preCommitStageTarget, preCommitAllowed), "# Direct Pre Commit Stage\n");
@@ -207,7 +221,7 @@ assert(lockResult.stderr.includes("lock already exists"), "lock refusal should e
 fs.rmSync(path.join(lockDir, "governance-sync.lock"));
 
 fs.writeFileSync(path.join(lockDir, "governance-sync.lock"), JSON.stringify({ pid: 99999999, operation: "stale-test", host: currentHost() }, null, 2));
-const staleLockCreated = expectJson(["new-task", "stale-lock-cleaned", "--title", "Stale Lock Cleaned", "--locale", "en-US", target]);
+const staleLockCreated = expectJson<NewTaskResponse>(["new-task", "stale-lock-cleaned", "--title", "Stale Lock Cleaned", "--locale", "en-US", target]);
 assert(staleLockCreated.governance?.commit?.committed === true, "dead-pid governance lock should be cleaned and allow sync to begin");
 assert(!fs.existsSync(path.join(lockDir, "governance-sync.lock")), "dead-pid governance lock should be removed after successful sync release");
 assert(git(target, ["status", "--short"]).stdout.trim() === "", "dead-pid lock retry should leave git clean");
@@ -228,12 +242,12 @@ assert(liveLockResult.stderr.includes("lock already exists"), "live lock refusal
 assert(fs.readFileSync(liveLockPath, "utf8") === liveLockContent, "governance sync must not remove a live lock");
 fs.rmSync(liveLockPath);
 
-const lessonTask = expectJson(["new-task", "governance-lesson", "--title", "Governance Lesson", "--locale", "en-US", target]);
+const lessonTask = expectJson<NewTaskResponse>(["new-task", "governance-lesson", "--title", "Governance Lesson", "--locale", "en-US", target]);
 const lessonCandidatePath = path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-governance-lesson/lesson_candidates.md`);
 writePromotableCandidate(lessonCandidatePath, "LC-20260521-002", "Promotion commit must be automatic");
 git(target, ["add", lessonCandidatePath]);
 git(target, ["commit", "-m", "test fixture: queue lesson promotion"]);
-const promoted = expectJson(["lesson-promote", "governance-lesson", "LC-20260521-002", "--apply", target]);
+const promoted = expectJson<LessonPromoteResponse>(["lesson-promote", "governance-lesson", "LC-20260521-002", "--apply", target]);
 assert(promoted.governance?.commit?.committed === true, "lesson-promote --apply should auto-commit governance writes");
 assert(git(target, ["status", "--short"]).stdout.trim() === "", "lesson-promote --apply should leave git clean");
 assert(
@@ -249,7 +263,7 @@ assert(
   "lesson-promote commit should only include the detail doc and source candidate file",
 );
 
-const dirtyLessonTask = expectJson(["new-task", "dirty-lesson", "--title", "Dirty Lesson", "--locale", "en-US", target]);
+const dirtyLessonTask = expectJson<NewTaskResponse>(["new-task", "dirty-lesson", "--title", "Dirty Lesson", "--locale", "en-US", target]);
 const dirtyLessonCandidatePath = path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-dirty-lesson/lesson_candidates.md`);
 writePromotableCandidate(dirtyLessonCandidatePath, "LC-20260521-003", "Dirty promotion must be refused");
 git(target, ["add", dirtyLessonCandidatePath]);
@@ -262,17 +276,17 @@ fs.rmSync(path.join(target, "UNRELATED.txt"));
 
 console.log("Governance sync tests passed");
 
-function git(cwd, args) {
+function git(cwd: string, args: string[]): SpawnSyncReturns<string> {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   assert(result.status === 0, `git ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;
 }
 
-function currentHost() {
+function currentHost(): string {
   return process.env.HOSTNAME || os.hostname() || "";
 }
 
-function writePromotableCandidate(candidatePath, candidateId, title) {
+function writePromotableCandidate(candidatePath: string, candidateId: string, title: string): void {
   fs.writeFileSync(
     candidatePath,
     fs.readFileSync(candidatePath, "utf8")
@@ -285,4 +299,8 @@ function writePromotableCandidate(candidatePath, candidateId, title) {
         `| --- | --- | --- | --- | --- | --- |\n| ${candidateId} | needs-promotion | ${title} | Agents forget proactive commits when contracts are implicit | accepted-for-promotion | references/execution-workflow-standard.md |`,
       ),
   );
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
