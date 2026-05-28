@@ -15,6 +15,7 @@ type DashboardWriterOptions = {
   locale?: string;
   workbenchRuntime?: boolean;
   recoverGeneratedDashboard?: boolean;
+  replaceExistingDashboardOutput?: boolean;
   repoRoot?: string;
   projectRoot?: string;
   docsRoot?: string;
@@ -174,7 +175,8 @@ function assertSafeDashboardTarget(target: string, options: DashboardWriterOptio
     const entries = fs.readdirSync(target);
     const hasMarker = fs.existsSync(path.join(target, dashboardMarker));
     const canRecoverGeneratedDashboard = options.recoverGeneratedDashboard === true && looksLikeGeneratedDashboardDirectory(target);
-    if (entries.length > 0 && !hasMarker && !canRecoverGeneratedDashboard) {
+    const canReplaceExistingOutput = options.replaceExistingDashboardOutput === true;
+    if (entries.length > 0 && !hasMarker && !canRecoverGeneratedDashboard && !canReplaceExistingOutput) {
       throw new Error(`Refusing to overwrite non-dashboard directory: ${target}`);
     }
   }

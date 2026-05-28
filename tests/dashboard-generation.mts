@@ -304,6 +304,13 @@ writePartialGeneratedDashboardDirectory(devRecoveryOutDir);
 await expectDevStarts(["dev", "--no-open", "--port", "0", devRecoveryTarget]);
 assert(fs.existsSync(path.join(devRecoveryOutDir, ".harness-dashboard")), "harness dev should recover interrupted generated dashboard temp dirs by README signature");
 
+fs.rmSync(devRecoveryOutDir, { recursive: true, force: true });
+fs.mkdirSync(devRecoveryOutDir, { recursive: true });
+fs.writeFileSync(path.join(devRecoveryOutDir, "junk.txt"), "stale interrupted temp output\n");
+await expectDevStarts(["dev", "--no-open", "--port", "0", devRecoveryTarget]);
+assert(fs.existsSync(path.join(devRecoveryOutDir, ".harness-dashboard")), "harness dev should clear non-dashboard default temp dirs before regenerating");
+assert(!fs.existsSync(path.join(devRecoveryOutDir, "junk.txt")), "harness dev should not preserve stale junk files in the default temp dir");
+
 const explicitStaleOutDir = path.join(tmpRoot, "explicit-stale-dashboard");
 writeStaleDashboardLikeDirectory(explicitStaleOutDir);
 const explicitStaleDev = run(["dev", "--no-open", "--out-dir", explicitStaleOutDir, devRecoveryTarget], { timeout: 4000 });
