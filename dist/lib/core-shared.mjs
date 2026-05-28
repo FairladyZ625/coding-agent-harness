@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -196,7 +195,7 @@ export function nowTimestamp() {
 export function normalizeTaskId(value) {
     return slug(value || "task");
 }
-export function renderTaskTemplate(content, { taskId, title, locale, budget = "standard", moduleKey = "", preset = "none", presetVersion = "", evidenceBundle = "", longRunning = false, scaffoldProvenance = {}, taskAudit = {} }) {
+export function renderTaskTemplate(content, { taskId, title, locale, budget = "standard", moduleKey = "", preset = "none", presetVersion = "", evidenceBundle = "", longRunning = false, scaffoldProvenance = {}, taskAudit = {}, }) {
     const date = todayDate();
     const provenance = {
         createdBy: scaffoldProvenance.createdBy || "harness new-task",

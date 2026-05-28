@@ -1,7 +1,24 @@
-// @ts-nocheck
 import { sanitizeText, slug } from "./core-shared.mjs";
 
-export function markdownTableRows(content) {
+type MarkdownCells = Record<string, string>;
+type MarkdownTableRow = {
+  id: string;
+  cells: MarkdownCells;
+};
+type MarkdownTable = {
+  id: string;
+  kind: string;
+  source: string;
+  line: number;
+  columns: string[];
+  rows: MarkdownTableRow[];
+};
+type TableUpdateResult = {
+  content: string;
+  matched: boolean;
+};
+
+export function markdownTableRows(content: string): string[][] {
   return content
     .split(/\r?\n/)
     .filter((line) => line.trim().startsWith("|"))
@@ -9,7 +26,7 @@ export function markdownTableRows(content) {
 }
 
 
-export function parseAllMarkdownTables(content, source, kindPrefix) {
+export function parseAllMarkdownTables(content: string, source: string, kindPrefix: string): MarkdownTable[] {
   const lines = content.split(/\r?\n/);
   const tables = [];
   let index = 0;
@@ -20,7 +37,7 @@ export function parseAllMarkdownTables(content, source, kindPrefix) {
       continue;
     }
     const start = index;
-    const block = [];
+    const block: string[] = [];
     while (index < lines.length && lines[index].trim().startsWith("|")) {
       block.push(lines[index]);
       index += 1;
@@ -47,11 +64,11 @@ export function parseAllMarkdownTables(content, source, kindPrefix) {
   return tables;
 }
 
-export function splitMarkdownRow(line) {
+export function splitMarkdownRow(line: string): string[] {
   let text = String(line || "").trim();
   if (text.startsWith("|")) text = text.slice(1);
   if (text.endsWith("|") && !text.endsWith("\\|")) text = text.slice(0, -1);
-  const cells = [];
+  const cells: string[] = [];
   let current = "";
   let inCode = false;
   for (let index = 0; index < text.length; index += 1) {
@@ -73,12 +90,12 @@ export function splitMarkdownRow(line) {
   return cells;
 }
 
-export function tableAfterHeading(content, headerPattern) {
+export function tableAfterHeading(content: string, headerPattern: RegExp): { header: string[]; rows: string[][] } {
   const rows = markdownTableRows(content);
   const headerIndex = rows.findIndex((cells) => cells.some((cell) => headerPattern.test(cell)));
   if (headerIndex < 0) return { header: [], rows: [] };
   const header = rows[headerIndex];
-  const body = [];
+  const body: string[][] = [];
   for (const row of rows.slice(headerIndex + 1)) {
     if (row.every((cell) => /^:?-{3,}:?$/.test(cell))) continue;
     if (row.length !== header.length) break;
@@ -87,26 +104,26 @@ export function tableAfterHeading(content, headerPattern) {
   return { header, rows: body };
 }
 
-export function getColumn(header, name) {
+export function getColumn(header: string[], name: string): number {
   return header.findIndex((cell) => cell.toLowerCase() === name.toLowerCase());
 }
 
-export function getColumnAny(header, names) {
+export function getColumnAny(header: string[], names: string[]): number {
   return header.findIndex((cell) => names.some((name) => cell.toLowerCase() === name.toLowerCase()));
 }
 
-export function contentHasAny(content, terms) {
+export function contentHasAny(content: string, terms: Array<string | RegExp>): boolean {
   return terms.some((term) => (term instanceof RegExp ? term.test(content) : content.includes(term)));
 }
 
-export function getCell(cells, names, fallback = "") {
+export function getCell(cells: MarkdownCells, names: string[], fallback = ""): string {
   for (const name of names) {
     if (cells[name] !== undefined) return cells[name];
   }
   return fallback;
 }
 
-export function splitList(value) {
+export function splitList(value: unknown): string[] {
   return String(value || "")
     .split(/[,+;]/)
     .map((item) => item.trim())
@@ -114,7 +131,7 @@ export function splitList(value) {
     .filter((item) => item.toLowerCase() !== "none");
 }
 
-export function splitDependencies(value) {
+export function splitDependencies(value: unknown): string[] {
   return String(value || "")
     .split(/\s*(?:,|;|\+|&|\/|\band\b|\bAND\b)\s*/)
     .map((item) => item.trim())
@@ -123,7 +140,7 @@ export function splitDependencies(value) {
     .filter((item) => !/^same\b/i.test(item));
 }
 
-export function firstColumn(header, names) {
+export function firstColumn(header: string[], names: string[]): number {
   for (const name of names) {
     const index = getColumn(header, name);
     if (index >= 0) return index;
@@ -131,7 +148,7 @@ export function firstColumn(header, names) {
   return -1;
 }
 
-export function updateMarkdownTableRow(content, headerPattern, updater) {
+export function updateMarkdownTableRow(content: string, headerPattern: RegExp, updater: (header: string[], row: string[]) => string[] | null): TableUpdateResult {
   const lines = content.split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
     if (!lines[index].trim().startsWith("|")) continue;
@@ -158,13 +175,13 @@ export function updateMarkdownTableRow(content, headerPattern, updater) {
   return { content, matched: false };
 }
 
-export function upsertMarkdownTableRow(content, headerPattern, matcher, row) {
+export function upsertMarkdownTableRow(content: string, headerPattern: RegExp, matcher: (header: string[], row: string[]) => boolean, row: unknown[]): string {
   const updated = updateMarkdownTableRow(content, headerPattern, (header, existing) => (matcher(header, existing) ? fitMarkdownTableRow(row, header.length) : null));
   if (updated.matched) return updated.content;
   return appendMarkdownTableRow(content, headerPattern, row);
 }
 
-export function appendMarkdownTableRow(content, headerPattern, row) {
+export function appendMarkdownTableRow(content: string, headerPattern: RegExp, row: unknown[]): string {
   const lines = String(content || "").split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
     if (!lines[index].trim().startsWith("|")) continue;
@@ -178,13 +195,13 @@ export function appendMarkdownTableRow(content, headerPattern, row) {
   return `${String(content || "").trimEnd()}\n\n| ${row.map(markdownTableCell).join(" | ")} |\n`;
 }
 
-export function fitMarkdownTableRow(row, length) {
+export function fitMarkdownTableRow(row: unknown[], length: number): string[] {
   const next = row.map(markdownTableCell);
   while (next.length < length) next.push("");
   return next.slice(0, length);
 }
 
-function markdownTableCell(value) {
+function markdownTableCell(value: unknown): string {
   return String(value || "")
     .replace(/\r?\n/g, " ")
     .replaceAll("|", "\\|")
