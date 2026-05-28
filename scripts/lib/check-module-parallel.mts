@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Module-parallel private harness checks stay behavior-first until legacy module context types are modeled.
 
 import fs from "node:fs";
@@ -15,11 +14,29 @@ const moduleRegistryPath = legacyPath(legacyPlanningRoot, "Module-Registry.md");
 const legacyModulesPath = legacyPath(legacyModuleRoot);
 const legacyLedgerPath = legacyPath(legacyLedgerFile);
 
-function stripMarkdownCode(value) {
+type ModuleParallelContext = {
+  targetRoot: string;
+  rel: (value: string) => string;
+  filePath: (value: string) => string;
+  exists: (relativePath: string) => boolean;
+  read: (relativePath: string) => string;
+  fail: (message: string) => void;
+  warn: (message: string) => void;
+  requireFile: (relativePath: string) => void;
+  markdownTable: (content: string) => string[][];
+  requireGlobalModuleSync?: boolean;
+};
+
+type ModuleTaskPath = {
+  moduleKey: string;
+  taskDir: string;
+};
+
+function stripMarkdownCode(value: unknown): string {
   return String(value || "").replace(/`/g, "").trim();
 }
 
-function modulePromptBlock(content, key) {
+function modulePromptBlock(content: string, key: string): string {
   const heading = `## Module: ${key}`;
   const start = content.indexOf(heading);
   if (start < 0) return "";
@@ -28,7 +45,7 @@ function modulePromptBlock(content, key) {
   return next >= 0 ? rest.slice(0, next) : rest;
 }
 
-function listModuleTaskPlans({ targetRoot, rel, filePath }) {
+function listModuleTaskPlans({ targetRoot, rel, filePath }: ModuleParallelContext): string[] {
   const modulesRoot = filePath(legacyModulesPath);
   if (!fs.existsSync(modulesRoot)) return [];
   return walkFiles(modulesRoot, {
@@ -41,13 +58,13 @@ function listModuleTaskPlans({ targetRoot, rel, filePath }) {
     .filter((relativePath) => /\/TASKS\/[^/]+\/task_plan\.md$/.test(relativePath));
 }
 
-function parseModuleTaskPath(taskPlanPath) {
+function parseModuleTaskPath(taskPlanPath: string): ModuleTaskPath | null {
   const match = taskPlanPath.match(new RegExp(`^${escapeRegExp(legacyModulesPath)}/([^/]+)/TASKS/([^/]+)/task_plan\\.md$`));
   if (!match) return null;
   return { moduleKey: match[1], taskDir: match[2] };
 }
 
-function extractStepId(taskPlanContent, taskDir) {
+function extractStepId(taskPlanContent: string, taskDir: string): string {
   const fromPlan = taskPlanContent.match(/^- Step ID:\s*`?([A-Z]{2,5}-\d{2})`?/m);
   if (fromPlan) return fromPlan[1];
   const fromModuleSection = taskPlanContent.match(/^- Step:\s*`?([A-Z]{2,5}-\d{2})`?/m);
@@ -56,12 +73,12 @@ function extractStepId(taskPlanContent, taskDir) {
   return fromDir ? fromDir[1] : "";
 }
 
-function readTaskProgress(taskPlanPath, { exists, read }) {
+function readTaskProgress(taskPlanPath: string, { exists, read }: ModuleParallelContext): string {
   const progressPath = taskPlanPath.replace(/task_plan\.md$/, "progress.md");
   return exists(progressPath) ? read(progressPath) : "";
 }
 
-function normalizeModuleTaskStatus(status) {
+function normalizeModuleTaskStatus(status: unknown): string {
   const value = String(status || "").trim().toLowerCase();
   const aliases = new Map([
     ["未开始", "not-started"],
@@ -79,14 +96,14 @@ function normalizeModuleTaskStatus(status) {
   return aliases.get(value) || value;
 }
 
-function readTaskProgressStatus(taskPlanPath, context) {
+function readTaskProgressStatus(taskPlanPath: string, context: ModuleParallelContext): string {
   const progress = readTaskProgress(taskPlanPath, context);
   if (!progress) return "";
   const match = progress.match(/^##\s*(?:Status|状态)\s*[:：]?\s*(?:\n\s*)?([^\n]+)/im);
   return match ? normalizeModuleTaskStatus(stripMarkdownCode(match[1])) : "";
 }
 
-function isActiveModuleTaskStatus(status) {
+function isActiveModuleTaskStatus(status: string): boolean {
   if (!status) return false;
   return !new Set([
     "not-started",
@@ -100,12 +117,12 @@ function isActiveModuleTaskStatus(status) {
   ]).has(status);
 }
 
-function hasPendingCoordinatorHandoff(taskPlanContent, progressContent) {
+function hasPendingCoordinatorHandoff(taskPlanContent: string, progressContent: string): boolean {
   const combined = `${taskPlanContent}\n${progressContent}`;
   return /Coordinator Handoff/i.test(combined) && /pending-coordinator-pass/i.test(combined);
 }
 
-function checkModuleTaskSsotIndex(registryRows, context) {
+function checkModuleTaskSsotIndex(registryRows: string[][], context: ModuleParallelContext): void {
   const { exists, read, fail, warn, requireGlobalModuleSync } = context;
   const registryByModule = new Map(registryRows.map((cells) => [cells[0], cells]));
   const ledgerContent = exists(legacyLedgerPath) ? read(legacyLedgerPath) : "";
@@ -167,7 +184,7 @@ function checkModuleTaskSsotIndex(registryRows, context) {
   }
 }
 
-export function checkModuleParallelStructure(context) {
+export function checkModuleParallelStructure(context: ModuleParallelContext): void {
   const { exists, read, fail, requireFile, markdownTable } = context;
   if (!exists(moduleRegistryPath)) return;
 
@@ -242,6 +259,6 @@ export function checkModuleParallelStructure(context) {
   checkModuleTaskSsotIndex(registryRows, context);
 }
 
-function escapeRegExp(value) {
+function escapeRegExp(value: unknown): string {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
