@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncReturns } from "node:child_process";
 import { parseReviewConfirmation } from "../../scripts/lib/task-review-model.mjs";
+import type { HarnessTestLooseJson } from "../helpers/harness-test-types.js";
 import {
   acceptNoLessonCandidate,
   assert,
@@ -167,7 +168,7 @@ fs.writeFileSync(
 );
 let looseConfirmStatusResult = run(["status", "--json", target]);
 assert(looseConfirmStatusResult.status !== 0, "legacy Human Review Confirmation should fail hard cutover status");
-let looseConfirmStatus = JSON.parse(looseConfirmStatusResult.stdout);
+let looseConfirmStatus = JSON.parse(looseConfirmStatusResult.stdout) as HarnessTestLooseJson;
 let looseConfirmTask = looseConfirmStatus.tasks.find((task) => task.id === taskId);
 assert(looseConfirmTask.reviewStatus !== "confirmed", "heading-only Human Review Confirmation must not count as confirmed");
 assert(looseConfirmTask.materialIssues.some((issue) => issue.code === "legacy-human-review-confirmation"), "legacy Human Review Confirmation should be reported as a migration action");
@@ -193,7 +194,7 @@ fs.writeFileSync(
 );
 let mismatchedConfirmStatusResult = run(["status", "--json", target]);
 assert(mismatchedConfirmStatusResult.status !== 0, "legacy Human Review Confirmation with mismatched data should fail hard cutover status");
-let mismatchedConfirmStatus = JSON.parse(mismatchedConfirmStatusResult.stdout);
+let mismatchedConfirmStatus = JSON.parse(mismatchedConfirmStatusResult.stdout) as HarnessTestLooseJson;
 let mismatchedConfirmTask = mismatchedConfirmStatus.tasks.find((task) => task.id === taskId);
 assert(mismatchedConfirmTask.reviewStatus !== "confirmed", "Human Review Confirmation with another Task Key must not count as confirmed");
 assert(mismatchedConfirmTask.materialIssues.some((issue) => issue.code === "legacy-human-review-confirmation"), "legacy Human Review Confirmation mismatch should route to migration");
@@ -212,7 +213,7 @@ fs.writeFileSync(
 );
 const blockedStatusResult = run(["status", "--json", target]);
 assert(blockedStatusResult.stdout.trim().startsWith("{"), "blocked status should still emit JSON");
-const blockedStatus = JSON.parse(blockedStatusResult.stdout);
+const blockedStatus = JSON.parse(blockedStatusResult.stdout) as HarnessTestLooseJson;
 const blockedTask = blockedStatus.tasks.find((task) => task.id === taskId);
 assert(blockedTask.taskQueues.includes("blocked"), "Chinese open/blocking finding should enter blocked queue");
 const blockedConfirm = run(["review-confirm", taskId, "--reviewer", "Human Reviewer", "--confirm", `${todayLocal}-queue-ready`, target]);
@@ -457,18 +458,18 @@ assert(duplicateIndex.status !== 0, "task-index should reject duplicate explicit
 assert(duplicateIndex.stderr.includes("Duplicate task key"), "duplicate task key failure should explain collision");
 console.log("Lifecycle queue tests passed");
 
-function replaceHumanConfirmationSection(content, replacement) {
+function replaceHumanConfirmationSection(content: string, replacement: string): string {
   const source = String(content || "").trimEnd();
   const pattern = /^##\s*(?:Human Review Confirmation|人工审查确认)\s*$[\s\S]*?(?=^##\s+|(?![\s\S]))/im;
   if (pattern.test(source)) return `${source.replace(pattern, replacement.trimEnd())}\n`;
   return `${source}\n\n${replacement.trimEnd()}\n`;
 }
 
-function taskDirectory(result) {
+function taskDirectory(result: HarnessTestLooseJson): string {
   return path.join(target, result.task.path.replace(/^TARGET:/, ""));
 }
 
-function commitFixtureBaseline(targetRoot, message) {
+function commitFixtureBaseline(targetRoot: string, message: string): void {
   if (!fs.existsSync(path.join(targetRoot, ".git"))) {
     expectFixtureGit(targetRoot, ["init"]);
     expectFixtureGit(targetRoot, ["config", "user.name", "Harness Test"]);
@@ -480,7 +481,7 @@ function commitFixtureBaseline(targetRoot, message) {
   expectFixtureGit(targetRoot, ["commit", "-m", `test fixture baseline: ${message}`]);
 }
 
-function expectFixtureGit(targetRoot, args) {
+function expectFixtureGit(targetRoot: string, args: string[]): SpawnSyncReturns<string> {
   const result = spawnSync("git", args, { cwd: targetRoot, encoding: "utf8" });
   assert(result.status === 0, `git ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;

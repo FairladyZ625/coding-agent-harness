@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import type { SpawnSyncReturns } from "node:child_process";
+import type { HarnessTestLooseJson, HarnessTestLoosePhase } from "../helpers/harness-test-types.js";
 import {
   acceptNoLessonCandidate,
   assert,
@@ -289,7 +290,11 @@ const legacyPresetAudit = JSON.parse(fs.readFileSync(path.join(lifecycleTarget, 
 assert(legacyPresetAudit.manifestPath.endsWith(".coding-agent-harness/presets/legacy-migration/preset.yaml"), "preset audit should record the seeded project manifest path");
 assert(legacyPresetAudit.entrypoints.newTask.type === "template", "preset audit should record audited newTask entrypoint");
 assert(legacyPresetAudit.writeScopes.length > 0, "preset audit should record allowed write scopes");
-const legacyMigrationLedger = JSON.parse(fs.readFileSync(path.join(lifecycleTarget, legacyPresetTask.task.evidenceBundle, "migration-ledger.json"), "utf8"));
+const legacyMigrationLedger = JSON.parse(fs.readFileSync(path.join(lifecycleTarget, legacyPresetTask.task.evidenceBundle, "migration-ledger.json"), "utf8")) as {
+  phases: Array<{ automationAllowed?: boolean; evidenceLedgerRequired?: boolean; id: string }>;
+  staticDashboardRole: string;
+  workbenchRole: string;
+};
 assert(legacyMigrationLedger.phases.some((phase) => phase.id === "mechanical-scaffold" && phase.automationAllowed === true), "migration ledger should allow mechanical scaffold automation");
 assert(legacyMigrationLedger.phases.some((phase) => phase.id === "semantic-reconstruction" && phase.evidenceLedgerRequired === true && phase.automationAllowed === false), "migration ledger should block scaffold-only semantic reconstruction");
 assert(legacyMigrationLedger.workbenchRole === "human-confirmation-control-plane", "migration ledger should mark workbench as human confirmation control plane");
@@ -707,7 +712,15 @@ try {
   });
   const bulkLessonText = await bulkLessonResponse.text();
   assert(bulkLessonResponse.status === 200, `bulk lesson sedimentation should create an aggregate follow-up task, got ${bulkLessonResponse.status}: ${bulkLessonText}`);
-  const bulkLessonPayload = JSON.parse(bulkLessonText);
+  const bulkLessonPayload = JSON.parse(bulkLessonText) as {
+    candidates: number;
+    created: number;
+    failed: number;
+    followUpTask: { id: string; path: string };
+    governance?: { commit?: { commitSha?: string } };
+    prompt: string;
+    results: Array<{ followUpTask?: { id?: string }; ok: boolean }>;
+  };
   assert(bulkLessonPayload.created === 1, "bulk lesson sedimentation should create one aggregate follow-up task");
   assert(bulkLessonPayload.candidates === 2, "bulk lesson sedimentation should count aggregated candidates");
   assert(bulkLessonPayload.failed === 0, "bulk lesson sedimentation should not fail valid selected candidates");
@@ -779,7 +792,11 @@ try {
   });
   const bulkReviewText = await bulkReviewResponse.text();
   assert(bulkReviewResponse.status === 200, `bulk review completion should pass, got ${bulkReviewResponse.status}: ${bulkReviewText}`);
-  const bulkReviewPayload = JSON.parse(bulkReviewText);
+  const bulkReviewPayload = JSON.parse(bulkReviewText) as {
+    confirmed: number;
+    failed: number;
+    results: Array<{ audit?: { auditCommitSha?: string; commitSha?: string }; ok: boolean }>;
+  };
   assert(bulkReviewPayload.confirmed === 2, "bulk review completion should count confirmed tasks");
   assert(bulkReviewPayload.failed === 0, "bulk review completion should not fail valid selected tasks");
   assert(bulkReviewPayload.results.every((result) => result.ok && result.audit?.commitSha), "bulk review completion should return per-task audit commits");
@@ -808,7 +825,7 @@ try {
   workbench.kill("SIGTERM");
 }
 
-function commitFixtureBaseline(target, message) {
+function commitFixtureBaseline(target: string, message: string): void {
   if (!fs.existsSync(path.join(target, ".git"))) {
     expectFixtureGit(target, ["init"]);
     expectFixtureGit(target, ["config", "user.name", "Harness Test"]);
@@ -820,13 +837,13 @@ function commitFixtureBaseline(target, message) {
   expectFixtureGit(target, ["commit", "-m", `test fixture baseline: ${message}`]);
 }
 
-function expectFixtureGit(target, args) {
+function expectFixtureGit(target: string, args: string[]): SpawnSyncReturns<string> {
   const result = spawnSync("git", args, { cwd: target, encoding: "utf8" });
   assert(result.status === 0, `git ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;
 }
 
-function prepareWorkbenchReviewConfirmationFixture(slug) {
+function prepareWorkbenchReviewConfirmationFixture(slug: string): { id: string; shortId: string } {
   const created = expectJson(["new-task", slug, "--title", `Bulk review ${slug}`, "--locale", "zh-CN", lifecycleTarget]);
   const taskDir = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-${slug}`);
   const walkthrough = path.join(taskDir, "walkthrough.md");
@@ -883,7 +900,9 @@ const zhRegistryContent = fs.readFileSync(path.join(zhRegistryTarget, "coding-ag
 assert(zhRegistryContent.includes("| example | 示例模块 | EXM | `codex/example` | EXM-01 | completed |"), "module-step should update zh-CN module registry status/current step");
 const zhGraphDir = path.join(tmpRoot, "zh-module-dashboard");
 expectPass(["dashboard", "--out-dir", zhGraphDir, zhRegistryTarget]);
-const zhGraph = JSON.parse(fs.readFileSync(path.join(zhGraphDir, "data/graph.json"), "utf8"));
+const zhGraph = JSON.parse(fs.readFileSync(path.join(zhGraphDir, "data/graph.json"), "utf8")) as {
+  nodes: Array<{ currentStep?: string; id: string; state: string; type: string }>;
+};
 assert(zhGraph.nodes.some((node) => node.type === "module" && node.id === "module:example" && node.state === "completed" && node.currentStep === "EXM-01"), "zh-CN module registry should populate dashboard graph");
 assert(zhGraph.nodes.some((node) => node.type === "step" && node.id === "step:EXM-01" && node.state === "done"), "zh-CN module plan should populate step graph");
 const moduleFiltered = expectJson(["task-list", "--json", "--module", "auth", lifecycleTarget]);

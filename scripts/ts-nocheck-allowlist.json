@@ -3,8 +3,6 @@
   "files": [
     "scripts/lib/task-audit-metadata.mts",
     "scripts/lib/task-audit-migration.mts",
-    "scripts/lib/task-lesson-sedimentation.mts",
-    "tests/lifecycle/lifecycle-queues.mts",
-    "tests/lifecycle/task-lifecycle.mts"
+    "scripts/lib/task-lesson-sedimentation.mts"
   ]
 }
