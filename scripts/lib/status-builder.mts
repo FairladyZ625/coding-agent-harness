@@ -35,7 +35,7 @@ type StatusTask = {
   lifecycleState?: string;
   materialIssues?: StatusIssue[];
   materialsReady?: boolean;
-  module?: string;
+  module?: string | null;
   namespace?: string;
   originalPath?: string;
   packageRole?: string;

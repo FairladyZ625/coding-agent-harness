@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -63,6 +62,48 @@ import {
   taskIdFromDirectory,
   taskLocalWalkthrough,
 } from "./harness-paths.mjs";
+import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
+import type {
+  BriefQuality,
+  CloseoutInfo,
+  CollectTasksOptions,
+  EvidenceRef,
+  HandoffRef,
+  LessonCandidateStatus,
+  MigrationSnapshot,
+  TaskClassification,
+  TaskContractFile,
+  TaskPhase,
+  TaskScannerTarget,
+  VisualMapContractFile,
+} from "./types/task-scanner.js";
+
+function asLessonCandidateStatus(value: unknown): LessonCandidateStatus {
+  const candidate = isRecord(value) ? value : {};
+  const rows = Array.isArray(candidate.rows) ? candidate.rows.filter(isRecord).map((row) => Object.fromEntries(Object.entries(row).map(([key, item]) => [key, String(item || "")]))) : [];
+  const issues = Array.isArray(candidate.issues) ? candidate.issues.map((item) => String(item)) : [];
+  return {
+    status: String(candidate.status || ""),
+    declaredStatus: candidate.declaredStatus === undefined ? undefined : String(candidate.declaredStatus || ""),
+    schemaVersion: candidate.schemaVersion === undefined ? undefined : String(candidate.schemaVersion || ""),
+    reviewDecision: String(candidate.reviewDecision || ""),
+    promotionState: String(candidate.promotionState || ""),
+    closeoutToken: String(candidate.closeoutToken || ""),
+    rows,
+    openCount: Number(candidate.openCount || 0),
+    issues,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function nestedRecord(value: unknown, key: string): Record<string, unknown> {
+  if (!isRecord(value)) return {};
+  const nested = value[key];
+  return isRecord(nested) ? nested : {};
+}
 export {
   parseTaskBudget,
   parseTaskContractInfo,
@@ -94,7 +135,7 @@ export {
   reviewCompleteLessonCandidateStatuses,
 } from "./task-lesson-candidates.mjs";
 
-export function parsePhases(taskPlanContent) {
+export function parsePhases(taskPlanContent: string): TaskPhase[] {
   const { header, rows } = tableAfterHeading(taskPlanContent, /^Phase ID$/i);
   if (rows.length === 0) return [];
   const indexes = {
@@ -127,14 +168,14 @@ export function parsePhases(taskPlanContent) {
   }));
 }
 
-export function readTaskContractFile(taskDir, fileName, legacyContent = "") {
+export function readTaskContractFile(taskDir: string, fileName: string, legacyContent = ""): TaskContractFile {
   const filePath = path.join(taskDir, fileName);
   const content = readFileSafe(filePath);
   if (content.trim()) return { path: filePath, content, source: "standalone" };
   return { path: filePath, content: legacyContent, source: legacyContent.trim() ? "legacy" : "missing" };
 }
 
-export function readVisualMapContractFile(taskDir, legacyContent = "") {
+export function readVisualMapContractFile(taskDir: string, legacyContent = ""): VisualMapContractFile {
   const canonicalPath = path.join(taskDir, visualMapFile);
   const canonical = readFileSafe(canonicalPath);
   if (canonical.trim()) return { path: canonicalPath, content: canonical, source: "canonical", status: "present" };
@@ -149,26 +190,32 @@ export function readVisualMapContractFile(taskDir, legacyContent = "") {
   };
 }
 
-export function isActiveTaskState(state) {
+export function isActiveTaskState(state: string): boolean {
   return ["active", "planned", "not_started", "in_progress", "review", "blocked", "reopened", "current-evidence"].includes(state);
 }
 
-export function listTaskPlanPaths(target) {
-  const harnessPaths = target.harness || resolveHarnessPaths(target);
+export function listTaskPlanPaths(target: TaskScannerTarget): string[] {
+  const harnessPaths = (target.harness || resolveHarnessPaths(target)) as ResolvedHarnessPaths;
   const taskRoots = harnessPaths.taskRoots;
   return taskRoots
-    .flatMap(walkFiles)
+    .flatMap((root) => walkFiles(root))
     .filter((file) => file.endsWith("task_plan.md"))
     .filter((file) => !file.includes(`${path.sep}_task-template${path.sep}`))
     .filter((file) => !file.includes(`${path.sep}_optional-structures${path.sep}`))
     .filter((file) => !isArchivedHarnessPath(file));
 }
 
-export function taskIdForDirectory(target, taskDir) {
-  return taskIdFromDirectory(target.harness || resolveHarnessPaths(target), taskDir);
+export function taskIdForDirectory(target: TaskScannerTarget, taskDir: string): string {
+  return taskIdFromDirectory((target.harness || resolveHarnessPaths(target)) as ResolvedHarnessPaths, taskDir);
 }
 
-export function inferTaskClassification({ id, title, relative, explicitModule, legacyCandidate = false }) {
+export function inferTaskClassification({ id, title, relative, explicitModule, legacyCandidate = false }: {
+  id: string;
+  title: string;
+  relative: string;
+  explicitModule: string | null;
+  legacyCandidate?: boolean;
+}): TaskClassification {
   if (explicitModule) {
     return {
       module: explicitModule,
@@ -177,7 +224,7 @@ export function inferTaskClassification({ id, title, relative, explicitModule, l
     };
   }
   const text = `${id} ${title} ${relative}`.toLowerCase();
-  const rules = [
+  const rules: Array<[string, RegExp]> = [
     ["dashboard", /dashboard|visibility|cockpit|console|ui|frontend|view|页面|看板|驾驶舱/],
     ["migration", new RegExp(`migration|migrate|adoption|legacy|${escapeRegExp(safeAdoptionCapability)}|迁移|历史|兼容`)],
     ["task-lifecycle", /task|phase|lifecycle|planning|计划|任务|阶段/],
@@ -194,13 +241,13 @@ export function inferTaskClassification({ id, title, relative, explicitModule, l
   };
 }
 
-function escapeRegExp(value) {
+function escapeRegExp(value: unknown): string {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function assessBriefQuality(content, { source = "missing" } = {}) {
+export function assessBriefQuality(content: unknown, { source = "missing" }: { source?: string } = {}): BriefQuality {
   const text = String(content || "").trim();
-  const issues = [];
+  const issues: string[] = [];
   if (source !== "standalone") issues.push("missing-standalone-brief");
   if (text.length < 120) issues.push("too-short");
   if (!/^##\s+/m.test(text)) issues.push("missing-sections");
@@ -208,23 +255,23 @@ export function assessBriefQuality(content, { source = "missing" } = {}) {
   return { status: issues.length ? "fail" : "pass", issues };
 }
 
-export function explicitVisualMapStatus(briefContent) {
+export function explicitVisualMapStatus(briefContent: unknown): "" | "present" | "not-needed" | "missing" | "legacy-only" {
   const match = String(briefContent || "").match(/^Visual Map Status:\s*(present|not-needed|missing|legacy-only)\s*$/im);
-  return match ? match[1] : "";
+  return match ? match[1] as "present" | "not-needed" | "missing" | "legacy-only" : "";
 }
 
-export function taskMigrationClassification(state, visualMapStatus) {
+export function taskMigrationClassification(state: string, visualMapStatus: string): string {
   if (state === "unknown") return "unknown-needs-human";
   if (isActiveTaskState(state)) return "active";
   if (visualMapStatus === "present" || visualMapStatus === "legacy-only") return "historical-with-diagram";
   return "historical-no-map-needed";
 }
 
-export function requiresCanonicalVisualMap(task) {
+export function requiresCanonicalVisualMap(task: { migrationClassification: string }): boolean {
   return ["active", "reopened", "current-evidence", "historical-with-diagram"].includes(task.migrationClassification);
 }
 
-export function taskCutoverCounters(tasks) {
+export function taskCutoverCounters(tasks: Array<{ visualMapStatus: string; migrationClassification: string; briefQuality?: BriefQuality; visualMapSource: string }>) {
   const legacyVisualOnlyCount = tasks.filter((task) => task.visualMapStatus === "legacy-only").length;
   const unknownClassificationCount = tasks.filter((task) => task.migrationClassification === "unknown-needs-human").length;
   const weakBriefCount = tasks.filter((task) => task.briefQuality?.status !== "pass").length;
@@ -239,8 +286,8 @@ export function taskCutoverCounters(tasks) {
   };
 }
 
-export function collectTasks(target, { requireGeneratedScaffoldProvenance = false, taskPlanPaths, closeoutContent } = {}) {
-  const harnessPaths = target.harness || resolveHarnessPaths(target);
+export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffoldProvenance = false, taskPlanPaths, closeoutContent }: CollectTasksOptions = {}) {
+  const harnessPaths = (target.harness || resolveHarnessPaths(target)) as ResolvedHarnessPaths;
   const paths = taskPlanPaths || listTaskPlanPaths(target);
   const closeout = closeoutContent ?? (harnessPaths.version === 2 ? "" : readFileSafe(harnessPaths.legacy.closeoutPath));
   return paths.map((taskPlanPath) => {
@@ -258,7 +305,7 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
     const progress = readFileSafe(progressPath);
     const review = readFileSafe(reviewPath);
     const indexContent = readFileSafe(indexPath);
-    const parsedLessonCandidates = parseLessonCandidateStatus(readFileSafe(lessonCandidatesPath));
+    const parsedLessonCandidates = asLessonCandidateStatus(parseLessonCandidateStatus(readFileSafe(lessonCandidatesPath)));
     const lessonDetailIssues = validateLessonCandidateDetailArtifacts(target, taskDir, parsedLessonCandidates);
     const lessonCandidates = lessonDetailIssues.length
       ? { ...parsedLessonCandidates, issues: [...parsedLessonCandidates.issues, ...lessonDetailIssues] }
@@ -278,7 +325,7 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
       required: requireGeneratedScaffoldProvenance && taskContract.generated,
     });
     const scaffoldProvenance = { summary: scaffoldProvenanceSummaryFromTaskAudit(taskAudit) };
-    const explicitModule = id.startsWith("MODULES/") ? id.split("/")[1] : null;
+    const explicitModule = id.startsWith("MODULES/") ? id.split("/")[1] ?? null : null;
     const legacyCandidate = brief.source !== "standalone" || visualMap.status === "legacy-only" || !fs.existsSync(executionStrategyPath);
     const classification = inferTaskClassification({ id, title, relative, explicitModule, legacyCandidate });
     const briefVisualStatus = explicitVisualMapStatus(brief.content);
@@ -303,7 +350,6 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
     const materialReadiness = assessMaterialsReadiness({
       budget,
       taskDir,
-      taskPlan,
       brief,
       visualMap,
       reviewSubmission,
@@ -445,23 +491,27 @@ export function collectTasks(target, { requireGeneratedScaffoldProvenance = fals
   });
 }
 
-function collectMigrationSnapshot(target, metadata) {
+function collectMigrationSnapshot(target: TaskScannerTarget, metadata: { preset: string; evidenceBundle: string; migrationTargetLevel: string; migrationAchievedLevel: string }): MigrationSnapshot | null {
   if (metadata.preset !== "legacy-migration") return null;
   const evidenceBundle = String(metadata.evidenceBundle || "").replace(/^TARGET:/, "").replace(/^\/+/, "");
   const bundlePath = evidenceBundle ? path.join(target.projectRoot, evidenceBundle) : "";
   const sessionPath = bundlePath ? path.join(bundlePath, "session.json") : "";
   const session = sessionPath && fs.existsSync(sessionPath) ? readJsonSafe(sessionPath, null) : null;
-  const summary = session?.plan?.summary || {};
+  const plan = nestedRecord(session, "plan");
+  const checks = nestedRecord(session, "checks");
+  const normal = nestedRecord(checks, "normal");
+  const strict = nestedRecord(checks, "strict");
+  const summary = nestedRecord(plan, "summary");
   return {
     targetLevel: metadata.migrationTargetLevel || "",
     achievedLevel: metadata.migrationAchievedLevel || "",
     evidenceBundle: evidenceBundle ? `TARGET:${evidenceBundle}` : "",
     evidencePresent: Boolean(bundlePath && fs.existsSync(bundlePath)),
     sessionPresent: Boolean(session),
-    sessionResult: session?.result || "",
-    normalStatus: session?.checks?.normal?.status || "",
-    strictStatus: session?.checks?.strict?.status || "",
-    strictDeferred: Boolean(session?.strictDeferred),
+    sessionResult: isRecord(session) ? String(session.result || "") : "",
+    normalStatus: String(normal.status || ""),
+    strictStatus: String(strict.status || ""),
+    strictDeferred: isRecord(session) ? Boolean(session.strictDeferred) : false,
     warnings: Number(summary.warnings || 0),
     taskActions: Number(summary.taskActions || 0),
     reviewSchemaGaps: Number(summary.reviewSchemaGaps || 0),
@@ -471,13 +521,13 @@ function collectMigrationSnapshot(target, metadata) {
   };
 }
 
-function formatEvidenceBundle(value) {
+function formatEvidenceBundle(value: unknown): string {
   const normalized = String(value || "").replace(/^TARGET:/, "").replace(/^\/+/, "");
   return normalized ? `TARGET:${normalized}` : "";
 }
 
-function taskCloseoutInfo(target, taskPlanPath, closeout) {
-  const localWalkthrough = taskLocalWalkthrough(target.harness || resolveHarnessPaths(target), path.dirname(taskPlanPath));
+function taskCloseoutInfo(target: TaskScannerTarget, taskPlanPath: string, closeout: string): CloseoutInfo {
+  const localWalkthrough = taskLocalWalkthrough((target.harness || resolveHarnessPaths(target)) as ResolvedHarnessPaths, path.dirname(taskPlanPath));
   if (localWalkthrough) {
     const content = readFileSafe(path.join(target.projectRoot, localWalkthrough));
     const status = /^Closeout Status\s*:\s*(closed|complete|completed|done|已关闭|已完成)\s*$/im.test(content)
@@ -486,7 +536,7 @@ function taskCloseoutInfo(target, taskPlanPath, closeout) {
     return { status, walkthroughPath: localWalkthrough };
   }
   if (!closeout.trim()) return { status: "missing", walkthroughPath: "" };
-  const docsRelative = `docs/${toPosix(path.relative(target.docsRoot, taskPlanPath))}`;
+  const docsRelative = `docs/${toPosix(path.relative(target.docsRoot || path.join(target.projectRoot, "docs"), taskPlanPath))}`;
   const projectRelative = toPosix(path.relative(target.projectRoot, taskPlanPath));
   const line = closeout
     .split(/\r?\n/)
@@ -497,7 +547,7 @@ function taskCloseoutInfo(target, taskPlanPath, closeout) {
   return { status, walkthroughPath };
 }
 
-function extractWalkthroughPath(target, closeoutLine) {
+function extractWalkthroughPath(target: TaskScannerTarget, closeoutLine: string): string {
   const matches = [...String(closeoutLine || "").matchAll(/`?((?:docs\/)?10-WALKTHROUGH\/[^`|\s]+\.md)`?/g)];
   const match = matches.find((entry) => !entry[1].endsWith("Closeout-SSoT.md") && !entry[1].includes("/_"));
   if (!match) return "";
@@ -506,12 +556,12 @@ function extractWalkthroughPath(target, closeoutLine) {
   return projectRelative;
 }
 
-function collectHandoffs(progressContent, taskId) {
+function collectHandoffs(progressContent: string, taskId: string): HandoffRef[] {
   if (!/Coordinator Handoff/i.test(progressContent) || !/pending-coordinator-pass/i.test(progressContent)) return [];
   return [{ id: `H-${taskId}`, from: "worker", to: "coordinator", state: "pending", summary: "Coordinator handoff pending" }];
 }
 
-function collectEvidence(progressContent) {
+function collectEvidence(progressContent: string): EvidenceRef[] {
   const matches = [...progressContent.matchAll(/\b(command|diff|fixture|screenshot|review|report):((?:PUBLIC|PRIVATE|TARGET|EXTERNAL|URL):[^:\s|]+):([^\n|]+)/g)];
   return matches.map((match, index) => ({
     id: `E-${String(index + 1).padStart(3, "0")}`,

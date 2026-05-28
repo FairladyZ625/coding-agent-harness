@@ -1,4 +1,4 @@
-export type SharedTypeIsland = "task" | "review" | "snapshot";
+export type SharedTypeIsland = "task" | "review" | "snapshot" | "task-scanner" | "check-profiles";
 
 export interface SharedTypeIslandDescriptor {
   island: SharedTypeIsland;

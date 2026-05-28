@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -46,9 +45,20 @@ import {
   legacyWalkthroughRoot,
   safeAdoptionCapability,
 } from "./harness-paths.mjs";
+import type {
+  BuildStatusOptions,
+  CheckTarget,
+  PresetPackage,
+  ScannedTask,
+  ValidationResult,
+} from "./types/check-profiles.js";
 export { renderDashboard } from "./status-dashboard-renderer.mjs";
 
-export function runCompatibilityCheck(target) {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function runCompatibilityCheck(target: CheckTarget) {
   const checkTarget = target.docsOnly ? target.projectRoot : target.input;
   const result = spawnSync(process.execPath, [bundledCheckScript, checkTarget], {
     cwd: repoRoot,
@@ -62,10 +72,10 @@ export function runCompatibilityCheck(target) {
   };
 }
 
-export function validateReviewSchema(target, { strict = true } = {}) {
-  const failures = [];
-  const warnings = [];
-  const report = (message) => {
+export function validateReviewSchema(target: CheckTarget, { strict = true }: { strict?: boolean } = {}): ValidationResult {
+  const failures: string[] = [];
+  const warnings: string[] = [];
+  const report = (message: string) => {
     if (strict) failures.push(message);
     else warnings.push(`adoption-needed: ${message}`);
   };
@@ -148,9 +158,9 @@ export function validateReviewSchema(target, { strict = true } = {}) {
   return { failures, warnings };
 }
 
-export function validateVisualMaps(target, { taskPlanPaths } = {}) {
-  const failures = [];
-  const warnings = [];
+export function validateVisualMaps(target: CheckTarget, { taskPlanPaths }: { taskPlanPaths?: string[] } = {}): ValidationResult {
+  const failures: string[] = [];
+  const warnings: string[] = [];
   for (const taskPlanPath of taskPlanPaths || listTaskPlanPaths(target)) {
     const taskDir = path.dirname(taskPlanPath);
     const visualMapPath = path.join(taskDir, visualMapFile);
@@ -195,8 +205,8 @@ export function validateVisualMaps(target, { taskPlanPaths } = {}) {
   return { failures, warnings };
 }
 
-export function validateTaskPresetContracts(target, { tasks } = {}) {
-  const failures = [];
+export function validateTaskPresetContracts(target: CheckTarget, { tasks }: { tasks?: ScannedTask[] } = {}): ValidationResult {
+  const failures: string[] = [];
   const allowedMigrationLevels = new Set([
     "migration-baseline",
     "migration-current-cutover",
@@ -205,11 +215,11 @@ export function validateTaskPresetContracts(target, { tasks } = {}) {
   ]);
   for (const task of tasks || collectTasks(target)) {
     if (!task.taskPreset || task.taskPreset === "none") continue;
-    let presetPackage = null;
+    let presetPackage: PresetPackage | null = null;
     try {
       presetPackage = readPresetPackage(task.taskPreset, { targetInput: target.projectRoot });
     } catch (error) {
-      failures.push(`${task.path} unsupported Task Preset: ${task.taskPreset} (${error.message})`);
+      failures.push(`${task.path} unsupported Task Preset: ${task.taskPreset} (${errorMessage(error)})`);
       continue;
     }
     if (presetPackage?.task?.kind && task.taskKind !== presetPackage.task.kind) {
@@ -250,22 +260,22 @@ export function validateTaskPresetContracts(target, { tasks } = {}) {
       failures.push(`${task.path} legacy-migration preset Evidence Bundle missing session.json`);
     }
     if (achievedLevel === "migration-full-cutover") {
-      const snapshot = task.migrationSnapshot || {};
-      const blockers = [];
-      if (!snapshot.sessionPresent) blockers.push("missing session evidence");
-      if (snapshot.sessionResult !== "complete") blockers.push(`session result is ${snapshot.sessionResult || "(missing)"}`);
-      if (snapshot.strictDeferred) blockers.push("strictDeferred is present");
-      if (snapshot.strictStatus !== "pass") blockers.push(`strict status is ${snapshot.strictStatus || "(missing)"}`);
+      const snapshot = task.migrationSnapshot;
+      const blockers: string[] = [];
+      if (!snapshot?.sessionPresent) blockers.push("missing session evidence");
+      if (snapshot?.sessionResult !== "complete") blockers.push(`session result is ${snapshot?.sessionResult || "(missing)"}`);
+      if (snapshot?.strictDeferred) blockers.push("strictDeferred is present");
+      if (snapshot?.strictStatus !== "pass") blockers.push(`strict status is ${snapshot?.strictStatus || "(missing)"}`);
       for (const [field, value] of [
-        ["warnings", snapshot.warnings],
-        ["taskActions", snapshot.taskActions],
-        ["reviewSchemaGaps", snapshot.reviewSchemaGaps],
-        ["legacyReferenceGaps", snapshot.legacyReferenceGaps],
-        ["legacyResiduals", snapshot.legacyResiduals],
+        ["warnings", snapshot?.warnings],
+        ["taskActions", snapshot?.taskActions],
+        ["reviewSchemaGaps", snapshot?.reviewSchemaGaps],
+        ["legacyReferenceGaps", snapshot?.legacyReferenceGaps],
+        ["legacyResiduals", snapshot?.legacyResiduals],
       ]) {
         if (Number(value || 0) !== 0) blockers.push(`${field}=${value}`);
       }
-      if (snapshot.fullCutoverEligible !== true) blockers.push("fullCutoverEligible is not true");
+      if (snapshot?.fullCutoverEligible !== true) blockers.push("fullCutoverEligible is not true");
       if (blockers.length) {
         failures.push(`${task.path} migration-full-cutover is not proven: ${blockers.join("; ")}`);
       }
@@ -274,10 +284,10 @@ export function validateTaskPresetContracts(target, { tasks } = {}) {
   return { failures, warnings: [] };
 }
 
-export function validateContextDocs(target, { strict = true } = {}) {
-  const failures = [];
-  const warnings = [];
-  const report = (message) => {
+export function validateContextDocs(target: CheckTarget, { strict = true }: { strict?: boolean } = {}): ValidationResult {
+  const failures: string[] = [];
+  const warnings: string[] = [];
+  const report = (message: string) => {
     if (strict) failures.push(message);
     else warnings.push(`adoption-needed: ${message}`);
   };
@@ -326,7 +336,7 @@ export function validateContextDocs(target, { strict = true } = {}) {
   return { failures, warnings };
 }
 
-function contextDocRoots(target) {
+function contextDocRoots(target: CheckTarget): string[] {
   if (target.harness?.version === 2) {
     return [
       path.join(target.harness.harnessRoot, "context/architecture"),
@@ -337,11 +347,11 @@ function contextDocRoots(target) {
   return ["03-ARCHITECTURE", "04-DEVELOPMENT", "06-INTEGRATIONS"].map((root) => path.join(target.docsRoot, root));
 }
 
-export function buildStatus(targetInput, options = {}) {
-  const target = normalizeTarget(targetInput);
+export function buildStatus(targetInput: string | undefined, options: BuildStatusOptions = {}) {
+  const target = normalizeTarget(targetInput) as CheckTarget;
   const gitState = summarizeGitState(target);
   const capabilityState = validateCapabilities(target);
-  const declaredCapabilities = new Set(capabilityState.registry.capabilities.map((capability) => capability.name));
+  const declaredCapabilities = new Set(capabilityState.registry.capabilities.map((capability: { name: string }) => capability.name));
   const safeAdoptionMode = declaredCapabilities.has(safeAdoptionCapability);
   const shouldRunLegacy = target.harness?.version !== 2 && !options.skipLegacyCheck && (capabilityState.registry.mode === legacyCompatMode || safeAdoptionMode);
   const legacy = shouldRunLegacy ? runCompatibilityCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
@@ -395,7 +405,7 @@ export function buildStatus(targetInput, options = {}) {
   });
 }
 
-function hasLegacyHarnessDocs(target) {
+function hasLegacyHarnessDocs(target: CheckTarget): boolean {
   return [
     path.join(target.projectRoot, legacyPath(legacyPlanningRoot)),
     path.join(target.projectRoot, legacyPath(legacyWalkthroughRoot)),
