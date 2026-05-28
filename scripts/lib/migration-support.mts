@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Migration support scans dynamic target state until migration session domain types are modeled.
 
 import fs from "node:fs";
@@ -19,8 +18,66 @@ import {
 import { readCapabilityRegistry, detectCapabilities } from "./capability-registry.mjs";
 import { buildStatus } from "./check-profiles.mjs";
 import { listTaskPlanPaths } from "./task-scanner.mjs";
+import type { CheckTarget, ScannedTask } from "./types/check-profiles.js";
 
-export function migrationSampleFiles(target) {
+type MigrationTarget = CheckTarget;
+type MigrationStatus = ReturnType<typeof buildStatus>;
+type CapabilityRegistry = ReturnType<typeof readCapabilityRegistry>;
+type DetectedCapability = CapabilityRegistry["capabilities"][number];
+type RecommendedCapability = DetectedCapability & { reason?: string };
+type MigrationFailureList = string[];
+
+type MigrationSession = {
+  target: string;
+  result: string;
+  localeDecision: {
+    selected: string;
+    probe: {
+      confidence: string;
+    };
+  };
+  dashboard?: {
+    indexPath?: string;
+  };
+  checks: {
+    normal: ReturnType<typeof statusCheckSummary>;
+    strict: ReturnType<typeof statusCheckSummary>;
+  };
+  capabilities: Array<{
+    name: string;
+    state?: string;
+  }>;
+  plan: {
+    mode?: string;
+    summary: MigrationPlanSummary;
+    nextCommands: string[];
+  };
+  strictDeferred?: {
+    owner: string;
+    trigger: string;
+    nextAction: string;
+    reason?: string;
+    failureCount: number;
+    failures?: string[];
+  } | null;
+};
+
+type MigrationPlanSummary = {
+  warnings?: number;
+  taskActions?: number;
+  visualMapActions?: number;
+  legacyVisualOnly?: number;
+  weakBrief?: number;
+  unknownClassification?: number;
+  fullCutoverEligible?: boolean;
+  reviewSchemaGaps?: number;
+  legacyResiduals?: number;
+  missingCanonicalVisualMap?: number;
+  legacyReferenceGaps?: number;
+  recommendedCapabilities?: string[];
+};
+
+export function migrationSampleFiles(target: MigrationTarget): string[] {
   const candidates = [
     path.join(target.projectRoot, "AGENTS.md"),
     path.join(target.projectRoot, "CLAUDE.md"),
@@ -32,7 +89,7 @@ export function migrationSampleFiles(target) {
   return [...candidates, ...taskPlans].filter((file) => fs.existsSync(file));
 }
 
-export function probeTargetLocale(target) {
+export function probeTargetLocale(target: MigrationTarget) {
   const files = migrationSampleFiles(target);
   let hanChars = 0;
   let latinWords = 0;
@@ -57,7 +114,7 @@ export function probeTargetLocale(target) {
   return { suggested, confidence, mixedLanguageDetected, signals: signals.slice(0, 12), totals: { hanChars, latinWords } };
 }
 
-export function inspectGitStatus(projectRoot) {
+export function inspectGitStatus(projectRoot: string) {
   const probe = spawnSync("git", ["-C", projectRoot, "rev-parse", "--is-inside-work-tree"], { encoding: "utf8" });
   if (probe.status !== 0) return { inGit: false, branch: "", entries: [], staged: [], dirty: false };
   const result = spawnSync("git", ["-C", projectRoot, "status", "--short", "--branch"], { encoding: "utf8" });
@@ -74,7 +131,7 @@ export function inspectGitStatus(projectRoot) {
   };
 }
 
-export function ensureSessionDir(projectName, requestedDir = "") {
+export function ensureSessionDir(projectName: string, requestedDir = ""): string {
   const base = requestedDir
     ? path.resolve(requestedDir)
     : path.join(os.tmpdir(), `cah-migration-${slug(projectName)}-${new Date().toISOString().replace(/[:.]/g, "-")}`);
@@ -82,18 +139,19 @@ export function ensureSessionDir(projectName, requestedDir = "") {
   return base;
 }
 
-export function statusCheckSummary(status) {
+export function statusCheckSummary(status: MigrationStatus) {
+  const legacy = status.checkState.legacy as { status?: string } | undefined;
   return {
     status: status.checkState.status,
     failures: status.checkState.failures,
     warnings: status.checkState.warnings,
-    legacyStatus: status.checkState.legacy?.status || "skipped",
+    legacyStatus: legacy?.status || "skipped",
     failureDetails: status.checkState.details.failures,
     warningDetails: status.checkState.details.warnings,
   };
 }
 
-export function strictDeferredFromStatus(strictStatus) {
+export function strictDeferredFromStatus(strictStatus: MigrationStatus) {
   const failures = strictStatus.checkState.details.failures;
   if (strictStatus.checkState.status !== "fail") return null;
   return {
@@ -106,7 +164,7 @@ export function strictDeferredFromStatus(strictStatus) {
   };
 }
 
-export function writeMigrationReport(session) {
+export function writeMigrationReport(session: MigrationSession): string {
   const lines = [
     `# Coding Agent Harness Migration Report`,
     "",
@@ -150,7 +208,7 @@ export function writeMigrationReport(session) {
   return `${lines.join("\n")}\n`;
 }
 
-export function validateFullCutoverSession(session, failures) {
+export function validateFullCutoverSession(session: MigrationSession, failures: MigrationFailureList): void {
   if (session.result !== "complete") failures.push(`full cutover requires result complete, got ${session.result || "(none)"}`);
   if (session.strictDeferred) failures.push("full cutover cannot have strictDeferred");
   if (session.checks?.strict?.status !== "pass") failures.push("full cutover requires recorded strict check pass");
@@ -171,13 +229,14 @@ export function validateFullCutoverSession(session, failures) {
     if (Number(value || 0) !== 0) failures.push(`full cutover requires ${field}=0, got ${value || 0}`);
   }
   if (summary.fullCutoverEligible !== true) failures.push("full cutover requires summary.fullCutoverEligible=true");
-  if ((summary.recommendedCapabilities || []).length) {
-    failures.push(`full cutover has recommended capabilities: ${summary.recommendedCapabilities.join(", ")}`);
+  const recommendedCapabilities = summary.recommendedCapabilities || [];
+  if (recommendedCapabilities.length) {
+    failures.push(`full cutover has recommended capabilities: ${recommendedCapabilities.join(", ")}`);
   }
   if (!session.target || !fs.existsSync(session.target)) return;
   const status = buildStatus(session.target, { strict: true, strictLegacy: true, allowLegacyTarget: true });
   if (status.checkState.status !== "pass") failures.push(`full cutover current strict status is ${status.checkState.status}`);
-  for (const task of status.tasks) {
+  for (const task of status.tasks as ScannedTask[]) {
     if (task.briefQuality?.status !== "pass") failures.push(`${task.path} weak brief: ${(task.briefQuality?.issues || []).join(", ")}`);
     if (task.migrationClassification === "unknown-needs-human") failures.push(`${task.path} has unknown migration classification`);
     if (task.visualMapStatus === "legacy-only") failures.push(`${task.path} only has legacy visual_roadmap.md`);
@@ -187,7 +246,7 @@ export function validateFullCutoverSession(session, failures) {
   }
 }
 
-export function recommendedMigrationCapabilities(status, target, registry) {
+export function recommendedMigrationCapabilities(status: MigrationStatus, target: MigrationTarget, registry: CapabilityRegistry) {
   const declared = new Set(registry.capabilities.map((capability) => capability.name));
   const detected = new Set(detectCapabilities(target));
   const recommendations = [];
@@ -224,7 +283,7 @@ export function recommendedMigrationCapabilities(status, target, registry) {
   return recommendations;
 }
 
-export function migrationPhases({ locale, recommendedCapabilities }) {
+export function migrationPhases({ locale, recommendedCapabilities }: { locale: string; recommendedCapabilities: RecommendedCapability[] }) {
   return [
     {
       id: "MP-01",
@@ -282,14 +341,14 @@ export function migrationPhases({ locale, recommendedCapabilities }) {
   }));
 }
 
-function splitWarningMessage(message) {
+function splitWarningMessage(message: string): string[] {
   return String(message || "")
     .split(/\n-\s+/)
     .map((item, index) => (index === 0 ? item : `- ${item}`))
     .filter(Boolean);
 }
 
-function warningTitle(message) {
+function warningTitle(message: string): string {
   if (/missing execution_strategy\.md/i.test(message)) return "Missing execution strategy";
   if (/missing visual_map\.md|Visual Map/i.test(message)) return "Missing visual map";
   if (/missing visual_roadmap\.md|Visual Roadmap/i.test(message)) return "Missing legacy visual roadmap";
@@ -300,12 +359,12 @@ function warningTitle(message) {
   return String(message).split(":")[0].slice(0, 96);
 }
 
-function warningAffected(message) {
+function warningAffected(message: string): string {
   const target = String(message).match(/(?:docs|\.harness-private)\/[^\s:]+/);
   return target ? target[0] : "project";
 }
 
-function warningAction(message) {
+function warningAction(message: string): string {
   if (/execution_strategy\.md/i.test(message)) return "Add standalone execution strategy file.";
   if (/visual_map\.md|Visual Map/i.test(message)) return "Add standalone visual map file.";
   if (/visual_roadmap\.md|Visual Roadmap/i.test(message)) return "Rewrite legacy visual_roadmap.md into canonical visual_map.md.";

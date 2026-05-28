@@ -1,4 +1,3 @@
-// @ts-nocheck
 import path from "node:path";
 import {
   readFileSafe,
@@ -11,10 +10,40 @@ import {
   splitMarkdownRow,
 } from "./markdown-utils.mjs";
 
-export function validateSubagentAuthorization(target, { strict = true } = {}) {
-  const failures = [];
-  const warnings = [];
-  const report = (message) => {
+type AuthorizationTarget = {
+  docsRoot: string;
+  projectRoot: string;
+};
+
+type TableRow = Record<string, string>;
+
+type SubagentAuthorizationRow = {
+  role: string;
+  status: string;
+  authorizedBy: string;
+  authorizedAt: string;
+  scope: string;
+  worktreeBranch: string;
+};
+
+type DelegationRow = {
+  question: string;
+  decision: string;
+};
+
+type UserAuthorizationRow = {
+  gate: string;
+  state: string;
+  decidedBy: string;
+  decidedAt: string;
+  scope: string;
+  worktreeBranch: string;
+};
+
+export function validateSubagentAuthorization(target: AuthorizationTarget, { strict = true }: { strict?: boolean } = {}) {
+  const failures: string[] = [];
+  const warnings: string[] = [];
+  const report = (message: string) => {
     if (strict) failures.push(message);
     else warnings.push(`adoption-needed: ${message}`);
   };
@@ -55,7 +84,7 @@ export function validateSubagentAuthorization(target, { strict = true } = {}) {
   return { failures, warnings };
 }
 
-function subagentAuthorizationRows(content) {
+function subagentAuthorizationRows(content: string): SubagentAuthorizationRow[] {
   const section = markdownSection(content, "Subagent Authorization");
   if (!section) return [];
   const lines = section.split(/\r?\n/);
@@ -80,12 +109,19 @@ function subagentAuthorizationRows(content) {
       .filter((line) => line.trim().startsWith("|"))
       .map(splitMarkdownRow)
       .filter((row) => row.length === header.length)
-      .map((row) => Object.fromEntries(Object.entries(indexes).map(([key, column]) => [key, column >= 0 ? row[column] || "" : ""])));
+      .map((row) => ({
+        role: row[indexes.role] || "",
+        status: row[indexes.status] || "",
+        authorizedBy: indexes.authorizedBy >= 0 ? row[indexes.authorizedBy] || "" : "",
+        authorizedAt: indexes.authorizedAt >= 0 ? row[indexes.authorizedAt] || "" : "",
+        scope: indexes.scope >= 0 ? row[indexes.scope] || "" : "",
+        worktreeBranch: indexes.worktreeBranch >= 0 ? row[indexes.worktreeBranch] || "" : "",
+      }));
   }
   return [];
 }
 
-function subagentDelegationRows(content) {
+function subagentDelegationRows(content: string): DelegationRow[] {
   const section = markdownSection(content, "Subagent Delegation Decision");
   if (!section) return [];
   return parseFirstTable(section, ["Question", "Decision"]).map((row) => ({
@@ -94,7 +130,7 @@ function subagentDelegationRows(content) {
   }));
 }
 
-function userAuthorizationRows(content) {
+function userAuthorizationRows(content: string): UserAuthorizationRow[] {
   return parseMatchingTables(content, ["Gate", "State"]).map((row) => ({
     gate: row.Gate || "",
     state: row.State || "",
@@ -105,9 +141,9 @@ function userAuthorizationRows(content) {
   }));
 }
 
-function parseMatchingTables(content, requiredColumns) {
+function parseMatchingTables(content: string, requiredColumns: string[]): TableRow[] {
   const lines = String(content || "").split(/\r?\n/);
-  const rows = [];
+  const rows: TableRow[] = [];
   for (let index = 0; index < lines.length - 1; index += 1) {
     if (!lines[index].trim().startsWith("|")) continue;
     const header = splitMarkdownRow(lines[index]);
@@ -117,14 +153,14 @@ function parseMatchingTables(content, requiredColumns) {
     let rowIndex = index + 2;
     while (rowIndex < lines.length && lines[rowIndex].trim().startsWith("|")) {
       const row = splitMarkdownRow(lines[rowIndex]);
-      if (row.length === header.length) rows.push(Object.fromEntries(header.map((column, columnIndex) => [column, row[columnIndex] || ""])));
+      if (row.length === header.length) rows.push(Object.fromEntries(header.map((column, columnIndex) => [column, row[columnIndex] || ""])) as TableRow);
       rowIndex += 1;
     }
   }
   return rows;
 }
 
-function parseFirstTable(content, requiredColumns) {
+function parseFirstTable(content: string, requiredColumns: string[]): TableRow[] {
   const lines = String(content || "").split(/\r?\n/);
   for (let index = 0; index < lines.length - 1; index += 1) {
     if (!lines[index].trim().startsWith("|")) continue;
@@ -137,12 +173,12 @@ function parseFirstTable(content, requiredColumns) {
       .filter((line) => line.trim().startsWith("|"))
       .map(splitMarkdownRow)
       .filter((row) => row.length === header.length)
-      .map((row) => Object.fromEntries(header.map((column, columnIndex) => [column, row[columnIndex] || ""])));
+      .map((row) => Object.fromEntries(header.map((column, columnIndex) => [column, row[columnIndex] || ""])) as TableRow);
   }
   return [];
 }
 
-function markdownSection(content, heading) {
+function markdownSection(content: string, heading: string): string {
   const lines = String(content || "").split(/\r?\n/);
   const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const start = lines.findIndex((line) => new RegExp(`^##\\s+${escaped}\\s*$`, "i").test(line.trim()));
@@ -151,12 +187,12 @@ function markdownSection(content, heading) {
   return lines.slice(start + 1, end < 0 ? undefined : end).join("\n");
 }
 
-function isConcreteAuthorizationValue(value) {
+function isConcreteAuthorizationValue(value: string): boolean {
   const raw = String(value || "").replace(/`/g, "").trim();
   return Boolean(raw) && !/^\[.*\]$/.test(raw) && !/^(pending|n\/a|na|none|-|—|–|待授权|待定|无)$/i.test(raw);
 }
 
-function isWorkerAuthorizedStatus(value) {
+function isWorkerAuthorizedStatus(value: string): boolean {
   const raw = String(value || "")
     .replace(/`/g, "")
     .trim()
@@ -167,7 +203,7 @@ function isWorkerAuthorizedStatus(value) {
   return /(^|\b)(authorized|used|active|approved)(\b|$)|已授权|已使用/.test(raw);
 }
 
-function normalizeDecision(value) {
+function normalizeDecision(value: string): string {
   return String(value || "")
     .replace(/`/g, "")
     .trim()
@@ -176,12 +212,12 @@ function normalizeDecision(value) {
     .replace(/\s+/g, "-");
 }
 
-function isResolvedWorkerGateState(value) {
+function isResolvedWorkerGateState(value: string): boolean {
   const raw = normalizeDecision(value);
   return /^(authorized|approved|denied|rejected|not-needed|not-authorized|no|yes|无需|拒绝|已授权)$/.test(raw);
 }
 
-function missingUserDecisionFields(row) {
+function missingUserDecisionFields(row: UserAuthorizationRow): string[] {
   const state = normalizeDecision(row.state);
   const required = state === "authorized" || state === "approved" || state === "yes" || state === "已授权"
     ? [
