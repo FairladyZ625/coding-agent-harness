@@ -24,6 +24,10 @@ Use Node.js 24 or newer. CI should run on the minimum supported LTS line.
 npm install
 ```
 
+The source repository ignores `dist/`. `npm install`, Git/source `prepare`,
+`prepack`, and the root npm scripts regenerate it when needed. The npm package
+still publishes `dist/` and excludes `scripts/` and `tests/`.
+
 If your change touches the GUI submodule:
 
 ```bash
@@ -40,7 +44,7 @@ the full root suite.
 | --- | --- |
 | Docs only | `git diff --check` |
 | CLI/runtime | `npm test`, `npm run check`, `git diff --check` |
-| Templates or examples | `npm test`, `node dist/harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
+| Templates or examples | `npm test`, `npm run build:runtime`, `node dist/harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
 | Dashboard | `npm test`, `npm run smoke:dashboard`, `git diff --check` |
 | Package surface | `npm test`, `npm run pack:dry-run`, `git diff --check` |
 | GUI submodule | `cd harness-gui && npm ci && npm run typecheck && npm test && npm run build` |
@@ -48,6 +52,7 @@ the full root suite.
 Full root suite:
 
 ```bash
+npm run build:runtime
 npm test
 npm run smoke:dashboard
 npm run check

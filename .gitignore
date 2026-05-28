@@ -18,6 +18,7 @@ docs/plans/
 tmp/
 .playwright-mcp/
 harness-dashboard-*.png
+/dist/
 
 # Local npm install artifact; this package currently publishes from package.json.
 package-lock.json

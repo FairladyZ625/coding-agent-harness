@@ -85,6 +85,8 @@ assert(!packedFiles.includes("harness-dashboard.html"), "npm package must not in
 assert(!packedFiles.includes("scripts/test-harness.mjs"), "npm package must not include internal test harness");
 assert(!packedFiles.includes("scripts/smoke-dashboard.mjs"), "npm package must not include internal dashboard smoke script");
 assert(!packedFiles.some((file) => file.startsWith("tests/")), "npm package must not include tests/");
+assert(packedFiles.includes("postinstall.mjs"), "npm package must include source-safe postinstall bootstrap");
+assert(packedFiles.includes("run-dist.mjs"), "npm package must include npm script dist bootstrap");
 assert(packedFiles.includes("dist/harness.mjs"), "npm package must include dist harness runtime entrypoint");
 assert((packedFileByPath.get("dist/harness.mjs")?.mode & 0o111) !== 0, "npm package dist harness runtime entrypoint must be executable");
 assert(packedFiles.includes("dist/postinstall.mjs"), "npm package must include dist postinstall runtime entrypoint");

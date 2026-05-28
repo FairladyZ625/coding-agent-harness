@@ -5,7 +5,7 @@ Thanks for helping improve Coding Agent Harness. This repository contains the pu
 ## Before You Start
 
 - Use Node.js 24 or newer. CI should run on the minimum supported line.
-- Install root dependencies with `npm install` from the repository root.
+- Install root dependencies with `npm install` from the repository root. The install lifecycle generates the local `dist/` runtime; `dist/` is not tracked in Git.
 - If you change `harness-gui`, also run `npm ci` inside `harness-gui/`.
 - Keep pull requests focused. Separate documentation, CLI/runtime, template, preset, and GUI work when the changes are independent.
 
@@ -14,6 +14,7 @@ Thanks for helping improve Coding Agent Harness. This repository contains the pu
 | Path | Purpose |
 | --- | --- |
 | `scripts/` | Public CLI and implementation modules. |
+| `dist/` | Generated runtime output. It is published to npm but ignored in Git. |
 | `tests/` | Root package tests and dashboard smoke tests. |
 | `templates/`, `templates-zh-CN/` | Harness templates installed into target projects. |
 | `presets/` | Bundled Harness preset packages. |
@@ -40,7 +41,7 @@ docs row. For larger PRs or when you are unsure, run the full root suite.
 | --- | --- |
 | Docs only | `git diff --check` |
 | CLI/runtime | `npm test`, `npm run check`, `git diff --check` |
-| Templates or examples | `npm test`, `node dist/harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
+| Templates or examples | `npm test`, `npm run build:runtime`, `node dist/harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
 | Dashboard | `npm test`, `npm run smoke:dashboard`, `git diff --check` |
 | Package surface | `npm test`, `npm run pack:dry-run`, `git diff --check` |
 | GUI submodule | `cd harness-gui && npm ci && npm run typecheck && npm test && npm run build` |
@@ -49,6 +50,7 @@ Full root suite:
 
 ```bash
 npm install
+npm run build:runtime
 npm test
 npm run smoke:dashboard
 npm run check
