@@ -6,6 +6,21 @@ import os from "node:os";
 import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { builtinPresetRoot, projectPresetRoot, repoRoot, renderHarnessTemplate, toPosix, validateHarnessPathTemplateTokens, userPresetRoot, userPresetRootForHome } from "./core-shared.mjs";
+import type {
+  PresetEntrypoint,
+  PresetEvidenceFile,
+  PresetInputDeclaration,
+  PresetInstallOptions,
+  PresetManifest,
+  PresetManifestLocation,
+  PresetOptions,
+  PresetPackage,
+  PresetResource,
+  PresetSource,
+  PresetTemplateDeclaration,
+  PresetWriteScope,
+  ZipEntryDataOptions,
+} from "./types/preset.js";
 
 const allowedEntrypoints = new Set(["newTask", "plan", "scaffold", "check"]);
 const allowedEntrypointTypes = new Set(["template", "script", "check"]);
@@ -14,125 +29,6 @@ const allowedNewTaskTemplateKeys = new Set(["taskPlanAppend", "executionStrategy
 const maxPresetArchiveBytes = 25 * 1024 * 1024;
 const maxPresetArchiveUncompressedBytes = 50 * 1024 * 1024;
 const maxPresetArchiveEntries = 500;
-
-type PresetSource = "project" | "user" | "builtin" | "local" | string;
-
-type PresetOptions = {
-  targetInput?: string;
-  home?: string;
-};
-
-type PresetInstallOptions = PresetOptions & {
-  force?: boolean;
-  scope?: "project" | "user" | string;
-  dryRun?: boolean;
-};
-
-type PresetInputDeclaration = {
-  type: string;
-  flag: string;
-  required: boolean;
-  default?: unknown;
-  validateOperation: string;
-  rejectPlanOnly: boolean;
-  requireTarget: boolean;
-  targetFromSession: boolean;
-};
-
-type PresetTemplateDeclaration = {
-  value?: unknown;
-  from?: string;
-  default?: unknown;
-  label?: string;
-};
-
-type PresetResource = {
-  name: string;
-  path: string;
-  source: string;
-  template: string;
-  index: {
-    id: string;
-    type: string;
-    summary: string;
-    usedBy: string;
-    producedBy: string;
-  };
-};
-
-type PresetEntrypoint = {
-  type: string;
-  command: string;
-  templates: Record<string, string>;
-  writes: string[];
-  reads: string[];
-  audit: boolean;
-};
-
-type PresetWriteScope = {
-  name: string;
-  path: string;
-  access: string;
-};
-
-type PresetEvidenceFile = {
-  path?: string;
-  type?: string;
-  value?: string;
-};
-
-type PresetPackage = {
-  id: string;
-  version: number;
-  purpose: string;
-  compatibleBudgets: string[];
-  localeSupport: string[];
-  task: Record<string, unknown>;
-  inputs: Record<string, PresetInputDeclaration>;
-  templateValues: Record<string, PresetTemplateDeclaration>;
-  metadata: Record<string, PresetTemplateDeclaration>;
-  resources: {
-    references: Record<string, PresetResource>;
-    artifacts: Record<string, PresetResource>;
-  };
-  context: {
-    requiredReads: string[];
-  };
-  entrypoints: Record<string, PresetEntrypoint>;
-  workbench: Record<string, unknown>;
-  evidence: {
-    bundleDir?: string;
-    files?: Record<string, PresetEvidenceFile>;
-  } & Record<string, unknown>;
-  review: Record<string, unknown>;
-  audit: {
-    manifestRequired: boolean;
-    evidenceFiles: string[];
-  };
-  writeScopes: PresetWriteScope[];
-  newTaskTemplates: Record<string, string>;
-  directory: string;
-  source: PresetSource;
-  manifestPath: string;
-  manifestRelativePath: string;
-  manifestSha256: string;
-  effective?: boolean;
-};
-
-type PresetManifest = Record<string, unknown>;
-
-type PresetManifestLocation = {
-  source: PresetSource;
-  manifestPath: string;
-};
-
-type ZipEntryDataOptions = {
-  localOffset: number;
-  compressedSize: number;
-  uncompressedSize: number;
-  method: number;
-  name: string;
-};
 
 export function listPresetPackages({ targetInput = "", home = "" }: PresetOptions = {}) {
   return listPresetPackageLayers({ targetInput, home }).filter((preset) => preset.effective);

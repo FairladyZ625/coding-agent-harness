@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Preset task rendering stays behavior-first until preset/session domain types are modeled.
 
 import fs from "node:fs";
@@ -14,9 +13,61 @@ import {
   legacyTaskRoot,
   v2HarnessRoot,
 } from "./harness-paths.mjs";
+import type {
+  PresetContext,
+  PresetGeneratedFile,
+  PresetPackage,
+  PresetResolvedInputs,
+  PresetResource,
+  PresetResourceIndexRows,
+  PresetScopeResolution,
+  PresetTarget,
+  PresetTemplateValues,
+} from "./types/preset.js";
 
-export function resolvePresetInputs(preset, { cliArgs = [], fromSession = "", targetInput = "" } = {}) {
-  const inputs = {};
+type PresetInputOptions = {
+  cliArgs?: string[];
+  fromSession?: string;
+  targetInput?: string;
+};
+
+type EvaluateTemplateOptions = {
+  taskId?: string;
+  taskTitle?: string;
+  moduleKey?: string;
+  target?: PresetTarget | null;
+};
+
+type BuildPresetContextOptions = {
+  target: PresetTarget;
+  taskDir: string;
+  taskId: string;
+  taskTitle: string;
+  resolvedInputs: PresetResolvedInputs;
+  evaluatedValues: PresetTemplateValues;
+};
+
+type PresetAddFile = (relativePath: string, source: string, content: string) => void;
+
+type MigrationSessionInput = Record<string, unknown> & {
+  operation?: string;
+  sourcePath?: string;
+  result?: string;
+  strictDeferred?: boolean;
+  generatedAt?: string;
+  plan?: {
+    summary?: Record<string, unknown>;
+  };
+  dashboard?: {
+    indexPath?: string;
+  };
+  git?: {
+    after?: unknown;
+  };
+};
+
+export function resolvePresetInputs(preset: PresetPackage, { cliArgs = [], fromSession = "", targetInput = "" }: PresetInputOptions = {}) {
+  const inputs: PresetResolvedInputs = {};
   let targetFromInput = "";
   for (const [name, declaration] of Object.entries(preset.inputs || {})) {
     const rawValue = inputValue(declaration, { cliArgs, fromSession });
@@ -34,16 +85,17 @@ export function resolvePresetInputs(preset, { cliArgs = [], fromSession = "", ta
       }
       const filePath = path.resolve(String(rawValue));
       if (!fs.existsSync(filePath)) throw new Error(`Preset input file not found for ${declaration.flag || name}: ${rawValue}`);
-      let readError = null;
-      const value = readJsonSafe(filePath, null, { onError: (error) => { readError = error; } });
-      if (value === null) throw new Error(`Invalid preset JSON input ${declaration.flag || name}: ${readError?.message || "unknown parse error"}`);
-      if (declaration.validateOperation && value.operation !== declaration.validateOperation) {
+      let readError: unknown = null;
+      const value = readJsonSafe(filePath, null, { onError: (error: unknown) => { readError = error; } });
+      if (value === null) throw new Error(`Invalid preset JSON input ${declaration.flag || name}: ${errorMessage(readError)}`);
+      const sessionInput = asRecord(value);
+      if (declaration.validateOperation && sessionInput.operation !== declaration.validateOperation) {
         throw new Error(`${preset.id} preset requires ${declaration.flag || name} operation ${declaration.validateOperation}`);
       }
-      if (declaration.rejectPlanOnly && value.planOnly) throw new Error(`${preset.id} preset cannot use plan-only session evidence`);
-      if (declaration.requireTarget && (!value.target || !fs.existsSync(value.target))) throw new Error(`Preset input target missing: ${value.target || "(none)"}`);
-      if (declaration.targetFromSession) targetFromInput = value.target || targetFromInput;
-      inputs[name] = { ...value, sourcePath: filePath };
+      if (declaration.rejectPlanOnly && sessionInput.planOnly) throw new Error(`${preset.id} preset cannot use plan-only session evidence`);
+      if (declaration.requireTarget && (!sessionInput.target || !fs.existsSync(String(sessionInput.target)))) throw new Error(`Preset input target missing: ${sessionInput.target || "(none)"}`);
+      if (declaration.targetFromSession) targetFromInput = String(sessionInput.target || targetFromInput);
+      inputs[name] = { ...sessionInput, sourcePath: filePath };
       continue;
     }
     inputs[name] = rawValue == null || rawValue === "" ? declaration.default || "" : String(rawValue);
@@ -54,7 +106,7 @@ export function resolvePresetInputs(preset, { cliArgs = [], fromSession = "", ta
   };
 }
 
-export function evaluateTemplateValues(preset, resolvedInputs, { taskId = "", taskTitle = "", moduleKey = "", target = null } = {}) {
+export function evaluateTemplateValues(preset: PresetPackage, resolvedInputs: PresetResolvedInputs, { taskId = "", taskTitle = "", moduleKey = "", target = null }: EvaluateTemplateOptions = {}): PresetTemplateValues {
   const computed = computedValues(preset, resolvedInputs);
   const base = {
     inputs: resolvedInputs,
@@ -72,7 +124,7 @@ export function evaluateTemplateValues(preset, resolvedInputs, { taskId = "", ta
     },
     paths: target ? harnessPathContext(target) : {},
   };
-  const values = {
+  const values: PresetTemplateValues = {
     preset: preset.id,
     presetVersion: String(preset.version),
     kind: preset.task?.kind || "general",
@@ -91,7 +143,7 @@ export function evaluateTemplateValues(preset, resolvedInputs, { taskId = "", ta
   return values;
 }
 
-export function buildPresetContext(preset, { target, taskDir, taskId, taskTitle, resolvedInputs, evaluatedValues }) {
+export function buildPresetContext(preset: PresetPackage, { target, taskDir, taskId, taskTitle, resolvedInputs, evaluatedValues }: BuildPresetContextOptions): PresetContext {
   const taskRelativeDir = toPosix(path.relative(target.projectRoot, taskDir));
   const evidenceBundle = presetEvidenceBundle(preset, { target, taskDir, evaluatedValues });
   const resolvedScopes = resolvePresetScopes(preset, target);
@@ -102,8 +154,8 @@ export function buildPresetContext(preset, { target, taskDir, taskId, taskTitle,
     writeScopes: resolvedScopes.entrypoints.newTask || resolvedScopes.writeScopes,
     resolvedInputs,
   });
-  const context = {
-    kind: evaluatedValues.kind || preset.task?.kind || "general",
+  const context: PresetContext = {
+    kind: String(evaluatedValues.kind || preset.task?.kind || "general"),
     preset: preset.id,
     presetVersion: String(preset.version),
     presetPackage: preset,
@@ -120,14 +172,14 @@ export function buildPresetContext(preset, { target, taskDir, taskId, taskTitle,
     migrationAchievedLevel: evaluatedValues.migrationAchievedLevel || "",
     evidenceBundle,
   };
-  context.evidenceFiles = generateEvidenceFiles(preset, { target, taskDir, context });
+  context.evidenceFiles = generateEvidenceFiles(preset, { target, context });
   const resources = generateResourceFiles(preset, { target, context });
   context.resourceFiles = resources.files;
   context.resourceIndexRows = resources.indexRows;
   return context;
 }
 
-export function renderPresetTaskTemplate(destination, content, presetContext) {
+export function renderPresetTaskTemplate(destination: string, content: string, presetContext?: PresetContext | null): string {
   if (!presetContext) return content;
   let next = String(content);
   if (destination === "task_plan.md" || destination === "task_plan") {
@@ -144,7 +196,7 @@ export function renderPresetTaskTemplate(destination, content, presetContext) {
     "review.md": "reviewSeed",
     [visualMapFile]: "visualMapAppend",
   }[destination];
-  const templatePath = presetContext.presetPackage?.newTaskTemplates?.[templateKey];
+  const templatePath = templateKey ? presetContext.presetPackage?.newTaskTemplates?.[templateKey] : "";
   if (templatePath) {
     next = `${next.trimEnd()}\n\n${renderPresetTemplate(presetContext.presetPackage, templatePath, presetContext.values).trimEnd()}\n`;
   }
@@ -154,7 +206,7 @@ export function renderPresetTaskTemplate(destination, content, presetContext) {
   return next;
 }
 
-export function renderPresetResourceIndex(content, kind, rows) {
+export function renderPresetResourceIndex(content: string, kind: string, rows: Array<Record<string, string>>): string {
   if (!rows.length) return content;
   const renderedRows = rows.map((row) => kind === "references"
     ? `| ${markdownTableCell(row.id)} | ${markdownTableCell(row.type || "preset")} | ${markdownTableCell(row.path)} | ${markdownTableCell(row.summary)} | ${markdownTableCell(row.usedBy || "coordinator")} |`
@@ -169,11 +221,11 @@ export function renderPresetResourceIndex(content, kind, rows) {
   return `${String(content || "").trimEnd()}\n${renderedRows.join("\n")}\n`;
 }
 
-export function assertPresetWriteScope(preset, relativePath, target = null) {
+export function assertPresetWriteScope(preset: PresetPackage, relativePath: string, target: PresetTarget | null = null): void {
   return assertPresetWriteScopeForTarget(preset, relativePath, target);
 }
 
-export function assertPresetWriteScopeForTarget(preset, relativePath, target = null) {
+export function assertPresetWriteScopeForTarget(preset: PresetPackage, relativePath: string, target: PresetTarget | null = null): void {
   const normalized = toPosix(path.normalize(relativePath));
   if (normalized.startsWith("../") || path.isAbsolute(normalized)) {
     throw new Error(`Preset write scope violation for ${relativePath}`);
@@ -184,20 +236,20 @@ export function assertPresetWriteScopeForTarget(preset, relativePath, target = n
   }
 }
 
-export function resolvePresetScopes(preset, target) {
+export function resolvePresetScopes(preset: PresetPackage, target: PresetTarget | null): PresetScopeResolution {
   const writeScopes = preset.writeScopes.flatMap((scope) => normalizedPresetScopes(scope.path, target));
-  const entrypoints = {};
+  const entrypoints: Record<string, string[]> = {};
   for (const [name, entrypoint] of Object.entries(preset.entrypoints || {})) {
     entrypoints[name] = (entrypoint.writes || []).flatMap((scope) => normalizedPresetScopes(scope, target));
   }
-  const reads = {};
+  const reads: Record<string, string[]> = {};
   for (const [name, entrypoint] of Object.entries(preset.entrypoints || {})) {
     reads[name] = (entrypoint.reads || []).flatMap((scope) => normalizedPresetScopes(scope, target));
   }
   return { writeScopes, entrypoints, reads };
 }
 
-function normalizedPresetScopes(scopePath, target = null) {
+function normalizedPresetScopes(scopePath: string, target: PresetTarget | null = null): string[] {
   const raw = String(scopePath || "");
   const scope = target && raw.includes("{{")
     ? resolveHarnessPathTemplate(raw, target, "preset scope")
@@ -210,7 +262,7 @@ function normalizedPresetScopes(scopePath, target = null) {
   return scopes;
 }
 
-function inputValue(declaration, { cliArgs, fromSession }) {
+function inputValue(declaration: PresetPackage["inputs"][string], { cliArgs, fromSession }: { cliArgs: string[]; fromSession: string }): unknown {
   if (declaration.flag === "--from-session" && fromSession) return fromSession;
   if (!declaration.flag) return declaration.default;
   const index = cliArgs.indexOf(declaration.flag);
@@ -221,9 +273,9 @@ function inputValue(declaration, { cliArgs, fromSession }) {
   return value;
 }
 
-function computedValues(preset, inputs) {
-  const values = {};
-  const migrationSession = Object.values(inputs).find((value) => value && typeof value === "object" && value.operation === "migrate-run");
+function computedValues(preset: PresetPackage, inputs: PresetResolvedInputs): PresetTemplateValues {
+  const values: PresetTemplateValues = {};
+  const migrationSession = Object.values(inputs).find((value): value is MigrationSessionInput => isRecord(value) && value.operation === "migrate-run");
   if (migrationSession) {
     values.migrationTargetLevel = preset.task?.migrationTargetLevel || "migration-baseline";
     values.migrationAchievedLevel = migrationSession.strictDeferred ? "migration-deferred" : migrationSession.result === "complete" ? "migration-full-cutover" : "migration-baseline";
@@ -237,7 +289,7 @@ function computedValues(preset, inputs) {
   return values;
 }
 
-function presetEvidenceBundle(preset, { target, taskDir, evaluatedValues }) {
+function presetEvidenceBundle(preset: PresetPackage, { target, taskDir, evaluatedValues }: { target: PresetTarget; taskDir: string; evaluatedValues: PresetTemplateValues }): string {
   const bundleDir = String(preset.evidence?.bundleDir || "artifacts/preset").trim();
   const stampSource = evaluatedValues.generatedAt || new Date().toISOString();
   const stamp = String(stampSource).replace(/[^0-9A-Za-z-]+/g, "-").replace(/-+$/g, "");
@@ -245,9 +297,9 @@ function presetEvidenceBundle(preset, { target, taskDir, evaluatedValues }) {
   return toPosix(path.join(relativeTaskDir, bundleDir, stamp || "generated"));
 }
 
-function generateEvidenceFiles(preset, { target, context }) {
-  const files = [];
-  const add = (relativePath, source, content) => {
+function generateEvidenceFiles(preset: PresetPackage, { target, context }: { target: PresetTarget; context: PresetContext }): PresetGeneratedFile[] {
+  const files: PresetGeneratedFile[] = [];
+  const add: PresetAddFile = (relativePath, source, content) => {
     assertPresetWriteScope(preset, relativePath, target);
     files.push({ relativePath, source, content });
   };
@@ -262,10 +314,10 @@ function generateEvidenceFiles(preset, { target, context }) {
   return files;
 }
 
-function generateResourceFiles(preset, { target, context }) {
-  const files = [];
-  const indexRows = { references: [], artifacts: [] };
-  const add = (relativePath, source, content) => {
+function generateResourceFiles(preset: PresetPackage, { target, context }: { target: PresetTarget; context: PresetContext }): { files: PresetGeneratedFile[]; indexRows: PresetResourceIndexRows } {
+  const files: PresetGeneratedFile[] = [];
+  const indexRows: PresetResourceIndexRows = { references: [], artifacts: [] };
+  const add: PresetAddFile = (relativePath, source, content) => {
     assertPresetWriteScope(preset, relativePath, target);
     files.push({ relativePath, source, content });
   };
@@ -282,12 +334,12 @@ function generateResourceFiles(preset, { target, context }) {
   return { files, indexRows };
 }
 
-function renderResourceContent(preset, resource, context) {
+function renderResourceContent(preset: PresetPackage, resource: PresetResource, context: PresetContext): string {
   if (resource.template) return renderPresetTemplate(preset, resource.template, context.values);
   return fs.readFileSync(path.join(preset.directory, resource.source), "utf8");
 }
 
-function renderReferenceIndexRow(resource, relativePath, values) {
+function renderReferenceIndexRow(resource: PresetResource, relativePath: string, values: PresetTemplateValues): PresetResourceIndexRows["references"][number] {
   return {
     id: resource.index.id,
     type: renderInline(resource.index.type, values),
@@ -297,7 +349,7 @@ function renderReferenceIndexRow(resource, relativePath, values) {
   };
 }
 
-function renderArtifactIndexRow(resource, relativePath, values) {
+function renderArtifactIndexRow(resource: PresetResource, relativePath: string, values: PresetTemplateValues): PresetResourceIndexRows["artifacts"][number] {
   return {
     id: resource.index.id,
     type: renderInline(resource.index.type, values),
@@ -307,7 +359,7 @@ function renderArtifactIndexRow(resource, relativePath, values) {
   };
 }
 
-function appendPresetRequiredReads(content, context) {
+function appendPresetRequiredReads(content: string, context: PresetContext): string {
   const requiredReads = context.presetPackage?.context?.requiredReads || [];
   if (!requiredReads.length) return content;
   const rowsById = new Map((context.resourceIndexRows?.references || []).map((row) => [row.id, row]));
@@ -318,7 +370,14 @@ function appendPresetRequiredReads(content, context) {
   return `${content.trimEnd()}\n\n## Preset Required Reads\n\nOpen \`references/INDEX.md\`, then read these preset-provided references before implementation.\n\n| Reference | Path | Why |\n| --- | --- | --- |\n${rows.join("\n")}\n`;
 }
 
-function addEvidenceFile({ name, declaration, preset, target, context, add }) {
+function addEvidenceFile({ name, declaration, preset, target, context, add }: {
+  name: string;
+  declaration: NonNullable<PresetPackage["evidence"]["files"]>[string];
+  preset: PresetPackage;
+  target: PresetTarget;
+  context: PresetContext;
+  add: PresetAddFile;
+}): void {
   const fileName = declaration.path || `${name}.txt`;
   const relativePath = toPosix(path.join(context.evidenceBundle, fileName));
   const type = declaration.type || "text";
@@ -356,7 +415,7 @@ function addEvidenceFile({ name, declaration, preset, target, context, add }) {
   }
 }
 
-function addAuditFile({ name, preset, context, add }) {
+function addAuditFile({ name, preset, context, add }: { name: string; preset: PresetPackage; context: PresetContext; add: PresetAddFile }): void {
   const relativePath = toPosix(path.join(context.evidenceBundle, name));
   if (name === "preset-manifest.json") {
     add(relativePath, "preset.yaml", `${JSON.stringify(presetManifestSnapshot(preset), null, 2)}\n`);
@@ -369,7 +428,7 @@ function addAuditFile({ name, preset, context, add }) {
   }
 }
 
-function renderPresetMetadata(content, context) {
+function renderPresetMetadata(content: string, context: PresetContext): string {
   const metadata = [
     context.kind && context.kind !== "general" ? `Task Kind: ${context.kind}` : "",
     `Task Preset: ${context.preset}`,
@@ -380,7 +439,7 @@ function renderPresetMetadata(content, context) {
     ...declaredMetadataLines(context),
   ].filter(Boolean).join("\n");
   let next = String(content).replace(new RegExp(`^(${escapeRegExp(taskContractMarker)}\\s*)$`, "im"), `$1\n${metadata}`);
-  const outcome = context.presetPackage.task?.defaultOutcome || "";
+  const outcome = String(context.presetPackage.task?.defaultOutcome || "");
   if (outcome) {
     next = next
       .replace("[State the outcome this task must deliver in one sentence.]", outcome)
@@ -389,7 +448,7 @@ function renderPresetMetadata(content, context) {
   return next;
 }
 
-function declaredMetadataLines(context) {
+function declaredMetadataLines(context: PresetContext): string[] {
   const base = {
     inputs: context.resolvedInputs || {},
     values: context.values || {},
@@ -407,23 +466,23 @@ function declaredMetadataLines(context) {
     const label = declaration.label || name;
     let value = "";
     if (Object.prototype.hasOwnProperty.call(declaration, "from")) {
-      value = getPath(base, declaration.from);
+      value = String(getPath(base, declaration.from) || "");
     } else if (Object.prototype.hasOwnProperty.call(declaration, "value")) {
-      value = declaration.value;
+      value = String(declaration.value || "");
     } else if (Object.prototype.hasOwnProperty.call(declaration, "default")) {
-      value = declaration.default;
+      value = String(declaration.default || "");
     }
     return value == null || value === "" ? "" : `${label}: ${value}`;
   });
 }
 
-function migrationSession(context) {
-  const session = Object.values(context.resolvedInputs || {}).find((value) => value && typeof value === "object" && value.operation === "migrate-run");
+function migrationSession(context: PresetContext): MigrationSessionInput {
+  const session = Object.values(context.resolvedInputs || {}).find((value): value is MigrationSessionInput => isRecord(value) && value.operation === "migrate-run");
   if (!session) throw new Error("Preset evidence requires migrate-run session input");
   return session;
 }
 
-function migrationLedger({ session, preset, verifyResult }) {
+function migrationLedger({ session, preset, verifyResult }: { session: MigrationSessionInput; preset: PresetPackage; verifyResult: Record<string, unknown> }) {
   const summary = session.plan?.summary || {};
   return {
     schemaVersion: "legacy-migration-ledger/v2",
@@ -466,7 +525,7 @@ function migrationLedger({ session, preset, verifyResult }) {
   };
 }
 
-function presetManifestSnapshot(preset) {
+function presetManifestSnapshot(preset: PresetPackage) {
   return {
     id: preset.id,
     version: preset.version,
@@ -484,7 +543,7 @@ function presetManifestSnapshot(preset) {
   };
 }
 
-function matchesScope(scope, relativePath) {
+function matchesScope(scope: string, relativePath: string): boolean {
   const normalizedScope = toPosix(String(scope || ""));
   if (normalizedScope.endsWith("/**")) {
     const prefix = normalizedScope.slice(0, -3);
@@ -493,47 +552,64 @@ function matchesScope(scope, relativePath) {
   return relativePath === normalizedScope;
 }
 
-function dashboardHash(indexPath) {
+function dashboardHash(indexPath: string): string {
   if (!indexPath || !fs.existsSync(indexPath)) return "missing";
   return `sha256:${crypto.createHash("sha256").update(fs.readFileSync(indexPath)).digest("hex")}`;
 }
 
-function targetCommit(projectRoot) {
+function targetCommit(projectRoot: string): string {
   const result = spawnSync("git", ["-C", projectRoot, "rev-parse", "HEAD"], { encoding: "utf8" });
   return result.status === 0 ? result.stdout.trim() : "n/a";
 }
 
-function packageVersion() {
+function packageVersion(): string {
   try {
-    return readJsonSafe(path.join(repoRoot, "package.json"), {}).version || "unknown";
+    return String(asRecord(readJsonSafe(path.join(repoRoot, "package.json"), {})).version || "unknown");
   } catch {
     return "unknown";
   }
 }
 
-function getPath(values, key) {
+function getPath(values: unknown, key: unknown): unknown {
   if (!key) return values;
-  return String(key).split(".").reduce((cursor, part) => (cursor && Object.prototype.hasOwnProperty.call(cursor, part) ? cursor[part] : undefined), values);
+  let cursor = values;
+  for (const part of String(key).split(".")) {
+    if (!isRecord(cursor) || !Object.prototype.hasOwnProperty.call(cursor, part)) return undefined;
+    cursor = cursor[part];
+  }
+  return cursor;
 }
 
-function renderInline(value, values) {
+function renderInline(value: unknown, values: PresetTemplateValues): string {
   return String(value || "").replace(/\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/g, (_match, key) => {
     const result = getPath(values, key);
     return result == null ? "" : String(result);
   });
 }
 
-function markdownTableCell(value) {
+function markdownTableCell(value: unknown): string {
   return String(value || "").replace(/\r?\n/g, " ").replaceAll("|", "&#124;").trim();
 }
 
-function presetIndexSkeleton(kind) {
+function presetIndexSkeleton(kind: string): string {
   if (kind === "references") {
     return "# References Index\n\n| ID | Type | Path | Summary | Used By |\n| --- | --- | --- | --- | --- |\n";
   }
   return "# Artifacts Index\n\n| ID | Type | Path | Summary | Produced By |\n| --- | --- | --- | --- | --- |\n";
 }
 
-function escapeRegExp(value) {
+function escapeRegExp(value: string): string {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "unknown parse error";
 }
