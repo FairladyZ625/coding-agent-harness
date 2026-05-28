@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
@@ -10,12 +9,37 @@ const sourceRoots = ["scripts", "tests"];
 const importPattern = /\b(import|export)\s+(type\s+)?(?:[^'"]*?\s+from\s+)?["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
 const tsEscapePattern = /@(ts-ignore|ts-expect-error)\b|\bas\s+unknown\s+as\b|\bRecord\s*<\s*string\s*,\s*any\s*>|(?:^|[^A-Za-z0-9_$])(?:as\s+any|:\s*any\b)/;
 
+type CheckTypeBoundariesOptions = {
+  repoRoot?: string;
+  escapeAllowlistPath?: string;
+};
+
+type ParsedImport = {
+  kind: string;
+  typeOnly: boolean;
+  specifier: string;
+};
+
+type TypeBoundaryViolation = {
+  code: string;
+  file: string;
+  line?: number;
+  specifier?: string;
+  message: string;
+};
+
+type EscapeAllowlistEntry = string | {
+  file: string;
+  line: number;
+  code?: string;
+};
+
 export function checkTypeBoundaries({
   repoRoot = defaultRepoRoot,
   escapeAllowlistPath = path.join(repoRoot, "scripts/type-escape-allowlist.json"),
-} = {}) {
+}: CheckTypeBoundariesOptions = {}): { ok: boolean; violations: TypeBoundaryViolation[] } {
   const files = collectSourceFiles(repoRoot);
-  const violations = [];
+  const violations: TypeBoundaryViolation[] = [];
   const escapeAllowlist = readEscapeAllowlist(escapeAllowlistPath);
 
   for (const file of files) {
@@ -65,8 +89,8 @@ export function checkTypeBoundaries({
   return { ok: violations.length === 0, violations };
 }
 
-function collectSourceFiles(repoRoot) {
-  const files = [];
+function collectSourceFiles(repoRoot: string): string[] {
+  const files: string[] = [];
   for (const root of sourceRoots) {
     const absoluteRoot = path.join(repoRoot, root);
     if (!fs.existsSync(absoluteRoot)) continue;
@@ -75,7 +99,7 @@ function collectSourceFiles(repoRoot) {
   return files.sort();
 }
 
-function walk(current, files, repoRoot) {
+function walk(current: string, files: string[], repoRoot: string): void {
   const stat = fs.lstatSync(current);
   if (stat.isSymbolicLink()) return;
   if (stat.isDirectory()) {
@@ -89,23 +113,23 @@ function walk(current, files, repoRoot) {
   }
 }
 
-function parseImports(content) {
-  const imports = [];
+function parseImports(content: string): ParsedImport[] {
+  const imports: ParsedImport[] = [];
   for (const match of content.matchAll(importPattern)) {
     imports.push({
       kind: match[1] || "import",
       typeOnly: match[2] === "type ",
-      specifier: match[3] || match[4],
+      specifier: match[3] || match[4] || "",
     });
   }
   return imports;
 }
 
-function isLocalSpecifier(specifier) {
+function isLocalSpecifier(specifier: string): boolean {
   return specifier.startsWith("./") || specifier.startsWith("../") || specifier.startsWith("/");
 }
 
-function resolveLocalSpecifier(repoRoot, importer, specifier) {
+function resolveLocalSpecifier(repoRoot: string, importer: string, specifier: string): string | undefined {
   const importerDir = path.dirname(path.join(repoRoot, importer));
   const basePath = specifier.startsWith("/") ? path.join(repoRoot, specifier) : path.resolve(importerDir, specifier);
   const candidates = candidatePaths(basePath);
@@ -116,7 +140,7 @@ function resolveLocalSpecifier(repoRoot, importer, specifier) {
   return relative.startsWith("..") ? undefined : relative;
 }
 
-function candidatePaths(basePath) {
+function candidatePaths(basePath: string): string[] {
   const extension = path.extname(basePath);
   if (extension) {
     const paths = [basePath];
@@ -134,21 +158,21 @@ function candidatePaths(basePath) {
   ];
 }
 
-function isSharedTypesPath(relativePath) {
+function isSharedTypesPath(relativePath: string): boolean {
   return relativePath === "scripts/lib/types" || relativePath.startsWith("scripts/lib/types/");
 }
 
-function hasTypeScriptSourceExtension(filePath) {
+function hasTypeScriptSourceExtension(filePath: unknown): boolean {
   return typeof filePath === "string" && /\.(mts|ts)$/.test(filePath);
 }
 
-function isTypeOnlyTypeScriptImport(file, imported) {
+function isTypeOnlyTypeScriptImport(file: string, imported: ParsedImport): boolean {
   return (file.endsWith(".ts") || file.endsWith(".mts")) && imported.kind === "import" && imported.typeOnly;
 }
 
-function readEscapeAllowlist(allowlistPath) {
+function readEscapeAllowlist(allowlistPath: string): Set<string> {
   if (!allowlistPath || !fs.existsSync(allowlistPath)) return new Set();
-  const parsed = JSON.parse(fs.readFileSync(allowlistPath, "utf8"));
+  const parsed = JSON.parse(fs.readFileSync(allowlistPath, "utf8")) as EscapeAllowlistEntry[] | { escapes?: EscapeAllowlistEntry[] };
   const entries = Array.isArray(parsed) ? parsed : parsed.escapes || [];
   return new Set(
     entries.map((entry) => {
@@ -158,7 +182,7 @@ function readEscapeAllowlist(allowlistPath) {
   );
 }
 
-function isEscapeAllowed(allowlist, violation) {
+function isEscapeAllowed(allowlist: Set<string>, violation: TypeBoundaryViolation): boolean {
   return allowlist.has(`${violation.file}:${violation.line}:${violation.code}`) || allowlist.has(`${violation.file}:${violation.line}`);
 }
 

@@ -6,7 +6,6 @@
     "scripts/check-harness.mts",
     "scripts/check-import-graph.mts",
     "scripts/check-runtime-emit.mts",
-    "scripts/check-type-boundaries.mts",
     "scripts/commands/dashboard-command.mts",
     "scripts/commands/migration-command.mts",
     "scripts/commands/preset-command.mts",
