@@ -21,6 +21,24 @@ The npm package publishes `dist/` and no longer publishes `scripts/` or `tests/`
 This keeps installed execution independent from TypeScript source files and from
 the deleted historical shims.
 
+## Final Closeout Evidence
+
+The TS-first runtime closeout is based on the PR-28 deletion gate plus the PR-29
+final inventory:
+
+- final `scripts/` and `tests/` JavaScript shim inventory is zero;
+- packed package file inventory includes `dist/` and excludes `scripts/` and
+  `tests/`;
+- Node 24 tarball smoke proved installed `harness` commands execute from
+  `dist/` with a temporary `HOME` and PATH isolated to the temp consumer
+  `node_modules/.bin`;
+- source-package and target-project checks pass through `dist/harness.mjs`;
+- snapshot matrix reported no blocking drift after shim deletion.
+
+That means remaining package-included JavaScript is not unfinished CLI/test
+runtime migration work. The remaining files are the documented preset and
+dashboard exceptions below.
+
 ## Runtime Contract
 
 The package is an ESM package and its current public runtime contract points at
@@ -58,9 +76,10 @@ These files should not be deleted by a runtime `.mjs` cleanup PR. If they are
 migrated later, use a dedicated preset or dashboard asset migration plan with its
 own package and browser checks.
 
-## Cleanup Gate
+## Future Cleanup Gate
 
-The deletion PR must prove all of the following:
+Any future PR that removes or migrates the remaining preset/dashboard JavaScript
+exceptions must prove all of the following for its own surface:
 
 - package `bin` and `postinstall` still work from a packed tarball;
 - installed package execution works with a temp `HOME` and PATH isolated to the
@@ -69,9 +88,9 @@ The deletion PR must prove all of the following:
   private, temporary, and test-only material;
 - snapshot matrix has no blocking drift;
 - real target smoke passes;
-- the PR is independently revertible by restoring the deleted shims and package
-  script references without reverting the earlier dist runtime cutover.
+- the PR is independently revertible without reverting the earlier dist runtime
+  cutover or the PR-28 historical shim deletion.
 
-After those gates pass, `dist/**/*.mjs` remains the supported package execution
-surface. Preset `.mjs` hooks and dashboard browser `.js` assets remain documented
-exceptions, not unfinished CLI runtime migration work.
+`dist/**/*.mjs` remains the supported package execution surface. Preset `.mjs`
+hooks and dashboard browser `.js` assets remain documented exceptions, not
+unfinished CLI runtime migration work.
