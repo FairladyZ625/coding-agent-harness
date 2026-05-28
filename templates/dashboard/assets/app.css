@@ -1721,6 +1721,233 @@ button, input, select {
   color: var(--accent);
 }
 
+/* Read-only runtime swimlane */
+.task-swimlane {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+  overflow: hidden;
+}
+
+.task-swimlane.empty-state {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.swimlane-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.swimlane-header h2 {
+  margin: 2px 0 0;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.swimlane-stage-legend {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(92px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-left: 168px;
+}
+
+.swimlane-stage-legend span,
+.swimlane-cell-title {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.swimlane-board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.swimlane-row {
+  display: grid;
+  grid-template-columns: 156px minmax(720px, 1fr);
+  gap: 12px;
+  min-width: 900px;
+}
+
+.swimlane-lane-label {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  min-height: 96px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.swimlane-lane-label strong {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.swimlane-lane-label span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.swimlane-cells {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(92px, 1fr));
+  gap: 8px;
+}
+
+.swimlane-cell {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 72%, var(--paper));
+  min-height: 96px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.swimlane-cell[data-swimlane-stage="blocked"] {
+  background: color-mix(in srgb, var(--danger) 8%, var(--paper));
+}
+
+.swimlane-cell[data-swimlane-stage="review"] {
+  background: color-mix(in srgb, var(--accent-2) 8%, var(--paper));
+}
+
+.swimlane-cell[data-swimlane-stage="evidence"] {
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
+}
+
+.swimlane-cell-empty {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: auto;
+  opacity: 0.72;
+}
+
+.swimlane-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--row-accent, var(--accent));
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 104px;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.swimlane-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.swimlane-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.swimlane-card-head > span:last-child {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.swimlane-card strong {
+  color: var(--ink);
+  display: -webkit-box;
+  font-size: 12px;
+  line-height: 1.25;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.swimlane-card p {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.25;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.swimlane-card-reason {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: auto;
+  padding: 5px 6px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .task-swimlane {
+    padding: 14px;
+  }
+
+  .swimlane-header {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .swimlane-stage-legend {
+    display: none;
+  }
+
+  .swimlane-board {
+    overflow-x: visible;
+  }
+
+  .swimlane-row {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+
+  .swimlane-lane-label {
+    min-height: auto;
+    gap: 4px;
+  }
+
+  .swimlane-cells {
+    grid-template-columns: 1fr;
+  }
+
+  .swimlane-cell {
+    min-height: auto;
+  }
+
+  .swimlane-cell-title {
+    display: block;
+  }
+}
+
 .review-queue-stats {
   display: grid;
   grid-template-columns: 1fr;
