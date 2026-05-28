@@ -1,22 +1,51 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncReturns } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const typescriptVersion = "5.9.3";
+
+type RuntimeEmitOptions = {
+  projectRoot?: string;
+  configPath?: string;
+  expectedDir?: string;
+  outDir?: string;
+};
+
+type RuntimeEmitViolation = {
+  code: string;
+  message: string;
+  file?: string;
+  specifier?: string;
+};
+
+type RuntimeEmitResult = {
+  ok: boolean;
+  violations: RuntimeEmitViolation[];
+  outDir?: string;
+  expectedDir?: string;
+  skippedEmit?: boolean;
+  sourceFiles?: number;
+};
+
+type CollectSourceOptions = {
+  roots?: string[];
+};
+
+type WalkPredicate = (file: string) => boolean;
 
 export function checkRuntimeEmitContract({
   projectRoot = defaultRepoRoot,
   configPath,
   expectedDir,
   outDir,
-} = {}) {
-  const violations = [];
+}: RuntimeEmitOptions = {}): RuntimeEmitResult {
+  const violations: RuntimeEmitViolation[] = [];
   const usesDefaultConfig = configPath === undefined;
   const resolvedConfigPath = configPath || path.join(projectRoot, "tsconfig.dist.json");
   const absoluteProjectRoot = path.resolve(projectRoot);
@@ -90,7 +119,7 @@ export function checkRuntimeEmitContract({
   };
 }
 
-function runTypeScriptEmit({ projectRoot, configPath, outDir }) {
+function runTypeScriptEmit({ projectRoot, configPath, outDir }: { projectRoot: string; configPath: string; outDir: string }): SpawnSyncReturns<string> {
   return spawnSync(
     "npm",
     ["exec", "--yes", "--package", `typescript@${typescriptVersion}`, "--", "tsc", "-p", configPath, "--outDir", outDir, "--noCheck"],
@@ -101,7 +130,7 @@ function runTypeScriptEmit({ projectRoot, configPath, outDir }) {
   );
 }
 
-function compareDirectories({ expectedDir, actualDir, violations }) {
+function compareDirectories({ expectedDir, actualDir, violations }: { expectedDir: string; actualDir: string; violations: RuntimeEmitViolation[] }): void {
   const expectedFiles = collectFiles(expectedDir).filter((file) => file.endsWith(".mjs")).sort();
   const actualFiles = collectFiles(actualDir).filter((file) => file.endsWith(".mjs")).sort();
   const expectedRelatives = expectedFiles.map((file) => toPosix(path.relative(expectedDir, file)));
@@ -138,8 +167,8 @@ function compareDirectories({ expectedDir, actualDir, violations }) {
   }
 }
 
-function collectSourceFiles(projectRoot, { roots } = {}) {
-  const files = [];
+function collectSourceFiles(projectRoot: string, { roots }: CollectSourceOptions = {}): string[] {
+  const files: string[] = [];
   const sourceRoots = roots?.length ? roots.map((root) => path.join(projectRoot, root)) : [projectRoot];
   for (const sourceRoot of sourceRoots) {
     if (fs.existsSync(sourceRoot)) walk(sourceRoot, files, (file) => file.endsWith(".mts"), projectRoot);
@@ -147,13 +176,13 @@ function collectSourceFiles(projectRoot, { roots } = {}) {
   return files.sort();
 }
 
-function collectFiles(directory) {
-  const files = [];
+function collectFiles(directory: string): string[] {
+  const files: string[] = [];
   if (fs.existsSync(directory)) walk(directory, files, () => true);
   return files.sort();
 }
 
-function walk(current, files, predicate, sourceRoot) {
+function walk(current: string, files: string[], predicate: WalkPredicate, sourceRoot = ""): void {
   const stat = fs.lstatSync(current);
   if (stat.isSymbolicLink()) return;
   if (stat.isDirectory()) {
@@ -166,8 +195,8 @@ function walk(current, files, predicate, sourceRoot) {
   if (stat.isFile() && predicate(current)) files.push(current);
 }
 
-function parseLocalImportSpecifiers(content) {
-  const specifiers = [];
+function parseLocalImportSpecifiers(content: string): string[] {
+  const specifiers: string[] = [];
   let index = 0;
 
   while (index < content.length) {
@@ -202,11 +231,11 @@ function parseLocalImportSpecifiers(content) {
   return specifiers;
 }
 
-function isLocalSpecifier(specifier) {
+function isLocalSpecifier(specifier: unknown): specifier is string {
   return typeof specifier === "string" && (specifier.startsWith("./") || specifier.startsWith("../"));
 }
 
-function skipNonCode(content, index) {
+function skipNonCode(content: string, index: number): number {
   const char = content[index];
   const next = content[index + 1];
 
@@ -222,7 +251,7 @@ function skipNonCode(content, index) {
   return index;
 }
 
-function skipString(content, index, quote) {
+function skipString(content: string, index: number, quote: string): number {
   let cursor = index + 1;
   while (cursor < content.length) {
     if (content[cursor] === "\\") {
@@ -235,24 +264,24 @@ function skipString(content, index, quote) {
   return content.length;
 }
 
-function isKeywordAt(content, index, keyword) {
+function isKeywordAt(content: string, index: number, keyword: string): boolean {
   if (!content.startsWith(keyword, index)) return false;
   const before = content[index - 1];
   const after = content[index + keyword.length];
   return !isIdentifierChar(before) && !isIdentifierChar(after);
 }
 
-function isIdentifierChar(char) {
+function isIdentifierChar(char: unknown): boolean {
   return typeof char === "string" && /[A-Za-z0-9_$]/.test(char);
 }
 
-function skipWhitespace(content, index) {
+function skipWhitespace(content: string, index: number): number {
   let cursor = index;
   while (/\s/.test(content[cursor] || "")) cursor += 1;
   return cursor;
 }
 
-function findStatementEnd(content, index) {
+function findStatementEnd(content: string, index: number): number {
   let cursor = index;
   while (cursor < content.length) {
     const skipped = skipNonCode(content, cursor);
@@ -267,7 +296,7 @@ function findStatementEnd(content, index) {
   return content.length;
 }
 
-function readFirstStringArgument(content, index) {
+function readFirstStringArgument(content: string, index: number): string | undefined {
   const start = skipWhitespace(content, index);
   const quote = content[start];
   if (quote !== "'" && quote !== '"') return undefined;
@@ -287,12 +316,12 @@ function readFirstStringArgument(content, index) {
   return undefined;
 }
 
-function toPosix(value) {
+function toPosix(value: string): string {
   return value.split(path.sep).join("/");
 }
 
-function parseArgs(argv) {
-  const args = {};
+function parseArgs(argv: string[]): RuntimeEmitOptions {
+  const args: RuntimeEmitOptions = {};
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--project-root") args.projectRoot = argv[++index];
