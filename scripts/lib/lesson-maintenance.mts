@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -18,11 +17,35 @@ import {
   commitGovernanceSync,
   releaseGovernanceSync,
 } from "./governance-sync.mjs";
+import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 
-export function promoteLessonCandidate(targetInput, taskId, candidateId, { dryRun = false, apply = false } = {}) {
-  const target = normalizeTarget(targetInput);
+type LessonTarget = ReturnType<typeof normalizeTarget> & {
+  projectRoot: string;
+  harness: ResolvedHarnessPaths;
+};
+
+type LessonTask = ReturnType<typeof collectTasks>[number];
+
+type PromotionChange = {
+  action: string;
+  path: string;
+};
+
+type PromoteLessonOptions = {
+  dryRun?: boolean;
+  apply?: boolean;
+};
+
+type LessonDetailInput = {
+  lessonId: string;
+  candidate: Record<string, string>;
+  task: LessonTask;
+};
+
+export function promoteLessonCandidate(targetInput: string, taskId: string, candidateId: string, { dryRun = false, apply = false }: PromoteLessonOptions = {}) {
+  const target = normalizeTarget(targetInput) as LessonTarget;
   const normalizedRef = slug(taskId);
-  const matchesBareSlug = (item) => {
+  const matchesBareSlug = (item: LessonTask): boolean => {
     if (!datePrefix.test(normalizedRef)) {
       const shortBase = datePrefix.test(item.shortId) ? item.shortId.replace(datePrefix, "") : item.shortId;
       if (shortBase === normalizedRef) return true;
@@ -55,7 +78,7 @@ export function promoteLessonCandidate(targetInput, taskId, candidateId, { dryRu
   const detailRelative = `${detailRoot}/${lessonId}-${slug(title)}.md`;
   const detailPath = path.join(target.projectRoot, detailRelative);
 
-  const changes = [];
+  const changes: PromotionChange[] = [];
   if (!fs.existsSync(detailPath)) changes.push({ action: dryRun ? "would-create" : "create", path: `TARGET:${detailRelative}` });
   if (row.status !== "promoted" || parsed.status !== "promoted") changes.push({ action: dryRun ? "would-update" : "update", path: task.lessonCandidatePath || `TARGET:${toPosix(path.relative(target.projectRoot, candidatePath))}` });
 
@@ -76,7 +99,7 @@ export function promoteLessonCandidate(targetInput, taskId, candidateId, { dryRu
   const governanceContext = beginGovernanceSync(target, { operation: `lesson-promote ${task.id} ${row.id}` });
   try {
     fs.mkdirSync(path.dirname(detailPath), { recursive: true });
-    if (!fs.existsSync(detailPath)) fs.writeFileSync(detailPath, renderLessonDetail({ lessonId, candidate: row, task, detailRelative }));
+    if (!fs.existsSync(detailPath)) fs.writeFileSync(detailPath, renderLessonDetail({ lessonId, candidate: row, task }));
     fs.writeFileSync(candidatePath, markCandidatePromoted(candidateContent, row.id, lessonId));
     const commit = commitGovernanceSync(
       governanceContext,
@@ -93,13 +116,13 @@ export function promoteLessonCandidate(targetInput, taskId, candidateId, { dryRu
   }
 }
 
-function lessonIdFromCandidate(candidateId) {
+function lessonIdFromCandidate(candidateId: string): string {
   const match = String(candidateId || "").match(/^LC-(\d{4})(\d{2})(\d{2})-(\d+)$/i);
   if (!match) return `L-${slug(candidateId)}`;
   return `L-${match[1]}-${match[2]}-${match[3]}-${match[4].padStart(3, "0")}`;
 }
 
-function renderLessonDetail({ lessonId, candidate, task }) {
+function renderLessonDetail({ lessonId, candidate, task }: LessonDetailInput): string {
   return [
     `# ${lessonId} - ${candidate.title || "Lesson Candidate"}`,
     "",
@@ -124,7 +147,7 @@ function renderLessonDetail({ lessonId, candidate, task }) {
   ].join("\n");
 }
 
-function markCandidatePromoted(content, candidateId, lessonId) {
+function markCandidatePromoted(content: string, candidateId: string, lessonId: string): string {
   const lines = String(content || "").split(/\r?\n/);
   const headerIndex = lines.findIndex((line) => /^\|\s*ID\s*\|/.test(line));
   if (headerIndex >= 0) {
@@ -147,10 +170,10 @@ function markCandidatePromoted(content, candidateId, lessonId) {
     .trimEnd()}\n`;
 }
 
-function splitSimpleRow(line) {
+function splitSimpleRow(line: string): string[] {
   return String(line || "").replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((cell) => cell.trim());
 }
 
-function escapeCell(value) {
+function escapeCell(value: unknown): string {
   return String(value || "").replace(/\r?\n/g, " ").replaceAll("|", "\\|").trim();
 }

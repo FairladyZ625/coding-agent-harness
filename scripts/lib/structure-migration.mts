@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -13,7 +12,34 @@ import {
   v2HarnessRoot,
 } from "./harness-paths.mjs";
 
-const legacyMappings = [
+type StructureAction = {
+  action: string;
+  source?: string;
+  destination: string;
+};
+
+type StructureCapabilities = {
+  locale: string;
+  names: string[];
+};
+
+type StructurePlan = {
+  operation: string;
+  target: string;
+  mode: string;
+  manifest: string;
+  capabilities: StructureCapabilities;
+  actions: StructureAction[];
+  summary: {
+    actions: number;
+    moves: number;
+    willArchiveLegacyDocs: boolean;
+    canApply: boolean;
+    applied?: number;
+  };
+};
+
+const legacyMappings: Array<[string, string]> = [
   ["03-ARCHITECTURE", `${v2HarnessRoot}/context/architecture`],
   ["04-DEVELOPMENT", `${v2HarnessRoot}/context/development`],
   ["06-INTEGRATIONS", `${v2HarnessRoot}/context/integrations`],
@@ -31,7 +57,7 @@ export function planStructureMigration(targetInput = ".") {
   const legacyDocsRoot = path.join(target.projectRoot, "docs");
   const manifestPath = path.join(target.projectRoot, v2HarnessRoot, "harness.yaml");
   const capabilities = readLegacyCapabilities(target.projectRoot);
-  const actions = [];
+  const actions: StructureAction[] = [];
   if (!fs.existsSync(legacyDocsRoot)) {
     actions.push({
       action: fs.existsSync(manifestPath) ? "already-v2" : "create-v2-manifest",
@@ -96,14 +122,14 @@ export function applyStructureMigration(targetInput = ".", { force = false } = {
   const plan = planStructureMigration(targetInput);
   const targetRoot = plan.target;
   const manifestPath = path.join(targetRoot, plan.manifest);
-  const applied = [];
+  const applied: StructureAction[] = [];
   preflightStructureMigration(plan, { force });
   if (!fs.existsSync(manifestPath) || force) {
     fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
     fs.writeFileSync(manifestPath, renderHarnessManifest({ locale: plan.capabilities.locale, capabilities: plan.capabilities.names }));
     applied.push({ action: "write-manifest", destination: plan.manifest });
   }
-  for (const action of plan.actions.filter((entry) => entry.action === "move")) {
+  for (const action of plan.actions.filter(isMoveAction)) {
     const source = path.join(targetRoot, action.source);
     const destination = path.join(targetRoot, action.destination);
     if (!fs.existsSync(source)) continue;
@@ -137,7 +163,7 @@ export function applyStructureMigration(targetInput = ".", { force = false } = {
   };
 }
 
-function removeGeneratedTemplateDirectories(targetRoot, applied) {
+function removeGeneratedTemplateDirectories(targetRoot: string, applied: StructureAction[]): void {
   for (const relative of generatedTemplateDirs()) {
     const directory = path.join(targetRoot, relative);
     if (!fs.existsSync(directory)) continue;
@@ -149,7 +175,7 @@ function removeGeneratedTemplateDirectories(targetRoot, applied) {
   }
 }
 
-function generatedTemplateDirs() {
+function generatedTemplateDirs(): string[] {
   return [
     `${v2HarnessRoot}/planning/tasks/_task-template`,
     `${v2HarnessRoot}/planning/modules/_task-template`,
@@ -157,10 +183,10 @@ function generatedTemplateDirs() {
   ];
 }
 
-function preflightStructureMigration(plan, { force = false } = {}) {
+function preflightStructureMigration(plan: StructurePlan, { force = false } = {}): void {
   if (force) return;
   const conflicts = [];
-  for (const action of plan.actions.filter((entry) => entry.action === "move")) {
+  for (const action of plan.actions.filter(isMoveAction)) {
     const source = path.join(plan.target, action.source);
     const destination = path.join(plan.target, action.destination);
     if (fs.existsSync(source) && fs.existsSync(destination)) conflicts.push(action.destination);
@@ -171,7 +197,11 @@ function preflightStructureMigration(plan, { force = false } = {}) {
   }
 }
 
-function moduleTaskNormalizationConflicts(targetRoot) {
+function isMoveAction(action: StructureAction): action is StructureAction & { action: "move"; source: string } {
+  return action.action === "move" && typeof action.source === "string";
+}
+
+function moduleTaskNormalizationConflicts(targetRoot: string): string[] {
   const modulesRoot = path.join(targetRoot, legacyPath(legacyModuleRoot));
   if (!fs.existsSync(modulesRoot)) return [];
   const conflicts = [];
@@ -191,11 +221,11 @@ function moduleTaskNormalizationConflicts(targetRoot) {
   return conflicts;
 }
 
-function hasExactChild(parentDir, childName) {
+function hasExactChild(parentDir: string, childName: string): boolean {
   return fs.existsSync(parentDir) && fs.readdirSync(parentDir).includes(childName);
 }
 
-function archiveLegacyCapabilityRegistry(targetRoot, applied) {
+function archiveLegacyCapabilityRegistry(targetRoot: string, applied: StructureAction[]): void {
   const registry = path.join(targetRoot, ".harness-capabilities.json");
   if (!fs.existsSync(registry)) return;
   const destination = uniqueArchiveFile(targetRoot, `${v2HarnessRoot}/governance/archive/legacy-governance/.harness-capabilities.json`);
@@ -208,18 +238,18 @@ function archiveLegacyCapabilityRegistry(targetRoot, applied) {
   });
 }
 
-function readLegacyCapabilities(projectRoot) {
-  const raw = readJsonSafe(path.join(projectRoot, ".harness-capabilities.json"), null);
+function readLegacyCapabilities(projectRoot: string): StructureCapabilities {
+  const raw = readJsonSafe<{ locale?: string; capabilities?: Array<string | { name?: string }> } | null>(path.join(projectRoot, ".harness-capabilities.json"), null);
   const names = new Set(["core"]);
   let locale = "en-US";
   if (raw) {
     locale = normalizeLocale(raw.locale);
-    for (const entry of raw.capabilities || []) names.add(typeof entry === "string" ? entry : entry.name);
+    for (const entry of raw.capabilities || []) names.add(typeof entry === "string" ? entry : entry.name || "");
   }
   return { locale, names: [...names].filter(Boolean) };
 }
 
-function renderHarnessManifest({ locale, capabilities }) {
+function renderHarnessManifest({ locale, capabilities }: { locale: string; capabilities: string[] }): string {
   return [
     "version: 2",
     `locale: ${normalizeLocale(locale)}`,
@@ -237,7 +267,7 @@ function renderHarnessManifest({ locale, capabilities }) {
   ].join("\n");
 }
 
-function uniqueArchiveRoot(targetRoot) {
+function uniqueArchiveRoot(targetRoot: string): string {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(".", "-");
   const base = path.join(targetRoot, v2HarnessRoot, "governance/archive/legacy-docs", stamp);
   for (let index = 0; index < 100; index += 1) {
@@ -247,7 +277,7 @@ function uniqueArchiveRoot(targetRoot) {
   throw new Error("Unable to allocate legacy docs archive directory");
 }
 
-function uniqueArchiveFile(targetRoot, relativeFile) {
+function uniqueArchiveFile(targetRoot: string, relativeFile: string): string {
   const parsed = path.parse(path.join(targetRoot, relativeFile));
   const base = path.join(parsed.dir, parsed.name);
   for (let index = 0; index < 100; index += 1) {
@@ -258,7 +288,7 @@ function uniqueArchiveFile(targetRoot, relativeFile) {
   throw new Error(`Unable to allocate legacy archive file: ${relativeFile}`);
 }
 
-function normalizeMigratedModuleTasks(targetRoot, applied, { force = false } = {}) {
+function normalizeMigratedModuleTasks(targetRoot: string, applied: StructureAction[], { force = false } = {}): void {
   const modulesRoot = path.join(targetRoot, v2HarnessRoot, "planning/modules");
   if (!fs.existsSync(modulesRoot)) return;
   for (const moduleName of fs.readdirSync(modulesRoot)) {
@@ -289,7 +319,7 @@ function normalizeMigratedModuleTasks(targetRoot, applied, { force = false } = {
   }
 }
 
-function uniqueModuleTaskStagingRoot(moduleDir) {
+function uniqueModuleTaskStagingRoot(moduleDir: string): string {
   for (let index = 0; index < 100; index += 1) {
     const suffix = index === 0 ? "" : `-${String(index).padStart(2, "0")}`;
     const candidate = path.join(moduleDir, `.TASKS-migration-${process.pid}${suffix}`);
@@ -298,7 +328,7 @@ function uniqueModuleTaskStagingRoot(moduleDir) {
   throw new Error(`Unable to allocate module task staging directory: ${moduleDir}`);
 }
 
-function scaffoldMissingTaskWalkthroughs(targetRoot, applied) {
+function scaffoldMissingTaskWalkthroughs(targetRoot: string, applied: StructureAction[]): void {
   for (const taskDir of migratedTaskDirectories(targetRoot)) {
     const taskId = path.basename(taskDir);
     const index = path.join(taskDir, "INDEX.md");
@@ -328,7 +358,7 @@ function scaffoldMissingTaskWalkthroughs(targetRoot, applied) {
   }
 }
 
-function renderMigratedVisualMap() {
+function renderMigratedVisualMap(): string {
   return `# Visual Map
 
 Visual Map Contract: v1.0
@@ -339,8 +369,8 @@ Visual Map Contract: v1.0
 `;
 }
 
-function migratedTaskDirectories(targetRoot) {
-  const taskDirs = [];
+function migratedTaskDirectories(targetRoot: string): string[] {
+  const taskDirs: string[] = [];
   const tasksRoot = path.join(targetRoot, v2HarnessRoot, "planning/tasks");
   if (fs.existsSync(tasksRoot)) {
     for (const entry of fs.readdirSync(tasksRoot)) {
@@ -362,7 +392,7 @@ function migratedTaskDirectories(targetRoot) {
   return taskDirs;
 }
 
-function renderMigratedTaskIndex(taskId) {
+function renderMigratedTaskIndex(taskId: string): string {
   const today = new Date().toISOString().slice(0, 10);
   return `# ${taskId} - Task Package Index
 
