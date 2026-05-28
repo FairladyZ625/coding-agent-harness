@@ -8,6 +8,7 @@ import {
   toPosix,
   datePrefix,
 } from "./core-shared.mjs";
+import { isConcreteAuditField } from "./task-audit-metadata.mjs";
 import { collectTasks } from "./task-scanner.mjs";
 import {
   beginGovernanceSync,
@@ -48,11 +49,14 @@ export function softDeleteTask(targetInput, taskRef, { reason = "" } = {}) {
   return writeDeletionState(target, task, "soft-deleted", reason || "soft-delete", "task-delete --soft");
 }
 
-export function archiveTask(targetInput, taskRef, { reason = "", archiveFields = {} } = {}) {
+export function archiveTask(targetInput, taskRef, { reason = "", archivedBy = "", archiveFields = {} } = {}) {
   const target = normalizeTarget(targetInput);
   const task = resolveTask(target, taskRef);
-  assertArchiveEligible(task);
-  return writeDeletionState(target, task, "archived", reason || "archive", "task-archive", archiveFields);
+  const archiveAudit = assertArchiveEligible(task, { archivedBy });
+  return writeDeletionState(target, task, "archived", reason || "archive", "task-archive", {
+    ...archiveAudit,
+    ...archiveFields,
+  });
 }
 
 export function reopenTask(targetInput, taskRef, { reason = "" } = {}) {
@@ -116,7 +120,7 @@ function resolveTask(target, ref) {
   throw new Error(`Task not found: ${ref}`);
 }
 
-function assertArchiveEligible(task) {
+function assertArchiveEligible(task, { archivedBy = "" } = {}) {
   if (task.state === "blocked" || (task.taskQueues || []).includes("blocked")) {
     throw new Error("blocked tasks cannot be archived without an explicit human waiver");
   }
@@ -125,6 +129,37 @@ function assertArchiveEligible(task) {
   if (task.materialsReady === false && task.reviewStatus !== "confirmed") {
     throw new Error("tasks with incomplete closeout materials cannot be archived without an explicit human waiver");
   }
+  const confirmation = task.reviewConfirmation || {};
+  if (confirmation.confirmed !== true) {
+    throw new Error("Human review confirmation is required before task archive");
+  }
+  const missingConfirmationFields = [];
+  if (!isConcreteAuditField(confirmation.confirmationId)) missingConfirmationFields.push("Confirmation ID");
+  if (!isConcreteAuditField(confirmation.confirmedAt)) missingConfirmationFields.push("Confirmed At");
+  if (!isConcreteAuditField(confirmation.reviewer)) missingConfirmationFields.push("Reviewer");
+  if (!isConcreteAuditField(confirmation.commitSha)) missingConfirmationFields.push("Review Commit SHA");
+  if (missingConfirmationFields.length) {
+    throw new Error(`Human review confirmation is not traceable; missing ${missingConfirmationFields.join(", ")}`);
+  }
+  const actor = normalizeArchiveActor(archivedBy);
+  if (!actor) {
+    throw new Error("task archive requires --archived-by <name-or-email> for accountability");
+  }
+  return {
+    "Archived By": actor,
+    "Archived At": nowTimestamp(),
+    "Review Confirmed By": confirmation.reviewer,
+    "Review Confirmed At": confirmation.confirmedAt,
+    "Review Confirmation ID": confirmation.confirmationId,
+    "Review Commit SHA": confirmation.commitSha,
+  };
+}
+
+function normalizeArchiveActor(value) {
+  const actor = String(value || "").replace(/\r?\n/g, " ").trim();
+  if (!actor) return "";
+  if (/^(coordinator|agent|unknown|n\/a|na|none|pending|todo|tbd)$/i.test(actor)) return "";
+  return actor;
 }
 
 function writeTombstone(target, task, fields) {

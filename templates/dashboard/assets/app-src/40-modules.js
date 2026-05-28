@@ -2,7 +2,7 @@ function modulesView(moduleId = "") {
   const graph = bundle.graph || { nodes: [], edges: [] };
   const explicitModules = (graph.nodes || []).filter((node) => node.type === "module");
   const moduleMap = new Map(explicitModules.map((module) => [module.id.replace(/^module:/, ""), module]));
-  for (const task of bundle.status?.tasks || []) {
+  for (const task of normalCycleTasks()) {
     const key = taskModuleKey(task);
     if (!moduleMap.has(key)) moduleMap.set(key, { id: `module:${key}`, type: "module", label: key, state: task.classificationSource || "inferred" });
   }
@@ -27,7 +27,7 @@ function moduleTaskRow(task) {
 
 function moduleCard(module) {
   const moduleKey = module.id.replace(/^module:/, "");
-  const tasks = (bundle.status?.tasks || []).filter((task) => taskModuleKey(task) === moduleKey);
+  const tasks = normalCycleTasks().filter((task) => taskModuleKey(task) === moduleKey);
 
   // Inline Pagination
   state.modulePages = state.modulePages || {};

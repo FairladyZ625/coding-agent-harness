@@ -184,6 +184,7 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
   if (["task-delete", "task-archive", "task-reopen"].includes(command)) {
     const soft = takeFlag("--soft");
     const reason = takeOption("--reason", "");
+    const archivedBy = command === "task-archive" ? takeOption("--archived-by", "") : "";
     const archiveFields = command === "task-archive" ? takeRepeatedKeyValueOptions(args, "--archive-field") : {};
     const taskId = args.shift();
     if (!taskId) {
@@ -196,7 +197,7 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
         command === "task-delete"
           ? softDeleteTask(targetArg(), taskId, { reason })
           : command === "task-archive"
-            ? archiveTask(targetArg(), taskId, { reason, archiveFields })
+            ? archiveTask(targetArg(), taskId, { reason, archivedBy, archiveFields })
             : reopenTask(targetArg(), taskId, { reason });
       console.log(JSON.stringify(result, null, 2));
     } catch (error) {

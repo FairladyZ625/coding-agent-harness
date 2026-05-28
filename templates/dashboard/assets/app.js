@@ -83,6 +83,7 @@ function shell() {
         ${routeLink("#/", t("overview"), "overview")}
         ${routeLink("#/tasks", t("taskIndex"), "tasks")}
         ${routeLink("#/review", t("reviewQueue"), "review")}
+        ${routeLink("#/archive", t("archive"), "archive")}
         ${routeLink("#/modules", t("moduleView"), "modules")}
         ${routeLink("#/presets", t("presetCatalog"), "presets")}
         <button data-language-toggle>${locale === "zh" ? "EN" : "中文"}</button>
@@ -110,6 +111,7 @@ function renderRoute() {
   if (route.name === "task") return taskDetail(route);
   if (route.name === "reviewTask") return reviewWorkspace(route);
   if (route.name === "review") return reviewQueue();
+  if (route.name === "archive") return archiveView();
   if (route.name === "modules") return modulesView(route.id);
   if (route.name === "presets") return presetsView();
   if (route.name === "tasks") return taskIndex();
@@ -122,6 +124,7 @@ function currentRoute() {
   if (parts[0] === "tasks" && parts[1]) return { name: "task", id: parts[1], doc: parts[2] === "docs" ? parts[3] || "" : "" };
   if (parts[0] === "review" && parts[1]) return { name: "reviewTask", id: parts[1] };
   if (parts[0] === "review") return { name: "review" };
+  if (parts[0] === "archive") return { name: "archive" };
   if (parts[0] === "modules") return { name: "modules", id: parts[1] || "" };
   if (parts[0] === "presets") return { name: "presets" };
   if (parts[0] === "tasks") return { name: "tasks" };
@@ -157,7 +160,7 @@ function statusStrip() {
   const displayState = snapshotOnly ? "snapshot" : status;
   const failures = bundle.status?.checkState?.failures || 0;
   const warnings = bundle.status?.checkState?.warnings || 0;
-  const tasks = bundle.status?.tasks || [];
+  const tasks = normalCycleTasks();
   const summary = bundle.status?.summary || {};
   const visual = summary.visualMapCoverage || {};
   const withBrief = tasks.filter((task) => task.briefSource === "standalone").length;
@@ -189,7 +192,7 @@ function nextActionText() {
   if (dataOnly && !isWorkbenchRuntime()) return t("snapshotNotValidated");
   const failures = bundle.status?.checkState?.failures || 0;
   if (failures > 0) return t("resolveBlockers");
-  const missingBriefs = (bundle.status?.tasks || []).filter((task) => task.briefSource !== "standalone").length;
+  const missingBriefs = normalCycleTasks().filter((task) => task.briefSource !== "standalone").length;
   if (missingBriefs > 0) return `${missingBriefs} ${t("missingBriefs")}`;
   const warnings = bundle.status?.checkState?.warnings || 0;
   if (warnings > 0) return t("reviewAdvice");
@@ -202,7 +205,7 @@ function isWorkbenchRuntime() {
 }
 
 function flowPanel() {
-  const tasks = bundle.status?.tasks || [];
+  const tasks = normalCycleTasks();
   const total = tasks.length;
   if (total === 0) return "";
   const active = tasks.filter((task) => isActiveTaskState(task.state)).length;
@@ -261,14 +264,14 @@ function projectMermaid() {
 
 function usesAggregateFlow() {
   const graph = bundle.graph || { nodes: [], edges: [] };
-  const taskCount = (bundle.status?.tasks || []).length;
+  const taskCount = normalCycleTasks().length;
   const taskNodes = (graph.nodes || []).filter((node) => node.type === "task").length;
   const usefulEdges = (graph.edges || []).filter((edge) => ["depends_on", "current_step"].includes(edge.type)).length;
   return taskCount > 80 || taskNodes > 80 || ((graph.nodes || []).length > 80 && usefulEdges < 6);
 }
 
 function migrationAggregateMermaid() {
-  const tasks = bundle.status?.tasks || [];
+  const tasks = normalCycleTasks();
   const warnings = warningQueue();
   const activeContracts = warnings.filter((warning) => warning.phase === "active-task-contracts").length;
   const moduleCount = new Set(tasks.map(taskModuleKey)).size;
@@ -284,7 +287,7 @@ function migrationAggregateMermaid() {
 }
 
 function migrationRunwayBreakdown() {
-  const tasks = bundle.status?.tasks || [];
+  const tasks = normalCycleTasks();
   const warnings = warningQueue();
   const phases = [
     ["baseline", t("runwayBaseline"), tasks.length, t("tasks"), "#/tasks"],
@@ -306,7 +309,7 @@ function mermaidFromBriefs() {
 
 function graphSummary() {
   const graph = bundle.graph || { nodes: [], edges: [] };
-  if (usesAggregateFlow()) return `${t("aggregateMigrationView")} · ${(bundle.status?.tasks || []).length} ${t("tasks")}`;
+  if (usesAggregateFlow()) return `${t("aggregateMigrationView")} · ${normalCycleTasks().length} ${t("tasks")}`;
   return `${graph.nodes?.length || 0} ${t("nodes")} · ${graph.edges?.length || 0} ${t("edges")}`;
 }
 
@@ -330,7 +333,7 @@ function activeTaskBriefs() {
 }
 
 function activeTasks() {
-  const tasks = bundle.status?.tasks || [];
+  const tasks = normalCycleTasks();
   const active = tasks.filter((task) => isActiveTaskState(task.state) || ["planned", "not_started"].includes(task.state));
   if (active.length > 0) return sortTasksByTime(active);
   return sortTasksByTime(tasks.filter((task) => task.briefSource === "standalone"));
@@ -430,6 +433,23 @@ function sortTasksByTime(tasks) {
   return [...tasks].sort(compareTasksByTime);
 }
 
+function isArchivedTask(task) {
+  const archiveState = String(task?.archiveMetadata?.state || "").toLowerCase();
+  return task?.deletionState === "archived" || archiveState === "archived";
+}
+
+function normalCycleTasks() {
+  return (bundle.status?.tasks || []).filter((task) => !isArchivedTask(task));
+}
+
+function archivedTasks() {
+  return (bundle.status?.tasks || []).filter(isArchivedTask);
+}
+
+function archiveBucket(task) {
+  return task?.archiveMetadata?.["retention bucket"] || task?.archiveMetadata?.["Retention Bucket"] || t("archiveUnclassified");
+}
+
 function taskFolderName(task) {
   const fromPath = String(task?.path || "").split("/").filter(Boolean).pop();
   const fromId = String(task?.id || "").split("/").filter(Boolean).pop();
@@ -496,13 +516,13 @@ function taskToolbarCard(filteredCount) {
       </div>
     </div>
     <div class="search-stats">
-      ${t("showing")} <strong>${filteredCount}</strong> / ${(bundle.status?.tasks || []).length} ${t("tasks")}
+      ${t("showing")} <strong>${filteredCount}</strong> / ${normalCycleTasks().length} ${t("tasks")}
     </div>
   </section>`;
 }
 
 function taskStatsCard() {
-  const allTasks = bundle.status?.tasks || [];
+  const allTasks = normalCycleTasks();
   const avgCompletion = allTasks.length ? clampCompletion(allTasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / allTasks.length) : 0;
   return `<section class="sidebar-card">
     <h3>${t("releaseHealth")}</h3>
@@ -553,7 +573,7 @@ function taskLegendCard() {
 }
 
 function taskStatsBar() {
-  const allTasks = bundle.status?.tasks || [];
+  const allTasks = normalCycleTasks();
   const inProgress = allTasks.filter(t => t.state === "in_progress").length;
   const blocked = allTasks.filter(t => t.state === "blocked").length;
   const done = allTasks.filter(t => t.state === "done").length;
@@ -789,7 +809,7 @@ function taskGroupLabel(group) {
 
 function filteredTasks() {
   const query = state.query.trim().toLowerCase();
-  return sortTasksByTime((bundle.status?.tasks || []).filter((task) => {
+  return sortTasksByTime(normalCycleTasks().filter((task) => {
     const stateMatch = state.taskState === "all" || task.state === state.taskState;
     if (!stateMatch) return false;
     if (!query) return true;
@@ -799,6 +819,69 @@ function filteredTasks() {
 
 function taskModuleKey(task) {
   return task.module || task.inferredModule || "legacy-unclassified";
+}
+
+function archiveView() {
+  const tasks = sortTasksByTime(archivedTasks());
+  const groups = Object.entries(groupBy(tasks, archiveBucket)).sort(([left], [right]) => left.localeCompare(right));
+  return `<main class="stack archive-view">
+    <section class="flow-panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">${t("archive")}</p>
+          <h2>${t("archiveView")}</h2>
+          <p class="subtle">${t("archiveSubtitle")}</p>
+        </div>
+        <a href="#/tasks">${t("openTaskIndex")}</a>
+      </div>
+      <div class="archive-summary-grid">
+        ${metric(t("archivedTasks"), tasks.length)}
+        ${metric(t("archiveBuckets"), groups.length)}
+      </div>
+    </section>
+    ${groups.map(([bucket, bucketTasks]) => archiveGroup(bucket, bucketTasks)).join("") || emptyState(t("noArchivedTasks"))}
+  </main>`;
+}
+
+function archiveGroup(bucket, tasks) {
+  const orderedTasks = sortTasksByTime(tasks);
+  return `<section class="archive-group">
+    <div class="section-head">
+      <div>
+        <h2>${escapeHtml(bucket)}</h2>
+        <p class="subtle">${orderedTasks.length} ${t("tasks")}</p>
+      </div>
+    </div>
+    <div class="archive-task-list">
+      ${orderedTasks.map(archiveTaskRow).join("")}
+    </div>
+  </section>`;
+}
+
+function archiveTaskRow(task) {
+  const archiveMetadata = task.archiveMetadata || {};
+  const archivedBy = archiveMetadata?.["archived by"] || t("unknown");
+  const archivedAt = archiveMetadata?.["archived at"] || "";
+  const reviewConfirmedBy = archiveMetadata?.["review confirmed by"] || t("unknown");
+  const reviewConfirmedAt = archiveMetadata?.["review confirmed at"] || "";
+  const reviewConfirmationId = archiveMetadata?.["review confirmation id"] || "";
+  const releasePackage = archiveMetadata?.["release package"] || "";
+  const reason = task.deleteReason || archiveMetadata?.reason || "";
+  return `<article class="archive-task-row">
+    <div class="archive-task-main">
+      <a href="#/tasks/${encodeURIComponent(task.id)}">${escapeHtml(task.title || task.id)}</a>
+      <span>${escapeHtml(task.id)}</span>
+      ${reason ? `<p>${escapeHtml(reason)}</p>` : ""}
+    </div>
+    <dl class="archive-meta-grid">
+      <div><dt>${t("archivedBy")}</dt><dd>${escapeHtml(archivedBy)}</dd></div>
+      <div><dt>${t("archivedAt")}</dt><dd>${escapeHtml(archivedAt || t("unknown"))}</dd></div>
+      <div><dt>${t("reviewConfirmedBy")}</dt><dd>${escapeHtml(reviewConfirmedBy)}</dd></div>
+      <div><dt>${t("reviewConfirmedAt")}</dt><dd>${escapeHtml(reviewConfirmedAt || t("unknown"))}</dd></div>
+      ${reviewConfirmationId ? `<div><dt>${t("reviewConfirmationId")}</dt><dd>${escapeHtml(reviewConfirmationId)}</dd></div>` : ""}
+      ${releasePackage ? `<div><dt>${t("releasePackage")}</dt><dd>${escapeHtml(releasePackage)}</dd></div>` : ""}
+    </dl>
+  </article>`;
 }
 
 const swimlaneStageOrder = [
@@ -1222,7 +1305,7 @@ function modulesView(moduleId = "") {
   const graph = bundle.graph || { nodes: [], edges: [] };
   const explicitModules = (graph.nodes || []).filter((node) => node.type === "module");
   const moduleMap = new Map(explicitModules.map((module) => [module.id.replace(/^module:/, ""), module]));
-  for (const task of bundle.status?.tasks || []) {
+  for (const task of normalCycleTasks()) {
     const key = taskModuleKey(task);
     if (!moduleMap.has(key)) moduleMap.set(key, { id: `module:${key}`, type: "module", label: key, state: task.classificationSource || "inferred" });
   }
@@ -1247,7 +1330,7 @@ function moduleTaskRow(task) {
 
 function moduleCard(module) {
   const moduleKey = module.id.replace(/^module:/, "");
-  const tasks = (bundle.status?.tasks || []).filter((task) => taskModuleKey(task) === moduleKey);
+  const tasks = normalCycleTasks().filter((task) => taskModuleKey(task) === moduleKey);
 
   // Inline Pagination
   state.modulePages = state.modulePages || {};
@@ -1386,7 +1469,7 @@ function reviewSortOptions() {
 }
 
 function reviewQueueBaseTasks(tab) {
-  return (bundle.status?.tasks || []).filter((task) => taskMatchesReviewTab(task, tab));
+  return normalCycleTasks().filter((task) => taskMatchesReviewTab(task, tab));
 }
 
 function taskMatchesReviewTab(task, tab) {

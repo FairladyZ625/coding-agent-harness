@@ -107,7 +107,7 @@ function reviewSortOptions() {
 }
 
 function reviewQueueBaseTasks(tab) {
-  return (bundle.status?.tasks || []).filter((task) => taskMatchesReviewTab(task, tab));
+  return normalCycleTasks().filter((task) => taskMatchesReviewTab(task, tab));
 }
 
 function taskMatchesReviewTab(task, tab) {

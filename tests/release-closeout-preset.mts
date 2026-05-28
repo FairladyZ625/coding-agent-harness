@@ -190,7 +190,7 @@ const directMutationResult = run(["preset", "run", "runner-direct-mutation", "pl
 assert(directMutationResult.status !== 0, "generic preset runner should reject scripts that mutate the target outside manifest materialization");
 assert(`${directMutationResult.stdout}\n${directMutationResult.stderr}`.includes("Preset script mutated target before materialization"), "direct target mutation failure should explain the audit failure");
 
-function writeTaskFixture(slug, { title, state = "done", tombstone = "", localPath = "" } = {}) {
+function writeTaskFixture(slug, { title, state = "done", tombstone = "", localPath = "", confirmedReview = false } = {}) {
   const taskDir = path.join(target, "coding-agent-harness/planning/tasks", slug);
   fs.mkdirSync(taskDir, { recursive: true });
   fs.writeFileSync(path.join(taskDir, "task_plan.md"), `# ${title || slug}
@@ -205,7 +205,36 @@ ${tombstone}
   fs.writeFileSync(path.join(taskDir, "brief.md"), `# ${title || slug}\n\nFixture task for release aggregation.\n`);
   fs.writeFileSync(path.join(taskDir, "progress.md"), `# ${title || slug} - Progress\n\n## Current Status\n\n${state}\n\n## Log\n\n- evidence ${localPath}\n`);
   fs.writeFileSync(path.join(taskDir, "review.md"), "# Review\n\nNo open findings.\n");
-  fs.writeFileSync(path.join(taskDir, "INDEX.md"), "# Index\n");
+  fs.writeFileSync(path.join(taskDir, "INDEX.md"), `# Index
+
+## Task Audit Metadata
+
+| Field | Value |
+| --- | --- |
+| Created By | historical-backfill |
+| Created At | 2026-05-28 |
+| Command Shape | test fixture |
+| Budget | simple |
+| Template Source | tests/release-closeout-preset.mts |
+| Task Creator | test |
+| Task Creator Source | git-unavailable |
+| Human Review Status | ${confirmedReview ? "confirmed" : "not-confirmed"} |
+| Confirmation ID | ${confirmedReview ? "HRC-20260528101010" : "n/a"} |
+| Confirmed At | ${confirmedReview ? "2026-05-28 10:10" : "n/a"} |
+| Reviewer | ${confirmedReview ? "Release Reviewer" : "n/a"} |
+| Reviewer Email | ${confirmedReview ? "release-reviewer@example.invalid" : "n/a"} |
+| Confirm Text | ${confirmedReview ? slug : "n/a"} |
+| Evidence Checked | ${confirmedReview ? "TARGET:coding-agent-harness/planning/tasks/" + slug + "/review.md" : "n/a"} |
+| Review Commit SHA | ${confirmedReview ? "1234567890abcdef1234567890abcdef12345678" : "n/a"} |
+| Audit Source | ${confirmedReview ? "migrated-legacy-review" : "native-index"} |
+| Audit Status | ${confirmedReview ? "committed" : "created"} |
+| Exception Reason | n/a |
+| Message | ${confirmedReview ? "Human review confirmed" : "n/a"} |
+| Migration Status | native |
+| Migrated From | n/a |
+| Legacy Extra Fields | {} |
+| Migration Notes | n/a |
+`);
   return taskDir;
 }
 
@@ -213,6 +242,7 @@ writeTaskFixture(`${todayLocal}-release-done-path`, {
   title: "Done task with local path",
   state: "done",
   localPath: "/Users/example/secret/repo",
+  confirmedReview: true,
   tombstone: `
 ## Task Tombstone
 
@@ -223,6 +253,7 @@ writeTaskFixture(`${todayLocal}-release-done-path`, {
 | Evidence | TARGET:coding-agent-harness/governance/releases/1.0.5/INDEX.md |
 `,
 });
+writeTaskFixture(`${todayLocal}-release-unconfirmed`, { title: "Done task without human review confirmation", state: "done" });
 writeTaskFixture(`${todayLocal}-release-blocked`, { title: "Blocked task must stay active", state: "blocked" });
 for (let index = 0; index < 105; index += 1) {
   writeTaskFixture(`${todayLocal}-bulk-done-${String(index).padStart(3, "0")}`, { title: `Bulk done ${index}`, state: "done" });
@@ -235,11 +266,22 @@ const blockedArchive = run(["task-archive", "release-blocked", "--reason", "shou
 assert(blockedArchive.status !== 0, "generic task-archive should reject blocked tasks");
 assert(`${blockedArchive.stdout}\n${blockedArchive.stderr}`.includes("blocked tasks cannot be archived"), "blocked archive failure should explain the generic guard");
 
-expectJson(["task-archive", "release-done-path", "--reason", "release closeout", "--archive-field", "retention bucket=release:1.0.5", "--archive-field", "release package=coding-agent-harness/governance/releases/1.0.5/INDEX.md", target], { env });
+const unconfirmedArchive = run(["task-archive", "release-unconfirmed", "--reason", "release closeout", "--archive-field", "retention bucket=release:1.0.5", target], { env });
+assert(unconfirmedArchive.status !== 0, "task-archive should reject done tasks without human review confirmation");
+assert(`${unconfirmedArchive.stdout}\n${unconfirmedArchive.stderr}`.includes("Human review confirmation is required before task archive"), "unconfirmed archive failure should explain the human review gate");
+
+const missingArchivedBy = run(["task-archive", "release-done-path", "--reason", "release closeout", "--archive-field", "retention bucket=release:1.0.5", target], { env });
+assert(missingArchivedBy.status !== 0, "task-archive should reject confirmed tasks without an archived-by identity");
+assert(`${missingArchivedBy.stdout}\n${missingArchivedBy.stderr}`.includes("task archive requires --archived-by"), "missing archived-by failure should explain the accountability gate");
+
+expectJson(["task-archive", "release-done-path", "--reason", "release closeout", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "retention bucket=release:1.0.5", "--archive-field", "release package=coding-agent-harness/governance/releases/1.0.5/INDEX.md", target], { env });
 const taskIndexWithArchiveFields = expectJson(["task-index", "--json", target], { env });
 const releaseArchivedTask = taskIndexWithArchiveFields.tasks.find((task) => task.id.endsWith("release-done-path"));
 assert(releaseArchivedTask.archiveMetadata?.["retention bucket"] === "release:1.0.5", "task index should read generic archive-field retention metadata");
 assert(releaseArchivedTask.archiveMetadata?.["release package"] === "coding-agent-harness/governance/releases/1.0.5/INDEX.md", "task index should read generic archive-field package metadata");
+assert(releaseArchivedTask.archiveMetadata?.["archived by"] === "Release Manager <release@example.invalid>", "task index should expose the accountable archive actor");
+assert(releaseArchivedTask.archiveMetadata?.["review confirmed by"] === "Release Reviewer", "task index should expose the review confirmation actor");
+assert(releaseArchivedTask.archiveMetadata?.["review confirmation id"] === "HRC-20260528101010", "task index should expose the review confirmation id");
 
 expectJson(["new-task", "release-closeout-no-selector", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.4", target], { env });
 const noSelector = run(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-no-selector", "--json", target], { env });
@@ -250,7 +292,7 @@ const taskListPath = path.join(tmpRoot, "release-closeout-task-list.json");
 fs.writeFileSync(taskListPath, JSON.stringify({
   schemaVersion: "release-closeout-task-list/v1",
   release: "1.0.5",
-  taskIds: [`${todayLocal}-release-done-path`],
+  taskIds: [`${todayLocal}-release-done-path`, `${todayLocal}-release-unconfirmed`],
 }, null, 2));
 const releaseTask = expectJson(["new-task", "release-closeout-1-0-5", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.5", "--task-list", taskListPath, target], { env });
 const releaseTaskPlanPath = path.join(target, releaseTask.task.path.replace(/^TARGET:/, ""), "task_plan.md");
@@ -269,14 +311,16 @@ const publicRedactionReport = JSON.parse(fs.readFileSync(path.join(releaseRoot, 
 const aggregate = JSON.parse(fs.readFileSync(path.join(releaseRoot, "task-aggregate.json"), "utf8"));
 assert(releaseIndex.includes("Release Closeout Package") && releaseIndex.includes("1.0.5"), "release package should include a version index");
 assert(aggregate.selector?.type === "task-list", "task-list release aggregation should record selector type");
-assert(aggregate.summary.totalTasks === 1, "task-list release aggregation should include only the selected task");
-assert(aggregate.matched.map((task) => task.id).join(",") === `${todayLocal}-release-done-path`, "task-list release aggregation should match only requested task IDs");
+assert(aggregate.summary.totalTasks === 2, "task-list release aggregation should include only the selected tasks");
+assert(aggregate.matched.map((task) => task.id).join(",") === `${todayLocal}-release-done-path,${todayLocal}-release-unconfirmed`, "task-list release aggregation should match only requested task IDs");
 assert(aggregate.excluded.some((task) => task.id.endsWith("release-blocked") && task.reason === "not-selected"), "task-list release aggregation should record unselected tasks as excluded");
-assert(archivePlan.includes("task-archive") && archivePlan.includes("--archive-field \"retention bucket=release:1.0.5\""), "release archive plan should emit executable generic archive-field commands");
+assert(archivePlan.includes("task-archive") && archivePlan.includes("--archived-by \"Release Reviewer\"") && archivePlan.includes("--archive-field \"retention bucket=release:1.0.5\""), "release archive plan should emit executable generic archive-field commands with an accountable archive actor");
 assert(archivePlan.includes("--archive-field \"release package=coding-agent-harness/governance/releases/1.0.5/INDEX.md\""), "release archive plan should include release package archive metadata");
 assert(archivePlan.includes("release-done-path"), "release archive plan should include completed eligible tasks");
 const eligibleSection = archivePlan.split("## Not Eligible")[0];
 assert(!eligibleSection.includes("release-blocked"), "release archive plan should not emit archive commands for blocked tasks");
+assert(!eligibleSection.includes("release-unconfirmed"), "release archive plan should not emit archive commands for unconfirmed tasks");
+assert(archivePlan.includes("release-unconfirmed") && archivePlan.includes("Human review confirmation is required before task archive"), "release archive plan should explain unconfirmed task ineligibility");
 assert(!/\/Users\/|LOCAL_PATH_REDACTED\/secret/.test(publicSummary), "public release summary should redact local absolute paths");
 assert(publicSummary.includes("LOCAL_PATH_REDACTED") || !publicSummary.includes("secret"), "public release summary should avoid leaking local paths");
 assert(publicRedactionReport.status === "pass", "release preset should emit a public redaction report for public-facing output");

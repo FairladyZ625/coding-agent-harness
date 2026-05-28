@@ -119,7 +119,7 @@ Usage:
   harness task-index [--json] [target]
   harness task-supersede <old-task-id> --by <new-task-id> [--reason text] [target]
   harness task-delete <task-id> --soft [--reason text] [target]
-  harness task-archive <task-id> [--reason text] [--archive-field key=value] [target]
+  harness task-archive <task-id> --archived-by name-or-email [--reason text] [--archive-field key=value] [target]
   harness task-reopen <task-id> [--reason text] [target]
   harness module-step <module-key> <step-id> [--state done|in-progress|blocked] [target]
   harness install-user [--agent codex|claude|gemini|openclaw|agents|all] [--home dir] [--dry-run] [--force] [--skip-presets] [--yes]

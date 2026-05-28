@@ -21,7 +21,7 @@ function statusStrip() {
   const displayState = snapshotOnly ? "snapshot" : status;
   const failures = bundle.status?.checkState?.failures || 0;
   const warnings = bundle.status?.checkState?.warnings || 0;
-  const tasks = bundle.status?.tasks || [];
+  const tasks = normalCycleTasks();
   const summary = bundle.status?.summary || {};
   const visual = summary.visualMapCoverage || {};
   const withBrief = tasks.filter((task) => task.briefSource === "standalone").length;
@@ -53,7 +53,7 @@ function nextActionText() {
   if (dataOnly && !isWorkbenchRuntime()) return t("snapshotNotValidated");
   const failures = bundle.status?.checkState?.failures || 0;
   if (failures > 0) return t("resolveBlockers");
-  const missingBriefs = (bundle.status?.tasks || []).filter((task) => task.briefSource !== "standalone").length;
+  const missingBriefs = normalCycleTasks().filter((task) => task.briefSource !== "standalone").length;
   if (missingBriefs > 0) return `${missingBriefs} ${t("missingBriefs")}`;
   const warnings = bundle.status?.checkState?.warnings || 0;
   if (warnings > 0) return t("reviewAdvice");
@@ -66,7 +66,7 @@ function isWorkbenchRuntime() {
 }
 
 function flowPanel() {
-  const tasks = bundle.status?.tasks || [];
+  const tasks = normalCycleTasks();
   const total = tasks.length;
   if (total === 0) return "";
   const active = tasks.filter((task) => isActiveTaskState(task.state)).length;
@@ -125,14 +125,14 @@ function projectMermaid() {
 
 function usesAggregateFlow() {
   const graph = bundle.graph || { nodes: [], edges: [] };
-  const taskCount = (bundle.status?.tasks || []).length;
+  const taskCount = normalCycleTasks().length;
   const taskNodes = (graph.nodes || []).filter((node) => node.type === "task").length;
   const usefulEdges = (graph.edges || []).filter((edge) => ["depends_on", "current_step"].includes(edge.type)).length;
   return taskCount > 80 || taskNodes > 80 || ((graph.nodes || []).length > 80 && usefulEdges < 6);
 }
 
 function migrationAggregateMermaid() {
-  const tasks = bundle.status?.tasks || [];
+  const tasks = normalCycleTasks();
   const warnings = warningQueue();
   const activeContracts = warnings.filter((warning) => warning.phase === "active-task-contracts").length;
   const moduleCount = new Set(tasks.map(taskModuleKey)).size;
@@ -148,7 +148,7 @@ function migrationAggregateMermaid() {
 }
 
 function migrationRunwayBreakdown() {
-  const tasks = bundle.status?.tasks || [];
+  const tasks = normalCycleTasks();
   const warnings = warningQueue();
   const phases = [
     ["baseline", t("runwayBaseline"), tasks.length, t("tasks"), "#/tasks"],
@@ -170,7 +170,7 @@ function mermaidFromBriefs() {
 
 function graphSummary() {
   const graph = bundle.graph || { nodes: [], edges: [] };
-  if (usesAggregateFlow()) return `${t("aggregateMigrationView")} · ${(bundle.status?.tasks || []).length} ${t("tasks")}`;
+  if (usesAggregateFlow()) return `${t("aggregateMigrationView")} · ${normalCycleTasks().length} ${t("tasks")}`;
   return `${graph.nodes?.length || 0} ${t("nodes")} · ${graph.edges?.length || 0} ${t("edges")}`;
 }
 
@@ -194,7 +194,7 @@ function activeTaskBriefs() {
 }
 
 function activeTasks() {
-  const tasks = bundle.status?.tasks || [];
+  const tasks = normalCycleTasks();
   const active = tasks.filter((task) => isActiveTaskState(task.state) || ["planned", "not_started"].includes(task.state));
   if (active.length > 0) return sortTasksByTime(active);
   return sortTasksByTime(tasks.filter((task) => task.briefSource === "standalone"));

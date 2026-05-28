@@ -245,6 +245,11 @@ function archiveBlockReason(task) {
   if (task.materialsIncomplete) return "tasks with incomplete closeout materials cannot be archived";
   if (task.state !== "done") return `state:${task.state || "unknown"}`;
   if (task.deletionState === "superseded") return "superseded tasks cannot be archived";
+  if (!task.reviewConfirmation?.confirmed) return "Human review confirmation is required before task archive";
+  if (!isConcreteAuditField(task.reviewConfirmation.reviewer)) return "Human review confirmation is missing Reviewer";
+  if (!isConcreteAuditField(task.reviewConfirmation.confirmationId)) return "Human review confirmation is missing Confirmation ID";
+  if (!isConcreteAuditField(task.reviewConfirmation.confirmedAt)) return "Human review confirmation is missing Confirmed At";
+  if (!isConcreteAuditField(task.reviewConfirmation.commitSha)) return "Human review confirmation is missing Review Commit SHA";
   return "";
 }
 
@@ -255,6 +260,8 @@ function archiveCommand(task, release, releasePackageRef) {
     quoteCli(task.id),
     "--reason",
     quoteCli(`release closeout ${release}`),
+    "--archived-by",
+    quoteCli(task.reviewConfirmation?.reviewer || ""),
     "--archive-field",
     quoteCli(`retention bucket=release:${release}`),
     "--archive-field",
@@ -275,6 +282,7 @@ function collectTasks(root) {
     const taskPlan = read(taskPlanPath);
     const progress = read(path.join(taskDir, "progress.md"));
     const review = read(path.join(taskDir, "review.md"));
+    const index = read(path.join(taskDir, "INDEX.md"));
     const budget = parseBudget(taskPlan);
     const tombstone = parseTombstone(taskPlan);
     return {
@@ -287,6 +295,7 @@ function collectTasks(root) {
       budget,
       hasOpenBlockingFindings: hasOpenBlockingReviewFinding(review),
       materialsIncomplete: budget !== "simple" && hasIncompleteMaterials(taskDir),
+      reviewConfirmation: parseReviewConfirmation(index, path.basename(taskDir)),
       evidenceSnippet: progress.split(/\r?\n/).find((line) => /\/Users\/|\/Volumes\/|file:\/\//.test(line)) || "",
       tombstone,
     };
@@ -369,6 +378,59 @@ function parseTombstone(content) {
     if (cells.length >= 2) fields[cells[0]] = cells.slice(1).join("|").trim();
   }
   return { state: fields.state || "soft-deleted", fields };
+}
+
+function parseReviewConfirmation(content, taskId) {
+  const fields = markdownFieldsFromBlock(content, /^##\s*(?:Task Audit Metadata|任务审计元数据)\s*$/im);
+  if (fields.size === 0) return { confirmed: false, missingFields: ["Task Audit Metadata"] };
+  if (normalizeToken(fields.get("human review status")) !== "confirmed") return { confirmed: false, missingFields: [] };
+  const required = ["confirmation id", "confirmed at", "reviewer", "reviewer email", "confirm text", "evidence checked", "review commit sha", "audit status"];
+  const missing = required.filter((field) => !isConcreteAuditField(fields.get(field)));
+  const confirmText = fields.get("confirm text") || "";
+  if (isConcreteAuditField(confirmText) && !taskKeysMatch(confirmText, taskId)) missing.push("confirm text match");
+  const auditStatus = fields.get("audit status") || "";
+  if (isConcreteAuditField(auditStatus) && normalizeToken(auditStatus) !== "committed") missing.push("audit status committed");
+  const commitSha = fields.get("review commit sha") || "";
+  if (isConcreteAuditField(commitSha) && !/^[0-9a-f]{7,40}$/i.test(commitSha)) missing.push("review commit sha valid");
+  return {
+    confirmed: missing.length === 0,
+    missingFields: missing,
+    confirmationId: fields.get("confirmation id") || "",
+    confirmedAt: fields.get("confirmed at") || "",
+    reviewer: fields.get("reviewer") || "",
+    reviewerEmail: fields.get("reviewer email") || "",
+    confirmText,
+    evidenceChecked: fields.get("evidence checked") || "",
+    commitSha,
+  };
+}
+
+function markdownFieldsFromBlock(content, headingPattern) {
+  const match = String(content || "").match(new RegExp(`${headingPattern.source}([\\s\\S]*?)(?=^##\\s+|(?![\\s\\S]))`, headingPattern.flags));
+  const fields = new Map();
+  if (!match) return fields;
+  for (const line of match[1].split(/\r?\n/)) {
+    const row = line.trim();
+    if (!row.startsWith("|") || /---/.test(row) || /Field\s*\|\s*Value/i.test(row)) continue;
+    const cells = row.slice(1, -1).split("|").map((cell) => cell.trim());
+    if (cells.length >= 2) fields.set(cells[0].toLowerCase(), cells.slice(1).join("|").trim());
+  }
+  return fields;
+}
+
+function isConcreteAuditField(value) {
+  const raw = String(value || "").replace(/`/g, "").trim();
+  return Boolean(raw) && !/^(n\/a|na|none|pending(?:[-_ ].*)?|todo|tbd|\[.*\]|-|—|–|不适用|无|待定|\{\})$/i.test(raw) && !/\{\{[^}]+\}\}/.test(raw);
+}
+
+function normalizeToken(value) {
+  return String(value || "").trim().toLowerCase().replaceAll("_", "-").replace(/\s+/g, "-");
+}
+
+function taskKeysMatch(candidate, expected) {
+  const left = String(candidate || "").replace(/`/g, "").trim();
+  const right = String(expected || "").replace(/`/g, "").trim();
+  return left === right || right.endsWith(`/${left}`);
 }
 
 function safeRelease(value) {

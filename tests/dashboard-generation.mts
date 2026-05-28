@@ -40,6 +40,7 @@ assert(dashboardHtml.includes("window.__HARNESS_DASHBOARD__"), "dashboard HTML m
 assert(dashboardHtml.includes("Human Visibility Dashboard"), "dashboard HTML missing v2 visibility copy");
 assert(dashboardHtml.includes("#/tasks"), "dashboard HTML missing task index route");
 assert(dashboardHtml.includes("#/review"), "dashboard HTML missing review queue route");
+assert(dashboardHtml.includes("#/archive"), "dashboard HTML missing archive route");
 assert(dashboardHtml.includes("#/presets"), "dashboard HTML missing preset catalog route");
 assert(dashboardHtml.includes("function reviewQueue()"), "dashboard HTML missing review queue page implementation");
 
@@ -110,6 +111,13 @@ assert(dashboardApp.includes("translated === key"), "dashboard state labels shou
 assert(dashboardCss.includes(".phase-step.other"), "dashboard CSS should style unknown phase kinds");
 assert(dashboardApp.includes("data-render-toggle"), "dashboard missing render/source toggle");
 assert(dashboardApp.includes("data-search"), "dashboard missing task search control");
+assert(dashboardApp.includes("function archiveView()"), "dashboard missing archive view implementation");
+assert(dashboardApp.includes("function isArchivedTask("), "dashboard missing archived task filter helper");
+assert(dashboardApp.includes("normalCycleTasks()"), "dashboard normal cycle views should hide archived tasks by default");
+assert(dashboardApp.includes("function archiveBucket("), "dashboard missing archive bucket grouping helper");
+assert(dashboardApp.includes("archiveMetadata?.[\"archived by\"]"), "dashboard archive view should expose accountable archive actor");
+assert(dashboardApp.includes("archiveMetadata?.[\"review confirmed by\"]"), "dashboard archive view should expose human review confirmation actor");
+assert(dashboardApp.includes("archiveMetadata?.[\"release package\"]"), "dashboard archive view should expose release package metadata");
 assert(dashboardApp.includes("taskGroupsPerPage"), "dashboard missing global task group paging");
 assert(dashboardApp.includes("taskStatsBar"), "dashboard missing task stats bar");
 assert(dashboardApp.includes("task-row-card"), "dashboard missing upgraded task row card");
@@ -175,6 +183,8 @@ assert(dashboardCss.includes(".brief-scroll"), "dashboard missing scrollable act
 assert(dashboardMarkdown.includes("rendered-table"), "dashboard missing rendered markdown table support");
 assert(dashboardMermaid.includes("mermaid-rendered"), "dashboard missing rendered mermaid output");
 assert(dashboardCss.includes(".runtime-banner"), "dashboard missing static read-only banner styling");
+assert(dashboardCss.includes(".archive-task-row"), "dashboard missing archive task row styling");
+assert(dashboardCss.includes(".archive-meta-grid"), "dashboard missing archive metadata grid styling");
 assert(dashboardCss.includes(".preset-workspace"), "dashboard missing preset management workspace layout");
 assert(dashboardCss.includes(".preset-catalog-list"), "dashboard missing preset collection list layout");
 assert(dashboardCss.includes(".preset-detail-list"), "dashboard missing preset detail typography grid");

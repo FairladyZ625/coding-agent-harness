@@ -3,6 +3,7 @@
   "css-src/10-panels-flow.css",
   "css-src/20-briefs-controls.css",
   "css-src/30-task-index.css",
+  "css-src/31-archive.css",
   "css-src/32-task-swimlane.css",
   "css-src/35-review-workspace.css",
   "css-src/40-detail-modules-migration.css",
