@@ -15,7 +15,7 @@ English mirror: `docs-release/guides/migration-playbook.en-US.md`
 如果目标环境没有 `harness`，不得静默全局安装；先询问用户是否允许运行
 `npm install -g coding-agent-harness`。用户明确同意后才能安装。用户不同意或未回复时，
 用 `npx --yes coding-agent-harness <command>` 运行同一条 CLI。维护者在本源码仓调试时，
-可以把同一命令替换为 `node scripts/harness.mjs`。
+可以把同一命令替换为 `node dist/harness.mjs`。
 
 ## 目标路径和 v2 结构
 

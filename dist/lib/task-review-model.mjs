@@ -121,7 +121,7 @@ export function assessMaterialsReadiness({ budget, taskDir, brief, visualMap, re
             message,
             allowedWritePaths: extra.allowedWritePaths || [`${toPosix(path.relative(path.dirname(taskDir), taskDir)) || "."}/**`],
             forbiddenActions: ["human-confirm", "edit-unrelated-task", "fabricate-evidence"],
-            validationCommands: ["node scripts/harness.mjs check --profile target-project <target>"],
+            validationCommands: ["node dist/harness.mjs check --profile target-project <target>"],
             confidence: extra.confidence || "exact",
             repairable: true,
         });
@@ -179,7 +179,7 @@ export function deriveTaskQueues({ id, title, state, budget, reviewStatus, revie
             owner: "agent",
             allowedWritePaths: [`${toPosix(path.relative(target.projectRoot, taskDir))}/**`],
             forbiddenActions: ["human-confirm", "edit-unrelated-task", "fabricate-evidence"],
-            validationCommands: ["node scripts/harness.mjs check --profile target-project <target>"],
+            validationCommands: ["node dist/harness.mjs check --profile target-project <target>"],
             confidence: "exact",
             repairable: true,
             ...reason,

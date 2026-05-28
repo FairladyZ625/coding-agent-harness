@@ -55,12 +55,15 @@ export function checkDistObservation({ projectRoot = defaultProjectRoot, runPack
                 hasDistPostinstall: packed.includes("dist/postinstall.mjs"),
                 hasDistObservationGate: packed.includes("dist/check-dist-observation.mjs"),
                 hasScriptsHarness: packed.includes("scripts/harness.mjs"),
+                hasScripts: packed.some((file) => file.startsWith("scripts/")),
                 hasTests: packed.some((file) => file.startsWith("tests/")),
             };
-            for (const required of ["dist/harness.mjs", "dist/postinstall.mjs", "dist/check-dist-observation.mjs", "scripts/harness.mjs"]) {
+            for (const required of ["dist/harness.mjs", "dist/postinstall.mjs", "dist/check-dist-observation.mjs"]) {
                 if (!packed.includes(required))
                     failures.push({ code: "packed-file-missing", file: required, message: `package missing ${required}` });
             }
+            if (observations.package.hasScripts)
+                failures.push({ code: "package-includes-scripts", message: "package must not include scripts/** after historical shim deletion" });
             if (observations.package.hasTests)
                 failures.push({ code: "package-includes-tests", message: "package must not include tests/**" });
         }
@@ -102,6 +105,12 @@ export function checkDistObservation({ projectRoot = defaultProjectRoot, runPack
         unpairedScriptShims: unpairedScriptShims.length,
         unpairedTestShims: unpairedTestShims.length,
     };
+    if (scriptShims.length > 0) {
+        failures.push({ code: "historical-script-shims-remain", message: `PR-28 final inventory must have 0 scripts/**/*.mjs files; found ${scriptShims.length}` });
+    }
+    if (testShims.length > 0) {
+        failures.push({ code: "historical-test-shims-remain", message: `PR-28 final inventory must have 0 tests/**/*.mjs files; found ${testShims.length}` });
+    }
     if (runCommandMatrix) {
         runMatrix(root, failures, observations.commandMatrix);
     }
@@ -210,6 +219,7 @@ function runInstalledPackageSmoke(root, failures, observations) {
         postinstall: pkg.scripts?.postinstall,
         observeDist: pkg.scripts?.["observe:dist"],
         hasTests: fs.existsSync(path.join(packageRoot, "tests")),
+        hasScripts: fs.existsSync(path.join(packageRoot, "scripts")),
         scriptsDisabled: [],
         steps: [],
     };
@@ -219,12 +229,14 @@ function runInstalledPackageSmoke(root, failures, observations) {
     if (!binTarget.includes("dist/harness.mjs")) {
         failures.push({ code: "installed-bin-link-not-dist", message: `installed bin link does not target dist/harness.mjs: ${binTarget}` });
     }
-    for (const relative of ["dist/harness.mjs", "dist/postinstall.mjs", "dist/check-dist-observation.mjs", "scripts/harness.mjs", "scripts/postinstall.mjs"]) {
+    for (const relative of ["dist/harness.mjs", "dist/postinstall.mjs", "dist/check-dist-observation.mjs"]) {
         if (!fs.existsSync(path.join(packageRoot, relative)))
             failures.push({ code: "installed-file-missing", file: relative, message: `installed package missing ${relative}` });
     }
     if (observations.installSmoke.hasTests)
         failures.push({ code: "installed-package-includes-tests", message: "installed package must not include tests/**" });
+    if (observations.installSmoke.hasScripts)
+        failures.push({ code: "installed-package-includes-scripts", message: "installed package must not include scripts/** after historical shim deletion" });
     const installedScripts = path.join(packageRoot, "scripts");
     if (fs.existsSync(installedScripts)) {
         fs.renameSync(installedScripts, `${installedScripts}.disabled-by-dist-observation`);
@@ -255,13 +267,6 @@ function runInstalledPackageSmoke(root, failures, observations) {
         observations.installSmoke.observationOk = installedResult.ok;
         if (!installedResult.ok)
             failures.push({ code: "installed-observation-not-ok", message: JSON.stringify(installedResult.failures, null, 2) });
-    }
-    if (!observations.installSmoke.scriptsDisabled.includes("scripts/")) {
-        failures.push({
-            code: "installed-historical-shims-not-disabled",
-            actual: observations.installSmoke.scriptsDisabled,
-            message: "install smoke must disable the installed scripts/ tree before runtime checks",
-        });
     }
 }
 function runInstalledMatrix(root, runtimeEnv, failures, steps) {

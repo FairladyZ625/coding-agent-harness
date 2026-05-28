@@ -287,7 +287,7 @@ function skillPackageEntries() {
     "templates",
     "templates-zh-CN",
     "presets",
-    "scripts",
+    "dist",
     "docs-release",
     "examples",
   ];
@@ -379,7 +379,7 @@ export function doctorUserSkill({ agent = "codex", home = "" } = {}) {
     "templates",
     "templates-zh-CN",
     "presets",
-    "scripts/harness.mjs",
+    "dist/harness.mjs",
     "docs-release/guides/agent-installation.md",
   ];
   const targets = normalizeUserAgent(agent).map((targetAgent) => {

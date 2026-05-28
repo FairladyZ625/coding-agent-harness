@@ -351,7 +351,7 @@ Start from the latest main branch and create a new feature branch. Read README.m
 
 Keep the change scoped. Use only public repository files and do not rely on maintainer-local state, hidden workflows, credentials, generated dashboards, temporary files, or ignored local-only files.
 
-Run the checks that match the change. For docs-only changes, run git diff --check. For root package changes, run npm install, npm test, npm run smoke:dashboard, npm run check, node scripts/harness.mjs check --profile target-project examples/minimal-project, npm run pack:dry-run, and git diff --check as relevant. If the change touches harness-gui, also run cd harness-gui && npm ci && npm run typecheck && npm test && npm run build.
+Run the checks that match the change. For docs-only changes, run git diff --check. For root package changes, run npm install, npm test, npm run smoke:dashboard, npm run check, node dist/harness.mjs check --profile target-project examples/minimal-project, npm run pack:dry-run, and git diff --check as relevant. If the change touches harness-gui, also run cd harness-gui && npm ci && npm run typecheck && npm test && npm run build.
 
 When done, summarize what changed, list verification results, call out any skipped checks with reasons, and prepare the PR using the repository template.
 ```

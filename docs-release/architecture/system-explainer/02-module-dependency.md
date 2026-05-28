@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart LR
-  User["用户 / Agent\n$ harness <command> [target]"] -->|"解析参数 + 分发"| Entry["scripts/harness.mjs\n唯一 CLI 入口"]
+  User["用户 / Agent\n$ harness <command> [target]"] -->|"解析参数 + 分发"| Entry["dist/harness.mjs\n唯一 CLI 入口"]
 ```
 
 `harness.mjs` 做两件事：解析命令行参数，然后分发给对应的 command 模块或直接调用核心库。
@@ -18,13 +18,13 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  Entry["scripts/harness.mjs"]
+  Entry["dist/harness.mjs"]
 
-  Entry -->|"dashboard\ndev"| DashCmd["scripts/dashboard-command.mjs\nDashboard 生成 + 动态服务"]
-  Entry -->|"migrate-plan\nmigrate-run\nmigrate-verify"| MigCmd["scripts/migration-command.mjs\n迁移三阶段命令"]
-  Entry -->|"new-task / task-start\ntask-phase / task-review\ntask-complete / review-confirm\ntask-tombstone"| TaskCmd["scripts/task-command.mjs\n任务生命周期命令"]
-  Entry -->|"preset catalog\npreset install\npreset uninstall"| PresetCmd["scripts/preset-command.mjs\nPreset 管理命令"]
-  Entry -->|"check / status / init\ngovernance / lesson-promote\n..."| Core["lib/harness-core.mjs\n（直接调用）"]
+  Entry -->|"dashboard\ndev"| DashCmd["dist/commands/dashboard-command.mjs\nDashboard 生成 + 动态服务"]
+  Entry -->|"migrate-plan\nmigrate-run\nmigrate-verify"| MigCmd["dist/commands/migration-command.mjs\n迁移三阶段命令"]
+  Entry -->|"new-task / task-start\ntask-phase / task-review\ntask-complete / review-confirm\ntask-tombstone"| TaskCmd["dist/commands/task-command.mjs\n任务生命周期命令"]
+  Entry -->|"preset catalog\npreset install\npreset uninstall"| PresetCmd["dist/commands/preset-command.mjs\nPreset 管理命令"]
+  Entry -->|"check / status / init\ngovernance / lesson-promote\n..."| Core["dist/lib/harness-core.mjs\n（直接调用）"]
 ```
 
 四个 command 模块各自负责一个领域，其余命令直接调用 `harness-core.mjs`。

@@ -74,9 +74,13 @@ export function buildImportGraph({ repoRoot = defaultRepoRoot } = {}) {
     });
   }
 
-  markReachable(nodesByPath, "scripts/harness.mjs", "reachableFromBin");
-  markReachable(nodesByPath, "scripts/lib/harness-core.mjs", "reachableFromHarnessCore");
-  markBarrelReachable(nodesByPath, "scripts/lib/harness-core.mjs");
+  for (const entrypoint of ["scripts/harness.mts", "scripts/harness.mjs"]) {
+    markReachable(nodesByPath, entrypoint, "reachableFromBin");
+  }
+  for (const core of ["scripts/lib/harness-core.mts", "scripts/lib/harness-core.mjs"]) {
+    markReachable(nodesByPath, core, "reachableFromHarnessCore");
+    markBarrelReachable(nodesByPath, core);
+  }
 
   const cycles = findCycles(nodesByPath);
   const cycleNodeSet = new Set(cycles.flat());
@@ -84,7 +88,10 @@ export function buildImportGraph({ repoRoot = defaultRepoRoot } = {}) {
 
   const nodes = [...nodesByPath.values()].sort((left, right) => left.path.localeCompare(right.path));
   const localEdgeCount = nodes.reduce((count, node) => count + node.imports.filter((imported) => imported.target).length, 0);
-  const barrelTargets = nodesByPath.get("scripts/lib/harness-core.mjs")?.imports.filter((imported) => imported.kind === "export" && imported.target) || [];
+  const barrelTargets = [
+    ...(nodesByPath.get("scripts/lib/harness-core.mts")?.imports.filter((imported) => imported.kind === "export" && imported.target) || []),
+    ...(nodesByPath.get("scripts/lib/harness-core.mjs")?.imports.filter((imported) => imported.kind === "export" && imported.target) || []),
+  ];
 
   return {
     schemaVersion: 1,
@@ -129,8 +136,8 @@ export function checkImportGraph({ repoRoot = defaultRepoRoot, expectNodes, expe
     violations.push({ code: "types-value-import", ...edge });
   }
 
-  const barrel = graph.nodes.find((node) => node.path === "scripts/lib/harness-core.mjs");
-  for (const edge of barrel?.imports || []) {
+  const barrels = graph.nodes.filter((node) => node.path === "scripts/lib/harness-core.mts" || node.path === "scripts/lib/harness-core.mjs");
+  for (const edge of barrels.flatMap((barrel) => barrel.imports || [])) {
     if (edge.kind !== "export" || !edge.target) continue;
     const target = graph.nodes.find((node) => node.path === edge.target);
     if (!target?.barrelReachable) {
@@ -341,6 +348,7 @@ function candidatePaths(basePath) {
   if (extension) {
     const paths = [basePath];
     if (extension === ".js") paths.push(basePath.slice(0, -3) + ".ts", basePath.slice(0, -3) + ".mts", basePath.slice(0, -3) + ".mjs");
+    if (extension === ".mjs") paths.push(basePath.slice(0, -4) + ".mts");
     return paths;
   }
   return [

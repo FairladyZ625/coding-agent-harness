@@ -203,7 +203,7 @@ Checker 必须反向扫描模块任务目录：
 严格模式命令：
 
 ```bash
-HARNESS_REQUIRE_GLOBAL_MODULE_SYNC=1 node scripts/check-harness.mjs <repo-path>
+HARNESS_REQUIRE_GLOBAL_MODULE_SYNC=1 node dist/check-harness.mjs <repo-path>
 ```
 
 这条规则的目的不是让每个 worker 都改总表，而是让总表同步变成单一 owner 的串行步骤。

@@ -63,13 +63,6 @@ export function checkRuntimeEmitContract({ projectRoot = defaultRepoRoot, config
             violations,
         });
     }
-    else if (!absoluteExpectedDir && emit.status === 0) {
-        compareEmittedFilesToProject({
-            projectRoot: absoluteProjectRoot,
-            actualDir: absoluteOutDir,
-            violations,
-        });
-    }
     return {
         ok: violations.length === 0,
         violations,
@@ -115,30 +108,6 @@ function compareDirectories({ expectedDir, actualDir, violations }) {
                 code: "emit-drift",
                 file: relative,
                 message: `emitted .mjs drift detected: ${relative}`,
-            });
-        }
-    }
-}
-function compareEmittedFilesToProject({ projectRoot, actualDir, violations }) {
-    const actualFiles = collectFiles(actualDir).filter((file) => file.endsWith(".mjs")).sort();
-    for (const actualFile of actualFiles) {
-        const relative = toPosix(path.relative(actualDir, actualFile));
-        const expectedFile = path.join(projectRoot, relative);
-        if (!fs.existsSync(expectedFile)) {
-            violations.push({
-                code: "missing-checked-in-file",
-                file: relative,
-                message: `checked-in emitted file missing: ${relative}`,
-            });
-            continue;
-        }
-        const expected = fs.readFileSync(expectedFile, "utf8");
-        const actual = fs.readFileSync(actualFile, "utf8");
-        if (expected !== actual) {
-            violations.push({
-                code: "emit-drift",
-                file: relative,
-                message: `checked-in .mjs drift detected: ${relative}`,
             });
         }
     }

@@ -11,10 +11,8 @@
     "skipLibCheck": true
   },
   "include": [
-    "scripts/**/*.mjs",
     "scripts/**/*.mts",
     "scripts/**/*.ts",
-    "tests/**/*.mjs",
     "tests/**/*.mts",
     "tests/**/*.ts"
   ],

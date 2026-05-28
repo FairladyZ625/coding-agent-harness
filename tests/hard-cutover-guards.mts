@@ -11,16 +11,16 @@ import {
 
 const forbidden = /docs\/09-PLANNING|docs\/10-WALKTHROUGH|docs\/Harness-Ledger\.md|legacy-compat|safe-adoption|legacyChecker|runLegacyCheck|runDashboardLegacyCheck/;
 const runtimeRoots = [
-  "scripts/harness.mjs",
-  "scripts/lib",
-  "scripts/commands",
+  "dist/harness.mjs",
+  "dist/lib",
+  "dist/commands",
 ];
 const allowed = [
-  /^scripts\/lib\/migration-/,
-  /^scripts\/commands\/migration-command\.mjs$/,
-  /^scripts\/lib\/hard-cutover-guard\.mjs$/,
-  /^scripts\/lib\/harness-paths\.mjs$/,
-  /^scripts\/lib\/core-shared\.mjs$/,
+  /^dist\/lib\/migration-/,
+  /^dist\/commands\/migration-command\.mjs$/,
+  /^dist\/lib\/hard-cutover-guard\.mjs$/,
+  /^dist\/lib\/harness-paths\.mjs$/,
+  /^dist\/lib\/core-shared\.mjs$/,
 ];
 const packageForbidden = /docs\/(?:0[1-9]-|1[0-1]-)|docs\/Harness-Ledger\.md|\.harness-capabilities\.json|Closeout SSoT|Closeout-SSoT\.md|coding-agent-harness\/planning\/Module-Registry\.md|(^|[^A-Za-z0-9])(?:03-ARCHITECTURE|04-DEVELOPMENT|05-TEST-QA|06-INTEGRATIONS|09-PLANNING|10-WALKTHROUGH|11-REFERENCE)(?:\/|\b)|coding-agent-harness\/planning\/[^\n`|]*\b(?:TASKS|MODULES)\b|(?:current task walkthrough\.md|AGENTS\.md\s*\+\s*docs\/|source files under docs\/|docs\/ (?:目录|tree|文档树|完整骨架|下的源文件))/;
 const packageAllow = [
@@ -29,10 +29,6 @@ const packageAllow = [
   /^docs-release\/guides\/full-legacy-migration/,
   /^references\/legacy-/,
   /^dist\//,
-  /^scripts\//,
-  /^scripts\/check-harness\.mjs$/,
-  /^scripts\/lib\/migration-/,
-  /^scripts\/lib\/harness-paths\.mjs$/,
   /^templates(?:-zh-CN)?\/walkthrough\/Closeout-SSoT\.md$/,
 ];
 

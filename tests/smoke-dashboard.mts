@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const node = process.execPath;
-const cli = path.join(repoRoot, "scripts/harness.mjs");
+const cli = path.join(repoRoot, "dist/harness.mjs");
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dashboard-smoke-"));
 
 function run(args) {

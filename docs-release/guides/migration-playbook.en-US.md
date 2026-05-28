@@ -11,7 +11,7 @@ If another agent will execute the migration, first give it:
 - `docs-release/guides/full-legacy-migration-subagent-strategy.md`
 - `docs-release/guides/full-legacy-migration-subagent-strategy.zh-CN.md`
 
-This guide assumes the installed `harness` command. The executing agent must first check `command -v harness`. If the target environment does not have `harness`, do not silently install globally. Ask the user whether `npm install -g coding-agent-harness` is allowed. Install globally only after explicit approval. If the user does not approve or does not respond, run the same CLI with `npx --yes coding-agent-harness <command>`. Maintainers debugging from the source checkout can replace it with `node scripts/harness.mjs`.
+This guide assumes the installed `harness` command. The executing agent must first check `command -v harness`. If the target environment does not have `harness`, do not silently install globally. Ask the user whether `npm install -g coding-agent-harness` is allowed. Install globally only after explicit approval. If the user does not approve or does not respond, run the same CLI with `npx --yes coding-agent-harness <command>`. Maintainers debugging from the source checkout can replace it with `node dist/harness.mjs`.
 
 ## Target Path And v2 Structure
 

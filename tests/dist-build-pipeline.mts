@@ -35,14 +35,14 @@ function walk(current, files) {
   if (stat.isFile()) files.push(current);
 }
 
-const build = spawnSync(process.execPath, ["scripts/build-dist.mjs", "--out-dir", distRoot, "--json"], {
+const build = spawnSync(process.execPath, ["scripts/build-dist.mts", "--out-dir", distRoot, "--json"], {
   cwd: repoRoot,
   encoding: "utf8",
 });
 assert(build.status === 0, `dist build should pass\nSTDOUT:\n${build.stdout}\nSTDERR:\n${build.stderr}`);
 
 const quietBuildRoot = path.join(tempRoot, "quiet-dist");
-const quietBuild = spawnSync(process.execPath, ["scripts/build-dist.mjs", "--out-dir", quietBuildRoot, "--quiet"], {
+const quietBuild = spawnSync(process.execPath, ["scripts/build-dist.mts", "--out-dir", quietBuildRoot, "--quiet"], {
   cwd: repoRoot,
   encoding: "utf8",
 });
@@ -50,7 +50,7 @@ assert(quietBuild.status === 0, `quiet dist build should pass\nSTDOUT:\n${quietB
 assert(quietBuild.stdout === "", "quiet dist build should not print stdout on success");
 assert(quietBuild.stderr === "", "quiet dist build should not print stderr on success");
 
-const unsafeNestedRepoOutput = spawnSync(process.execPath, ["scripts/build-dist.mjs", "--out-dir", "scripts/lib", "--json"], {
+const unsafeNestedRepoOutput = spawnSync(process.execPath, ["scripts/build-dist.mts", "--out-dir", "scripts/lib", "--json"], {
   cwd: repoRoot,
   encoding: "utf8",
 });
@@ -72,9 +72,9 @@ assert(packageJson.bin?.harness === "dist/harness.mjs", "package bin should run 
 assert(packageJson.scripts?.postinstall === "node dist/postinstall.mjs", "package postinstall should run the dist postinstall entrypoint");
 assert(packageJson.scripts?.check === "node dist/harness.mjs check --profile source-package .", "npm check should run through dist");
 assert(packageJson.files.includes("dist/"), "package allowlist should include committed dist artifacts");
-assert(packageJson.files.includes("scripts/"), "PR-25 must retain historical scripts shims during observation");
+assert(!packageJson.files.includes("scripts/"), "package allowlist should not include historical scripts shims after PR-28");
 assert(packageJson.files.includes("tsconfig.dist.json"), "package allowlist should include the dist build config");
-assert(packageJson.scripts?.test === "node tests/run-built.mjs", "test runner should execute built output from tests/**/*.mts");
+assert(packageJson.scripts?.test === "node dist/run-built-tests.mjs", "test runner should execute built output from tests/**/*.mts");
 
 const help = spawnSync(process.execPath, [path.join(distRoot, "harness.mjs"), "--help"], {
   cwd: repoRoot,
@@ -91,7 +91,7 @@ const postinstall = spawnSync(process.execPath, [path.join(distRoot, "postinstal
 assert(postinstall.status === 0, `dist postinstall should run with skip flag\nSTDOUT:\n${postinstall.stdout}\nSTDERR:\n${postinstall.stderr}`);
 
 for (const requiredHistoricalShim of ["scripts/harness.mjs", "scripts/postinstall.mjs", "tests/run-all.mjs"]) {
-  assert(fs.existsSync(path.join(repoRoot, requiredHistoricalShim)), `PR-25 must retain historical shim: ${requiredHistoricalShim}`);
+  assert(!fs.existsSync(path.join(repoRoot, requiredHistoricalShim)), `PR-28 must remove historical shim: ${requiredHistoricalShim}`);
 }
 
 for (const file of collectFiles(distRoot).filter((entry) => entry.endsWith(".mjs"))) {

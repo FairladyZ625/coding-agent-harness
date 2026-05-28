@@ -8,12 +8,16 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const testRunnerOutDir = process.env.HARNESS_TEST_RUNNER_OUT_DIR || "";
+const snapshotMatrixCli = testRunnerOutDir
+  ? path.join(testRunnerOutDir, "tests/scripts/snapshot-matrix.mjs")
+  : path.join(repoRoot, "tests/scripts/snapshot-matrix.mts");
 const {
   compareSnapshotMatrices,
   normalizeSnapshotMatrix,
   runSnapshotSelfTest,
   snapshotCommands,
-} = await import(pathToFileURL(path.join(repoRoot, "tests/scripts/snapshot-matrix.mjs")));
+} = await import(pathToFileURL(snapshotMatrixCli));
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -32,7 +36,7 @@ const normalized = normalizeSnapshotMatrix(
     generatedAt: "2026-05-28T12:34:56.789Z",
     captures: {
       status: {
-        command: "node /Users/example/repo/scripts/harness.mjs status --json /Users/example/repo",
+        command: "node /Users/example/repo/dist/harness.mjs status --json /Users/example/repo",
         exitCode: 0,
         stdout: {
           generatedAt: "2026-05-28T12:34:56.789Z",
@@ -173,7 +177,7 @@ for (const [label, outDir] of [
   ["before", beforeDir],
   ["after", afterDir],
 ]) {
-  const result = spawnSync(process.execPath, ["tests/scripts/snapshot-matrix.mjs", "capture", "--label", label, "--out-dir", outDir], {
+  const result = spawnSync(process.execPath, [snapshotMatrixCli, "capture", "--label", label, "--out-dir", outDir], {
     cwd: repoRoot,
     encoding: "utf8",
   });
@@ -182,7 +186,7 @@ for (const [label, outDir] of [
 }
 const diffCli = spawnSync(
   process.execPath,
-  ["tests/scripts/snapshot-matrix.mjs", "diff", "--before-dir", beforeDir, "--after-dir", afterDir, "--out", diffPath],
+  [snapshotMatrixCli, "diff", "--before-dir", beforeDir, "--after-dir", afterDir, "--out", diffPath],
   { cwd: repoRoot, encoding: "utf8" },
 );
 assert(diffCli.status === 0, `snapshot diff CLI should pass\nSTDOUT:\n${diffCli.stdout}\nSTDERR:\n${diffCli.stderr}`);

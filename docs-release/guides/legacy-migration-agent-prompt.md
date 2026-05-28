@@ -83,7 +83,7 @@ If the user provides external source material, first use `docs/11-REFERENCE/exte
 
 ## Step 1: Baseline
 
-First check whether the target environment has the `harness` command. If it does not, do not silently install globally. Ask the user whether `npm install -g coding-agent-harness` is allowed. Run that global install only after explicit approval. If the user does not approve or does not respond, use `npx --yes coding-agent-harness <command>` for Harness CLI calls. If you are debugging from the source checkout, replace `harness` with `node scripts/harness.mjs`.
+First check whether the target environment has the `harness` command. If it does not, do not silently install globally. Ask the user whether `npm install -g coding-agent-harness` is allowed. Run that global install only after explicit approval. If the user does not approve or does not respond, use `npx --yes coding-agent-harness <command>` for Harness CLI calls. If you are debugging from the source checkout, replace `harness` with `node dist/harness.mjs`.
 
 After user confirmation, run or reuse:
 

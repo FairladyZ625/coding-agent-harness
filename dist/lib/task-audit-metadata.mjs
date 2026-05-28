@@ -172,7 +172,7 @@ export function taskAuditMaterialIssues(target, taskDir, audit) {
         message: issue.message,
         allowedWritePaths: [relativeIndexPath],
         forbiddenActions: ["human-confirm", "edit-unrelated-task", "fabricate-evidence"],
-        validationCommands: ["node scripts/harness.mjs check --profile target-project <target>"],
+        validationCommands: ["node dist/harness.mjs check --profile target-project <target>"],
         confidence: "exact",
         repairable: true,
     }));
@@ -347,7 +347,7 @@ function legacyIssue(relativePath, code, message) {
         message,
         allowedWritePaths: [relativePath],
         forbiddenActions: ["human-confirm", "edit-unrelated-task", "fabricate-evidence"],
-        validationCommands: ["node scripts/harness.mjs migrate-task-audit-index --apply <target>"],
+        validationCommands: ["node dist/harness.mjs migrate-task-audit-index --apply <target>"],
         confidence: "exact",
         repairable: true,
     };

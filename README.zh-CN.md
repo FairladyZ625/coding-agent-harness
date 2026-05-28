@@ -331,7 +331,7 @@ npx --yes coding-agent-harness new-task --budget complex --preset legacy-migrati
 
 改动要保持聚焦。只使用公开仓库文件；不要依赖维护者本地状态、隐藏工作流、凭据、生成的 Dashboard、临时文件或被 ignore 的本地专用文件。
 
-根据改动范围运行检查。仅文档改动至少运行 git diff --check。根包相关改动按需运行 npm install、npm test、npm run smoke:dashboard、npm run check、node scripts/harness.mjs check --profile target-project examples/minimal-project、npm run pack:dry-run 和 git diff --check。如果改到 harness-gui，还要运行 cd harness-gui && npm ci && npm run typecheck && npm test && npm run build。
+根据改动范围运行检查。仅文档改动至少运行 git diff --check。根包相关改动按需运行 npm install、npm test、npm run smoke:dashboard、npm run check、node dist/harness.mjs check --profile target-project examples/minimal-project、npm run pack:dry-run 和 git diff --check。如果改到 harness-gui，还要运行 cd harness-gui && npm ci && npm run typecheck && npm test && npm run build。
 
 完成后，请总结改了什么，列出验证结果，说明任何未运行检查及原因，并按仓库 PR 模板准备 PR。
 ```

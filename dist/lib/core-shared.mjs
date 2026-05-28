@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { resolveHarnessPaths } from "./harness-paths.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(__dirname, "../..");
-export const legacyChecker = path.join(repoRoot, "scripts/check-harness.mjs");
+export const legacyChecker = path.join(repoRoot, "dist/check-harness.mjs");
 export const bundledCheckScript = legacyChecker;
 export const visualMapFile = "visual_map.md";
 export const legacyVisualRoadmapFile = "visual_roadmap.md";

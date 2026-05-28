@@ -15,13 +15,13 @@ English mirror: `docs-release/guides/agent-installation.en-US.md`
 如果目标环境没有 `harness` 命令，不得静默全局安装；先询问用户是否允许运行
 `npm install -g coding-agent-harness`。只有用户明确同意后才能修改全局 npm 环境。
 用户不同意或未回复时，用 `npx --yes coding-agent-harness <command>` 运行同一条 CLI。
-维护者在本源码仓调试时，可以把同一命令替换为 `node scripts/harness.mjs`。
+维护者在本源码仓调试时，可以把同一命令替换为 `node dist/harness.mjs`。
 
 `harness init` 不会把 npm 包写进目标项目依赖；它只写 Harness 文档、模板和 registry。
 因此 agent 交付时不能暗示目标项目已经安装了 npm dependency。`npx` 第一次运行会把包
 下载到 npm 缓存；这不是项目依赖，也不是全局命令安装。需要 CLI 时继续用
 `npx --yes coding-agent-harness ...`、用户批准后的全局 `harness`，或源码仓的
-`node scripts/harness.mjs`。
+`node dist/harness.mjs`。
 
 `npx skills add FairladyZ625/coding-agent-harness --skill coding-agent-harness`
 不是零写入操作。它会把 Skill 拷贝到目标项目的 `.agents/skills/coding-agent-harness/`

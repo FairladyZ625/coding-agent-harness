@@ -7,7 +7,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const { checkRuntimeEmitContract } = await import(pathToFileURL(path.join(repoRoot, "scripts/check-runtime-emit.mjs")));
+const { checkRuntimeEmitContract } = await import(pathToFileURL(path.join(repoRoot, "dist/check-runtime-emit.mjs")));
 const fixtureSource = path.join(repoRoot, "fixtures/runtime-emit");
 
 function assert(condition, message) {
@@ -100,25 +100,13 @@ writeFixture(
 );
 writeFixture(productionRoot, "scripts/leaf.mts", 'export const productionValue: string = "emit-ok";\n');
 writeFixture(productionRoot, "scripts/bin.mts", 'import { productionValue } from "./leaf.mjs";\nconsole.log(productionValue);\n');
-writeFixture(productionRoot, "scripts/leaf.mjs", 'export const productionValue = "emit-ok";\n');
-writeFixture(productionRoot, "scripts/bin.mjs", 'import { productionValue } from "./leaf.mjs";\nconsole.log(productionValue);\n');
 const productionPassed = checkRuntimeEmitContract({
   projectRoot: productionRoot,
   configPath: path.join(productionRoot, "tsconfig.runtime.json"),
 });
 assert(
   productionPassed.ok === true,
-  `default production emit check should compare checked-in .mjs files:\n${productionPassed.violations.map((violation) => violation.message).join("\n")}`,
-);
-fs.writeFileSync(path.join(productionRoot, "scripts/leaf.mjs"), 'export const productionValue = "stale";\n');
-const productionDrift = checkRuntimeEmitContract({
-  projectRoot: productionRoot,
-  configPath: path.join(productionRoot, "tsconfig.runtime.json"),
-});
-assert(productionDrift.ok === false, "default production emit check should fail stale checked-in .mjs files");
-assert(
-  productionDrift.violations.some((violation) => violation.code === "emit-drift" && violation.file === "scripts/leaf.mjs"),
-  "default production emit check should report checked-in .mjs drift",
+  `default production emit check should validate TypeScript source emit:\n${productionPassed.violations.map((violation) => violation.message).join("\n")}`,
 );
 
 console.log("Runtime emit contract tests passed");

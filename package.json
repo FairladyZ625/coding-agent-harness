@@ -28,18 +28,18 @@
   "scripts": {
     "check": "node dist/harness.mjs check --profile source-package .",
     "check:private": "node dist/harness.mjs check --profile private-harness .harness-private",
-    "build:runtime": "node scripts/build-dist.mjs",
-    "prepack": "node scripts/build-dist.mjs --quiet",
+    "build:runtime": "node scripts/build-dist.mts",
+    "prepack": "node scripts/build-dist.mts --quiet",
     "typecheck": "npm exec --yes --package typescript@5.9.3 -- tsc -p tsconfig.json",
-    "typecheck:guards": "node scripts/check-type-boundaries.mjs",
+    "typecheck:guards": "node dist/check-type-boundaries.mjs",
     "status": "node dist/harness.mjs status --json .",
     "dashboard": "node dist/harness.mjs dashboard --out tmp/harness-dashboard.html examples/minimal-project",
     "dashboard:folder": "node dist/harness.mjs dashboard --out-dir tmp/harness-dashboard examples/minimal-project",
     "pack:dry-run": "npm pack --dry-run --json",
     "postinstall": "node dist/postinstall.mjs",
     "observe:dist": "node dist/check-dist-observation.mjs --skip-pack --skip-install-smoke",
-    "smoke:dashboard": "node tests/smoke-dashboard.mjs",
-    "test": "node tests/run-built.mjs"
+    "smoke:dashboard": "node dist/run-built-tests.mjs --test tests/smoke-dashboard.mjs",
+    "test": "node dist/run-built-tests.mjs"
   },
   "files": [
     "README.md",
@@ -59,7 +59,6 @@
     "templates/",
     "templates-zh-CN/",
     "dist/",
-    "scripts/",
     "docs-release/",
     "examples/"
   ],

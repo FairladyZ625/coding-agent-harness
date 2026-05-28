@@ -23,7 +23,7 @@ const jsonResult: HarnessTestJsonResult<StatusPayload> = {
 
 const paths: HarnessTestPaths = {
   repoRoot: "/repo",
-  cli: "/repo/scripts/harness.mjs",
+  cli: "/repo/dist/harness.mjs",
   tmpRoot: "/tmp/harness-v1",
 };
 

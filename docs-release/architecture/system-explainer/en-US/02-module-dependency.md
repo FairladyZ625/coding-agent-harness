@@ -6,7 +6,7 @@ All commands come through a single file:
 
 ```mermaid
 flowchart LR
-  User["User / Agent\n$ harness <command> [target]"] -->|"parse args + dispatch"| Entry["scripts/harness.mjs\nSingle CLI entry point"]
+  User["User / Agent\n$ harness <command> [target]"] -->|"parse args + dispatch"| Entry["dist/harness.mjs\nSingle CLI entry point"]
 ```
 
 `harness.mjs` does two things: parses command-line arguments, then dispatches to the
@@ -19,13 +19,13 @@ It contains no business logic itself.
 
 ```mermaid
 flowchart TD
-  Entry["scripts/harness.mjs"]
+  Entry["dist/harness.mjs"]
 
-  Entry -->|"dashboard\ndev"| DashCmd["scripts/dashboard-command.mjs\nDashboard generation + dynamic serving"]
-  Entry -->|"migrate-plan\nmigrate-run\nmigrate-verify"| MigCmd["scripts/migration-command.mjs\nMigration three-phase commands"]
-  Entry -->|"new-task / task-start\ntask-phase / task-review\ntask-complete / review-confirm\ntask-tombstone"| TaskCmd["scripts/task-command.mjs\nTask lifecycle commands"]
-  Entry -->|"preset catalog\npreset install\npreset uninstall"| PresetCmd["scripts/preset-command.mjs\nPreset management commands"]
-  Entry -->|"check / status / init\ngovernance / lesson-promote\n..."| Core["lib/harness-core.mjs\n(called directly)"]
+  Entry -->|"dashboard\ndev"| DashCmd["dist/commands/dashboard-command.mjs\nDashboard generation + dynamic serving"]
+  Entry -->|"migrate-plan\nmigrate-run\nmigrate-verify"| MigCmd["dist/commands/migration-command.mjs\nMigration three-phase commands"]
+  Entry -->|"new-task / task-start\ntask-phase / task-review\ntask-complete / review-confirm\ntask-tombstone"| TaskCmd["dist/commands/task-command.mjs\nTask lifecycle commands"]
+  Entry -->|"preset catalog\npreset install\npreset uninstall"| PresetCmd["dist/commands/preset-command.mjs\nPreset management commands"]
+  Entry -->|"check / status / init\ngovernance / lesson-promote\n..."| Core["dist/lib/harness-core.mjs\n(called directly)"]
 ```
 
 Four command modules each own one domain; other commands call `harness-core.mjs` directly.

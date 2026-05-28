@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const harnessScript = "scripts/harness.mjs";
+const harnessScript = "dist/harness.mjs";
 
 export const snapshotCommands = [
   { id: "status", args: ["status", "--json", "."] },

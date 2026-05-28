@@ -18,6 +18,11 @@ export function buildRuntimeDist({
   const absoluteProjectRoot = path.resolve(projectRoot);
   const absoluteConfig = path.resolve(configPath);
   const absoluteOutDir = path.resolve(outDir);
+  const defaultDist = path.join(absoluteProjectRoot, "dist");
+  const buildOutDir =
+    absoluteOutDir === defaultDist
+      ? fs.mkdtempSync(path.join(os.tmpdir(), "coding-agent-harness-dist-build-"))
+      : absoluteOutDir;
 
   if (!fs.existsSync(absoluteConfig)) {
     return {
@@ -33,11 +38,11 @@ export function buildRuntimeDist({
     };
   }
 
-  fs.rmSync(absoluteOutDir, { recursive: true, force: true });
+  fs.rmSync(buildOutDir, { recursive: true, force: true });
 
   const emit = spawnSync(
     "npm",
-    ["exec", "--yes", "--package", `typescript@${typescriptVersion}`, "--", "tsc", "-p", absoluteConfig, "--outDir", absoluteOutDir, "--noCheck"],
+    ["exec", "--yes", "--package", `typescript@${typescriptVersion}`, "--", "tsc", "-p", absoluteConfig, "--outDir", buildOutDir, "--noCheck"],
     {
       cwd: absoluteProjectRoot,
       encoding: "utf8",
@@ -50,6 +55,11 @@ export function buildRuntimeDist({
       error: `TypeScript dist build failed\nSTDOUT:\n${emit.stdout}\nSTDERR:\n${emit.stderr}`,
       status: emit.status,
     };
+  }
+
+  if (buildOutDir !== absoluteOutDir) {
+    syncDirectory(buildOutDir, absoluteOutDir);
+    fs.rmSync(buildOutDir, { recursive: true, force: true });
   }
 
   const files = collectFiles(absoluteOutDir).filter((file) => file.endsWith(".mjs")).sort();
@@ -109,6 +119,27 @@ function walk(current, files) {
     return;
   }
   if (stat.isFile()) files.push(current);
+}
+
+function syncDirectory(sourceDir, targetDir) {
+  fs.mkdirSync(targetDir, { recursive: true });
+  const sourceEntries = new Set(fs.readdirSync(sourceDir));
+  for (const entry of sourceEntries) {
+    const source = path.join(sourceDir, entry);
+    const target = path.join(targetDir, entry);
+    const stat = fs.lstatSync(source);
+    if (stat.isDirectory()) {
+      syncDirectory(source, target);
+    } else if (stat.isFile()) {
+      const tempTarget = `${target}.tmp-${process.pid}`;
+      fs.copyFileSync(source, tempTarget);
+      fs.renameSync(tempTarget, target);
+    }
+  }
+  for (const entry of fs.readdirSync(targetDir)) {
+    if (sourceEntries.has(entry)) continue;
+    fs.rmSync(path.join(targetDir, entry), { recursive: true, force: true });
+  }
 }
 
 function toPosix(value) {

@@ -14,7 +14,7 @@
 - [ ] `npm test`
 - [ ] `npm run smoke:dashboard`
 - [ ] `npm run check`
-- [ ] `node scripts/harness.mjs check --profile target-project examples/minimal-project`
+- [ ] `node dist/harness.mjs check --profile target-project examples/minimal-project`
 - [ ] `npm run pack:dry-run`
 - [ ] `git diff --check`
 - [ ] GUI only: `cd harness-gui && npm ci && npm run typecheck && npm test && npm run build`
@@ -53,7 +53,7 @@
 - [ ] `npm test`
 - [ ] `npm run smoke:dashboard`
 - [ ] `npm run check`
-- [ ] `node scripts/harness.mjs check --profile target-project examples/minimal-project`
+- [ ] `node dist/harness.mjs check --profile target-project examples/minimal-project`
 - [ ] `npm run pack:dry-run`
 - [ ] `git diff --check`
 - [ ] 仅 GUI：`cd harness-gui && npm ci && npm run typecheck && npm test && npm run build`

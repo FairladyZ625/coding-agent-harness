@@ -1,29 +1,27 @@
 # TypeScript Runtime Migration Closeout
 
 This closeout records the public package rule after the progressive JavaScript to
-TypeScript runtime migration. It now covers the Phase 2 package-runtime cutover:
-the npm package executes committed `dist/**/*.mjs` artifacts while historical
-`scripts/**/*.mjs` and `tests/**/*.mjs` shims remain checked in for observation
-and rollback.
+TypeScript runtime migration. The package now executes committed
+`dist/**/*.mjs` artifacts, while `scripts/**/*.mts` and `tests/**/*.mts` are the
+source ownership surfaces. Historical checked-in `scripts/**/*.mjs` and
+`tests/**/*.mjs` shims have been removed after the dist observation gates passed.
 
 ## Current State
 
-All Node runtime and test `.mjs` files under `scripts/` and `tests/` now have an
-explicit TypeScript source twin:
+All Node runtime and test sources under `scripts/` and `tests/` are now
+TypeScript-first:
 
-- `scripts/**/*.mjs` has adjacent `scripts/**/*.mts`.
-- `tests/**/*.mjs` has adjacent `tests/**/*.mts`.
 - `scripts/**/*.mts` builds to committed `dist/**/*.mjs` artifacts.
+- `tests/**/*.mts` runs through the built test runner.
 - `dist/**/*.mjs` is the package runtime surface for npm bin, npm scripts, and
   postinstall.
-- `.mts` files remain the source ownership surface.
+- `scripts/**/*.mjs` and `tests/**/*.mjs` have a final inventory of zero.
 
-The package still publishes both `dist/` and historical `scripts/` surfaces.
-This is intentional during the observation window: Node users execute `dist/`,
-while `scripts/**/*.mjs` remains as a historical fallback until dist-primary
-execution has enough package-smoke evidence to authorize deletion.
+The npm package publishes `dist/` and no longer publishes `scripts/` or `tests/`.
+This keeps installed execution independent from TypeScript source files and from
+the deleted historical shims.
 
-## Why Historical `scripts/*.mjs` Stays
+## Runtime Contract
 
 The package is an ESM package and its current public runtime contract points at
 the committed dist build output:
@@ -35,11 +33,10 @@ the committed dist build output:
 - Runtime modules import sibling `.mjs` files inside `dist/`, so installed
   package execution does not depend on TypeScript loaders.
 
-Historical `scripts/**/*.mjs` and `tests/**/*.mjs` files have not been deleted
-yet. Removing them requires the remaining observation gates: tarball smoke must
-prove package execution is dist-primary, tests must no longer rely on checked-in
-test `.mjs` files as the long-term runner, and the deletion PR must remain
-independently revertible.
+The PR-27 observation gate proved the package was dist-primary before deletion.
+The PR-28 deletion gate keeps that proof executable by requiring final inventory
+counts of zero for `scripts/**/*.mjs` and `tests/**/*.mjs`, package dry-run with
+no `scripts/**` or `tests/**`, snapshot matrix, and Node 24 tarball smoke.
 
 ## Documented Exceptions
 
@@ -61,10 +58,9 @@ These files should not be deleted by a runtime `.mjs` cleanup PR. If they are
 migrated later, use a dedicated preset or dashboard asset migration plan with its
 own package and browser checks.
 
-## Future Cleanup Gate
+## Cleanup Gate
 
-Before any future PR removes historical `scripts/**/*.mjs` or `tests/**/*.mjs`
-shims, it must prove all of the following:
+The deletion PR must prove all of the following:
 
 - package `bin` and `postinstall` still work from a packed tarball;
 - installed package execution works with a temp `HOME` and PATH isolated to the
@@ -73,7 +69,9 @@ shims, it must prove all of the following:
   private, temporary, and test-only material;
 - snapshot matrix has no blocking drift;
 - real target smoke passes;
-- the PR is independently revertible.
+- the PR is independently revertible by restoring the deleted shims and package
+  script references without reverting the earlier dist runtime cutover.
 
-Until those gates pass, `dist/**/*.mjs` remains the supported package execution
-surface and historical `.mjs` shims remain an observation and rollback surface.
+After those gates pass, `dist/**/*.mjs` remains the supported package execution
+surface. Preset `.mjs` hooks and dashboard browser `.js` assets remain documented
+exceptions, not unfinished CLI runtime migration work.

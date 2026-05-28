@@ -149,7 +149,7 @@ else if (command === "check") {
     const failures = [];
     const warnings = [];
     if (profile === "source-package") {
-        for (const required of ["package.json", "scripts/harness.mjs", "scripts/check-harness.mjs", "templates/planning/task_plan.md"]) {
+        for (const required of ["package.json", "dist/harness.mjs", "dist/check-harness.mjs", "templates/planning/task_plan.md"]) {
             if (!fs.existsSync(path.resolve(target, required)))
                 failures.push(`missing source package file: ${required}`);
         }

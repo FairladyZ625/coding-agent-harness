@@ -174,7 +174,7 @@ assert(userInstall.status === "installed", "install-user should install skill");
 assert(fs.existsSync(path.join(codexSkillRoot, "SKILL.md")), "install-user should copy SKILL.md");
 assert(fs.existsSync(path.join(codexSkillRoot, "templates-zh-CN/AGENTS.md.template")), "install-user should copy Chinese templates");
 assert(fs.existsSync(path.join(codexSkillRoot, "presets/module/preset.yaml")), "install-user should copy bundled presets into the user skill package");
-assert(fs.existsSync(path.join(codexSkillRoot, "scripts/harness.mjs")), "install-user should copy CLI scripts");
+assert(fs.existsSync(path.join(codexSkillRoot, "dist/harness.mjs")), "install-user should copy dist CLI runtime");
 assert(fs.existsSync(path.join(codexSkillRoot, "docs-release/guides/agent-installation.md")), "install-user should copy agent guide");
 assert(fs.existsSync(path.join(userInstallHome, ".coding-agent-harness/presets/module/preset.yaml")), "install-user should seed bundled presets into the user preset root");
 const userInstallAgain = expectJson(["install-user", "--agent", "codex", "--home", userInstallHome, "--yes"]);

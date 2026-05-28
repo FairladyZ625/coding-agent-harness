@@ -7,7 +7,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const { checkTypeBoundaries } = await import(pathToFileURL(path.join(repoRoot, "scripts/check-type-boundaries.mjs")));
+const { checkTypeBoundaries } = await import(pathToFileURL(path.join(repoRoot, "dist/check-type-boundaries.mjs")));
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);

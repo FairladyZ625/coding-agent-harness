@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const node = process.execPath;
-const cli = path.join(repoRoot, "scripts/harness.mjs");
+const cli = path.join(repoRoot, "dist/harness.mjs");
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-source-boundary-"));
 
 function run(args, options = {}) {
@@ -85,10 +85,10 @@ assert(!packedFiles.includes("scripts/smoke-dashboard.mjs"), "npm package must n
 assert(!packedFiles.some((file) => file.startsWith("tests/")), "npm package must not include tests/");
 assert(packedFiles.includes("dist/harness.mjs"), "npm package must include dist harness runtime entrypoint");
 assert(packedFiles.includes("dist/postinstall.mjs"), "npm package must include dist postinstall runtime entrypoint");
-assert(packedFiles.includes("scripts/harness.mjs"), "PR-25 package should retain historical scripts harness shim");
+assert(!packedFiles.some((file) => file.startsWith("scripts/")), "npm package must not include historical scripts/ shims after PR-28");
 for (const required of [
-  "scripts/lib/harness-paths.mjs",
-  "scripts/lib/structure-migration.mjs",
+  "dist/lib/harness-paths.mjs",
+  "dist/lib/structure-migration.mjs",
   "templates/planning/walkthrough.md",
   "examples/minimal-project/coding-agent-harness/harness.yaml",
 ]) {
@@ -96,7 +96,7 @@ for (const required of [
 }
 
 const dashboardAssetsDir = path.join(repoRoot, "templates/dashboard/assets");
-const dashboardWriter = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-writer.mjs"), "utf8");
+const dashboardWriter = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-writer.mts"), "utf8");
 assert(dashboardWriter.includes('from "node:url"'), "dashboard writer should use Node URL helpers for import.meta.url paths");
 assert(dashboardWriter.includes("fileURLToPath(import.meta.url)"), "dashboard writer should convert import.meta.url with fileURLToPath");
 assert(!dashboardWriter.includes("new URL(import.meta.url).pathname"), "dashboard writer must not derive filesystem paths from URL.pathname");

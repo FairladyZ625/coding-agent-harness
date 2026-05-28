@@ -123,7 +123,7 @@ export function buildMigrationPlan(targetInput, { limit = 20 } = {}) {
         files: [...action.files].sort(),
         commands: [
             ...[...action.files].sort().map((file) => `copy/adapt docs/09-PLANNING/TASKS/_task-template/${file} into ${action.path}`),
-            `node scripts/harness.mjs task-log ${action.taskId} --message "migrated active task contract" ${target.projectRoot}`,
+            `node dist/harness.mjs task-log ${action.taskId} --message "migrated active task contract" ${target.projectRoot}`,
         ],
     }));
     const reviewActions = [...reviewActionsByPath.values()].map((action) => ({

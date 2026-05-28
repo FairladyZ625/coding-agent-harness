@@ -86,7 +86,7 @@ The whole system is a read-write loop centered on Markdown files, with no hidden
 flowchart TD
   PKG["📦 Package\ncoding-agent-harness@npm"]
 
-  PKG --> CLI["harness CLI\nscripts/harness.mjs\nSingle command entry point"]
+  PKG --> CLI["harness CLI\ndist/harness.mjs\nSingle command entry point"]
   PKG --> Lib["Core library\nscripts/lib/\n~30 modules, 6 functional layers"]
   PKG --> Templates["Task templates\ntemplates/\nTask scaffold files (task_plan / visual_map etc.)"]
   PKG --> References["Operating standards\nreferences/\nSpec docs that can be copied to target repos"]

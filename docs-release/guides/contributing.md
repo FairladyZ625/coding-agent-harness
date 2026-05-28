@@ -40,7 +40,7 @@ the full root suite.
 | --- | --- |
 | Docs only | `git diff --check` |
 | CLI/runtime | `npm test`, `npm run check`, `git diff --check` |
-| Templates or examples | `npm test`, `node scripts/harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
+| Templates or examples | `npm test`, `node dist/harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
 | Dashboard | `npm test`, `npm run smoke:dashboard`, `git diff --check` |
 | Package surface | `npm test`, `npm run pack:dry-run`, `git diff --check` |
 | GUI submodule | `cd harness-gui && npm ci && npm run typecheck && npm test && npm run build` |
@@ -51,7 +51,7 @@ Full root suite:
 npm test
 npm run smoke:dashboard
 npm run check
-node scripts/harness.mjs check --profile target-project examples/minimal-project
+node dist/harness.mjs check --profile target-project examples/minimal-project
 npm run pack:dry-run
 git diff --check
 ```

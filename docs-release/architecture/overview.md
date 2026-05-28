@@ -35,7 +35,7 @@ agent workflow runs over days, handoffs, reviews, and releases.
 ```mermaid
 flowchart TB
   Skill["Agent skill<br/>SKILL.md"]
-  CLI["Harness CLI<br/>scripts/harness.mjs"]
+  CLI["Harness CLI<br/>dist/harness.mjs"]
   Standards["Standards<br/>references/"]
   Templates["Scaffolds<br/>templates/ + templates-zh-CN/"]
   Target["Target repository<br/>AGENTS.md + coding-agent-harness/"]

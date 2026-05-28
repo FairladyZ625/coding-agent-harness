@@ -85,7 +85,7 @@ Human 通过 review-confirm 再写回 Target Repo**。
 flowchart TD
   PKG["📦 Package\ncoding-agent-harness@npm"]
 
-  PKG --> CLI["harness CLI\nscripts/harness.mjs\n唯一命令入口"]
+  PKG --> CLI["harness CLI\ndist/harness.mjs\n唯一命令入口"]
   PKG --> Lib["核心库\nscripts/lib/\n~30 个模块，6 个功能层"]
   PKG --> Templates["任务模板\ntemplates/\n任务骨架文件（task_plan / visual_map 等）"]
   PKG --> References["操作标准\nreferences/\n可复制到目标仓库的规范文档"]
