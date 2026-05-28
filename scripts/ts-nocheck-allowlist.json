@@ -15,7 +15,6 @@
     "scripts/lib/capability-registry.mts",
     "scripts/lib/check-module-parallel.mts",
     "scripts/lib/check-profiles.mts",
-    "scripts/lib/check-task-contracts.mts",
     "scripts/lib/dashboard-data.mts",
     "scripts/lib/dashboard-workbench.mts",
     "scripts/lib/governance-index-generator.mts",
