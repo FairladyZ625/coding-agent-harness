@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   confirmTaskReview,
   createTask,
@@ -16,7 +15,47 @@ import {
   updateTaskLifecycle,
 } from "../lib/harness-core.mjs";
 
-export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg }) {
+type FlagReader = (name: string, fallback?: boolean) => boolean;
+type OptionReader = (name: string, fallback?: string) => string;
+type TargetReader = () => string;
+type CommandContext = {
+  args: string[];
+  takeFlag: FlagReader;
+  takeOption: OptionReader;
+  targetArg: TargetReader;
+};
+type PresetInput = {
+  flag?: string;
+  type?: string;
+};
+type PresetPackageForArgs = {
+  source?: string;
+  inputs?: Record<string, PresetInput>;
+};
+type NewTaskParseOptions = {
+  preset?: string;
+  fromSession?: string;
+};
+type NewTaskParsedArgs = {
+  taskId: string;
+  target: string;
+  automaticTaskId: boolean;
+  presetArgs: string[];
+};
+type CreateTaskCliOptions = {
+  title: string;
+  locale: string;
+  dryRun: boolean;
+  moduleKey: string;
+  budget: string;
+  longRunning: boolean;
+  preset: string;
+  fromSession: string;
+  presetArgs: string[];
+  automaticTaskId: boolean;
+};
+
+export function runTaskCommand(command: string, { args, takeFlag, takeOption, targetArg }: CommandContext) {
   if (command === "new-task") {
     const dryRun = takeFlag("--dry-run");
     const locale = takeOption("--locale", "");
@@ -28,9 +67,10 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
     const longRunning = takeFlag("--long-running");
     try {
       const parsed = parseNewTaskArgs(args, { preset, fromSession });
-      console.log(JSON.stringify(createTask(parsed.target, parsed.taskId, { title, locale, dryRun, moduleKey, budget, longRunning, preset, fromSession, presetArgs: parsed.presetArgs, automaticTaskId: parsed.automaticTaskId }), null, 2));
+      const createOptions = { title, locale, dryRun, moduleKey, budget, longRunning, preset, fromSession, presetArgs: parsed.presetArgs, automaticTaskId: parsed.automaticTaskId };
+      console.log(JSON.stringify(invokeCreateTask(parsed.target, parsed.taskId, createOptions), null, 2));
     } catch (error) {
-      console.error(error.message);
+      console.error(errorMessage(error));
       process.exit(1);
     }
     return;
@@ -49,7 +89,7 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
     try {
       console.log(JSON.stringify(updateTaskPhase(targetArg(), taskId, phaseId, { state, completion, evidenceStatus }), null, 2));
     } catch (error) {
-      console.error(error.message);
+      console.error(errorMessage(error));
       process.exit(1);
     }
     return;
@@ -63,17 +103,18 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
       console.error("Missing task id");
       process.exit(2);
     }
-    const lifecycle = {
+    const lifecycleByCommand: Record<string, { event: string; state: string }> = {
       "task-start": { event: "task-start", state: "in_progress" },
       "task-log": { event: "task-log", state: "" },
       "task-block": { event: "task-block", state: "blocked" },
       "task-review": { event: "task-review", state: "review" },
       "task-complete": { event: "task-complete", state: "done" },
-    }[command];
+    };
+    const lifecycle = lifecycleByCommand[command];
     try {
       console.log(JSON.stringify(updateTaskLifecycle(targetArg(), taskId, { ...lifecycle, message, evidence }), null, 2));
     } catch (error) {
-      console.error(error.message);
+      console.error(errorMessage(error));
       process.exit(1);
     }
     return;
@@ -110,7 +151,7 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
     try {
       console.log(JSON.stringify(promoteLessonCandidate(targetArg(), taskId, candidateId, { dryRun, apply }), null, 2));
     } catch (error) {
-      console.error(error.message);
+      console.error(errorMessage(error));
       process.exit(1);
     }
     return;
@@ -128,7 +169,7 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
     try {
       console.log(JSON.stringify(createLessonSedimentationTask(targetArg(), taskId, candidateId, { dryRun, title }), null, 2));
     } catch (error) {
-      console.error(error.message);
+      console.error(errorMessage(error));
       process.exit(1);
     }
     return;
@@ -175,7 +216,7 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
     try {
       console.log(JSON.stringify(supersedeTask(targetArg(), taskId, { by, reason }), null, 2));
     } catch (error) {
-      console.error(error.message);
+      console.error(errorMessage(error));
       process.exit(1);
     }
     return;
@@ -201,7 +242,7 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
             : reopenTask(targetArg(), taskId, { reason });
       console.log(JSON.stringify(result, null, 2));
     } catch (error) {
-      console.error(error.message);
+      console.error(errorMessage(error));
       process.exit(1);
     }
     return;
@@ -218,7 +259,7 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
     try {
       console.log(JSON.stringify(updateModuleStep(targetArg(), moduleKey, stepId, { state }), null, 2));
     } catch (error) {
-      console.error(error.message);
+      console.error(errorMessage(error));
       process.exit(1);
     }
     return;
@@ -227,7 +268,8 @@ export function runTaskCommand(command, { args, takeFlag, takeOption, targetArg 
   throw new Error(`Unsupported task command: ${command}`);
 }
 
-function parseNewTaskArgs(args, { preset = "" } = {}) {
+function parseNewTaskArgs(args: string[], { preset = "", fromSession = "" }: NewTaskParseOptions = {}): NewTaskParsedArgs {
+  void fromSession;
   const values = [...args];
   const presetPackage = preset ? readPresetPackageForNewTask(preset, values) : null;
   const parsed = splitPresetArgsAndPositionals(values, presetPackage);
@@ -240,10 +282,14 @@ function parseNewTaskArgs(args, { preset = "" } = {}) {
   };
 }
 
-function readPresetPackageForNewTask(preset, values) {
+function invokeCreateTask(target: string, taskId: string, options: CreateTaskCliOptions): unknown {
+  return Reflect.apply(createTask, undefined, [target, taskId, options]);
+}
+
+function readPresetPackageForNewTask(preset: string, values: string[]): PresetPackageForArgs {
   const candidates = presetDiscoveryTargetCandidates(values);
-  let fallbackPackage = null;
-  let lastError = null;
+  let fallbackPackage: PresetPackageForArgs | null = null;
+  let lastError: unknown = null;
   for (const targetInput of candidates) {
     try {
       const presetPackage = readPresetPackage(preset, { targetInput });
@@ -257,8 +303,8 @@ function readPresetPackageForNewTask(preset, values) {
   throw lastError;
 }
 
-function presetDiscoveryTargetCandidates(values) {
-  const candidates = [];
+function presetDiscoveryTargetCandidates(values: string[]): string[] {
+  const candidates: string[] = [];
   for (let index = values.length - 1; index >= 0; index -= 1) {
     const value = values[index];
     if (!value || value.startsWith("-")) continue;
@@ -268,9 +314,9 @@ function presetDiscoveryTargetCandidates(values) {
   return candidates;
 }
 
-function splitPresetArgsAndPositionals(values, presetPackage) {
-  const presetArgs = [];
-  const positionals = [];
+function splitPresetArgsAndPositionals(values: string[], presetPackage: PresetPackageForArgs | null): { positionals: string[]; presetArgs: string[] } {
+  const presetArgs: string[] = [];
+  const positionals: string[] = [];
   const declaredFlags = new Map(Object.values(presetPackage?.inputs || {}).filter((input) => input.flag).map((input) => [input.flag, input]));
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
@@ -297,11 +343,11 @@ function splitPresetArgsAndPositionals(values, presetPackage) {
   };
 }
 
-function isPathLikePositional(value) {
+function isPathLikePositional(value: string): boolean {
   return value === "." || value === ".." || value.startsWith("/") || value.startsWith("~/") || /^\.[^./\\]/.test(value) || value.includes("/") || value.includes("\\");
 }
 
-function resolveNewTaskPositionals(positionals) {
+function resolveNewTaskPositionals(positionals: string[]): { taskId: string; target: string } {
   if (positionals.length === 0) return { taskId: "", target: "" };
   if (positionals.length === 1) {
     const [value] = positionals;
@@ -312,27 +358,37 @@ function resolveNewTaskPositionals(positionals) {
   throw new Error(`Too many positional arguments for new-task: ${positionals.join(", ")}`);
 }
 
-function formatTaskCommandError(error) {
-  const lines = [error.message];
-  if (Array.isArray(error.recovery) && error.recovery.length > 0) {
+function formatTaskCommandError(error: unknown): string {
+  const recovery = readArrayProperty(error, "recovery");
+  const details = readRecordProperty(error, "details");
+  const lines = [errorMessage(error)];
+  if (recovery.length > 0) {
     lines.push("", "Recovery:");
-    for (const item of error.recovery) lines.push(`- ${item}`);
+    for (const item of recovery) lines.push(`- ${String(item)}`);
   }
-  if (error.details?.entries?.length) {
+  const entries = readArrayProperty(details, "entries");
+  if (entries.length) {
     lines.push("", "Blocking Git status:");
-    for (const entry of error.details.entries) lines.push(`- ${entry.raw || entry.path}`);
+    for (const entry of entries) {
+      const raw = readProperty(entry, "raw");
+      const entryPath = readProperty(entry, "path");
+      lines.push(`- ${String(raw || entryPath || "")}`);
+    }
   }
-  if (error.details?.disallowed?.length) {
+  const disallowed = readArrayProperty(details, "disallowed");
+  if (disallowed.length) {
     lines.push("", "Disallowed paths:");
-    for (const item of error.details.disallowed) lines.push(`- ${item}`);
+    for (const item of disallowed) lines.push(`- ${String(item)}`);
   }
-  if (error.details?.stderr) lines.push("", error.details.stderr);
-  if (error.details?.stdout) lines.push("", error.details.stdout);
+  const stderr = readProperty(details, "stderr");
+  const stdout = readProperty(details, "stdout");
+  if (stderr) lines.push("", String(stderr));
+  if (stdout) lines.push("", String(stdout));
   return lines.join("\n");
 }
 
-function takeRepeatedKeyValueOptions(args, flag) {
-  const fields = {};
+function takeRepeatedKeyValueOptions(args: string[], flag: string): Record<string, string> {
+  const fields: Record<string, string> = {};
   for (let index = 0; index < args.length;) {
     if (args[index] !== flag) {
       index += 1;
@@ -349,4 +405,26 @@ function takeRepeatedKeyValueOptions(args, flag) {
     fields[key] = value;
   }
   return fields;
+}
+
+function readArrayProperty(value: unknown, key: string): unknown[] {
+  const property = readProperty(value, key);
+  return Array.isArray(property) ? property : [];
+}
+
+function readRecordProperty(value: unknown, key: string): Record<string, unknown> | null {
+  const property = readProperty(value, key);
+  return isRecord(property) ? property : null;
+}
+
+function readProperty(value: unknown, key: string): unknown {
+  return isRecord(value) ? value[key] : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

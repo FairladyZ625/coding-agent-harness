@@ -2,11 +2,6 @@
   "generated_at": "2026-05-28",
   "files": [
     "scripts/build-dist.mts",
-    "scripts/commands/dashboard-command.mts",
-    "scripts/commands/migration-command.mts",
-    "scripts/commands/preset-command.mts",
-    "scripts/commands/task-command.mts",
-    "scripts/harness.mts",
     "scripts/lib/capability-registry.mts",
     "scripts/lib/dashboard-data.mts",
     "scripts/lib/dashboard-workbench.mts",
