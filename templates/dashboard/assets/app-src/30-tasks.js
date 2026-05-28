@@ -90,6 +90,10 @@ function taskToolbarCard(filteredCount) {
           <svg style="width:12px;height:12px;vertical-align:middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
           ${t("layoutGrid")}
         </button>
+        <button class="layout-btn ${state.taskLayout === "swimlane" ? "active" : ""}" data-layout="swimlane" aria-label="${t("layoutSwimlane")}">
+          <svg style="width:12px;height:12px;vertical-align:middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/><path d="M8 4v16"/><path d="M16 4v16"/></svg>
+          ${t("layoutSwimlane")}
+        </button>
       </div>
     </div>
     <div class="select-group">
@@ -240,15 +244,16 @@ function taskIndex() {
   const groupPageCount = Math.max(1, Math.ceil(orderedGroups.length / taskGroupsPerPage));
   const groupPage = Math.min(Math.max(1, Number(state.taskGroupPage) || 1), groupPageCount);
   const visibleGroups = orderedGroups.slice((groupPage - 1) * taskGroupsPerPage, groupPage * taskGroupsPerPage);
+  const swimlane = state.taskLayout === "swimlane";
 
   return `<div class="tasks-grid">
     <div class="tasks-main stack">
       ${taskStatsBar()}
-      ${visibleGroups.map(([group, groupTasks]) => taskGroup(group, groupTasks)).join("")}
-      <section class="group-pager">
+      ${swimlane ? taskSwimlane(tasks) : visibleGroups.map(([group, groupTasks]) => taskGroup(group, groupTasks)).join("")}
+      ${swimlane ? "" : `<section class="group-pager">
         <span>${t("showingGroups")} ${visibleGroups.length ? (groupPage - 1) * taskGroupsPerPage + 1 : 0}-${Math.min(groupPage * taskGroupsPerPage, orderedGroups.length)} / ${orderedGroups.length}</span>
         ${pager("task-groups", groupPage, groupPageCount)}
-      </section>
+      </section>`}
     </div>
     <aside class="tasks-sidebar stack">
       ${taskToolbarCard(tasks.length)}
