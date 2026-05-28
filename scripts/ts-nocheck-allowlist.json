@@ -2,7 +2,6 @@
   "generated_at": "2026-05-28",
   "files": [
     "scripts/build-dist.mts",
-    "scripts/lib/capability-registry.mts",
     "scripts/lib/dashboard-data.mts",
     "scripts/lib/dashboard-workbench.mts",
     "scripts/lib/governance-index-generator.mts",
