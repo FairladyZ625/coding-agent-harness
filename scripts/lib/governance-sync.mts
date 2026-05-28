@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Governance sync spans dynamic target metadata and Git porcelain until the governance domain model PR.
 
 import fs from "node:fs";
@@ -6,13 +5,86 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncReturns } from "node:child_process";
 import { readBundledTemplate, readFileSafe, readJsonSafe, repoRoot, todayDate, toPosix, visualMapFile } from "./core-shared.mjs";
 import { collectTasks } from "./task-scanner.mjs";
 import { appendMarkdownTableRow, firstColumn, fitMarkdownTableRow, splitMarkdownRow, upsertMarkdownTableRow } from "./markdown-utils.mjs";
 import { resolveHarnessPaths } from "./harness-paths.mjs";
+import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
+
+type StringRecord = Record<string, unknown>;
+type MarkdownRow = unknown[];
+
+type HarnessTarget = {
+  projectRoot: string;
+  harness?: ResolvedHarnessPaths;
+};
+
+type GovernanceSyncErrorOptions = {
+  code?: string;
+  details?: StringRecord;
+  recovery?: string[];
+};
+
+type GovernanceStatusEntry = {
+  index: string;
+  worktree: string;
+  path: string;
+  raw: string;
+};
+
+type FingerprintedStatusEntry = GovernanceStatusEntry & {
+  fingerprint: string;
+};
+
+type GitInspection = {
+  inGit: boolean;
+  gitRoot: string;
+  entries: GovernanceStatusEntry[];
+};
+
+type GovernanceSyncContext = {
+  target: HarnessTarget;
+  dryRun: boolean;
+  operation: string;
+  git: GitInspection;
+  initialDirtyEntries?: FingerprintedStatusEntry[];
+  lockPath: string;
+  active: boolean;
+};
+
+type GovernanceChange = {
+  destination: string;
+  action: string;
+  surface: string;
+};
+
+type GovernanceTask = {
+  id?: string;
+  shortId?: string;
+  title?: string;
+  path: string;
+  taskPlanPath?: string;
+  module?: string | null;
+  state?: string;
+  completion?: number;
+  materialsReady?: boolean;
+};
+
+type ModuleIndexSurface = {
+  surface: string;
+  absolute: string;
+  relative: string;
+  rows: MarkdownRow[];
+  content: string;
+};
 
 export class GovernanceSyncError extends Error {
-  constructor(message, { code = "governance-sync-failed", details = {}, recovery = [] } = {}) {
+  code: string;
+  details: StringRecord;
+  recovery: string[];
+
+  constructor(message: string, { code = "governance-sync-failed", details = {}, recovery = [] }: GovernanceSyncErrorOptions = {}) {
     super(message);
     this.name = "GovernanceSyncError";
     this.code = code;
@@ -21,7 +93,15 @@ export class GovernanceSyncError extends Error {
   }
 }
 
-export function beginGovernanceSync(target, { operation = "governance-sync", dryRun = false, allowDirtyWorktree = false, allowedRelativePaths = [] } = {}) {
+export function beginGovernanceSync(
+  target: HarnessTarget,
+  { operation = "governance-sync", dryRun = false, allowDirtyWorktree = false, allowedRelativePaths = [] }: {
+    operation?: string;
+    dryRun?: boolean;
+    allowDirtyWorktree?: boolean;
+    allowedRelativePaths?: string[];
+  } = {},
+): GovernanceSyncContext {
   if (dryRun) return { target, dryRun, operation, git: inspectGit(target.projectRoot), lockPath: "", active: false };
   const lockPath = path.join(target.projectRoot, ".harness/locks/governance-sync.lock");
   fs.mkdirSync(path.dirname(lockPath), { recursive: true });
@@ -63,7 +143,7 @@ export function beginGovernanceSync(target, { operation = "governance-sync", dry
   return { target, dryRun, operation, git: gitState, initialDirtyEntries, lockPath, active: true };
 }
 
-function acquireGovernanceSyncLock(lockPath, target, { operation }) {
+function acquireGovernanceSyncLock(lockPath: string, target: HarnessTarget, { operation }: { operation: string }): void {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let fd = null;
     try {
@@ -81,39 +161,40 @@ function acquireGovernanceSyncLock(lockPath, target, { operation }) {
       );
       fs.closeSync(fd);
       return;
-    } catch (error) {
+    } catch (error: unknown) {
       if (fd !== null) fs.closeSync(fd);
-      if (error?.code === "EEXIST" && attempt === 0 && removeStaleGovernanceSyncLock(lockPath)) continue;
+      if (isNodeError(error) && error.code === "EEXIST" && attempt === 0 && removeStaleGovernanceSyncLock(lockPath)) continue;
       throw governanceLockExistsError(lockPath, error);
     }
   }
 }
 
-function removeStaleGovernanceSyncLock(lockPath) {
+function removeStaleGovernanceSyncLock(lockPath: string): boolean {
   const lockContent = readFileSafe(lockPath);
-  const lock = readJsonSafe(lockPath, null);
+  const lock = readJsonSafe(lockPath, null) as Partial<{ host: string; pid: number }> | null;
   if (!lock) return false;
   if (lock.host !== governanceLockHost()) return false;
-  if (!Number.isInteger(lock?.pid) || lock.pid <= 0) return false;
+  const pid = lock.pid;
+  if (!Number.isInteger(pid) || !pid || pid <= 0) return false;
   try {
-    process.kill(lock.pid, 0);
+    process.kill(pid, 0);
     return false;
-  } catch (error) {
-    if (error?.code !== "ESRCH") return false;
+  } catch (error: unknown) {
+    if (!isNodeError(error) || error.code !== "ESRCH") return false;
   }
   if (readFileSafe(lockPath) !== lockContent) return false;
   fs.rmSync(lockPath);
   return true;
 }
 
-function governanceLockHost() {
+function governanceLockHost(): string {
   return process.env.HOSTNAME || os.hostname() || "";
 }
 
-function governanceLockExistsError(lockPath, error) {
+function governanceLockExistsError(lockPath: string, error: unknown): GovernanceSyncError {
   return new GovernanceSyncError("Governance sync lock already exists; refusing concurrent registry writes.", {
     code: "governance-lock-exists",
-    details: { lockPath, error: error?.message || String(error) },
+    details: { lockPath, error: errorMessage(error) },
     recovery: [
       `Inspect ${lockPath}.`,
       "If no process owns the lock, remove it manually and retry.",
@@ -121,7 +202,7 @@ function governanceLockExistsError(lockPath, error) {
   });
 }
 
-export function releaseGovernanceSync(context) {
+export function releaseGovernanceSync(context: Partial<GovernanceSyncContext> | null | undefined): void {
   if (!context?.active || !context.lockPath) return;
   try {
     fs.unlinkSync(context.lockPath);
@@ -130,7 +211,11 @@ export function releaseGovernanceSync(context) {
   }
 }
 
-export function commitGovernanceSync(context, allowedRelativePaths, { message = "chore(harness): sync governance state" } = {}) {
+export function commitGovernanceSync(
+  context: GovernanceSyncContext | null | undefined,
+  allowedRelativePaths: string[],
+  { message = "chore(harness): sync governance state" }: { message?: string } = {},
+): { committed: boolean; reason?: string; commitSha?: string; allowedPaths: string[] } {
   const allowed = [...new Set((allowedRelativePaths || []).filter(Boolean).map(toPosix))].sort();
   if (context?.dryRun || !context?.git?.inGit) return { committed: false, reason: context?.git?.inGit ? "dry-run" : "not-git", allowedPaths: allowed };
   if (allowed.length === 0) return { committed: false, reason: "no-allowed-paths", allowedPaths: allowed };
@@ -144,8 +229,8 @@ export function commitGovernanceSync(context, allowedRelativePaths, { message = 
     let outsideChanges = null;
     try {
       assertNoUnexpectedOutsideChanges(context.target.projectRoot, allowed, context.initialDirtyEntries || []);
-    } catch (error) {
-      outsideChanges = error.details || null;
+    } catch (error: unknown) {
+      outsideChanges = error instanceof GovernanceSyncError ? error.details : null;
     }
     throw new GovernanceSyncError("Governance sync wrote files but Git commit failed.", {
       code: "governance-git-commit-failed",
@@ -162,22 +247,31 @@ export function commitGovernanceSync(context, allowedRelativePaths, { message = 
   return { committed: true, commitSha: git(context.target.projectRoot, ["rev-parse", "HEAD"]).stdout.trim(), allowedPaths: allowed };
 }
 
-export function syncTaskGovernance(target, task, { event = "new-task", state = "planned", message = "", dryRun = false } = {}) {
-  const changes = [];
+export function syncTaskGovernance(
+  target: HarnessTarget,
+  task: GovernanceTask,
+  { event = "new-task", state = "planned", message = "", dryRun = false }: { event?: string; state?: string; message?: string; dryRun?: boolean } = {},
+): { changes: GovernanceChange[] } {
+  const changes: GovernanceChange[] = [];
   const planPath = stripTargetPrefix(task.path) + "/task_plan.md";
   const reviewPath = stripTargetPrefix(task.path) + "/review.md";
   const ledger = syncLedgerRow(target, task, { event, state, message, planPath, reviewPath, dryRun });
   if (ledger) changes.push(ledger);
-  if (task.module) {
-    const moduleRegistry = syncModuleRegistryRow(target, task, { state, planPath, dryRun });
+  const moduleKey = task.module;
+  if (moduleKey) {
+    const taskWithModule = { ...task, module: moduleKey };
+    const moduleRegistry = syncModuleRegistryRow(target, taskWithModule, { state, planPath, dryRun });
     if (moduleRegistry) changes.push(moduleRegistry);
-    changes.push(...syncModuleGeneratedIndexes(target, task.module, { task, dryRun }).changes);
+    changes.push(...syncModuleGeneratedIndexes(target, moduleKey, { task: taskWithModule, dryRun }).changes);
   }
   return { changes };
 }
 
-export function syncModuleStepGovernance(target, { moduleKey, stepId, state, dryRun = false } = {}) {
-  const changes = [];
+export function syncModuleStepGovernance(
+  target: HarnessTarget,
+  { moduleKey, stepId, state, dryRun = false }: { moduleKey: string; stepId: string; state: string; dryRun?: boolean },
+): { changes: GovernanceChange[] } {
+  const changes: GovernanceChange[] = [];
   const harnessPaths = activeHarnessPaths(target);
   const ledgerPath = harnessPaths.ledgerPath;
   const ledgerRelative = toPosix(path.relative(target.projectRoot, ledgerPath));
@@ -205,11 +299,15 @@ export function syncModuleStepGovernance(target, { moduleKey, stepId, state, dry
   return { changes };
 }
 
-export function governanceRelativePaths(changes) {
+export function governanceRelativePaths(changes: GovernanceChange[]): string[] {
   return [...new Set((changes || []).map((change) => change.destination).filter(Boolean).map(toPosix))];
 }
 
-function syncLedgerRow(target, task, { event, state, message, planPath, reviewPath, dryRun }) {
+function syncLedgerRow(
+  target: HarnessTarget,
+  task: GovernanceTask,
+  { event, state, message, planPath, reviewPath, dryRun }: { event: string; state: string; message: string; planPath: string; reviewPath: string; dryRun: boolean },
+): GovernanceChange {
   const ledgerPath = activeHarnessPaths(target).ledgerPath;
   ensureFileFromTemplate(ledgerPath, "templates/ledger/Harness-Ledger.md", { dryRun });
   const relative = toPosix(path.relative(target.projectRoot, ledgerPath));
@@ -234,7 +332,11 @@ function syncLedgerRow(target, task, { event, state, message, planPath, reviewPa
   return { destination: relative, action: dryRun ? "would-sync-governance" : "sync-governance", surface: "harness-ledger" };
 }
 
-function syncModuleRegistryRow(target, task, { state, planPath, dryRun }) {
+function syncModuleRegistryRow(
+  target: HarnessTarget,
+  task: GovernanceTask & { module: string },
+  { state, planPath, dryRun }: { state: string; planPath: string; dryRun: boolean },
+): GovernanceChange {
   const harnessPaths = activeHarnessPaths(target);
   const registryPath = path.join(harnessPaths.modulesRoot, "Module-Registry.md");
   ensureFileFromTemplate(registryPath, "templates/ssot/Module-Registry.md", { dryRun });
@@ -263,7 +365,11 @@ function syncModuleRegistryRow(target, task, { state, planPath, dryRun }) {
   return { destination: relative, action: dryRun ? "would-sync-governance" : "sync-governance", surface: "module-registry" };
 }
 
-function syncModuleGeneratedIndexes(target, moduleKey, { task = null, dryRun = false } = {}) {
+function syncModuleGeneratedIndexes(
+  target: HarnessTarget,
+  moduleKey: string,
+  { task = null, dryRun = false }: { task?: GovernanceTask | null; dryRun?: boolean } = {},
+): { changes: GovernanceChange[] } {
   const moduleTasks = collectModuleTasks(target, moduleKey, task);
   const surfaces = moduleGeneratedIndexSurfaces(target, moduleTasks);
   if (!dryRun) {
@@ -281,10 +387,10 @@ function syncModuleGeneratedIndexes(target, moduleKey, { task = null, dryRun = f
   };
 }
 
-export function moduleGeneratedIndexSurfaces(target, tasks = collectTasks(target)) {
+export function moduleGeneratedIndexSurfaces(target: HarnessTarget, tasks: GovernanceTask[] = collectTasks(target)): ModuleIndexSurface[] {
   const harnessPaths = activeHarnessPaths(target);
-  const modules = [...new Set((tasks || []).map((task) => task.module).filter(Boolean))].sort();
-  const surfaces = [];
+  const modules = [...new Set((tasks || []).map((task) => task.module).filter(isNonEmptyString))].sort();
+  const surfaces: ModuleIndexSurface[] = [];
   for (const moduleKey of modules) {
     const moduleTasks = (tasks || [])
       .filter((task) => task.module === moduleKey)
@@ -292,10 +398,11 @@ export function moduleGeneratedIndexSurfaces(target, tasks = collectTasks(target
     const moduleDir = path.join(harnessPaths.modulesRoot, moduleKey);
     const modulePlanPath = path.join(moduleDir, "module_plan.md");
     const moduleVisualPath = path.join(moduleDir, visualMapFile);
-    const stepRows = moduleTasks.map((task, index) => {
+    const stepRows: MarkdownRow[] = moduleTasks.map((task, index) => {
       const stepId = moduleStepId(task);
-      const previous = index === 0 ? "none" : moduleStepId(moduleTasks[index - 1]);
-      return [stepId, task.title || task.shortId || task.id, mapModuleState(task.state), stripTargetPrefix(task.taskPlanPath || `${stripTargetPrefix(task.path)}/task_plan.md`), previous];
+      const previousTask = moduleTasks[index - 1];
+      const previous = index === 0 || !previousTask ? "none" : moduleStepId(previousTask);
+      return [stepId, task.title || task.shortId || task.id || "task", mapModuleState(task.state), stripTargetPrefix(task.taskPlanPath || `${stripTargetPrefix(task.path)}/task_plan.md`), previous];
     });
     surfaces.push({
       surface: "module-plan-index",
@@ -315,10 +422,11 @@ export function moduleGeneratedIndexSurfaces(target, tasks = collectTasks(target
   return surfaces;
 }
 
-function collectModuleTasks(target, moduleKey, task) {
-  const tasks = collectTasks(target).filter((candidate) => candidate.module === moduleKey);
-  if (task && !tasks.some((candidate) => stripTargetPrefix(candidate.taskPlanPath) === `${stripTargetPrefix(task.path)}/task_plan.md`)) {
-    tasks.push({
+function collectModuleTasks(target: HarnessTarget, moduleKey: string, task: GovernanceTask | null): GovernanceTask[] {
+  const tasks: GovernanceTask[] = collectTasks(target);
+  const moduleTasks = tasks.filter((candidate) => candidate.module === moduleKey);
+  if (task && !moduleTasks.some((candidate) => stripTargetPrefix(candidate.taskPlanPath) === `${stripTargetPrefix(task.path)}/task_plan.md`)) {
+    moduleTasks.push({
       ...task,
       module: moduleKey,
       state: task.state || "planned",
@@ -326,13 +434,14 @@ function collectModuleTasks(target, moduleKey, task) {
       completion: 0,
     });
   }
-  return tasks;
+  return moduleTasks;
 }
 
-function renderModuleVisualMap(moduleKey, tasks) {
+function renderModuleVisualMap(moduleKey: string, tasks: GovernanceTask[]): string {
   const rows = tasks.map((task, index) => {
     const stepId = moduleStepId(task);
-    const previous = index === 0 ? "none" : moduleStepId(tasks[index - 1]);
+    const previousTask = tasks[index - 1];
+    const previous = index === 0 || !previousTask ? "none" : moduleStepId(previousTask);
     const state = mapPhaseState(task.state);
     const completion = Number.isInteger(task.completion) ? task.completion : state === "done" ? 100 : 0;
     return [
@@ -340,7 +449,7 @@ function renderModuleVisualMap(moduleKey, tasks) {
       previous,
       state,
       completion,
-      task.title || task.shortId || task.id,
+      task.title || task.shortId || task.id || "task",
       stripTargetPrefix(task.taskPlanPath || `${stripTargetPrefix(task.path)}/task_plan.md`),
       task.materialsReady ? "present" : "missing",
       previous === "none" ? "none" : `depends on ${previous}`,
@@ -349,7 +458,7 @@ function renderModuleVisualMap(moduleKey, tasks) {
   });
   const graphLines = tasks.map((task, index) => {
     const stepId = moduleStepId(task);
-    const label = fitMarkdownTableRow([task.title || task.shortId || task.id], 1)[0].replace(/"/g, "'");
+    const label = fitMarkdownTableRow([task.title || task.shortId || task.id || "task"], 1)[0].replace(/"/g, "'");
     if (index === 0) return `  ${stepId}["${label}"]`;
     const previous = moduleStepId(tasks[index - 1]);
     return `  ${previous} --> ${stepId}["${label}"]`;
@@ -383,7 +492,7 @@ Allowed Evidence Status: missing, partial, present, waived.
 `;
 }
 
-function replaceTableRows(content, headerPattern, rows) {
+function replaceTableRows(content: string, headerPattern: RegExp, rows: MarkdownRow[]): string {
   const lines = String(content || "").split(/\r?\n/);
   for (let index = 0; index < lines.length - 1; index += 1) {
     if (!lines[index].trim().startsWith("|")) continue;
@@ -399,19 +508,19 @@ function replaceTableRows(content, headerPattern, rows) {
   return `${String(content || "").trimEnd()}\n\n${rows.map((row) => `| ${fitMarkdownTableRow(row, row.length).join(" | ")} |`).join("\n")}\n`;
 }
 
-function existingOrTemplate(filePath, templateSource) {
+function existingOrTemplate(filePath: string, templateSource: string): string {
   return fs.existsSync(filePath) ? readFileSafe(filePath) : readBundledTemplate(templateSource);
 }
 
-function moduleStepId(task) {
+function moduleStepId(task: GovernanceTask): string {
   return `T-${stripDatePrefix(task.shortId || task.id || "task").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toUpperCase().slice(0, 48)}`;
 }
 
-function stripDatePrefix(value) {
+function stripDatePrefix(value: unknown): string {
   return String(value || "").replace(/^(?:TASKS\/|MODULES\/[^/]+\/)?\d{4}-\d{2}-\d{2}-/, "");
 }
 
-function mapPhaseState(state) {
+function mapPhaseState(state: string | undefined): string {
   if (state === "in_progress") return "in_progress";
   if (state === "review") return "review";
   if (state === "done") return "done";
@@ -419,32 +528,32 @@ function mapPhaseState(state) {
   return "planned";
 }
 
-function ensureFileFromTemplate(destinationPath, templateSource, { dryRun = false } = {}) {
+function ensureFileFromTemplate(destinationPath: string, templateSource: string, { dryRun = false }: { dryRun?: boolean } = {}): void {
   if (fs.existsSync(destinationPath) || dryRun) return;
   fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
   fs.writeFileSync(destinationPath, readBundledTemplate(templateSource));
 }
 
-function rowMatchesPlan(header, row, planPath) {
+function rowMatchesPlan(header: string[], row: string[], planPath: string): boolean {
   const planIndex = firstColumn(header, ["Task Plan", "Plan", "当前产物"]);
   return planIndex >= 0 && String(row[planIndex] || "").includes(planPath);
 }
 
-function rowMatchesModule(header, row, moduleKey, modulePlan) {
+function rowMatchesModule(header: string[], row: string[], moduleKey: string, modulePlan: string): boolean {
   const moduleIndex = firstColumn(header, ["Module", "模块", "模块 Key"]);
   const taskPlanIndex = firstColumn(header, ["Task Plan", "当前产物"]);
   return String(row[moduleIndex] || "").toLowerCase() === String(moduleKey).toLowerCase() || String(row[taskPlanIndex] || "").includes(modulePlan);
 }
 
-function ledgerId(task) {
+function ledgerId(task: GovernanceTask): string {
   return `HL-${String(task.shortId || task.id || "task").replace(/^TASKS\//, "").replace(/^MODULES\//, "").replace(/[^A-Za-z0-9-]+/g, "-").slice(0, 72)}`;
 }
 
-function stripTargetPrefix(value) {
+function stripTargetPrefix(value: unknown): string {
   return String(value || "").replace(/^TARGET:/, "").replace(/\/$/, "");
 }
 
-function mapLedgerState(state) {
+function mapLedgerState(state: string): string {
   if (state === "in_progress") return "active";
   if (state === "review") return "review";
   if (state === "done") return "closed";
@@ -452,7 +561,7 @@ function mapLedgerState(state) {
   return "planned";
 }
 
-function mapModuleState(state) {
+function mapModuleState(state: string | undefined): string {
   if (state === "in_progress") return "active";
   if (state === "review") return "handoff";
   if (state === "done") return "merged";
@@ -460,23 +569,23 @@ function mapModuleState(state) {
   return "reserved";
 }
 
-function activeHarnessPaths(target) {
+function activeHarnessPaths(target: HarnessTarget): ResolvedHarnessPaths {
   return target.harness || resolveHarnessPaths(target);
 }
 
-export function inspectGit(root) {
+export function inspectGit(root: string): GitInspection {
   const gitRootResult = git(root, ["rev-parse", "--show-toplevel"], { allowFailure: true });
   if (gitRootResult.status !== 0) return { inGit: false, gitRoot: "", entries: [] };
   const gitRoot = path.resolve(gitRootResult.stdout.trim());
   return { inGit: true, gitRoot, entries: statusEntries(root) };
 }
 
-function currentBranch(root) {
+function currentBranch(root: string): string {
   const result = git(root, ["branch", "--show-current"], { allowFailure: true });
   return result.status === 0 ? result.stdout.trim() : "";
 }
 
-function assertCommitIdentity(root) {
+function assertCommitIdentity(root: string): void {
   const name = git(root, ["config", "--get", "user.name"], { allowFailure: true }).stdout.trim();
   const email = git(root, ["config", "--get", "user.email"], { allowFailure: true }).stdout.trim();
   if (!name || !email) {
@@ -488,7 +597,7 @@ function assertCommitIdentity(root) {
   }
 }
 
-function assertDirtyCompatibleWithWriteScope(entries, allowedPaths) {
+function assertDirtyCompatibleWithWriteScope(entries: GovernanceStatusEntry[], allowedPaths: string[]): void {
   const allowed = new Set(allowedPaths);
   const overlapping = entries.filter((entry) => allowed.has(entry.path));
   if (overlapping.length > 0) {
@@ -508,7 +617,7 @@ function assertDirtyCompatibleWithWriteScope(entries, allowedPaths) {
   }
 }
 
-function assertOnlyAllowedStaged(root, allowedPaths) {
+function assertOnlyAllowedStaged(root: string, allowedPaths: string[]): void {
   const outside = statusEntries(root).filter((entry) => entry.index !== " " && entry.index !== "?" && !allowedPaths.includes(entry.path));
   if (outside.length > 0) {
     throw new GovernanceSyncError("Git index contains staged files outside the governance sync allowlist.", {
@@ -519,15 +628,15 @@ function assertOnlyAllowedStaged(root, allowedPaths) {
   }
 }
 
-function assertNoUnexpectedOutsideChanges(root, allowedPaths, initialDirtyEntries) {
+function assertNoUnexpectedOutsideChanges(root: string, allowedPaths: string[], initialDirtyEntries: FingerprintedStatusEntry[]): void {
   const allowed = new Set(allowedPaths);
   const initialByPath = new Map(
     (initialDirtyEntries || [])
       .filter((entry) => !allowed.has(entry.path))
       .map((entry) => [entry.path, entry]),
   );
-  const unexpected = [];
-  const changed = [];
+  const unexpected: FingerprintedStatusEntry[] = [];
+  const changed: Array<{ before: FingerprintedStatusEntry; after: FingerprintedStatusEntry }> = [];
   for (const entry of statusEntries(root)) {
     if (allowed.has(entry.path)) continue;
     const current = { ...entry, fingerprint: fingerprintEntry(root, entry) };
@@ -547,7 +656,7 @@ function assertNoUnexpectedOutsideChanges(root, allowedPaths, initialDirtyEntrie
   }
 }
 
-function assertLastCommitOnlyAllowed(root, allowedPaths) {
+function assertLastCommitOnlyAllowed(root: string, allowedPaths: string[]): void {
   const committed = git(root, ["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "HEAD"]).stdout
     .split("\0")
     .filter(Boolean)
@@ -562,7 +671,7 @@ function assertLastCommitOnlyAllowed(root, allowedPaths) {
   }
 }
 
-function assertWriteScopeClean(root, allowedPaths) {
+function assertWriteScopeClean(root: string, allowedPaths: string[]): void {
   const entries = statusEntries(root);
   const remaining = entries.filter((entry) => allowedPaths.includes(entry.path));
   if (remaining.length > 0) {
@@ -574,13 +683,13 @@ function assertWriteScopeClean(root, allowedPaths) {
   }
 }
 
-function fingerprintEntry(root, entry) {
+function fingerprintEntry(root: string, entry: GovernanceStatusEntry): string {
   const absolute = path.join(root, entry.path);
   try {
     const stat = fs.lstatSync(absolute);
     if (stat.isSymbolicLink()) return `symlink:${fs.readlinkSync(absolute)}`;
     if (stat.isFile()) {
-      return `file:${stat.size}:${crypto.createHash("sha256").update(fs.readFileSync(absolute)).digest("hex")}`;
+      return `file:${stat.size}:${crypto.createHash("sha256").update(new Uint8Array(fs.readFileSync(absolute))).digest("hex")}`;
     }
     if (stat.isDirectory()) return "directory";
     return `${stat.mode}:${stat.size}`;
@@ -589,7 +698,7 @@ function fingerprintEntry(root, entry) {
   }
 }
 
-function statusEntries(root) {
+function statusEntries(root: string): GovernanceStatusEntry[] {
   return git(root, ["status", "--porcelain=v1", "--untracked-files=all"]).stdout
     .split(/\r?\n/)
     .filter(Boolean)
@@ -602,12 +711,12 @@ function statusEntries(root) {
     .filter((entry) => entry.path !== ".harness/locks/governance-sync.lock");
 }
 
-function parseStatusPath(value) {
+function parseStatusPath(value: string): string {
   const unquoted = value.replace(/^"|"$/g, "");
-  return unquoted.includes(" -> ") ? unquoted.split(" -> ").pop() : unquoted;
+  return unquoted.includes(" -> ") ? unquoted.split(" -> ").pop() ?? unquoted : unquoted;
 }
 
-function git(cwd, args, { allowFailure = false } = {}) {
+function git(cwd: string, args: string[], { allowFailure = false }: { allowFailure?: boolean } = {}): SpawnSyncReturns<string> {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   if (!allowFailure && result.status !== 0) {
     throw new GovernanceSyncError(`git ${args.join(" ")} failed`, {
@@ -619,6 +728,18 @@ function git(cwd, args, { allowFailure = false } = {}) {
   return result;
 }
 
-function real(filePath) {
+function real(filePath: string): string {
   return fs.realpathSync(filePath);
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
 }
