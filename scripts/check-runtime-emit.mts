@@ -12,16 +12,18 @@ const typescriptVersion = "5.9.3";
 
 export function checkRuntimeEmitContract({
   projectRoot = defaultRepoRoot,
-  configPath = path.join(projectRoot, "tsconfig.runtime.json"),
+  configPath,
   expectedDir,
   outDir,
 } = {}) {
   const violations = [];
-  const absoluteConfig = path.resolve(configPath);
+  const usesDefaultConfig = configPath === undefined;
+  const resolvedConfigPath = configPath || path.join(projectRoot, "tsconfig.dist.json");
   const absoluteProjectRoot = path.resolve(projectRoot);
+  const absoluteConfig = path.resolve(resolvedConfigPath);
   const absoluteOutDir = outDir ? path.resolve(outDir) : fs.mkdtempSync(path.join(os.tmpdir(), "harness-runtime-emit-out-"));
-  const absoluteExpectedDir = expectedDir ? path.resolve(expectedDir) : undefined;
-  const sourceFiles = collectSourceFiles(absoluteProjectRoot, { roots: absoluteExpectedDir ? undefined : ["scripts"] });
+  const absoluteExpectedDir = expectedDir ? path.resolve(expectedDir) : usesDefaultConfig ? path.join(absoluteProjectRoot, "dist") : undefined;
+  const sourceFiles = collectSourceFiles(absoluteProjectRoot, { roots: absoluteExpectedDir && !usesDefaultConfig ? undefined : ["scripts"] });
 
   if (!fs.existsSync(absoluteConfig)) {
     return {

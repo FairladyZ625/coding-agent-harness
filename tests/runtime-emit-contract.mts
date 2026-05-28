@@ -100,6 +100,42 @@ writeFixture(
 );
 writeFixture(productionRoot, "scripts/leaf.mts", 'export const productionValue: string = "emit-ok";\n');
 writeFixture(productionRoot, "scripts/bin.mts", 'import { productionValue } from "./leaf.mjs";\nconsole.log(productionValue);\n');
+writeFixture(
+  productionRoot,
+  "tsconfig.dist.json",
+  JSON.stringify(
+    {
+      extends: "./tsconfig.runtime.json",
+      compilerOptions: {
+        rootDir: "scripts",
+        outDir: "dist",
+      },
+      include: ["scripts/**/*.mts"],
+      exclude: ["tmp", "dist"],
+    },
+    null,
+    2,
+  ),
+);
+writeFixture(productionRoot, "dist/leaf.mjs", 'export const productionValue = "emit-ok";\n');
+writeFixture(productionRoot, "dist/bin.mjs", 'import { productionValue } from "./leaf.mjs";\nconsole.log(productionValue);\n');
+const defaultProductionPassed = checkRuntimeEmitContract({
+  projectRoot: productionRoot,
+});
+assert(
+  defaultProductionPassed.ok === true,
+  `default production emit check should compare committed dist output:\n${defaultProductionPassed.violations.map((violation) => violation.message).join("\n")}`,
+);
+fs.writeFileSync(path.join(productionRoot, "dist/leaf.mjs"), 'export const productionValue = "stale";\n');
+const defaultProductionDrift = checkRuntimeEmitContract({
+  projectRoot: productionRoot,
+});
+assert(defaultProductionDrift.ok === false, "default production emit check should fail stale committed dist files");
+assert(
+  defaultProductionDrift.violations.some((violation) => violation.code === "emit-drift" && violation.file === "leaf.mjs"),
+  "default production emit check should report committed dist drift",
+);
+fs.writeFileSync(path.join(productionRoot, "dist/leaf.mjs"), 'export const productionValue = "emit-ok";\n');
 const productionPassed = checkRuntimeEmitContract({
   projectRoot: productionRoot,
   configPath: path.join(productionRoot, "tsconfig.runtime.json"),

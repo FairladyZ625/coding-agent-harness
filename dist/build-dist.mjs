@@ -121,6 +121,8 @@ function syncDirectory(sourceDir, targetDir) {
     for (const entry of fs.readdirSync(targetDir)) {
         if (sourceEntries.has(entry))
             continue;
+        if (entry.includes(".tmp-"))
+            continue;
         fs.rmSync(path.join(targetDir, entry), { recursive: true, force: true });
     }
 }
