@@ -9,6 +9,7 @@ import {
   datePrefix,
 } from "./core-shared.mjs";
 import { isConcreteAuditField } from "./task-audit-metadata.mjs";
+import { removeHeadingSectionOutsideFences } from "./markdown-utils.mjs";
 import { collectTasks } from "./task-scanner.mjs";
 import {
   beginGovernanceSync,
@@ -66,7 +67,7 @@ export function reopenTask(targetInput, taskRef, { reason = "" } = {}) {
   try {
     const taskPlanPath = path.join(target.projectRoot, task.taskPlanPath.replace(/^TARGET:/, ""));
     const content = readFileSafe(taskPlanPath);
-    const next = content.replace(/\n##\s*(?:Task Tombstone|任务墓碑)\s*$[\s\S]*?(?=^##\s+|(?![\s\S]))/im, "");
+    const next = removeHeadingSectionOutsideFences(content, /^##\s*(?:Task Tombstone|任务墓碑)\s*$/i);
     fs.writeFileSync(taskPlanPath, next.endsWith("\n") ? next : `${next}\n`);
     appendProgress(target, task, "task-reopen", reason || "reopened");
     const commit = commitGovernanceSync(governanceContext, taskPaths(target, task), {
@@ -164,7 +165,7 @@ function normalizeArchiveActor(value) {
 
 function writeTombstone(target, task, fields) {
   const taskPlanPath = path.join(target.projectRoot, task.taskPlanPath.replace(/^TARGET:/, ""));
-  const content = readFileSafe(taskPlanPath).replace(/\n##\s*(?:Task Tombstone|任务墓碑)\s*$[\s\S]*?(?=^##\s+|(?![\s\S]))/im, "");
+  const content = removeHeadingSectionOutsideFences(readFileSafe(taskPlanPath), /^##\s*(?:Task Tombstone|任务墓碑)\s*$/i);
   const block = ["", "## Task Tombstone", "", "| Field | Value |", "| --- | --- |", ...Object.entries(fields).map(([key, value]) => `| ${key} | ${escapeCell(value)} |`), ""].join("\n");
   fs.writeFileSync(taskPlanPath, `${content.trimEnd()}\n${block}`);
 }

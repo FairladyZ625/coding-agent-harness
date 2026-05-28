@@ -104,6 +104,50 @@ export function tableAfterHeading(content: string, headerPattern: RegExp): { hea
   return { header, rows: body };
 }
 
+export function stripFencedCodeBlocks(content: string): string {
+  const lines = String(content || "").split(/\r?\n/);
+  const result: string[] = [];
+  let fence = "";
+  for (const line of lines) {
+    const match = line.match(/^\s{0,3}(```|~~~)/);
+    if (match) {
+      if (!fence) fence = match[1];
+      else if (match[1] === fence) fence = "";
+      continue;
+    }
+    if (!fence) result.push(line);
+  }
+  return result.join("\n");
+}
+
+export function removeHeadingSectionOutsideFences(content: string, headingPattern: RegExp): string {
+  const lines = String(content || "").split(/\r?\n/);
+  let fence = "";
+  let start = -1;
+  let end = lines.length;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const fenceMatch = line.match(/^\s{0,3}(```|~~~)/);
+    if (fenceMatch) {
+      if (!fence) fence = fenceMatch[1];
+      else if (fenceMatch[1] === fence) fence = "";
+      continue;
+    }
+    if (fence) continue;
+    if (start < 0 && headingPattern.test(line.trim())) {
+      start = index;
+      if (start > 0 && !lines[start - 1].trim()) start -= 1;
+      continue;
+    }
+    if (start >= 0 && index > start && /^##\s+/.test(line.trim())) {
+      end = index;
+      break;
+    }
+  }
+  if (start < 0) return String(content || "");
+  return [...lines.slice(0, start), ...lines.slice(end)].join("\n");
+}
+
 export function getColumn(header: string[], name: string): number {
   return header.findIndex((cell) => cell.toLowerCase() === name.toLowerCase());
 }

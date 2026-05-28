@@ -12,6 +12,7 @@ import {
   firstColumn,
   splitList,
   splitMarkdownRow,
+  stripFencedCodeBlocks,
   tableAfterHeading,
 } from "./markdown-utils.mjs";
 import {
@@ -167,8 +168,9 @@ export function parseTaskIdentity(taskPlanContent: unknown, fallbackTaskId: stri
 }
 
 export function parseTaskTombstone(taskPlanContent: unknown): TaskTombstone {
-  const topLevelSupersedes = splitList(parseMetadataLine(taskPlanContent, ["Supersedes", "合并自"]));
-  const match = String(taskPlanContent || "").match(/^##\s*(?:Task Tombstone|任务墓碑)\s*$([\s\S]*?)(?=^##\s+|(?![\s\S]))/im);
+  const scanContent = stripFencedCodeBlocks(taskPlanContent);
+  const topLevelSupersedes = splitList(parseMetadataLine(scanContent, ["Supersedes", "合并自"]));
+  const match = String(scanContent || "").match(/^##\s*(?:Task Tombstone|任务墓碑)\s*$([\s\S]*?)(?=^##\s+|(?![\s\S]))/im);
   const fields = match ? fieldsFromMarkdownBlock(match[1] || "") : new Map();
   if (fields.size === 0) {
     return {

@@ -403,6 +403,39 @@ const commandSupersedeStatus = expectJson(["status", "--json", target]);
 assert(commandSupersedeStatus.tasks.find((task) => task.id === oldSupersede.task.id).supersededBy === newSupersede.task.id, "task-supersede should record supersededBy");
 assert(commandSupersedeStatus.tasks.find((task) => task.id === newSupersede.task.id).supersedes.includes(oldSupersede.task.id), "task-supersede should expose reverse supersedes edge on replacement task");
 
+const tombstoneExample = expectJson(["new-task", "queue-tombstone-example", "--title", "Queue Tombstone Example", "--locale", "en-US", target]);
+const tombstoneExampleDir = taskDirectory(tombstoneExample);
+fs.appendFileSync(
+  path.join(tombstoneExampleDir, "task_plan.md"),
+  [
+    "",
+    "### Tombstone schema example",
+    "",
+    "```markdown",
+    "Supersedes: TASKS/fenced-example",
+    "",
+    "## Task Tombstone",
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    "| State | superseded |",
+    "| Superseded By | TASKS/example |",
+    "| Reason | example-only |",
+    "```",
+    "",
+  ].join("\n"),
+);
+let tombstoneExampleStatus = expectJson(["status", "--json", target]);
+assert(tombstoneExampleStatus.tasks.find((task) => task.id === tombstoneExample.task.id).deletionState === "active", "fenced tombstone examples should not set deletionState");
+commitFixtureBaseline(target, "before tombstone example command fixture");
+expectJson(["task-delete", "queue-tombstone-example", "--soft", "--reason", "fixture delete", target]);
+expectJson(["task-reopen", "queue-tombstone-example", "--reason", "fixture reopen", target]);
+tombstoneExampleStatus = expectJson(["status", "--json", target]);
+const reopenedTombstoneExample = tombstoneExampleStatus.tasks.find((task) => task.id === tombstoneExample.task.id);
+assert(reopenedTombstoneExample.deletionState === "active", "task-reopen should remove real tombstone while preserving fenced examples");
+assert(!reopenedTombstoneExample.supersedes.includes("TASKS/fenced-example"), "fenced supersedes examples should not create task relation edges");
+assert(fs.readFileSync(path.join(tombstoneExampleDir, "task_plan.md"), "utf8").includes("```markdown\nSupersedes: TASKS/fenced-example"), "task-reopen should preserve fenced tombstone example text");
+
 const taskIndex = expectJson(["task-index", "--json", target]);
 const indexedReady = taskIndex.tasks.find((task) => task.taskKey === taskId);
 assert(taskIndex.schemaVersion === "task-index/v2", "task-index should expose generated index schema");
