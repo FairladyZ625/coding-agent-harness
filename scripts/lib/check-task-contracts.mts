@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Task contract checks depend on dynamic task scan metadata until checker domain types are modeled.
 
 import fs from "node:fs";
@@ -16,10 +15,31 @@ import {
 } from "./task-scanner.mjs";
 import { parseTaskAuditMetadata } from "./task-audit-metadata.mjs";
 
-export function validatePlanContracts(target, { strict = true, taskPlanPaths } = {}) {
-  const failures = [];
-  const warnings = [];
-  const report = (message) => {
+type HarnessTarget = {
+  projectRoot: string;
+};
+
+type ValidatePlanContractsOptions = {
+  strict?: boolean;
+  taskPlanPaths?: string[];
+};
+
+type PlanContractValidationResult = {
+  failures: string[];
+  warnings: string[];
+};
+
+type RequiredTaskFilesOptions = {
+  indexRequired?: boolean;
+};
+
+export function validatePlanContracts(
+  target: HarnessTarget,
+  { strict = true, taskPlanPaths }: ValidatePlanContractsOptions = {},
+): PlanContractValidationResult {
+  const failures: string[] = [];
+  const warnings: string[] = [];
+  const report = (message: string): void => {
     if (strict) failures.push(message);
     else warnings.push(`adoption-needed: ${message}`);
   };
@@ -49,7 +69,7 @@ export function validatePlanContracts(target, { strict = true, taskPlanPaths } =
   return { failures, warnings };
 }
 
-function requiredTaskFilesForBudget(budget, { indexRequired = false } = {}) {
+function requiredTaskFilesForBudget(budget: string, { indexRequired = false }: RequiredTaskFilesOptions = {}): string[] {
   const simpleFiles = [...(indexRequired ? ["INDEX.md"] : []), "brief.md", "task_plan.md", visualMapFile, "progress.md"];
   if (budget === "simple") return simpleFiles;
   const standardFiles = [...simpleFiles, "execution_strategy.md", "findings.md", lessonCandidatesFile, "review.md"];
