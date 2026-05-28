@@ -37,6 +37,7 @@
     "dashboard:folder": "node dist/harness.mjs dashboard --out-dir tmp/harness-dashboard examples/minimal-project",
     "pack:dry-run": "npm pack --dry-run --json",
     "postinstall": "node dist/postinstall.mjs",
+    "observe:dist": "node dist/check-dist-observation.mjs --skip-pack --skip-install-smoke",
     "smoke:dashboard": "node tests/smoke-dashboard.mjs",
     "test": "node tests/run-built.mjs"
   },

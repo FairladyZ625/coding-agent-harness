@@ -14,6 +14,7 @@ const suites = [
     "tests/shared-type-islands.mjs",
     "tests/runtime-emit-contract.mjs",
     "tests/dist-build-pipeline.mjs",
+    "tests/dist-observation-gates.mjs",
     "tests/helpers/test-helper-types.mjs",
     "tests/source-package-boundary.mjs",
     "tests/architecture-health.mjs",
