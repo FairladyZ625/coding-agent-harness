@@ -170,6 +170,7 @@ assert(dashboardApp.includes("data-create-lesson-sedimentation"), "dashboard les
 assert(dashboardApp.includes("data-lesson-bulk-select"), "dashboard lessons should expose per-candidate bulk sedimentation selection");
 assert(dashboardApp.includes("data-lesson-bulk-select-all"), "dashboard lessons should expose select-all sedimentation controls");
 assert(dashboardApp.includes("/api/tasks/lesson-sedimentation-bulk"), "dashboard lessons should call the bulk sedimentation endpoint");
+assert(dashboardI18n.includes("Create aggregate task"), "dashboard bulk lessons should describe aggregate task creation");
 assert(dashboardApp.includes("lessonCandidatePanel(task, { context: \"detail\" })"), "task detail should expose lesson sedimentation actions");
 assert(dashboardApp.includes("lessonCandidatePanel(task, { context: \"drawer\" })"), "review drawer should expose lesson sedimentation actions");
 assert(dashboardApp.includes("lessonSedimentationSuccess"), "dashboard should render post-create follow-up task and prompt actions");

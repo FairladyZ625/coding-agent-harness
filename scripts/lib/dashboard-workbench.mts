@@ -8,9 +8,9 @@ import http from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
 import { confirmTaskReview, finalizeDeferredTaskReviewConfirmation } from "./task-lifecycle.mjs";
-import { createLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
+import { createAggregateLessonSedimentationTask, createLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
 import { normalizeTarget } from "./core-shared.mjs";
-import { beginGovernanceSync, commitGovernanceSync, governanceRelativePaths, releaseGovernanceSync } from "./governance-sync.mjs";
+import { beginGovernanceSync, commitGovernanceSync, releaseGovernanceSync } from "./governance-sync.mjs";
 import { dashboardWatchRoots } from "./harness-paths.mjs";
 import { collectTasks } from "./task-scanner.mjs";
 import { writeDashboardFolder } from "./dashboard-data.mjs";
@@ -174,42 +174,29 @@ export async function serveDashboardWorkbench(outDir, targetInput, { host = "127
           writeJson(response, 400, { error: "No lesson candidates selected" });
           return;
         }
-        const results = [];
-        let allowedPaths = [];
-        for (const selection of selections) {
-          const task = collectTasks(target).find((item) => item.id === selection.taskId);
-          if (!task) {
-            results.push({ ...selection, ok: false, status: 404, error: "Task not found" });
-            continue;
-          }
-          if (!selection.candidateId) {
-            results.push({ ...selection, ok: false, status: 400, error: "Missing lesson candidate id" });
-            continue;
-          }
-          try {
-            const result = createLessonSedimentationTask(target.projectRoot, selection.taskId, selection.candidateId, {
-              title: body.title || "",
-              deferCommit: true,
-              allowDirtyRelativePaths: allowedPaths,
-            });
-            allowedPaths = uniqueValues([...allowedPaths, ...governanceRelativePaths(result.changes)]);
-            results.push({ ...selection, ok: true, status: 200, followUpTask: result.followUpTask, prompt: result.prompt, governance: result.governance });
-          } catch (error) {
-            results.push({ ...selection, ok: false, status: error.status || 400, ...errorPayload(error) });
-          }
+        try {
+          const result = createAggregateLessonSedimentationTask(target.projectRoot, selections, {
+            title: body.title || "",
+          });
+          const results = selections.map((selection) => ({
+            ...selection,
+            ok: true,
+            status: 200,
+            followUpTask: result.followUpTask,
+          }));
+          writeJson(response, 200, {
+            ok: true,
+            created: 1,
+            candidates: result.candidates.length,
+            failed: 0,
+            followUpTask: result.followUpTask,
+            prompt: result.prompt,
+            governance: result.governance,
+            results,
+          });
+        } catch (error) {
+          writeJson(response, error.status || 400, { ok: false, created: 0, candidates: selections.length, failed: selections.length, ...errorPayload(error) });
         }
-        const created = results.filter((result) => result.ok).length;
-        const failed = results.length - created;
-        if (created > 0) {
-          const batchCommit = commitWorkbenchBatch(target, allowedPaths, { operation: "lesson-sedimentation-bulk", message: "chore(harness): record selected lesson sedimentation tasks" });
-          for (const result of results.filter((item) => item.ok)) {
-            result.governance = {
-              ...(result.governance || {}),
-              commit: batchCommit,
-            };
-          }
-        }
-        writeJson(response, created > 0 ? 200 : 409, { ok: failed === 0, created, failed, results });
         return;
       }
 

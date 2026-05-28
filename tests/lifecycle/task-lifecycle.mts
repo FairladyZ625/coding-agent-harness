@@ -706,12 +706,21 @@ try {
     }),
   });
   const bulkLessonText = await bulkLessonResponse.text();
-  assert(bulkLessonResponse.status === 200, `bulk lesson sedimentation should create selected follow-up tasks, got ${bulkLessonResponse.status}: ${bulkLessonText}`);
+  assert(bulkLessonResponse.status === 200, `bulk lesson sedimentation should create an aggregate follow-up task, got ${bulkLessonResponse.status}: ${bulkLessonText}`);
   const bulkLessonPayload = JSON.parse(bulkLessonText);
-  assert(bulkLessonPayload.created === 2, "bulk lesson sedimentation should count created follow-up tasks");
+  assert(bulkLessonPayload.created === 1, "bulk lesson sedimentation should create one aggregate follow-up task");
+  assert(bulkLessonPayload.candidates === 2, "bulk lesson sedimentation should count aggregated candidates");
   assert(bulkLessonPayload.failed === 0, "bulk lesson sedimentation should not fail valid selected candidates");
-  assert(bulkLessonPayload.results.every((result) => result.ok && result.followUpTask?.id), "bulk lesson sedimentation should return per-candidate follow-up tasks");
-  assert(new Set(bulkLessonPayload.results.map((result) => result.governance?.commit?.commitSha)).size === 1, "bulk lesson sedimentation should use one shared batch commit");
+  assert(bulkLessonPayload.followUpTask?.id?.includes("lesson-workbench-lesson-action-aggregate"), "bulk lesson sedimentation should return the aggregate follow-up task");
+  assert(bulkLessonPayload.results.every((result) => result.ok && result.followUpTask?.id === bulkLessonPayload.followUpTask.id), "bulk lesson sedimentation should point every selected candidate at the aggregate task");
+  assert(bulkLessonPayload.prompt.includes("LC-WORKBENCH-002") && bulkLessonPayload.prompt.includes("LC-WORKBENCH-003"), "bulk lesson sedimentation prompt should include every selected candidate");
+  const aggregateTaskDir = path.join(lifecycleTarget, bulkLessonPayload.followUpTask.path.replace(/^TARGET:/, ""));
+  assert(fs.existsSync(path.join(aggregateTaskDir, "artifacts/lesson-sedimentation-prompt.md")), "aggregate lesson task should write one copyable prompt artifact");
+  const updatedLessonCandidates = fs.readFileSync(workbenchLessonCandidatePath, "utf8");
+  const updatedLessonRows = updatedLessonCandidates.split(/\r?\n/);
+  assert(updatedLessonRows.some((line) => line.includes("| LC-WORKBENCH-002 |") && line.includes(`| ${bulkLessonPayload.followUpTask.id} |`)), "bulk lesson sedimentation should point the first candidate at the aggregate task");
+  assert(updatedLessonRows.some((line) => line.includes("| LC-WORKBENCH-003 |") && line.includes(`| ${bulkLessonPayload.followUpTask.id} |`)), "bulk lesson sedimentation should point the second candidate at the aggregate task");
+  assert(bulkLessonPayload.governance?.commit?.commitSha, "bulk lesson sedimentation should commit the aggregate task once");
   const badOrigin = await fetch(new URL("api/tasks/review-complete", runtime.url), {
     method: "POST",
     headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: "http://127.0.0.1:9" },

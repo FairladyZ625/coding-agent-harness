@@ -580,7 +580,7 @@ async function createSelectedLessonSedimentationFromDashboard(button) {
     state.lessonBulkSelection = {};
     state.lessonBulkResult = {
       ok: payload.failed === 0,
-      message: payload.failed ? formatMessage("lessonBulkPartial", { created: payload.created || 0, failed: payload.failed || 0 }) : formatMessage("lessonBulkSuccess", { created: payload.created || 0 }),
+      message: payload.failed ? formatMessage("lessonBulkPartial", { created: payload.created || 0, failed: payload.failed || 0 }) : formatMessage("lessonBulkSuccess", { candidates: payload.candidates || selections.length }),
     };
     app();
     if ((payload.created || 0) > 0) setTimeout(() => window.location.reload(), 1500);
