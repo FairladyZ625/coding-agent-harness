@@ -7,7 +7,7 @@ Regression SSoT 是项目回归控制塔，管理所有 regression surface 的 g
 默认位置：
 
 ```text
-coding-agent-harness/governance/regression/Regression-SSoT.md
+{{paths.harnessRoot}}/governance/regression/Regression-SSoT.md
 ```
 
 ## 维护时机
@@ -61,7 +61,7 @@ coding-agent-harness/governance/regression/Regression-SSoT.md
 
 ## 废弃回归门禁
 
-1. 将 gate 移入 `coding-agent-harness/governance/regression/_archive/Regression-SSoT-archive-YYYY-QN.md`。
+1. 将 gate 移入 `{{paths.harnessRoot}}/governance/regression/_archive/Regression-SSoT-archive-YYYY-QN.md`。
 2. 写明废弃原因、替代 gate 和最后状态。
 3. 同步更新 Cadence Ledger。
 4. 在 walkthrough 和 Harness Ledger 记录本次治理变化。

@@ -47,7 +47,7 @@ templateValues:
 entrypoints:
   newTask:
     type: template
-    writes: [coding-agent-harness/planning/tasks/**]
+    writes: [{{paths.tasksRoot}}/**]
     audit: true
     templates:
       taskPlanAppend: templates/task_plan.append.md
@@ -57,20 +57,20 @@ entrypoints:
   plan:
     type: script
     command: scripts/generate-release-package.mjs
-    writes: [coding-agent-harness/governance/releases/**]
-    reads: [coding-agent-harness/planning/tasks/**]
+    writes: [{{paths.governanceRoot}}/releases/**]
+    reads: [{{paths.tasksRoot}}/**]
     audit: true
   scaffold:
     type: script
     command: scripts/generate-release-package.mjs
-    writes: [coding-agent-harness/governance/releases/**]
-    reads: [coding-agent-harness/planning/tasks/**]
+    writes: [{{paths.governanceRoot}}/releases/**]
+    reads: [{{paths.tasksRoot}}/**]
     audit: true
   check:
     type: check
     command: checks/check-release-package.mjs
-    writes: [coding-agent-harness/governance/releases/**]
-    reads: [coding-agent-harness/governance/releases/**, coding-agent-harness/planning/tasks/**]
+    writes: [{{paths.governanceRoot}}/releases/**]
+    reads: [{{paths.governanceRoot}}/releases/**, {{paths.tasksRoot}}/**]
     audit: true
 evidence:
   bundleDir: artifacts/preset
@@ -93,8 +93,8 @@ audit:
   evidenceFiles: [preset-audit.json, preset-manifest.json, write-scope.json]
 writeScopes:
   taskDocs:
-    path: coding-agent-harness/planning/tasks/**
+    path: {{paths.tasksRoot}}/**
     access: write
   releasePackage:
-    path: coding-agent-harness/governance/releases/**
+    path: {{paths.governanceRoot}}/releases/**
     access: write

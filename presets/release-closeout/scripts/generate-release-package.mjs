@@ -10,7 +10,12 @@ if (!release) {
   process.exit(2);
 }
 
-const tasksRoot = path.join(context.targetRoot, "coding-agent-harness/planning/tasks");
+const paths = context.paths || {};
+if (!paths.tasksRoot || !paths.governanceRoot) {
+  console.error("release-closeout requires structure-aware context.paths from the preset runner");
+  process.exit(2);
+}
+const tasksRoot = path.join(context.targetRoot, paths.tasksRoot);
 const releaseRoot = path.join(context.outputRoot, "release");
 fs.mkdirSync(releaseRoot, { recursive: true });
 
@@ -34,7 +39,8 @@ if (tasks.length === 0) {
 const eligibility = tasks.map((task) => ({ task, reason: archiveBlockReason(task) }));
 const eligibleArchive = eligibility.filter((item) => !item.reason).map((item) => item.task);
 const notEligibleArchive = eligibility.filter((item) => item.reason);
-const destinationRoot = `coding-agent-harness/governance/releases/${release}`;
+const governanceRoot = paths.governanceRoot;
+const destinationRoot = `${governanceRoot}/releases/${release}`;
 const releasePackageRef = `${destinationRoot}/INDEX.md`;
 
 const aggregate = {

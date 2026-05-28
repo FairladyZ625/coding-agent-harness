@@ -12,7 +12,7 @@ Define repository-level rules for branches, commits, pull requests, ownership, g
 4. Generated files, caches, build output, local runtime state, and secrets must be ignored or stored in the approved location.
 5. Commit verified, meaningful slices proactively. Deferred commits require an explicit no-commit reason, owner, and next step.
 6. Do not mix unrelated dirty changes into a task commit. CLI-owned Harness writes should use the local Harness commands so their locked, allowlisted auto-commit can protect shared governance files.
-7. Pull requests must follow `coding-agent-harness/governance/standards/pull-request-standard.md` and describe intent, changed surfaces, version impact, checks run, checks not run, review status, references, and residual risk.
+7. Pull requests must follow `{{paths.harnessRoot}}/governance/standards/pull-request-standard.md` and describe intent, changed surfaces, version impact, checks run, checks not run, review status, references, and residual risk.
 8. Required checks and material review findings block merge unless an approved exception is recorded.
 9. Merge or release ownership must be explicit when several branches or workers contribute to the same outcome.
 

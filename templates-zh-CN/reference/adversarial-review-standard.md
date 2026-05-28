@@ -7,7 +7,7 @@
 审查报告默认写入：
 
 ```text
-coding-agent-harness/planning/tasks/<YYYY-MM-DD-任务名>/review.md
+{{paths.harnessRoot}}/planning/tasks/<YYYY-MM-DD-任务名>/review.md
 ```
 
 审查路由由 `review-routing-standard.md` 决定；本文件只规定审查报告怎么写、什么结论可以收口。

@@ -20,7 +20,7 @@ Track module ownership, write scope, branch or worktree assignment, and coordina
 
 | ID | Module | Path Scope | Owner | Status | Branch or Worktree | Task Plan | Shared Files | Depends On | Handoff Evidence | Residual | Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| M-000 | Module title | src/module/** or docs/area/** | owner | reserved | branch or worktree path | coding-agent-harness/planning/modules/<module>/tasks/.../task_plan.md | none | none | pending | none | YYYY-MM-DD |
+| M-000 | Module title | src/module/** or docs/area/** | owner | reserved | branch or worktree path | {{paths.harnessRoot}}/planning/modules/<module>/tasks/.../task_plan.md | none | none | pending | none | YYYY-MM-DD |
 
 ## Shared-File Register
 

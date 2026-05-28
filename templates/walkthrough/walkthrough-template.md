@@ -56,7 +56,7 @@ One sentence describing what changed and why it matters.
 
 | Artifact | Link |
 | --- | --- |
-| Task plan | coding-agent-harness/planning/tasks/.../task_plan.md |
+| Task plan | {{paths.harnessRoot}}/planning/tasks/.../task_plan.md |
 | Feature or Delivery SSoT | F-000 or D-000 |
 | Harness Ledger | HL-YYYY-MM-DD-001 |
 | Task-local closeout | walkthrough.md |

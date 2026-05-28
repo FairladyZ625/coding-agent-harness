@@ -8,9 +8,9 @@ Confidence: low
 ## Debug Flow
 
 1. 先定位失败的 interface 或 flow。
-2. 读 `coding-agent-harness/context/architecture/service-catalog.md`，确认归属和上下游服务。
-3. 读对应的 `coding-agent-harness/context/integrations/` 契约。
-4. 读 `coding-agent-harness/context/development/external-context/<service-key>.md`，使用其中的 mock、stub 和本地调试说明。
+2. 读 `{{paths.harnessRoot}}/context/architecture/service-catalog.md`，确认归属和上下游服务。
+3. 读对应的 `{{paths.harnessRoot}}/context/integrations/` 契约。
+4. 读 `{{paths.harnessRoot}}/context/development/external-context/<service-key>.md`，使用其中的 mock、stub 和本地调试说明。
 
 ## Known Failure Modes
 

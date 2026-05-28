@@ -269,6 +269,74 @@ assert(projectFlagCreated.task.kind === "project-flag-task", "new-task should re
 const projectFlagTaskPlan = fs.readFileSync(path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-project-flag-task/task_plan.md`), "utf8");
 assert(projectFlagTaskPlan.includes("Quick: true"), "project-level boolean flag preset input should render without consuming the target path");
 
+const customStructureTarget = path.join(tmpRoot, "preset-custom-structure-target");
+const customHarnessRoot = ".project-control/harness-state";
+fs.mkdirSync(path.join(customStructureTarget, customHarnessRoot), { recursive: true });
+fs.writeFileSync(path.join(customStructureTarget, customHarnessRoot, "harness.yaml"), `version: 2
+locale: en-US
+capabilities:
+  - core
+structure:
+  harnessRoot: ${customHarnessRoot}
+  planningRoot: ${customHarnessRoot}/planning
+  tasksRoot: ${customHarnessRoot}/planning/tasks
+  modulesRoot: ${customHarnessRoot}/planning/modules
+  externalRoot: ${customHarnessRoot}/planning/external
+  governanceRoot: ${customHarnessRoot}/governance
+  generatedRoot: ${customHarnessRoot}/governance/generated
+`);
+const customStructureTask = expectJson(["new-task", "custom-structure-task", "--budget", "standard", "--preset", "standard-task", customStructureTarget], { env });
+assert(customStructureTask.task.path === `TARGET:${customHarnessRoot}/planning/tasks/${todayLocal}-custom-structure-task`, "builtin preset write scopes should resolve against custom harness paths");
+assert(fs.existsSync(path.join(customStructureTarget, customHarnessRoot, "planning/tasks", `${todayLocal}-custom-structure-task`, "task_plan.md")), "custom-structure preset task should write under the resolved tasksRoot");
+
+const projectionTarget = path.join(tmpRoot, "template-projection-target");
+const projectionRoot = ".ops/harness";
+fs.mkdirSync(path.join(projectionTarget, projectionRoot), { recursive: true });
+fs.writeFileSync(path.join(projectionTarget, projectionRoot, "harness.yaml"), `version: 2
+locale: en-US
+capabilities:
+  - core
+structure:
+  harnessRoot: ${projectionRoot}
+  planningRoot: ${projectionRoot}/planning
+  tasksRoot: ${projectionRoot}/planning/tasks
+  modulesRoot: ${projectionRoot}/planning/modules
+  externalRoot: ${projectionRoot}/planning/external
+  governanceRoot: ${projectionRoot}/governance
+  generatedRoot: ${projectionRoot}/governance/generated
+`);
+expectJson(["add-capability", "dashboard", "--locale", "en-US", projectionTarget], { env });
+const projectedAgentsPath = path.join(projectionTarget, "AGENTS.md");
+assert(fs.readFileSync(projectedAgentsPath, "utf8").includes(`${projectionRoot}/governance/standards`), "init/add-capability templates should render {{paths.*}} against custom harness roots");
+assert(fs.existsSync(path.join(projectionTarget, projectionRoot, "governance/generated/Template-Projections.json")), "template projection provenance should be recorded");
+const renamedRoot = ".renamed/harness";
+fs.writeFileSync(path.join(projectionTarget, projectionRoot, "harness.yaml"), `version: 2
+locale: en-US
+capabilities:
+  - core
+  - dashboard
+structure:
+  harnessRoot: ${renamedRoot}
+  planningRoot: ${renamedRoot}/planning
+  tasksRoot: ${renamedRoot}/planning/tasks
+  modulesRoot: ${renamedRoot}/planning/modules
+  externalRoot: ${renamedRoot}/planning/external
+  governanceRoot: ${renamedRoot}/governance
+  generatedRoot: ${renamedRoot}/governance/generated
+`);
+fs.mkdirSync(path.join(projectionTarget, renamedRoot), { recursive: true });
+fs.renameSync(path.join(projectionTarget, projectionRoot, "harness.yaml"), path.join(projectionTarget, renamedRoot, "harness.yaml"));
+const projectAuthoredPath = path.join(projectionTarget, renamedRoot, "context/development/project-facts.md");
+fs.mkdirSync(path.dirname(projectAuthoredPath), { recursive: true });
+fs.writeFileSync(projectAuthoredPath, "# Project Facts\n\nKeep this project-authored reference to coding-agent-harness/governance/standards.\n");
+const projectionAudit = expectJson(["templates", "audit", "--json", projectionTarget], { env });
+const agentsProjection = projectionAudit.projections.find((item) => item.destination === "AGENTS.md");
+assert(agentsProjection?.action === "would-refresh", "pristine package projection should be refreshable after structure changes");
+assert(projectionAudit.projectAuthoredFindings.some((item) => item.destination.endsWith("project-facts.md") && item.action === "report-only"), "project-authored path findings should be reported without overwrite");
+expectJson(["templates", "refresh", "--apply", "--json", projectionTarget], { env });
+assert(fs.readFileSync(projectedAgentsPath, "utf8").includes(`${renamedRoot}/governance/standards`), "template refresh should update pristine package projections to the new paths");
+assert(fs.readFileSync(projectAuthoredPath, "utf8").includes("coding-agent-harness/governance/standards"), "template refresh must not overwrite project-authored content by default");
+
 const missingInput = run(["new-task", "custom-review-task", "--budget", "standard", "--preset", "custom-review", target], { env });
 assert(missingInput.status !== 0, "new-task should fail when required preset input is missing");
 assert(`${missingInput.stdout}\n${missingInput.stderr}`.includes("--subject"), `missing preset input error should name the CLI flag\nSTDOUT:\n${missingInput.stdout}\nSTDERR:\n${missingInput.stderr}`);

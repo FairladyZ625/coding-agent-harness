@@ -27,11 +27,11 @@
 
 ## 归档索引
 
-> 废弃 gate、已关闭残余和历史批次移入 `coding-agent-harness/governance/regression/_archive/Regression-SSoT-archive-YYYY-QN.md`。活跃表只保留仍会影响当前开发和发布判断的内容。
+> 废弃 gate、已关闭残余和历史批次移入 `{{paths.harnessRoot}}/governance/regression/_archive/Regression-SSoT-archive-YYYY-QN.md`。活跃表只保留仍会影响当前开发和发布判断的内容。
 
 | 归档文件 | 覆盖范围 | 移入日期 | 说明 |
 | --- | --- | --- | --- |
-| `coding-agent-harness/governance/regression/_archive/Regression-SSoT-archive-YYYY-QN.md` | RG-... / R-... | YYYY-MM-DD | [说明] |
+| `{{paths.harnessRoot}}/governance/regression/_archive/Regression-SSoT-archive-YYYY-QN.md` | RG-... / R-... | YYYY-MM-DD | [说明] |
 
 ## 结果状态
 

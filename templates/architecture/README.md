@@ -22,8 +22,8 @@ This folder is the system-structure source of truth. It explains what the curren
 ## Boundary
 
 - Put system structure, service responsibility, ownership, and critical flows here.
-- Put payload bodies, endpoint parameters, event schemas, and SDK details in `coding-agent-harness/context/integrations/`.
-- Put local setup, mocks, stubs, and cross-repo debugging notes in `coding-agent-harness/context/development/`.
+- Put payload bodies, endpoint parameters, event schemas, and SDK details in `{{paths.harnessRoot}}/context/integrations/`.
+- Put local setup, mocks, stubs, and cross-repo debugging notes in `{{paths.harnessRoot}}/context/development/`.
 
 ## Structure Contract
 

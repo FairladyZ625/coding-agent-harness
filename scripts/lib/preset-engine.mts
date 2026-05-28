@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { readJsonSafe, repoRoot, taskContractMarker, toPosix, visualMapFile } from "./core-shared.mjs";
+import { harnessPathContext, readJsonSafe, repoRoot, resolveHarnessPathTemplate, taskContractMarker, toPosix, visualMapFile } from "./core-shared.mjs";
 import { verifyMigrationSession } from "./migration-planner.mjs";
 import { buildPresetAudit, renderPresetTemplate } from "./preset-registry.mjs";
 import {
@@ -54,7 +54,7 @@ export function resolvePresetInputs(preset, { cliArgs = [], fromSession = "", ta
   };
 }
 
-export function evaluateTemplateValues(preset, resolvedInputs, { taskId = "", taskTitle = "", moduleKey = "" } = {}) {
+export function evaluateTemplateValues(preset, resolvedInputs, { taskId = "", taskTitle = "", moduleKey = "", target = null } = {}) {
   const computed = computedValues(preset, resolvedInputs);
   const base = {
     inputs: resolvedInputs,
@@ -70,11 +70,13 @@ export function evaluateTemplateValues(preset, resolvedInputs, { taskId = "", ta
       moduleKey,
       kind: preset.task?.kind || "general",
     },
+    paths: target ? harnessPathContext(target) : {},
   };
   const values = {
     preset: preset.id,
     presetVersion: String(preset.version),
     kind: preset.task?.kind || "general",
+    paths: base.paths,
     ...computed,
   };
   for (const [name, declaration] of Object.entries(preset.templateValues || {})) {
@@ -92,10 +94,12 @@ export function evaluateTemplateValues(preset, resolvedInputs, { taskId = "", ta
 export function buildPresetContext(preset, { target, taskDir, taskId, taskTitle, resolvedInputs, evaluatedValues }) {
   const taskRelativeDir = toPosix(path.relative(target.projectRoot, taskDir));
   const evidenceBundle = presetEvidenceBundle(preset, { target, taskDir, evaluatedValues });
+  const resolvedScopes = resolvePresetScopes(preset, target);
   const audit = buildPresetAudit(preset, {
     taskId,
     targetRoot: target.projectRoot,
     entrypoint: "newTask",
+    writeScopes: resolvedScopes.entrypoints.newTask || resolvedScopes.writeScopes,
     resolvedInputs,
   });
   const context = {
@@ -117,7 +121,7 @@ export function buildPresetContext(preset, { target, taskDir, taskId, taskTitle,
     evidenceBundle,
   };
   context.evidenceFiles = generateEvidenceFiles(preset, { target, taskDir, context });
-  const resources = generateResourceFiles(preset, { context });
+  const resources = generateResourceFiles(preset, { target, context });
   context.resourceFiles = resources.files;
   context.resourceIndexRows = resources.indexRows;
   return context;
@@ -165,18 +169,39 @@ export function renderPresetResourceIndex(content, kind, rows) {
   return `${String(content || "").trimEnd()}\n${renderedRows.join("\n")}\n`;
 }
 
-export function assertPresetWriteScope(preset, relativePath) {
+export function assertPresetWriteScope(preset, relativePath, target = null) {
+  return assertPresetWriteScopeForTarget(preset, relativePath, target);
+}
+
+export function assertPresetWriteScopeForTarget(preset, relativePath, target = null) {
   const normalized = toPosix(path.normalize(relativePath));
   if (normalized.startsWith("../") || path.isAbsolute(normalized)) {
     throw new Error(`Preset write scope violation for ${relativePath}`);
   }
-  if (!preset.writeScopes.some((scope) => normalizedPresetScopes(scope.path).some((candidate) => matchesScope(candidate, normalized)))) {
+  const scopes = target ? resolvePresetScopes(preset, target).writeScopes : preset.writeScopes.flatMap((scope) => normalizedPresetScopes(scope.path));
+  if (!scopes.some((candidate) => matchesScope(candidate, normalized))) {
     throw new Error(`Preset write scope violation for ${normalized}`);
   }
 }
 
-function normalizedPresetScopes(scopePath) {
-  const scope = toPosix(path.normalize(String(scopePath || "")));
+export function resolvePresetScopes(preset, target) {
+  const writeScopes = preset.writeScopes.flatMap((scope) => normalizedPresetScopes(scope.path, target));
+  const entrypoints = {};
+  for (const [name, entrypoint] of Object.entries(preset.entrypoints || {})) {
+    entrypoints[name] = (entrypoint.writes || []).flatMap((scope) => normalizedPresetScopes(scope, target));
+  }
+  const reads = {};
+  for (const [name, entrypoint] of Object.entries(preset.entrypoints || {})) {
+    reads[name] = (entrypoint.reads || []).flatMap((scope) => normalizedPresetScopes(scope, target));
+  }
+  return { writeScopes, entrypoints, reads };
+}
+
+function normalizedPresetScopes(scopePath, target = null) {
+  const raw = String(scopePath || "");
+  const scope = target && raw.includes("{{")
+    ? resolveHarnessPathTemplate(raw, target, "preset scope")
+    : toPosix(path.normalize(raw));
   const taskRoot = legacyPath(legacyTaskRoot);
   const planningRoot = legacyPath(legacyPlanningRoot);
   const scopes = [scope];
@@ -223,7 +248,7 @@ function presetEvidenceBundle(preset, { target, taskDir, evaluatedValues }) {
 function generateEvidenceFiles(preset, { target, context }) {
   const files = [];
   const add = (relativePath, source, content) => {
-    assertPresetWriteScope(preset, relativePath);
+    assertPresetWriteScope(preset, relativePath, target);
     files.push({ relativePath, source, content });
   };
   const evidenceFiles = preset.evidence?.files || {};
@@ -237,11 +262,11 @@ function generateEvidenceFiles(preset, { target, context }) {
   return files;
 }
 
-function generateResourceFiles(preset, { context }) {
+function generateResourceFiles(preset, { target, context }) {
   const files = [];
   const indexRows = { references: [], artifacts: [] };
   const add = (relativePath, source, content) => {
-    assertPresetWriteScope(preset, relativePath);
+    assertPresetWriteScope(preset, relativePath, target);
     files.push({ relativePath, source, content });
   };
   for (const resource of Object.values(preset.resources?.references || {})) {

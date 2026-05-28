@@ -240,7 +240,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
     automaticTaskId,
   });
   const baseTaskAudit = buildCreationTaskAudit(scaffoldProvenance, { projectRoot: target.projectRoot });
-  const evaluatedPresetValues = presetPackage ? evaluateTemplateValues(presetPackage, presetInputs.inputs, { taskId: normalizedTaskId, taskTitle, moduleKey: normalizedModuleKey }) : null;
+  const evaluatedPresetValues = presetPackage ? evaluateTemplateValues(presetPackage, presetInputs.inputs, { taskId: normalizedTaskId, taskTitle, moduleKey: normalizedModuleKey, target }) : null;
   const presetContext = presetPackage
     ? buildPresetContext({ ...presetPackage, task: { ...(presetPackage.task || {}), kind: presetPackage.task?.kind || "general" } }, {
         target,
@@ -295,7 +295,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
         source,
         action: dryRun ? "would-create" : "create",
       });
-      if (presetPackage) assertPresetWriteScope(presetPackage, toPosix(path.relative(target.projectRoot, destinationPath)));
+      if (presetPackage) assertPresetWriteScope(presetPackage, toPosix(path.relative(target.projectRoot, destinationPath)), target);
       if (dryRun) continue;
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
       fs.writeFileSync(
@@ -312,6 +312,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
           longRunning,
           scaffoldProvenance,
           taskAudit: buildCreationTaskAudit({ ...scaffoldProvenance, templateSource: source }, { projectRoot: target.projectRoot }),
+          target,
         }),
       );
     }
@@ -327,7 +328,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
       source,
       action: dryRun ? "would-create" : "create",
     });
-    if (presetPackage) assertPresetWriteScope(presetPackage, toPosix(path.relative(target.projectRoot, destinationPath)));
+    if (presetPackage) assertPresetWriteScope(presetPackage, toPosix(path.relative(target.projectRoot, destinationPath)), target);
     if (dryRun) continue;
     fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
     fs.writeFileSync(
@@ -349,6 +350,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
         taskAudit: destination === "INDEX.md"
           ? buildCreationTaskAudit({ ...scaffoldProvenance, templateSource: source }, { projectRoot: target.projectRoot })
           : baseTaskAudit,
+        target,
       }), presetContext),
     );
   }
@@ -360,7 +362,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
         source: evidence.source,
         action: dryRun ? "would-create" : "create",
       });
-      assertPresetWriteScope(presetPackage, toPosix(evidence.relativePath));
+      assertPresetWriteScope(presetPackage, toPosix(evidence.relativePath), target);
       if (dryRun) continue;
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
       fs.writeFileSync(destinationPath, evidence.content);
@@ -372,7 +374,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
         source: resource.source,
         action: dryRun ? "would-create" : "create",
       });
-      assertPresetWriteScope(presetPackage, toPosix(resource.relativePath));
+      assertPresetWriteScope(presetPackage, toPosix(resource.relativePath), target);
       if (dryRun) continue;
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
       fs.writeFileSync(destinationPath, resource.content);
@@ -387,7 +389,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
         source: `preset-${kind}-index`,
         action: dryRun ? "would-update" : "update",
       });
-      assertPresetWriteScope(presetPackage, relativePath);
+      assertPresetWriteScope(presetPackage, relativePath, target);
       if (dryRun) continue;
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
       const existing = fs.existsSync(destinationPath) ? fs.readFileSync(destinationPath, "utf8") : "";

@@ -7,9 +7,9 @@ Confidence: low
 
 ## Purpose
 
-这个目录只承载外部资料的摄取、索引和摘要。稳定事实必须投影到 `context/architecture`、`coding-agent-harness/context/development/external-context` 或 `context/integrations` 后才算进入 Harness 执行上下文。
+这个目录只承载外部资料的摄取、索引和摘要。稳定事实必须投影到 `context/architecture`、`{{paths.harnessRoot}}/context/development/external-context` 或 `context/integrations` 后才算进入 Harness 执行上下文。
 
-先读 `coding-agent-harness/governance/standards/external-source-intake-standard.md`，再新增资料包。
+先读 `{{paths.harnessRoot}}/governance/standards/external-source-intake-standard.md`，再新增资料包。
 
 ## Source Packs
 

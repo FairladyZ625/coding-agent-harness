@@ -25,11 +25,11 @@
 
 ## 归档索引
 
-> 批次日志超过 50 行或完成阶段收口时，移入 `coding-agent-harness/governance/regression/_archive/Cadence-Ledger-archive-YYYY-QN.md`。
+> 批次日志超过 50 行或完成阶段收口时，移入 `{{paths.harnessRoot}}/governance/regression/_archive/Cadence-Ledger-archive-YYYY-QN.md`。
 
 | 归档文件 | 覆盖批次 | 移入日期 | 说明 |
 | --- | --- | --- | --- |
-| `coding-agent-harness/governance/regression/_archive/Cadence-Ledger-archive-YYYY-QN.md` | SRB-... 至 SRB-... | YYYY-MM-DD | [说明] |
+| `{{paths.harnessRoot}}/governance/regression/_archive/Cadence-Ledger-archive-YYYY-QN.md` | SRB-... 至 SRB-... | YYYY-MM-DD | [说明] |
 
 ## 结果状态
 

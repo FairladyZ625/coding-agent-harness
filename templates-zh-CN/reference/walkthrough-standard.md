@@ -7,13 +7,13 @@
 默认位置：
 
 ```text
-coding-agent-harness/planning/tasks/<task>/walkthrough.md
+{{paths.harnessRoot}}/planning/tasks/<task>/walkthrough.md
 ```
 
 Closeout Index 固定位置：
 
 ```text
-coding-agent-harness/governance/generated/Closeout-Index.md
+{{paths.harnessRoot}}/governance/generated/Closeout-Index.md
 ```
 
 ## 何时必须写

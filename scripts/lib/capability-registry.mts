@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {
   repoRoot,
@@ -13,6 +14,7 @@ import {
   readFileSafe,
   readJsonSafe,
   readBundledTemplate,
+  renderHarnessTemplate,
   walkFiles,
   normalizeLocale,
   localizedTemplateSource,
@@ -543,6 +545,7 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true, local
   }
   const planned = plannedInitFiles(normalizedCapabilities, { locale: normalizedLocale });
   const changes = [];
+  const projectionEntries = [];
   const manifestDestination = `${v2HarnessRoot}/harness.yaml`;
   const manifestPath = path.join(target.projectRoot, manifestDestination);
   const manifestExists = fs.existsSync(manifestPath);
@@ -565,9 +568,12 @@ export function writeInitFiles(targetInput, capabilities, { dryRun = true, local
     changes.push({ destination, source, action: existsAlready ? "skip-existing" : dryRun ? "would-create" : "create" });
     if (!dryRun && !existsAlready) {
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
-      fs.copyFileSync(sourcePath, destinationPath);
+      const rendered = renderInstallTemplate(source, target);
+      fs.writeFileSync(destinationPath, rendered);
+      projectionEntries.push(templateProjectionEntry({ destination, source, target, rendered }));
     }
   }
+  if (!dryRun) writeTemplateProjectionManifest(target, projectionEntries);
   if (addNpmScripts) {
     changes.push(...writeNpmScripts(target, { dryRun }));
   }
@@ -630,6 +636,105 @@ function writeNpmScripts(target, { dryRun = true } = {}) {
   return [{ destination: "package.json", source: "npm-scripts", action: dryRun ? "would-update-scripts" : "update-scripts" }, ...scriptChanges];
 }
 
+function renderInstallTemplate(source, target) {
+  return renderHarnessTemplate(readBundledTemplate(source), { paths: targetPathContext(target) });
+}
+
+function targetPathContext(target) {
+  const paths = target.harness || {};
+  const projectRoot = paths.projectRoot || target.projectRoot;
+  const fields = [
+    "harnessRoot",
+    "planningRoot",
+    "tasksRoot",
+    "modulesRoot",
+    "externalRoot",
+    "governanceRoot",
+    "generatedRoot",
+    "regressionRoot",
+    "ledgerPath",
+    "closeoutIndexPath",
+  ];
+  return Object.fromEntries(fields.map((field) => {
+    const value = paths[field] || "";
+    const rendered = value && path.isAbsolute(value) ? toPosix(path.relative(projectRoot, value)) : toPosix(String(value || ""));
+    return [field, rendered];
+  }));
+}
+
+function templateProjectionManifestPath(target) {
+  const effectiveTarget = target.harness?.version === 2 || !fs.existsSync(path.join(target.projectRoot, v2HarnessRoot, "harness.yaml"))
+    ? target
+    : normalizeTarget(target.projectRoot);
+  const generatedRoot = effectiveTarget.harness?.generatedRoot || path.join(effectiveTarget.projectRoot, v2HarnessRoot, "governance/generated");
+  return path.join(generatedRoot, "Template-Projections.json");
+}
+
+function readTemplateProjectionManifest(target) {
+  const currentPath = templateProjectionManifestPath(target);
+  if (fs.existsSync(currentPath)) return readJsonSafe(currentPath, { schemaVersion: "template-projections/v1", entries: [] });
+  const fallback = walkFiles(target.projectRoot)
+    .find((filePath) => path.basename(filePath) === "Template-Projections.json");
+  return fallback ? readJsonSafe(fallback, { schemaVersion: "template-projections/v1", entries: [] }) : { schemaVersion: "template-projections/v1", entries: [] };
+}
+
+function writeTemplateProjectionManifest(target, entries) {
+  if (!entries.length) return;
+  const manifestPath = templateProjectionManifestPath(target);
+  const current = readTemplateProjectionManifest(target);
+  const byDestination = new Map((current.entries || []).map((entry) => [entry.destination, entry]));
+  for (const entry of entries) byDestination.set(entry.destination, entry);
+  const next = {
+    schemaVersion: "template-projections/v1",
+    generatedAt: new Date().toISOString(),
+    entries: [...byDestination.values()].sort((a, b) => a.destination.localeCompare(b.destination)),
+  };
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.writeFileSync(manifestPath, `${JSON.stringify(next, null, 2)}\n`);
+}
+
+function templateProjectionEntry({ destination, source, target, rendered }) {
+  return {
+    destination,
+    source,
+    ownership: "package-template-pristine",
+    renderedSha256: sha256(rendered),
+    sourceSha256: sha256(readBundledTemplate(source)),
+    paths: targetPathContext(target),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function pathFindings(content, target) {
+  const findings = [];
+  const text = String(content || "");
+  if (text.includes("{{paths.")) findings.push("unresolved-path-token");
+  const defaultRootPattern = /\bcoding-agent-harness\/(?:planning|governance|context)\//g;
+  if (target.harness?.version === 2 && targetPathContext(target).harnessRoot !== v2HarnessRoot && defaultRootPattern.test(text)) {
+    findings.push("default-root-literal");
+  }
+  if (/docs\/09-PLANNING|docs\/10-WALKTHROUGH|docs\/Harness-Ledger\.md/.test(text)) findings.push("legacy-path-literal");
+  return [...new Set(findings)];
+}
+
+function scanProjectAuthoredPathFindings(target, plannedDestinations) {
+  const root = target.harness?.harnessRoot || target.docsRoot;
+  if (!root || !fs.existsSync(root)) return [];
+  return walkFiles(root)
+    .map((filePath) => toPosix(path.relative(target.projectRoot, filePath)))
+    .filter((relative) => !plannedDestinations.has(relative))
+    .filter((relative) => !relative.includes("/governance/archive/") && !relative.includes("/planning/tasks/") && !relative.includes("/governance/generated/"))
+    .map((relative) => {
+      const findings = pathFindings(readFileSafe(path.join(target.projectRoot, relative)), target);
+      return findings.length ? { destination: relative, ownership: "project-authored", action: "report-only", pathFindings: findings } : null;
+    })
+    .filter(Boolean);
+}
+
+function sha256(content) {
+  return crypto.createHash("sha256").update(String(content)).digest("hex");
+}
+
 export function addCapability(targetInput, capabilityName, { dryRun = true, locale = "" } = {}) {
   const target = normalizeTarget(targetInput);
   const normalizedCapability = normalizeCapabilityName(capabilityName);
@@ -644,6 +749,7 @@ export function addCapability(targetInput, capabilityName, { dryRun = true, loca
   const nextCapabilities = [...capabilityMap.keys()];
   const scaffold = plannedInitFiles([...capabilityMap.keys()], { locale: normalizedLocale, paths: target.harness?.version === 2 ? target.harness : null });
   const changes = [];
+  const projectionEntries = [];
   for (const directory of plannedInitDirectories(nextCapabilities, { paths: target.harness?.version === 2 ? target.harness : null })) {
     const destinationPath = path.join(target.projectRoot, directory);
     const existsAlready = fs.existsSync(destinationPath);
@@ -657,7 +763,9 @@ export function addCapability(targetInput, capabilityName, { dryRun = true, loca
     changes.push({ destination, source, action: existsAlready ? "skip-existing" : dryRun ? "would-create" : "create" });
     if (!dryRun && !existsAlready) {
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
-      fs.copyFileSync(sourcePath, destinationPath);
+      const rendered = renderInstallTemplate(source, target);
+      fs.writeFileSync(destinationPath, rendered);
+      projectionEntries.push(templateProjectionEntry({ destination, source, target, rendered }));
     }
   }
   if (!dryRun) {
@@ -666,6 +774,7 @@ export function addCapability(targetInput, capabilityName, { dryRun = true, loca
       : path.join(target.projectRoot, v2HarnessRoot, "harness.yaml");
     fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
     fs.writeFileSync(manifestPath, renderHarnessManifest({ locale: normalizedLocale, capabilities: nextCapabilities, structure: target.harness.manifest?.structure }));
+    writeTemplateProjectionManifest(target, projectionEntries);
   }
   const report = buildInstallReport({ target, locale: normalizedLocale, capabilities: [...capabilityMap.keys()], changes, dryRun, operation: "add-capability" });
   return {
@@ -674,5 +783,90 @@ export function addCapability(targetInput, capabilityName, { dryRun = true, loca
     registry: { version: 2, locale: normalizedLocale, capabilities: nextCapabilities.map((name) => ({ name, state: "configured" })) },
     changes,
     report,
+  };
+}
+
+export function auditTemplateProjections(targetInput = ".") {
+  const target = normalizeTarget(targetInput);
+  const registry = readCapabilityRegistry(target);
+  const capabilities = registry.capabilities.map((capability) => capability.name);
+  const planned = plannedInitFiles(capabilities, { locale: registry.locale, paths: target.harness?.version === 2 ? target.harness : null });
+  const manifest = readTemplateProjectionManifest(target);
+  const entriesByDestination = new Map((manifest.entries || []).map((entry) => [entry.destination, entry]));
+  const plannedDestinations = new Set(planned.map(([destination]) => destination));
+  const projections = planned.map(([destination, source]) => {
+    const destinationPath = path.join(target.projectRoot, destination);
+    const rendered = renderInstallTemplate(source, target);
+    const renderedSha256 = sha256(rendered);
+    const existsAlready = fs.existsSync(destinationPath);
+    const current = existsAlready ? fs.readFileSync(destinationPath, "utf8") : "";
+    const currentSha256 = existsAlready ? sha256(current) : "";
+    const recorded = entriesByDestination.get(destination);
+    const ownership = !existsAlready
+      ? "missing"
+      : currentSha256 === renderedSha256
+        ? "package-template-pristine"
+        : recorded && currentSha256 === recorded.renderedSha256
+          ? "package-template-pristine"
+          : recorded
+            ? "package-template-modified"
+            : "project-authored";
+    const action = !existsAlready
+      ? "would-create"
+      : currentSha256 === renderedSha256
+        ? "no-op"
+        : ownership === "package-template-pristine"
+          ? "would-refresh"
+          : "report-only";
+    return {
+      destination,
+      source,
+      exists: existsAlready,
+      ownership,
+      action,
+      currentSha256: currentSha256 || null,
+      expectedSha256: renderedSha256,
+      recordedSha256: recorded?.renderedSha256 || null,
+      pathFindings: pathFindings(current, target),
+    };
+  });
+  const authoredFindings = scanProjectAuthoredPathFindings(target, plannedDestinations);
+  return {
+    operation: "template-projection-audit",
+    target: target.projectRoot,
+    manifestPath: templateProjectionManifestPath(target),
+    projections,
+    projectAuthoredFindings: authoredFindings,
+    summary: {
+      total: projections.length,
+      missing: projections.filter((item) => item.ownership === "missing").length,
+      refreshable: projections.filter((item) => item.action === "would-refresh").length,
+      reportOnly: projections.filter((item) => item.action === "report-only").length + authoredFindings.length,
+    },
+  };
+}
+
+export function refreshTemplateProjections(targetInput = ".", { apply = false } = {}) {
+  const target = normalizeTarget(targetInput);
+  const audit = auditTemplateProjections(targetInput);
+  const changes = [];
+  const entries = [];
+  for (const item of audit.projections) {
+    if (!["would-create", "would-refresh"].includes(item.action)) continue;
+    const rendered = renderInstallTemplate(item.source, target);
+    changes.push({ destination: item.destination, source: item.source, action: apply ? item.action.replace("would-", "") : item.action });
+    entries.push(templateProjectionEntry({ destination: item.destination, source: item.source, target, rendered }));
+    if (!apply) continue;
+    const destinationPath = path.join(target.projectRoot, item.destination);
+    fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+    fs.writeFileSync(destinationPath, rendered);
+  }
+  if (apply) writeTemplateProjectionManifest(target, entries);
+  return {
+    operation: "template-projection-refresh",
+    dryRun: !apply,
+    target: target.projectRoot,
+    changes,
+    audit,
   };
 }

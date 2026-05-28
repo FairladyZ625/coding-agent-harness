@@ -14,8 +14,8 @@ Keep the English field names and section headings because CLI checks rely on the
 ## Boundary
 
 - 本地启动、代码地图、外部服务开发摘要、mock、stub、跨仓调试放这里。
-- 长期系统结构放 `coding-agent-harness/context/architecture/`。
-- API、event、webhook 等具体契约放 `coding-agent-harness/context/integrations/`。
+- 长期系统结构放 `{{paths.harnessRoot}}/context/architecture/`。
+- API、event、webhook 等具体契约放 `{{paths.harnessRoot}}/context/integrations/`。
 
 ## Structure Contract
 
@@ -32,21 +32,21 @@ Keep the English field names and section headings because CLI checks rely on the
 
 如果本仓依赖多个微服务，不要把所有外部知识写进一个大文档。只要某个外部服务会影响本仓开发或测试，就创建：
 
-- `coding-agent-harness/context/architecture/services/<service-key>.md`：该服务是什么、负责什么。
-- `coding-agent-harness/context/development/external-context/<service-key>.md`：本仓开发时如何 mock、stub、调试它。
-- `coding-agent-harness/context/integrations/<contract>.md`：具体 API/event/webhook 契约。
+- `{{paths.harnessRoot}}/context/architecture/services/<service-key>.md`：该服务是什么、负责什么。
+- `{{paths.harnessRoot}}/context/development/external-context/<service-key>.md`：本仓开发时如何 mock、stub、调试它。
+- `{{paths.harnessRoot}}/context/integrations/<contract>.md`：具体 API/event/webhook 契约。
 
 `context/development` 只放“开发时怎么处理这个外部服务”。不要在这里维护完整系统拓扑，也不要把 payload schema 塞进来。
 
 ## External Source Pack Rule
 
-如果外部团队给了多份文档、截图、导出包、会议纪要或链接，不要直接塞进 `context/{architecture,development,integrations}`。先读 `coding-agent-harness/governance/standards/external-source-intake-standard.md`，再决定是否创建 `external-source-packs/<source-key>/`。
+如果外部团队给了多份文档、截图、导出包、会议纪要或链接，不要直接塞进 `context/{architecture,development,integrations}`。先读 `{{paths.harnessRoot}}/governance/standards/external-source-intake-standard.md`，再决定是否创建 `external-source-packs/<source-key>/`。
 
 `external-source-packs/` 只负责资料索引、摘要和投影状态。稳定结论必须回写到：
 
-- `coding-agent-harness/context/architecture/services/<service-key>.md`
-- `coding-agent-harness/context/development/external-context/<service-key>.md`
-- `coding-agent-harness/context/integrations/<contract>.md`
+- `{{paths.harnessRoot}}/context/architecture/services/<service-key>.md`
+- `{{paths.harnessRoot}}/context/development/external-context/<service-key>.md`
+- `{{paths.harnessRoot}}/context/integrations/<contract>.md`
 
 ## External Context Index
 

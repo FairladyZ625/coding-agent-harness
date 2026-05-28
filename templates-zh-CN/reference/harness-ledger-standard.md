@@ -2,10 +2,10 @@
 
 ## 职责
 
-Harness Ledger 是 `coding-agent-harness/` 骨架的全局上下文维护总账，固定位置为：
+Harness Ledger 是 `{{paths.harnessRoot}}/` 骨架的全局上下文维护总账，固定位置为：
 
 ```text
-coding-agent-harness/governance/generated/Harness-Ledger.md
+{{paths.harnessRoot}}/governance/generated/Harness-Ledger.md
 ```
 
 它记录每个非平凡任务是否完成了 task plan、progress、review、功能 SSoT、Delivery SSoT、Regression SSoT、lesson candidates/detail docs、walkthrough、Closeout Index、reference/template 和 CI/CD 治理回写。它不复制业务事实，只记录上下文维护是否合规。
@@ -88,7 +88,7 @@ coding-agent-harness/governance/generated/Harness-Ledger.md
 活跃表保留最近 50 条。更早的 `closed` 或 `superseded` 条目按季度归档：
 
 ```text
-coding-agent-harness/governance/archive/Harness-Ledger-archive-YYYY-QN.md
+{{paths.harnessRoot}}/governance/archive/Harness-Ledger-archive-YYYY-QN.md
 ```
 
 归档后，活跃表必须留下归档位置说明。

@@ -10,7 +10,7 @@ This standard defines how agents receive, filter, organize, and project large ex
 external source material -> source pack index -> digest -> context/{architecture,development,integrations} execution projection
 ```
 
-`context/architecture`, `context/development`, and `context/integrations` only hold facts that have been distilled enough to guide work. Raw external files, long documents, screenshots, exported chats, diagrams, and historical packets first go through `coding-agent-harness/context/development/external-source-packs/`.
+`context/architecture`, `context/development`, and `context/integrations` only hold facts that have been distilled enough to guide work. Raw external files, long documents, screenshots, exported chats, diagrams, and historical packets first go through `{{paths.harnessRoot}}/context/development/external-source-packs/`.
 
 ## When To Ask The User
 
@@ -33,14 +33,14 @@ Recommended questions:
 | Case | Storage |
 | --- | --- |
 | Only 1-4 stable external documents | No separate source pack is required; link them from `Source Evidence` in the relevant `context/{architecture,development,integrations}` docs |
-| More than 5 documents, multiple topics, or continuing growth | Create `coding-agent-harness/context/development/external-source-packs/<source-key>/` |
+| More than 5 documents, multiple topics, or continuing growth | Create `{{paths.harnessRoot}}/context/development/external-source-packs/<source-key>/` |
 | Material contains secrets, customer data, private links, or cannot be committed | Do not copy raw files; record external location, owner, access condition, and digest only |
 | Material is safe to commit | Raw files may go under `raw/`, but only digested facts may be projected into execution docs |
 
 Recommended structure:
 
 ```text
-coding-agent-harness/context/development/external-source-packs/<source-key>/
+{{paths.harnessRoot}}/context/development/external-source-packs/<source-key>/
 ├── README.md              # source index and projection status
 ├── digests/               # digest for each source or source group
 ├── raw/                   # commit-safe raw material only
@@ -49,10 +49,10 @@ coding-agent-harness/context/development/external-source-packs/<source-key>/
 
 Do not replicate a full `context/{architecture,development,integrations}` tree for every microservice. The source pack is the intake layer. The stable execution entries remain:
 
-- `coding-agent-harness/context/architecture/service-catalog.md`
-- `coding-agent-harness/context/architecture/services/<service-key>.md`
-- `coding-agent-harness/context/development/external-context/<service-key>.md`
-- `coding-agent-harness/context/integrations/<contract>.md`
+- `{{paths.harnessRoot}}/context/architecture/service-catalog.md`
+- `{{paths.harnessRoot}}/context/architecture/services/<service-key>.md`
+- `{{paths.harnessRoot}}/context/development/external-context/<service-key>.md`
+- `{{paths.harnessRoot}}/context/integrations/<contract>.md`
 
 ## Intake Flow
 
@@ -68,9 +68,9 @@ Do not replicate a full `context/{architecture,development,integrations}` tree f
 
 | Source Content | Projection Target |
 | --- | --- |
-| Service responsibility, upstream/downstream relationship, owner, data ownership, topology | `coding-agent-harness/context/architecture/service-catalog.md` or `services/<service-key>.md` |
-| Local mocks, stubs, startup, debugging, cross-repo development behavior | `coding-agent-harness/context/development/external-context/<service-key>.md` |
-| Endpoint, payload, auth, error, event, webhook, SDK, contract test | `coding-agent-harness/context/integrations/<contract>.md` |
+| Service responsibility, upstream/downstream relationship, owner, data ownership, topology | `{{paths.harnessRoot}}/context/architecture/service-catalog.md` or `services/<service-key>.md` |
+| Local mocks, stubs, startup, debugging, cross-repo development behavior | `{{paths.harnessRoot}}/context/development/external-context/<service-key>.md` |
+| Endpoint, payload, auth, error, event, webhook, SDK, contract test | `{{paths.harnessRoot}}/context/integrations/<contract>.md` |
 | Unconfirmed, conflicting, stale, or background-only material | Keep in source pack README / digest; do not project into execution docs |
 
 ## Prohibited

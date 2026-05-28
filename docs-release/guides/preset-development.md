@@ -27,6 +27,9 @@ and `harness install-user` seed them into the user preset root, while
 `harness init` seeds them into the project preset root. Re-run
 `harness preset seed` for the user root or `harness preset seed --project <target>`
 for the project root when a preset root is missing or incomplete.
+Use `harness preset audit --json` or `harness preset audit --project --json <target>`
+to compare installed preset manifest hashes with bundled presets before deciding
+whether to re-seed with `--force`.
 
 ## Dashboard Management
 
@@ -78,7 +81,7 @@ task:
 entrypoints:
   newTask:
     type: template
-    writes: [coding-agent-harness/planning/tasks/**]
+    writes: [{{paths.tasksRoot}}/**]
     audit: true
     templates:
       taskPlanAppend: templates/task_plan.append.md
@@ -106,7 +109,7 @@ audit:
   evidenceFiles: [preset-audit.json, preset-manifest.json, write-scope.json]
 writeScopes:
   taskDocs:
-    path: coding-agent-harness/planning/tasks/**
+    path: {{paths.tasksRoot}}/**
     access: write
 ```
 
@@ -160,6 +163,12 @@ resources:
 
 Templates use `{{valueName}}` placeholders from `templateValues`. `templateValues` and `metadata` support literal `value`, `default`, and dot-path `from` references such as `inputs.subject` or `task.title`; they do not evaluate arbitrary expressions.
 
+Runtime paths must use the structure-aware `{{paths.*}}` context instead of
+hard-coded `coding-agent-harness/...` strings. Supported path fields include
+`harnessRoot`, `planningRoot`, `tasksRoot`, `modulesRoot`, `externalRoot`,
+`governanceRoot`, `generatedRoot`, `regressionRoot`, `ledgerPath`, and
+`closeoutIndexPath`. Harness resolves them from the target `harness.yaml`.
+
 `metadata` entries render first-class task plan lines such as `Review Subject: API contracts`.
 
 ```md
@@ -212,6 +221,9 @@ harness preset install ./my-preset --project /path/to/project
 harness preset install legacy-migration --force
 harness preset seed
 harness preset seed --project /path/to/project
+harness preset audit --json
+harness templates audit --json /path/to/project
+harness templates refresh --apply --json /path/to/project
 harness preset list --json /path/to/project
 harness preset inspect custom-review --json /path/to/project
 harness new-task --title "Custom review task" --preset custom-review --subject "API contracts" /path/to/project

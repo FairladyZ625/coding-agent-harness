@@ -7,10 +7,12 @@ import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
   addCapability,
+  auditTemplateProjections,
   buildStatus,
   doctorUserSkill,
   installUserSkill,
   normalizeLocale,
+  refreshTemplateProjections,
   rebuildGovernanceIndexes,
   serveDashboardWorkbench,
   validateSourcePackageBoundary,
@@ -98,8 +100,11 @@ Usage:
   harness preset check <id> [--json] [target]
   harness preset install <folder|zip|builtin-id> [--project] [--force] [--json] [target]
   harness preset seed [--project] [--force] [--dry-run] [--json] [target]
+  harness preset audit [--project] [--json] [target]
   harness preset uninstall <id> [--project] [--json] [target]
   harness preset run <id> <plan|scaffold|check> --task <task-id> [--json] [target]
+  harness templates audit [--json] [target]
+  harness templates refresh [--apply] [--json] [target]
   harness new-task [task-id] [--module key] [--budget simple|standard|complex] [--preset id] [--from-session session.json] [--long-running] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
   harness task-start <task-id> [--message text] [target]
   harness task-phase <task-id> <phase-id> [--state done] [--completion 100] [--evidence present] [target]
@@ -250,6 +255,24 @@ if (command === "help" || command === "--help" || command === "-h") {
   }
 } else if (command === "preset") {
   runPresetCommand({ args, takeFlag, targetArg });
+} else if (command === "templates") {
+  const subcommand = args.shift() || "audit";
+  const json = takeFlag("--json");
+  const apply = takeFlag("--apply");
+  try {
+    const result = subcommand === "audit"
+      ? auditTemplateProjections(targetArg())
+      : subcommand === "refresh"
+        ? refreshTemplateProjections(targetArg(), { apply })
+        : null;
+    if (!result) throw new Error(`Unknown templates subcommand: ${subcommand}`);
+    if (json) console.log(JSON.stringify(result, null, 2));
+    else if (subcommand === "audit") console.log(`Template projection audit: ${result.summary.refreshable} refreshable, ${result.summary.reportOnly} report-only`);
+    else console.log(`Template projection refresh ${result.dryRun ? "dry-run" : "applied"}: ${result.changes.length} changes`);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
 } else if (["new-task", "task-phase", "task-start", "task-log", "task-block", "task-review", "task-complete", "review-confirm", "lesson-promote", "lesson-sediment", "task-list", "task-index", "task-supersede", "task-delete", "task-archive", "task-reopen", "module-step"].includes(command)) {
   runTaskCommand(command, { args, takeFlag, takeOption, targetArg });
 } else if (command === "install-user") {

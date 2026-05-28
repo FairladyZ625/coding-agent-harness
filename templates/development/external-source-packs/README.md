@@ -7,9 +7,9 @@ Confidence: low
 
 ## Purpose
 
-This directory is only for external source intake, indexing, and digests. Stable facts become Harness execution context only after they are projected into `context/architecture`, `coding-agent-harness/context/development/external-context`, or `context/integrations`.
+This directory is only for external source intake, indexing, and digests. Stable facts become Harness execution context only after they are projected into `context/architecture`, `{{paths.harnessRoot}}/context/development/external-context`, or `context/integrations`.
 
-Read `coding-agent-harness/governance/standards/external-source-intake-standard.md` before adding a source pack.
+Read `{{paths.harnessRoot}}/governance/standards/external-source-intake-standard.md` before adding a source pack.
 
 ## Source Packs
 

@@ -3,6 +3,7 @@ import {
   checkPresetPackage,
   inspectPresetPackage,
   installPresetPackage,
+  auditBundledPresetDrift,
   listPresetPackages,
   seedBundledPresets,
   runPresetEntrypoint,
@@ -58,6 +59,13 @@ export function runPresetCommand({ args, takeFlag, targetArg }) {
       else {
         console.log(`Seeded bundled presets to ${result.target}`);
         for (const preset of result.presets) console.log(`${preset.action}: ${preset.id}@${preset.version}`);
+      }
+    } else if (subcommand === "audit") {
+      const result = auditBundledPresetDrift({ scope: project ? "project" : "user", targetInput: targetArg() });
+      if (json) console.log(JSON.stringify(result, null, 2));
+      else {
+        console.log(`Preset audit ${result.scope}: ${result.stale} stale or missing bundled presets`);
+        for (const preset of result.presets) console.log(`${preset.upgradeAction}: ${preset.id}@${preset.installedVersion || "missing"} [builtin ${preset.builtinVersion}]`);
       }
     } else if (subcommand === "uninstall") {
       const id = args.shift();

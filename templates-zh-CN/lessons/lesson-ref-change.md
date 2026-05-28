@@ -4,9 +4,9 @@
 
 - **ID**: L-[YYYY-MM-DD-NNN]
 - **日期**: YYYY-MM-DD
-- **来源**: `coding-agent-harness/planning/tasks/<task>/walkthrough.md`
+- **来源**: `{{paths.harnessRoot}}/planning/tasks/<task>/walkthrough.md`
 - **类型**: ref-change
-- **目标**: `coding-agent-harness/governance/standards/[目标文件].md`
+- **目标**: `{{paths.harnessRoot}}/governance/standards/[目标文件].md`
 - **提出者**: [agent session / model / human]
 
 ## 背景
@@ -42,7 +42,7 @@
 - 当前是否有其他 pending 条目指向同一目标：是 / 否
 - 如果有，涉及条目：L-[XXX]
 - 本文档是否已考虑冲突：是 / 否
-- 基于版本：当前正式 reference（`coding-agent-harness/governance/standards/[目标文件].md`）@ YYYY-MM-DD
+- 基于版本：当前正式 reference（`{{paths.harnessRoot}}/governance/standards/[目标文件].md`）@ YYYY-MM-DD
 
 ## 完整副本
 
@@ -50,7 +50,7 @@
 
 ---
 <!-- 完整副本开始 -->
-<!-- 基于: coding-agent-harness/governance/standards/[目标文件].md @ YYYY-MM-DD -->
+<!-- 基于: {{paths.harnessRoot}}/governance/standards/[目标文件].md @ YYYY-MM-DD -->
 <!-- 本副本独立于其他 pending 改动 -->
 
 [完整的修改后文档内容]

@@ -8,7 +8,7 @@ task:
 entrypoints:
   newTask:
     type: template
-    writes: [coding-agent-harness/planning/**]
+    writes: [{{paths.planningRoot}}/**]
     audit: true
     templates:
       taskPlanAppend: templates/task_plan.append.md
@@ -21,5 +21,5 @@ audit:
   evidenceFiles: [preset-audit.json]
 writeScopes:
   planningDocs:
-    path: coding-agent-harness/planning/**
+    path: {{paths.planningRoot}}/**
     access: write
