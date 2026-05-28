@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   checkPresetPackage,
   inspectPresetPackage,
@@ -10,7 +9,10 @@ import {
   uninstallPresetPackage,
 } from "../lib/harness-core.mjs";
 
-export function runPresetCommand({ args, takeFlag, targetArg }) {
+type FlagReader = (name: string, fallback?: boolean) => boolean;
+type TargetReader = () => string;
+
+export function runPresetCommand({ args, takeFlag, targetArg }: { args: string[]; takeFlag: FlagReader; targetArg: TargetReader }) {
   const subcommand = args.shift() || "list";
   const json = takeFlag("--json");
   const project = takeFlag("--project");
@@ -86,15 +88,19 @@ export function runPresetCommand({ args, takeFlag, targetArg }) {
       throw new Error(`Unknown preset subcommand: ${subcommand}`);
     }
   } catch (error) {
-    console.error(error.message);
+    console.error(errorMessage(error));
     process.exit(1);
   }
 }
 
-function takeOptionFromArgs(args, name, fallback = "") {
+function takeOptionFromArgs(args: string[], name: string, fallback = ""): string {
   const index = args.indexOf(name);
   if (index < 0) return fallback;
   const value = args[index + 1] || fallback;
   args.splice(index, 2);
   return value;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

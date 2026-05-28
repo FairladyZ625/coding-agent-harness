@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   applyStructureMigration,
   buildMigrationPlan,
@@ -11,26 +10,31 @@ import {
   planTaskAuditIndexMigration,
 } from "../lib/task-audit-migration.mjs";
 
-export function runMigrationCommand(command, { args, takeFlag, takeOption, targetArg }) {
+type FlagReader = (name: string, fallback?: boolean) => boolean;
+type OptionReader = (name: string, fallback?: string) => string;
+type TargetReader = () => string;
+
+export function runMigrationCommand(command: string, { args, takeFlag, takeOption, targetArg }: { args: string[]; takeFlag: FlagReader; takeOption: OptionReader; targetArg: TargetReader }) {
   if (command === "migrate-structure") {
     const json = takeFlag("--json");
     const apply = takeFlag("--apply");
     const planOnly = takeFlag("--plan");
     const force = takeFlag("--force");
     try {
+      const shouldApply = apply && !planOnly;
       const result = apply && !planOnly
         ? applyStructureMigration(targetArg(), { force })
         : planStructureMigration(targetArg());
       if (json) {
         console.log(JSON.stringify(result, null, 2));
       } else {
-        console.log(`Structure migration ${result.applied ? "applied" : "plan"}: ${result.target}`);
+        console.log(`Structure migration ${shouldApply ? "applied" : "plan"}: ${result.target}`);
         console.log(`manifest: ${result.manifest}`);
         console.log(`actions: ${result.summary.actions}`);
         for (const action of result.actions || []) console.log(`- ${action.action}: ${action.source || "(none)"} -> ${action.destination}`);
       }
     } catch (error) {
-      console.error(error.message);
+      console.error(errorMessage(error));
       process.exit(1);
     }
     return;
@@ -56,8 +60,9 @@ export function runMigrationCommand(command, { args, takeFlag, takeOption, targe
       }
       process.exit(result.failures?.length ? 1 : 0);
     } catch (error) {
-      if (json && error.plan) console.error(JSON.stringify(error.plan, null, 2));
-      else console.error(error.message);
+      const plan = readProperty(error, "plan");
+      if (json && plan) console.error(JSON.stringify(plan, null, 2));
+      else console.error(errorMessage(error));
       process.exit(1);
     }
   }
@@ -95,7 +100,7 @@ export function runMigrationCommand(command, { args, takeFlag, takeOption, targe
         for (const next of plan.nextCommands) console.log(`- ${next}`);
       }
     } catch (error) {
-      console.error(error.message);
+      console.error(errorMessage(error));
       process.exit(1);
     }
     return;
@@ -124,7 +129,7 @@ export function runMigrationCommand(command, { args, takeFlag, takeOption, targe
         ),
       );
     } catch (error) {
-      console.error(error.message);
+      console.error(errorMessage(error));
       process.exit(1);
     }
     return;
@@ -150,4 +155,16 @@ export function runMigrationCommand(command, { args, takeFlag, takeOption, targe
   }
 
   throw new Error(`Unsupported migration command: ${command}`);
+}
+
+function readProperty(value: unknown, key: string): unknown {
+  return isRecord(value) ? value[key] : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

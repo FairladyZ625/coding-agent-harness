@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
@@ -24,14 +23,16 @@ import { runTaskCommand } from "./commands/task-command.mjs";
 const args = process.argv.slice(2);
 const command = args.shift() || "help";
 
-function takeFlag(name, fallback = false) {
+type HarnessReport = { failures?: readonly string[]; warnings?: readonly string[] };
+
+function takeFlag(name: string, fallback = false): boolean {
   const index = args.indexOf(name);
   if (index < 0) return fallback;
   args.splice(index, 1);
   return true;
 }
 
-function takeOption(name, fallback = "") {
+function takeOption(name: string, fallback = ""): string {
   const index = args.indexOf(name);
   if (index < 0) return fallback;
   const value = args[index + 1] || fallback;
@@ -39,7 +40,7 @@ function takeOption(name, fallback = "") {
   return value;
 }
 
-async function resolveInitLocale(requestedLocale) {
+async function resolveInitLocale(requestedLocale: string): Promise<string> {
   if (requestedLocale) return normalizeLocale(requestedLocale);
   if (!process.stdin.isTTY || !process.stdout.isTTY) return "en-US";
 
@@ -73,7 +74,7 @@ async function confirmUserInstall({ yes = false, dryRun = false, agent = "codex"
   }
 }
 
-function targetArg() {
+function targetArg(): string {
   return args[args.length - 1] && !args[args.length - 1].startsWith("-") ? args[args.length - 1] : ".";
 }
 
@@ -143,7 +144,7 @@ Preset discovery:
 `);
 }
 
-function exitWithReport(report) {
+function exitWithReport(report: HarnessReport): void {
   for (const warning of report.warnings || []) console.log(`Warning: ${warning}`);
   for (const failure of report.failures || []) console.error(`Failure: ${failure}`);
   process.exit((report.failures || []).length > 0 ? 1 : 0);
@@ -202,7 +203,7 @@ if (command === "help" || command === "--help" || command === "-h") {
     const result = writeInitFiles(targetArg(), capabilities, { dryRun, locale, addNpmScripts });
     console.log(JSON.stringify({ dryRun, locale: result.locale, capabilities: result.capabilities, changes: result.changes, presetSeed: result.presetSeed, nextCommands: result.nextCommands, report: result.report }, null, 2));
   } catch (error) {
-    console.error(error.message);
+    console.error(errorMessage(error));
     process.exit(1);
   }
 } else if (command === "add-capability") {
@@ -217,7 +218,7 @@ if (command === "help" || command === "--help" || command === "-h") {
     const result = addCapability(targetArg(), capability, { dryRun, locale });
     console.log(JSON.stringify({ dryRun, registry: result.registry, changes: result.changes, report: result.report }, null, 2));
   } catch (error) {
-    console.error(error.message);
+    console.error(errorMessage(error));
     process.exit(1);
   }
 } else if (["migrate-plan", "migrate-structure", "migrate-run", "migrate-verify", "migrate-task-audit-index"].includes(command)) {
@@ -234,7 +235,7 @@ if (command === "help" || command === "--help" || command === "-h") {
   try {
     console.log(JSON.stringify(rebuildGovernanceIndexes(targetArg(), { dryRun, archive, apply }), null, 2));
   } catch (error) {
-    console.error(error.message);
+    console.error(errorMessage(error));
     process.exit(1);
   }
 } else if (command === "preset") {
@@ -244,17 +245,19 @@ if (command === "help" || command === "--help" || command === "-h") {
   const json = takeFlag("--json");
   const apply = takeFlag("--apply");
   try {
-    const result = subcommand === "audit"
-      ? auditTemplateProjections(targetArg())
-      : subcommand === "refresh"
-        ? refreshTemplateProjections(targetArg(), { apply })
-        : null;
-    if (!result) throw new Error(`Unknown templates subcommand: ${subcommand}`);
-    if (json) console.log(JSON.stringify(result, null, 2));
-    else if (subcommand === "audit") console.log(`Template projection audit: ${result.summary.refreshable} refreshable, ${result.summary.reportOnly} report-only`);
-    else console.log(`Template projection refresh ${result.dryRun ? "dry-run" : "applied"}: ${result.changes.length} changes`);
+    if (subcommand === "audit") {
+      const result = auditTemplateProjections(targetArg());
+      if (json) console.log(JSON.stringify(result, null, 2));
+      else console.log(`Template projection audit: ${result.summary.refreshable} refreshable, ${result.summary.reportOnly} report-only`);
+    } else if (subcommand === "refresh") {
+      const result = refreshTemplateProjections(targetArg(), { apply });
+      if (json) console.log(JSON.stringify(result, null, 2));
+      else console.log(`Template projection refresh ${result.dryRun ? "dry-run" : "applied"}: ${result.changes.length} changes`);
+    } else {
+      throw new Error(`Unknown templates subcommand: ${subcommand}`);
+    }
   } catch (error) {
-    console.error(error.message);
+    console.error(errorMessage(error));
     process.exit(1);
   }
 } else if (["new-task", "task-phase", "task-start", "task-log", "task-block", "task-review", "task-complete", "review-confirm", "lesson-promote", "lesson-sediment", "task-list", "task-index", "task-supersede", "task-delete", "task-archive", "task-reopen", "module-step"].includes(command)) {
@@ -274,7 +277,7 @@ if (command === "help" || command === "--help" || command === "-h") {
   try {
     console.log(JSON.stringify(installUserSkill({ agent, home, dryRun, force, seedPresets: !skipPresets }), null, 2));
   } catch (error) {
-    console.error(error.message);
+    console.error(errorMessage(error));
     process.exit(1);
   }
 } else if (command === "doctor-user") {
@@ -285,10 +288,12 @@ if (command === "help" || command === "--help" || command === "-h") {
     console.log(JSON.stringify(report, null, 2));
     process.exit(report.status === "pass" ? 0 : 1);
   } catch (error) {
-    console.error(error.message);
+    console.error(errorMessage(error));
     process.exit(1);
   }
 } else {
   printHelp();
   process.exit(2);
 }
+
+function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }
