@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -7,7 +6,41 @@ import {
 } from "./markdown-utils.mjs";
 import { toPosix } from "./core-shared.mjs";
 
-export const allowedLessonCandidateTaskStatuses = new Set([
+type LessonCandidateRow = {
+  id: string;
+  status: string;
+  title: string;
+  scope: string;
+  moduleKey: string;
+  detailArtifact: string;
+  boundaryReason: string;
+  whyItMightMatter: string;
+  reviewDecision: string;
+  promotionTarget: string;
+  conflictCheck: string;
+  requiredStandardUpdate: string;
+  followUpTask: string;
+  originalRow: string;
+  [key: string]: string;
+};
+
+type LessonCandidateStatusSummary = {
+  status: string;
+  declaredStatus: string;
+  schemaVersion: string;
+  reviewDecision: string;
+  promotionState: string;
+  closeoutToken: string;
+  rows: LessonCandidateRow[];
+  openCount: number;
+  issues: string[];
+};
+
+type LessonCandidateTarget = {
+  projectRoot: string;
+};
+
+export const allowedLessonCandidateTaskStatuses = new Set<string>([
   "missing",
   "pending-review",
   "no-candidate-accepted",
@@ -16,21 +49,21 @@ export const allowedLessonCandidateTaskStatuses = new Set([
   "rejected",
 ]);
 
-export const allowedLessonCandidateRowStatuses = new Set([
+export const allowedLessonCandidateRowStatuses = new Set<string>([
   "ready-for-review",
   "needs-promotion",
   "promoted",
   "rejected",
 ]);
 
-export const reviewCompleteLessonCandidateStatuses = new Set([
+export const reviewCompleteLessonCandidateStatuses = new Set<string>([
   "no-candidate-accepted",
   "needs-promotion",
   "promoted",
   "rejected",
 ]);
 
-export function parseLessonCandidateStatus(content) {
+export function parseLessonCandidateStatus(content: unknown): LessonCandidateStatusSummary {
   const text = String(content || "");
   if (!text.trim()) {
     return emptyLessonCandidateStatus("missing", ["missing-candidate-file"]);
@@ -43,7 +76,7 @@ export function parseLessonCandidateStatus(content) {
   const closeoutToken = String(fields.get("closeout token") || "pending").trim();
   const candidateTable = lessonCandidateRows(text);
   const rows = candidateTable.rows;
-  const issues = [];
+  const issues: string[] = [];
 
   if (!allowedLessonCandidateTaskStatuses.has(declaredStatus)) {
     issues.push(`invalid-task-status:${declaredStatus}`);
@@ -64,7 +97,7 @@ export function parseLessonCandidateStatus(content) {
         ["conflictCheck", "Conflict Check"],
         ["requiredStandardUpdate", "Required Standard Update"],
         ["followUpTask", "Follow-up Task"],
-      ]) {
+      ] as const) {
         if (!String(row[field] || "").trim()) issues.push(`missing-row-field:${row.id || "missing-id"}:${label}`);
       }
     }
@@ -91,13 +124,13 @@ export function parseLessonCandidateStatus(content) {
   };
 }
 
-export function isLessonCandidateDecisionComplete(candidateStatus) {
+export function isLessonCandidateDecisionComplete(candidateStatus: { status?: string; issues?: unknown[] } | null | undefined): boolean {
   if (!candidateStatus || candidateStatus.issues?.length) return false;
-  return reviewCompleteLessonCandidateStatuses.has(candidateStatus.status);
+  return reviewCompleteLessonCandidateStatuses.has(String(candidateStatus.status || ""));
 }
 
-export function validateLessonCandidateDetailArtifacts(target, taskDir, candidateStatus) {
-  const issues = [];
+export function validateLessonCandidateDetailArtifacts(target: LessonCandidateTarget, taskDir: string, candidateStatus: { rows?: Array<Partial<LessonCandidateRow>> } | null | undefined): string[] {
+  const issues: string[] = [];
   const rows = Array.isArray(candidateStatus?.rows) ? candidateStatus.rows : [];
   for (const row of rows.filter((candidate) => candidate.status === "needs-promotion")) {
     const rawPath = String(row.detailArtifact || "").trim();
@@ -114,7 +147,7 @@ export function validateLessonCandidateDetailArtifacts(target, taskDir, candidat
   return issues;
 }
 
-function emptyLessonCandidateStatus(status, issues = []) {
+function emptyLessonCandidateStatus(status: string, issues: string[] = []): LessonCandidateStatusSummary {
   return {
     status,
     declaredStatus: status,
@@ -128,11 +161,11 @@ function emptyLessonCandidateStatus(status, issues = []) {
   };
 }
 
-function lessonCandidateFields(content) {
+function lessonCandidateFields(content: string): Map<string, string> {
   const { header, rows } = tableAfterHeading(content, /^Field$/i);
   const fieldIndex = firstColumn(header, ["Field", "字段"]);
   const valueIndex = firstColumn(header, ["Value", "值"]);
-  const fields = new Map();
+  const fields = new Map<string, string>();
   if (fieldIndex < 0 || valueIndex < 0) return fields;
   for (const row of rows) {
     const key = String(row[fieldIndex] || "").trim().toLowerCase();
@@ -141,7 +174,7 @@ function lessonCandidateFields(content) {
   return fields;
 }
 
-function resolveTaskLocalLessonArtifact(target, taskDir, artifactPath) {
+function resolveTaskLocalLessonArtifact(target: LessonCandidateTarget, taskDir: string, artifactPath: string): string {
   const raw = String(artifactPath || "").trim();
   if (!raw) return "";
   if (/^(?:https?:|file:|[A-Za-z]:\\|\/)/.test(raw)) return "";
@@ -151,12 +184,12 @@ function resolveTaskLocalLessonArtifact(target, taskDir, artifactPath) {
   return path.resolve(target.projectRoot, relative);
 }
 
-function isInsideDirectory(parent, child) {
+function isInsideDirectory(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
   return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
-function lessonCandidateRows(content) {
+function lessonCandidateRows(content: string): { rows: LessonCandidateRow[]; missingColumns: string[] } {
   const { header, rows } = tableAfterHeading(content, /^ID$/i);
   const idIndex = firstColumn(header, ["ID", "候选 ID"]);
   const statusIndex = firstColumn(header, ["Row Status", "行状态", "Status", "状态"]);
@@ -172,7 +205,7 @@ function lessonCandidateRows(content) {
   const requiredUpdateIndex = firstColumn(header, ["Required Standard Update", "必需标准更新"]);
   const followUpIndex = firstColumn(header, ["Follow-up Task", "Followup Task", "后续任务"]);
   if (idIndex < 0 || statusIndex < 0) return { rows: [], missingColumns: [] };
-  const requiredColumnSpecs = [
+  const requiredColumnSpecs: Array<[string, number]> = [
     ["Scope", scopeIndex],
     ["Detail Artifact", detailArtifactIndex],
     ["Boundary Reason", boundaryIndex],
@@ -206,7 +239,7 @@ function lessonCandidateRows(content) {
   };
 }
 
-function normalizeLessonCandidateStatus(value) {
+function normalizeLessonCandidateStatus(value: unknown): string {
   return String(value || "")
     .replace(/`/g, "")
     .trim()
@@ -215,11 +248,11 @@ function normalizeLessonCandidateStatus(value) {
     .replace(/\s+/g, "-");
 }
 
-function normalizeCandidateField(value) {
+function normalizeCandidateField(value: unknown): string {
   return String(value || "").replace(/`/g, "").trim().toLowerCase().replaceAll("_", "-").replace(/\s+/g, "-");
 }
 
-function aggregateLessonCandidateStatus(rows, declaredStatus) {
+function aggregateLessonCandidateStatus(rows: LessonCandidateRow[], declaredStatus: string): string {
   if (rows.length === 0) return declaredStatus === "no-candidate-accepted" ? "no-candidate-accepted" : declaredStatus;
   const statuses = rows.map((row) => row.status);
   if (statuses.includes("ready-for-review")) return "pending-review";
@@ -230,7 +263,7 @@ function aggregateLessonCandidateStatus(rows, declaredStatus) {
   return declaredStatus;
 }
 
-function noCandidateReason(content) {
+function noCandidateReason(content: unknown): string {
   const lines = String(content || "").split(/\r?\n/);
   const start = lines.findIndex((line) => /^##\s*No-Candidate Reason\s*$/i.test(line.trim()));
   if (start < 0) return "";
