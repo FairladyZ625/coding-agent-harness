@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
@@ -66,34 +65,37 @@ const lessonsNonePattern = /checked-none:\s*\S+/i;
 const lessonsCandidatePattern = /checked-candidate:\s*(LC-[A-Za-z0-9-]+)/i;
 const lessonsQueuedPromotionPattern = /queued-promotion:\s*(LC-[A-Za-z0-9-]+)/i;
 
-const failures = [];
-const warnings = [];
+type MarkdownRow = string[];
+type ContentTerm = string | RegExp;
 
-function rel(file) {
+const failures: string[] = [];
+const warnings: string[] = [];
+
+function rel(file: string): string {
   return file.split(path.sep).join("/");
 }
 
-function filePath(relativePath) {
+function filePath(relativePath: string): string {
   return path.join(targetRoot, relativePath);
 }
 
-function exists(relativePath) {
+function exists(relativePath: string): boolean {
   return fs.existsSync(filePath(relativePath));
 }
 
-function read(relativePath) {
+function read(relativePath: string): string {
   return fs.readFileSync(filePath(relativePath), "utf8");
 }
 
-function fail(message) {
+function fail(message: string) {
   failures.push(message);
 }
 
-function warn(message) {
+function warn(message: string) {
   warnings.push(message);
 }
 
-function requireFile(relativePath) {
+function requireFile(relativePath: string): boolean {
   if (!exists(relativePath)) {
     fail(`missing required file: ${relativePath}`);
     return false;
@@ -151,7 +153,7 @@ function checkAgentsIndex() {
   }
 }
 
-function checkNoGenericPlaceholders(relativePath, { allowTemplates = false } = {}) {
+function checkNoGenericPlaceholders(relativePath: string, { allowTemplates = false }: { allowTemplates?: boolean } = {}) {
   if (!exists(relativePath)) return;
   const content = read(relativePath);
   if (allowTemplates) return;
@@ -276,7 +278,7 @@ function checkHarnessLedger() {
   }
 }
 
-function markdownTableRows(content, idPattern) {
+function markdownTableRows(content: string, idPattern: RegExp): MarkdownRow[] {
   return content
     .split(/\r?\n/)
     .filter((line) => line.trim().startsWith("|"))
@@ -284,26 +286,26 @@ function markdownTableRows(content, idPattern) {
     .filter((cells) => cells.length > 0 && idPattern.test(cells[0] || ""));
 }
 
-function markdownTable(content) {
+function markdownTable(content: string): MarkdownRow[] {
   return content
     .split(/\r?\n/)
     .filter((line) => line.trim().startsWith("|"))
     .map((line) => line.split("|").slice(1, -1).map((cell) => cell.trim()));
 }
 
-function findHeaderIndex(rows, pattern) {
+function findHeaderIndex(rows: MarkdownRow[], pattern: RegExp): number {
   return rows.findIndex((cells) => cells.some((cell) => pattern.test(cell)));
 }
 
-function contentIncludesAny(content, terms) {
+function contentIncludesAny(content: string, terms: readonly ContentTerm[]): boolean {
   return terms.some((term) => (term instanceof RegExp ? term.test(content) : content.includes(term)));
 }
 
-function columnIndexAny(header, patterns) {
+function columnIndexAny(header: MarkdownRow, patterns: readonly RegExp[]): number {
   return header.findIndex((cell) => patterns.some((pattern) => pattern.test(cell)));
 }
 
-function checkDuplicateIds(rows, sourcePath) {
+function checkDuplicateIds(rows: MarkdownRow[], sourcePath: string) {
   const seen = new Set();
   for (const cells of rows) {
     const id = cells[0];
@@ -397,9 +399,9 @@ function checkCloseoutSsot() {
   }
 }
 
-function collectLessonIds() {
+function collectLessonIds(): Set<string> {
   const root = filePath("docs/01-GOVERNANCE/lessons");
-  const ids = new Set();
+  const ids = new Set<string>();
   if (!fs.existsSync(root)) return ids;
   for (const entry of fs.readdirSync(root)) {
     if (!entry.endsWith(".md")) continue;
@@ -414,11 +416,11 @@ function collectLessonIds() {
   return ids;
 }
 
-function collectLessonCandidateIds() {
+function collectLessonCandidateIds(): Set<string> {
   const root = filePath("docs/09-PLANNING");
-  const ids = new Set();
+  const ids = new Set<string>();
   if (!fs.existsSync(root)) return ids;
-  function visit(dir) {
+  function visit(dir: string) {
     for (const entry of fs.readdirSync(dir)) {
       const full = path.join(dir, entry);
       const stat = fs.statSync(full);

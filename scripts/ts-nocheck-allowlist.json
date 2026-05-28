@@ -2,8 +2,6 @@
   "generated_at": "2026-05-28",
   "files": [
     "scripts/build-dist.mts",
-    "scripts/check-dist-observation.mts",
-    "scripts/check-harness.mts",
     "scripts/commands/dashboard-command.mts",
     "scripts/commands/migration-command.mts",
     "scripts/commands/preset-command.mts",
