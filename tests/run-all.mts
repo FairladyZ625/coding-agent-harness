@@ -11,6 +11,7 @@ const suites = [
   "tests/directory-structure-v2.mjs",
   "tests/hard-cutover-guards.mjs",
   "tests/type-boundary-guards.mjs",
+  "tests/no-ts-nocheck-gate.mjs",
   "tests/import-graph-gate.mjs",
   "tests/snapshot-matrix-tooling.mjs",
   "tests/shared-type-islands.mjs",

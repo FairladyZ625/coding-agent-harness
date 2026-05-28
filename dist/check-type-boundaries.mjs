@@ -6,24 +6,27 @@ import { fileURLToPath } from "node:url";
 const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRoots = ["scripts", "tests"];
 const importPattern = /\b(import|export)\s+(type\s+)?(?:[^'"]*?\s+from\s+)?["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
-const tsEscapePattern = /@(ts-ignore|ts-expect-error)\b|(?:^|[^A-Za-z0-9_$])(?:as\s+any|:\s*any\b)/;
-export function checkTypeBoundaries({ repoRoot = defaultRepoRoot } = {}) {
+const tsEscapePattern = /@(ts-ignore|ts-expect-error)\b|\bas\s+unknown\s+as\b|\bRecord\s*<\s*string\s*,\s*any\s*>|(?:^|[^A-Za-z0-9_$])(?:as\s+any|:\s*any\b)/;
+export function checkTypeBoundaries({ repoRoot = defaultRepoRoot, escapeAllowlistPath = path.join(repoRoot, "scripts/type-escape-allowlist.json"), } = {}) {
     const files = collectSourceFiles(repoRoot);
     const violations = [];
+    const escapeAllowlist = readEscapeAllowlist(escapeAllowlistPath);
     for (const file of files) {
         const absolutePath = path.join(repoRoot, file);
         const content = fs.readFileSync(absolutePath, "utf8");
         const imports = parseImports(content);
-        if (file.endsWith(".ts")) {
+        if (file.endsWith(".ts") || file.endsWith(".mts")) {
             const lines = content.split(/\r?\n/);
             for (const [index, line] of lines.entries()) {
                 if (tsEscapePattern.test(line)) {
-                    violations.push({
+                    const violation = {
                         code: "ts-escape-hatch",
                         file,
                         line: index + 1,
                         message: `${file}:${index + 1} uses a TypeScript escape hatch that requires review`,
-                    });
+                    };
+                    if (!isEscapeAllowed(escapeAllowlist, violation))
+                        violations.push(violation);
                 }
             }
         }
@@ -127,7 +130,21 @@ function hasTypeScriptSourceExtension(filePath) {
     return typeof filePath === "string" && /\.(mts|ts)$/.test(filePath);
 }
 function isTypeOnlyTypeScriptImport(file, imported) {
-    return file.endsWith(".ts") && imported.kind === "import" && imported.typeOnly;
+    return (file.endsWith(".ts") || file.endsWith(".mts")) && imported.kind === "import" && imported.typeOnly;
+}
+function readEscapeAllowlist(allowlistPath) {
+    if (!allowlistPath || !fs.existsSync(allowlistPath))
+        return new Set();
+    const parsed = JSON.parse(fs.readFileSync(allowlistPath, "utf8"));
+    const entries = Array.isArray(parsed) ? parsed : parsed.escapes || [];
+    return new Set(entries.map((entry) => {
+        if (typeof entry === "string")
+            return entry;
+        return `${entry.file}:${entry.line}:${entry.code || "ts-escape-hatch"}`;
+    }));
+}
+function isEscapeAllowed(allowlist, violation) {
+    return allowlist.has(`${violation.file}:${violation.line}:${violation.code}`) || allowlist.has(`${violation.file}:${violation.line}`);
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const result = checkTypeBoundaries();

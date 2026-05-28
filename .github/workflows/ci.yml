@@ -35,6 +35,12 @@ jobs:
         if: github.event_name != 'pull_request'
         run: git diff --check HEAD^..HEAD
 
+      - name: Run root typecheck
+        run: npm run typecheck
+
+      - name: Run type boundary guards
+        run: npm run typecheck:guards
+
       - name: Run root tests
         run: npm test
 
