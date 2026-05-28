@@ -42,7 +42,7 @@ npm ci
 | 改动类型 | 最小本地检查 |
 | --- | --- |
 | 仅文档 | `git diff --check` |
-| CLI / runtime | `npm test`, `npm run check`, `git diff --check` |
+| CLI / runtime | `npm run typecheck`, `npm run typecheck:guards`, `npm test`, `npm run check`, `git diff --check` |
 | 模板或示例 | `npm test`, `npm run build:runtime`, `node dist/harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
 | Dashboard | `npm test`, `npm run smoke:dashboard`, `git diff --check` |
 | Package surface | `npm test`, `npm run pack:dry-run`, `git diff --check` |
@@ -52,6 +52,8 @@ npm ci
 
 ```bash
 npm run build:runtime
+npm run typecheck
+npm run typecheck:guards
 npm test
 npm run smoke:dashboard
 npm run check
@@ -101,4 +103,4 @@ GitHub Actions 会运行贡献者本地也应覆盖的主要 gate：
 - npm package dry run
 - GUI 子模块 typecheck、测试和 build
 
-GitHub branch protection 和 required checks 由仓库 owner 在 GitHub 上管理。贡献者只需要让 PR 聚焦、说明清楚并附上验证证据。
+GitHub branch protection 和 required checks 由仓库 owner 在 GitHub 上管理。根仓 CI 已包含 enforced TypeScript integrity gate：`npm run typecheck` 和 `npm run typecheck:guards`，其中包括 no-`@ts-nocheck` 防回归检查。贡献者只需要让 PR 聚焦、说明清楚并附上验证证据。
