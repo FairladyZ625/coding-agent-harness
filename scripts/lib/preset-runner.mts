@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Generic preset entrypoint runner. Domain logic belongs in preset packages.
 
 import fs from "node:fs";
@@ -22,13 +21,60 @@ import { taskIdForDirectory } from "./task-scanner.mjs";
 import { resolveTaskDirectory } from "./task-lifecycle.mjs";
 import { evaluateTemplateValues, assertPresetWriteScope, resolvePresetScopes } from "./preset-engine.mjs";
 import { buildPresetAudit, readPresetPackage } from "./preset-registry.mjs";
+import type { PresetEntrypoint, PresetPackage, PresetResolvedInputs, PresetTarget } from "./types/preset.js";
 
 const materializationSchemaVersion = "preset-materialization/v1";
 const maxMaterializedFileBytes = 10 * 1024 * 1024;
 const maxMaterializedWrites = 500;
 
-export function runPresetEntrypoint(presetId, entrypointName, { taskRef = "", targetInput = ".", json = false } = {}) {
-  const target = normalizeTarget(targetInput);
+type PresetRunOptions = {
+  taskRef?: string;
+  targetInput?: string;
+  json?: boolean;
+};
+
+type PresetTaskMetadata = {
+  preset?: string;
+  evidenceBundle?: string;
+};
+
+type MaterializationManifest = {
+  schemaVersion: string;
+  writes: MaterializationWriteDeclaration[];
+  status?: string;
+  publicRedactionReport?: {
+    source?: string;
+  };
+};
+
+type MaterializationWriteDeclaration = {
+  source?: unknown;
+  destination?: unknown;
+  type?: unknown;
+  visibility?: unknown;
+};
+
+type MaterializedWrite = {
+  source: string;
+  sourcePath: string;
+  destination: string;
+  destinationPath: string;
+  type: string;
+  visibility: string;
+  sha256: string;
+};
+
+type FileSnapshot = Map<string, string>;
+
+type BackupRecord = {
+  destinationPath: string;
+  backupPath: string;
+  existed: boolean;
+};
+
+export function runPresetEntrypoint(presetId: string, entrypointName: string, { taskRef = "", targetInput = ".", json = false }: PresetRunOptions = {}) {
+  void json;
+  const target = normalizeTarget(targetInput) as PresetTarget;
   const preset = readPresetPackage(presetId, { targetInput });
   const entrypoint = preset.entrypoints?.[entrypointName];
   if (!entrypoint) throw new Error(`Preset ${preset.id} does not declare entrypoint: ${entrypointName}`);
@@ -124,27 +170,32 @@ export function runPresetEntrypoint(presetId, entrypointName, { taskRef = "", ta
   }
 }
 
-function readResolvedInputs(target, metadata) {
+function readResolvedInputs(target: PresetTarget, metadata: PresetTaskMetadata): PresetResolvedInputs {
   const evidenceBundle = String(metadata.evidenceBundle || "").replace(/^TARGET:/, "").replace(/^\/+/, "");
   if (!evidenceBundle) return {};
   const auditPath = path.join(target.projectRoot, evidenceBundle, "preset-audit.json");
-  const audit = readJsonSafe(auditPath, {});
-  return audit.resolvedInputs || {};
+  const audit = asRecord(readJsonSafe(auditPath, {}));
+  return asRecord(audit.resolvedInputs);
 }
 
-function readMaterializationManifest(manifestPath) {
+function readMaterializationManifest(manifestPath: string): MaterializationManifest {
   if (!fs.existsSync(manifestPath)) throw new Error("Preset entrypoint did not emit materialization manifest");
   const manifest = readJsonSafe(manifestPath, null);
-  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) throw new Error("Invalid preset materialization manifest");
+  if (!isRecord(manifest)) throw new Error("Invalid preset materialization manifest");
   if (manifest.schemaVersion !== materializationSchemaVersion) throw new Error(`Invalid preset materialization schema: ${manifest.schemaVersion || "(missing)"}`);
   if (!Array.isArray(manifest.writes)) throw new Error("Preset materialization manifest writes must be an array");
   if (manifest.writes.length > maxMaterializedWrites) throw new Error(`Preset materialization manifest has too many writes: ${manifest.writes.length}`);
-  return manifest;
+  return {
+    schemaVersion: String(manifest.schemaVersion),
+    writes: manifest.writes.map((write) => asRecord(write)),
+    status: manifest.status === undefined ? undefined : String(manifest.status),
+    publicRedactionReport: isRecord(manifest.publicRedactionReport) ? { source: String(manifest.publicRedactionReport.source || "") } : undefined,
+  };
 }
 
-function validateMaterializationManifest(preset, entrypoint, manifest, { outputRoot, target, entrypointName }) {
+function validateMaterializationManifest(preset: PresetPackage, entrypoint: PresetEntrypoint, manifest: MaterializationManifest, { outputRoot, target, entrypointName }: { outputRoot: string; target: PresetTarget; entrypointName: string }): MaterializedWrite[] {
   const targetRoot = target.projectRoot;
-  const seenDestinations = new Set();
+  const seenDestinations = new Set<string>();
   const writes = manifest.writes.map((write, index) => {
     const source = normalizeManifestRelativePath(write.source, "Manifest source");
     const destination = normalizeManifestRelativePath(write.destination, "Manifest destination");
@@ -170,7 +221,7 @@ function validateMaterializationManifest(preset, entrypoint, manifest, { outputR
   return writes;
 }
 
-function normalizeManifestRelativePath(value, label) {
+function normalizeManifestRelativePath(value: unknown, label: string): string {
   const raw = String(value || "").trim();
   const normalized = toPosix(path.normalize(raw));
   if (!raw || path.isAbsolute(raw) || normalized === "." || normalized === ".." || normalized.startsWith("../") || normalized.includes("/../")) {
@@ -179,7 +230,7 @@ function normalizeManifestRelativePath(value, label) {
   return normalized;
 }
 
-function assertOutputSource(outputRoot, sourcePath, source) {
+function assertOutputSource(outputRoot: string, sourcePath: string, source: string): void {
   if (!fs.existsSync(sourcePath)) throw new Error(`Manifest source missing: ${source}`);
   const stat = fs.lstatSync(sourcePath);
   if (stat.isSymbolicLink()) throw new Error(`Manifest source must not be a symlink: ${source}`);
@@ -189,7 +240,7 @@ function assertOutputSource(outputRoot, sourcePath, source) {
   if (!isInside(realRoot, realSource)) throw new Error(`Manifest source escapes preset output root: ${source}`);
 }
 
-function assertDestinationParent(targetRoot, destination) {
+function assertDestinationParent(targetRoot: string, destination: string): void {
   let parent = path.dirname(path.join(targetRoot, destination));
   const realTarget = fs.realpathSync(targetRoot);
   while (!fs.existsSync(parent) && parent !== targetRoot && parent !== path.dirname(parent)) parent = path.dirname(parent);
@@ -201,7 +252,7 @@ function assertDestinationParent(targetRoot, destination) {
   }
 }
 
-function assertEntrypointWriteScope(preset, entrypoint, destination, target, entrypointName) {
+function assertEntrypointWriteScope(preset: PresetPackage, entrypoint: PresetEntrypoint, destination: string, target: PresetTarget, entrypointName: string): void {
   assertPresetWriteScope(preset, destination, target);
   const resolved = resolvePresetScopes(preset, target).entrypoints[entrypointName] || entrypoint.writes;
   if (!resolved.some((scope) => matchesScope(scope, destination))) {
@@ -209,7 +260,7 @@ function assertEntrypointWriteScope(preset, entrypoint, destination, target, ent
   }
 }
 
-function matchesScope(scope, relativePath) {
+function matchesScope(scope: string, relativePath: string): boolean {
   const normalizedScope = toPosix(path.normalize(String(scope || "")));
   if (normalizedScope.endsWith("/**")) {
     const prefix = normalizedScope.slice(0, -3);
@@ -218,18 +269,18 @@ function matchesScope(scope, relativePath) {
   return relativePath === normalizedScope;
 }
 
-function enforcePublicRedaction(manifest, writes, { outputRoot }) {
+function enforcePublicRedaction(manifest: MaterializationManifest, writes: MaterializedWrite[], { outputRoot }: { outputRoot: string }): void {
   const publicWrites = writes.filter((write) => write.visibility === "public" || write.destination.startsWith("docs-release/"));
   if (publicWrites.length === 0) return;
   const reportSource = normalizeManifestRelativePath(manifest.publicRedactionReport?.source || "", "Public redaction report source");
   const reportPath = path.join(outputRoot, reportSource);
   assertOutputSource(outputRoot, reportPath, reportSource);
-  const report = readJsonSafe(reportPath, null);
-  if (!report || report.status !== "pass") throw new Error("Public materialization requires a passing public redaction report");
+  const report = asRecord(readJsonSafe(reportPath, null));
+  if (report.status !== "pass") throw new Error("Public materialization requires a passing public redaction report");
 }
 
-function materializeWrites(targetRoot, writes) {
-  const backups = [];
+function materializeWrites(targetRoot: string, writes: MaterializedWrite[]): void {
+  const backups: BackupRecord[] = [];
   try {
     for (const write of writes) {
       const destinationPath = write.destinationPath;
@@ -262,8 +313,8 @@ function materializeWrites(targetRoot, writes) {
   }
 }
 
-function targetSnapshot(root) {
-  const entries = new Map();
+function targetSnapshot(root: string): FileSnapshot {
+  const entries: FileSnapshot = new Map();
   for (const filePath of walkFiles(root)) {
     const relative = toPosix(path.relative(root, filePath));
     if (relative.startsWith(".harness/locks/")) continue;
@@ -273,8 +324,8 @@ function targetSnapshot(root) {
   return entries;
 }
 
-function assertSnapshotsEqual(before, after, message) {
-  const changed = [];
+function assertSnapshotsEqual(before: FileSnapshot, after: FileSnapshot, message: string): void {
+  const changed: string[] = [];
   const paths = new Set([...before.keys(), ...after.keys()]);
   for (const item of paths) {
     if (before.get(item) !== after.get(item)) changed.push(item);
@@ -282,11 +333,19 @@ function assertSnapshotsEqual(before, after, message) {
   if (changed.length) throw new Error(`${message}: ${changed.slice(0, 12).join(", ")}`);
 }
 
-function sha256File(filePath) {
+function sha256File(filePath: string): string {
   return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
 
-function isInside(root, candidate) {
+function isInside(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
 }
