@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -17,7 +16,22 @@ import {
   releaseGovernanceSync,
 } from "./governance-sync.mjs";
 
-export function supersedeTask(targetInput, oldRef, { by = "", reason = "" } = {}) {
+type TombstoneTarget = ReturnType<typeof normalizeTarget>;
+type TombstoneTask = ReturnType<typeof collectTasks>[number];
+type GovernanceContext = ReturnType<typeof beginGovernanceSync>;
+type TombstoneOptions = {
+  reason?: string;
+};
+type SupersedeOptions = TombstoneOptions & {
+  by?: string;
+};
+type ArchiveOptions = TombstoneOptions & {
+  archivedBy?: string;
+  archiveFields?: Record<string, unknown>;
+};
+type TombstoneFields = Record<string, unknown>;
+
+export function supersedeTask(targetInput: string, oldRef: string, { by = "", reason = "" }: SupersedeOptions = {}) {
   if (!by) throw new Error("task-supersede requires --by <new-task-id>");
   const target = normalizeTarget(targetInput);
   const oldTask = resolveTask(target, oldRef);
@@ -44,13 +58,13 @@ export function supersedeTask(targetInput, oldRef, { by = "", reason = "" } = {}
   }
 }
 
-export function softDeleteTask(targetInput, taskRef, { reason = "" } = {}) {
+export function softDeleteTask(targetInput: string, taskRef: string, { reason = "" }: TombstoneOptions = {}) {
   const target = normalizeTarget(targetInput);
   const task = resolveTask(target, taskRef);
   return writeDeletionState(target, task, "soft-deleted", reason || "soft-delete", "task-delete --soft");
 }
 
-export function archiveTask(targetInput, taskRef, { reason = "", archivedBy = "", archiveFields = {} } = {}) {
+export function archiveTask(targetInput: string, taskRef: string, { reason = "", archivedBy = "", archiveFields = {} }: ArchiveOptions = {}) {
   const target = normalizeTarget(targetInput);
   const task = resolveTask(target, taskRef);
   const archiveAudit = assertArchiveEligible(task, { archivedBy });
@@ -60,7 +74,7 @@ export function archiveTask(targetInput, taskRef, { reason = "", archivedBy = ""
   });
 }
 
-export function reopenTask(targetInput, taskRef, { reason = "" } = {}) {
+export function reopenTask(targetInput: string, taskRef: string, { reason = "" }: TombstoneOptions = {}) {
   const target = normalizeTarget(targetInput);
   const task = resolveTask(target, taskRef);
   const governanceContext = beginGovernanceSync(target, { operation: `task-reopen ${task.id}` });
@@ -79,7 +93,7 @@ export function reopenTask(targetInput, taskRef, { reason = "" } = {}) {
   }
 }
 
-function writeDeletionState(target, task, deletionState, reason, action, archiveFields = {}) {
+function writeDeletionState(target: TombstoneTarget, task: TombstoneTask, deletionState: string, reason: string, action: string, archiveFields: TombstoneFields = {}) {
   const normalizedArchiveFields = normalizeArchiveFields(archiveFields);
   const governanceContext = beginGovernanceSync(target, { operation: `${action} ${task.id}` });
   try {
@@ -102,15 +116,15 @@ function writeDeletionState(target, task, deletionState, reason, action, archive
   }
 }
 
-function taskPaths(target, ...tasks) {
+function taskPaths(target: TombstoneTarget, ...tasks: TombstoneTask[]): string[] {
   return [...new Set(tasks.flatMap((task) => [task.taskPlanPath, task.progressPath]).filter(Boolean).map((item) => toPosix(item.replace(/^TARGET:/, ""))))];
 }
 
-function contextFor(_target, context) {
+function contextFor(_target: TombstoneTarget, context: GovernanceContext): GovernanceContext {
   return context;
 }
 
-function resolveTask(target, ref) {
+function resolveTask(target: TombstoneTarget, ref: string): TombstoneTask {
   const normalized = String(ref || "").trim();
   const matches = collectTasks(target).filter((task) => {
     const bare = datePrefix.test(task.shortId) ? task.shortId.replace(datePrefix, "") : task.shortId;
@@ -121,20 +135,20 @@ function resolveTask(target, ref) {
   throw new Error(`Task not found: ${ref}`);
 }
 
-function assertArchiveEligible(task, { archivedBy = "" } = {}) {
+function assertArchiveEligible(task: TombstoneTask, { archivedBy = "" }: { archivedBy?: string } = {}): Record<string, string> {
   if (task.state === "blocked" || (task.taskQueues || []).includes("blocked")) {
     throw new Error("blocked tasks cannot be archived without an explicit human waiver");
   }
-  const blockingRisks = (task.risks || []).filter((risk) => risk.open !== "no" && (risk.blocksRelease === "yes" || ["P0", "P1", "P2"].includes(risk.severity)));
+  const blockingRisks = (task.risks || []).filter((risk) => String(risk.open) !== "no" && (String(risk.blocksRelease) === "yes" || ["P0", "P1", "P2"].includes(String(risk.severity))));
   if (blockingRisks.length) throw new Error("tasks with open blocking review findings cannot be archived without an explicit human waiver");
   if (task.materialsReady === false && task.reviewStatus !== "confirmed") {
     throw new Error("tasks with incomplete closeout materials cannot be archived without an explicit human waiver");
   }
-  const confirmation = task.reviewConfirmation || {};
+  const confirmation = (task.reviewConfirmation || {}) as Record<string, unknown>;
   if (confirmation.confirmed !== true) {
     throw new Error("Human review confirmation is required before task archive");
   }
-  const missingConfirmationFields = [];
+  const missingConfirmationFields: string[] = [];
   if (!isConcreteAuditField(confirmation.confirmationId)) missingConfirmationFields.push("Confirmation ID");
   if (!isConcreteAuditField(confirmation.confirmedAt)) missingConfirmationFields.push("Confirmed At");
   if (!isConcreteAuditField(confirmation.reviewer)) missingConfirmationFields.push("Reviewer");
@@ -149,28 +163,28 @@ function assertArchiveEligible(task, { archivedBy = "" } = {}) {
   return {
     "Archived By": actor,
     "Archived At": nowTimestamp(),
-    "Review Confirmed By": confirmation.reviewer,
-    "Review Confirmed At": confirmation.confirmedAt,
-    "Review Confirmation ID": confirmation.confirmationId,
-    "Review Commit SHA": confirmation.commitSha,
+    "Review Confirmed By": String(confirmation.reviewer || ""),
+    "Review Confirmed At": String(confirmation.confirmedAt || ""),
+    "Review Confirmation ID": String(confirmation.confirmationId || ""),
+    "Review Commit SHA": String(confirmation.commitSha || ""),
   };
 }
 
-function normalizeArchiveActor(value) {
+function normalizeArchiveActor(value: unknown): string {
   const actor = String(value || "").replace(/\r?\n/g, " ").trim();
   if (!actor) return "";
   if (/^(coordinator|agent|unknown|n\/a|na|none|pending|todo|tbd)$/i.test(actor)) return "";
   return actor;
 }
 
-function writeTombstone(target, task, fields) {
+function writeTombstone(target: TombstoneTarget, task: TombstoneTask, fields: TombstoneFields): void {
   const taskPlanPath = path.join(target.projectRoot, task.taskPlanPath.replace(/^TARGET:/, ""));
   const content = removeHeadingSectionOutsideFences(readFileSafe(taskPlanPath), /^##\s*(?:Task Tombstone|任务墓碑)\s*$/i);
   const block = ["", "## Task Tombstone", "", "| Field | Value |", "| --- | --- |", ...Object.entries(fields).map(([key, value]) => `| ${key} | ${escapeCell(value)} |`), ""].join("\n");
   fs.writeFileSync(taskPlanPath, `${content.trimEnd()}\n${block}`);
 }
 
-function appendSupersedes(target, task, oldId) {
+function appendSupersedes(target: TombstoneTarget, task: TombstoneTask, oldId: string): void {
   const taskPlanPath = path.join(target.projectRoot, task.taskPlanPath.replace(/^TARGET:/, ""));
   const content = readFileSafe(taskPlanPath);
   if (/^Supersedes\s*[:：]/im.test(content)) {
@@ -180,19 +194,19 @@ function appendSupersedes(target, task, oldId) {
   fs.writeFileSync(taskPlanPath, `${content.trimEnd()}\nSupersedes: ${oldId}\n`);
 }
 
-function appendProgress(target, task, action, reason) {
+function appendProgress(target: TombstoneTarget, task: TombstoneTask, action: string, reason: string): void {
   const progressPath = path.join(target.projectRoot, task.progressPath.replace(/^TARGET:/, ""));
   const relative = toPosix(path.relative(target.projectRoot, progressPath));
   fs.appendFileSync(progressPath, `\n\n## Tombstone Log\n\n- ${nowTimestamp()} ${action}: ${escapeCell(reason)} (${relative})\n`);
 }
 
-function escapeCell(value) {
+function escapeCell(value: unknown): string {
   return String(value || "").replace(/\r?\n/g, " ").replaceAll("|", "\\|").trim();
 }
 
-function normalizeArchiveFields(fields) {
+function normalizeArchiveFields(fields: TombstoneFields): Record<string, string> {
   const entries = Object.entries(fields || {});
-  const normalized = {};
+  const normalized: Record<string, string> = {};
   const seen = new Set();
   for (const [rawKey, rawValue] of entries) {
     const key = String(rawKey || "").trim();

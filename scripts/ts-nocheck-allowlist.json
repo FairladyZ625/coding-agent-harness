@@ -3,9 +3,7 @@
   "files": [
     "scripts/lib/task-audit-metadata.mts",
     "scripts/lib/task-audit-migration.mts",
-    "scripts/lib/task-lesson-candidates.mts",
     "scripts/lib/task-lesson-sedimentation.mts",
-    "scripts/lib/task-tombstone-commands.mts",
     "tests/lifecycle/lifecycle-queues.mts",
     "tests/lifecycle/task-lifecycle.mts",
     "tests/migration-adoption.mts",
