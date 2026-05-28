@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Governance table parsing remains behavior-first until target/table domain types are modeled.
 
 import fs from "node:fs";
@@ -8,7 +7,34 @@ import { getCell, parseAllMarkdownTables } from "./markdown-utils.mjs";
 
 const newRuleCutoff = "2026-05-24";
 
-const globalTableSpecs = [
+type HarnessTarget = {
+  projectRoot: string;
+  harness: {
+    planningRoot: string;
+    ledgerPath: string;
+    closeoutIndexPath: string;
+    regressionRoot: string;
+  };
+};
+
+type GovernanceTableRow = {
+  id?: string;
+  cells: Record<string, string>;
+};
+
+type GovernanceFinding = {
+  reason: string;
+  route: string;
+};
+
+type GovernanceTableSpec = {
+  key: string;
+  pathFor: (target: HarnessTarget) => string;
+  allowed: string;
+  evaluate: (row: GovernanceTableRow) => GovernanceFinding[];
+};
+
+const globalTableSpecs: GovernanceTableSpec[] = [
   { key: "feature-ssot", pathFor: (target) => path.join(target.harness.planningRoot, "Feature-SSoT.md"), allowed: "index-state-route-summary", evaluate: evaluateFeatureRow },
   { key: "harness-ledger", pathFor: (target) => target.harness.ledgerPath, allowed: "task-audit-summary-route", evaluate: evaluateLedgerRow },
   { key: "closeout-ssot", pathFor: (target) => target.harness.closeoutIndexPath, allowed: "closeout-index-review-route-summary", evaluate: evaluateCloseoutRow },
@@ -16,9 +42,9 @@ const globalTableSpecs = [
   { key: "cadence-ledger", pathFor: (target) => path.join(target.harness.regressionRoot, "Cadence-Ledger.md"), allowed: "trigger-rule-and-batch-summary", evaluate: evaluateCadenceRow },
 ];
 
-export function validateGovernanceTableBoundaries(target) {
-  const failures = [];
-  const warnings = [];
+export function validateGovernanceTableBoundaries(target: HarnessTarget): { failures: string[]; warnings: string[] } {
+  const failures: string[] = [];
+  const warnings: string[] = [];
   for (const spec of globalTableSpecs) {
     const file = spec.pathFor(target);
     if (!fs.existsSync(file)) continue;
@@ -45,12 +71,12 @@ export function validateGovernanceTableBoundaries(target) {
   return { failures, warnings };
 }
 
-function evaluateFeatureRow(row) {
+function evaluateFeatureRow(row: GovernanceTableRow): GovernanceFinding[] {
   const cells = row.cells || {};
   const text = rowText(row);
   const taskPlan = getCell(cells, ["Task Plan", "Task", "任务计划", "路径"], "");
   const evidence = getCell(cells, ["Acceptance Evidence", "Evidence", "验收证据"], "");
-  const findings = [];
+  const findings: GovernanceFinding[] = [];
   if (/(?:09-PLANNING\/MODULES|planning\/modules)\//i.test(taskPlan) && !isModuleAggregateRow(row) && localDetailPattern().test(text)) {
     findings.push({
       reason: "module-local detail belongs in module_plan.md or task files, not Feature SSoT",
@@ -66,14 +92,14 @@ function evaluateFeatureRow(row) {
   return findings;
 }
 
-function isModuleAggregateRow(row) {
+function isModuleAggregateRow(row: GovernanceTableRow): boolean {
   const cells = row.cells || {};
   const id = getCell(cells, ["ID"], "");
   const taskPlan = getCell(cells, ["Task Plan", "Task", "任务计划", "路径"], "");
   return /^F-MODULE-/i.test(id) && /(?:09-PLANNING\/MODULES|planning\/modules)\/[^/]+\/module_plan\.md/i.test(taskPlan);
 }
 
-function evaluateLedgerRow(row) {
+function evaluateLedgerRow(row: GovernanceTableRow): GovernanceFinding[] {
   const text = rowText(row);
   const evidence = ledgerEvidenceText(row);
   if (executionLogPattern().test(evidence) || temporaryPromptPattern().test(text) || rawTranscriptPattern().test(evidence)) {
@@ -85,7 +111,7 @@ function evaluateLedgerRow(row) {
   return [];
 }
 
-function ledgerEvidenceText(row) {
+function ledgerEvidenceText(row: GovernanceTableRow): string {
   const cells = row.cells || {};
   return [
     "Evidence Summary",
@@ -101,7 +127,7 @@ function ledgerEvidenceText(row) {
   ].map((column) => getCell(cells, [column], "")).filter(Boolean).join(" ");
 }
 
-function evaluateCloseoutRow(row) {
+function evaluateCloseoutRow(row: GovernanceTableRow): GovernanceFinding[] {
   const text = rowText(row);
   if (executionLogPattern().test(text) || rawTranscriptPattern().test(text)) {
     return [{
@@ -112,7 +138,7 @@ function evaluateCloseoutRow(row) {
   return [];
 }
 
-function evaluateRegressionRow(row) {
+function evaluateRegressionRow(row: GovernanceTableRow): GovernanceFinding[] {
   const text = rowText(row);
   if (executionLogPattern().test(text) || temporaryPromptPattern().test(text)) {
     return [{
@@ -123,7 +149,7 @@ function evaluateRegressionRow(row) {
   return [];
 }
 
-function evaluateCadenceRow(row) {
+function evaluateCadenceRow(row: GovernanceTableRow): GovernanceFinding[] {
   const text = rowText(row);
   if (rawTranscriptPattern().test(text) || temporaryPromptPattern().test(text)) {
     return [{
@@ -134,25 +160,25 @@ function evaluateCadenceRow(row) {
   return [];
 }
 
-function governanceRowKey(row) {
+function governanceRowKey(row: GovernanceTableRow): string {
   return getCell(row.cells || {}, ["ID", "Lesson", "Lesson ID", "Feature", "Work Item", "Gate ID", "Batch ID"], "") || row.id || "unknown-row";
 }
 
-function rowText(row) {
+function rowText(row: GovernanceTableRow): string {
   return Object.values(row.cells || {}).join(" ");
 }
 
-function rowUpdatedDate(row) {
+function rowUpdatedDate(row: GovernanceTableRow): string {
   const value = getCell(row.cells || {}, ["Updated", "Date", "日期", "Last Verified", "最近验证"], "");
   const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
   return match ? match[0] : "";
 }
 
-function isLegacyRow(updated) {
+function isLegacyRow(updated: string): boolean | "" {
   return updated && updated < newRuleCutoff;
 }
 
-function isPlaceholderRow(row) {
+function isPlaceholderRow(row: GovernanceTableRow): boolean {
   const text = rowText(row);
   return /\b(?:YYYY|MM|DD|NNN)\b|L-YYYY|HL-YYYY|\[[^\]]+\]|\.\.\.md|\bowner\b|\bShort lesson title\b/i.test(text);
 }

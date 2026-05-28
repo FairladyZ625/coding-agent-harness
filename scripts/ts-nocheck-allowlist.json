@@ -20,8 +20,6 @@
     "scripts/lib/dashboard-workbench.mts",
     "scripts/lib/governance-index-generator.mts",
     "scripts/lib/governance-sync.mts",
-    "scripts/lib/governance-table-boundary.mts",
-    "scripts/lib/harness-core.mts",
     "scripts/lib/lesson-maintenance.mts",
     "scripts/lib/migration-planner.mts",
     "scripts/lib/migration-support.mts",
