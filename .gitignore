@@ -16,6 +16,7 @@ docs/plans/
 
 # Generated local dashboards and smoke-test output.
 tmp/
+dist/
 .playwright-mcp/
 harness-dashboard-*.png
 

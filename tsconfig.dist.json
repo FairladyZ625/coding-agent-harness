@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.runtime.json",
+  "compilerOptions": {
+    "rootDir": "scripts",
+    "outDir": "dist"
+  },
+  "include": [
+    "scripts/**/*.mts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".worktrees",
+    "tmp",
+    "dist"
+  ]
+}

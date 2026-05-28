@@ -28,6 +28,7 @@
   "scripts": {
     "check": "node scripts/harness.mjs check --profile source-package .",
     "check:private": "node scripts/harness.mjs check --profile private-harness .harness-private",
+    "build:runtime": "node scripts/build-dist.mjs",
     "typecheck": "npm exec --yes --package typescript@5.9.3 -- tsc -p tsconfig.json",
     "typecheck:guards": "node scripts/check-type-boundaries.mjs",
     "status": "node scripts/harness.mjs status --json .",
@@ -46,6 +47,7 @@
     "CHANGELOG.md",
     "SKILL.md",
     "tsconfig.json",
+    "tsconfig.dist.json",
     "tsconfig.runtime.json",
     "LICENSE",
     "LICENSE-EXCEPTION.md",
