@@ -1,42 +1,11 @@
-// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import {
-  visualMapFile,
-  legacyVisualRoadmapFile,
-  lessonCandidatesFile,
-  allowedTaskStates,
-  allowedTaskBudgets,
-  allowedPhaseStates,
-  allowedEvidenceStatus,
-  normalizeTarget,
-  normalizeLocale,
-  toPosix,
-  readFileSafe,
-  readBundledTemplate,
-  todayDate,
-  localDate,
-  datePrefix,
-  normalizeTaskId,
-  renderTaskTemplate,
-} from "./core-shared.mjs";
+import { visualMapFile, legacyVisualRoadmapFile, allowedTaskStates, allowedTaskBudgets, allowedPhaseStates, allowedEvidenceStatus, normalizeTarget, normalizeLocale, toPosix, readFileSafe, readBundledTemplate, todayDate, localDate, datePrefix, normalizeTaskId, renderTaskTemplate } from "./core-shared.mjs";
 import { readCapabilityRegistry } from "./capability-registry.mjs";
 import { readPresetPackage } from "./preset-registry.mjs";
-import {
-  assertPresetWriteScope,
-  buildPresetContext,
-  evaluateTemplateValues,
-  resolvePresetInputs,
-  renderPresetResourceIndex,
-  renderPresetTaskTemplate,
-} from "./preset-engine.mjs";
-import {
-  collectTasks,
-  listTaskPlanPaths,
-  parseTaskBudget,
-  taskIdForDirectory,
-} from "./task-scanner.mjs";
+import { renderPresetResourceIndex } from "./preset-engine.mjs";
+import { collectTasks, listTaskPlanPaths, parseTaskBudget, taskIdForDirectory } from "./task-scanner.mjs";
 import { getColumn, firstColumn, updateMarkdownTableRow } from "./markdown-utils.mjs";
 import { validateLifecycleTransition, validateReviewEntryGate } from "./task-lifecycle/review-gates.mjs";
 import { advanceLifecyclePhase, autoRecordNoLessonCandidateDecision } from "./task-lifecycle/phase-sync.mjs";
@@ -44,31 +13,34 @@ import { confirmTaskReview as confirmTaskReviewWithContext, finalizeDeferredTask
 import { appendProgressLog, markWalkthroughClosed } from "./task-lifecycle/text-utils.mjs";
 import { buildScaffoldProvenance } from "./task-lifecycle/scaffold-provenance.mjs";
 import { buildCreationTaskAudit } from "./task-audit-metadata.mjs";
-import {
-  renderAgentReviewSubmission,
-  replaceAgentReviewSubmission,
-} from "./task-lifecycle/review-submission.mjs";
-import {
-  appendLongRunningContractFile,
-  moduleTemplateFiles,
-  taskFilesForBudget,
-} from "./task-lifecycle/template-files.mjs";
-import {
-  planCreateTaskChanges,
-  refreshPresetCommandAudit,
-  resolveImplicitCreateTarget,
-} from "./task-lifecycle/create-task-helpers.mjs";
-import {
-  beginGovernanceSync,
-  commitGovernanceSync,
-  governanceRelativePaths,
-  releaseGovernanceSync,
-  syncModuleStepGovernance,
-  syncTaskGovernance,
-} from "./governance-sync.mjs";
+import { renderAgentReviewSubmission, replaceAgentReviewSubmission } from "./task-lifecycle/review-submission.mjs";
+import { appendLongRunningContractFile, moduleTemplateFiles, taskFilesForBudget } from "./task-lifecycle/template-files.mjs";
+import { planCreateTaskChanges, refreshPresetCommandAudit, resolveImplicitCreateTarget } from "./task-lifecycle/create-task-helpers.mjs";
+import { beginGovernanceSync, commitGovernanceSync, governanceRelativePaths, releaseGovernanceSync, syncModuleStepGovernance, syncTaskGovernance } from "./governance-sync.mjs";
+import { assertLifecyclePresetWriteScope, buildLifecyclePresetContext, evaluatePresetValues, renderLifecyclePresetTaskTemplate, resolveLifecyclePresetInputs } from "./task-lifecycle/preset-interop.mjs";
 import { taskRefPath } from "./harness-paths.mjs";
+import type { TaskBudget } from "./types/task-scanner.js";
+import type { CreateTaskOptions, DeferredReviewConfirmOptions, LifecycleChange, LifecycleTarget, LifecycleTask, LifecycleUpdateOptions, ListLifecycleTasksOptions, ModuleStepOptions, PhaseUpdateOptions, PresetContext, PresetInputs, PresetPackage, ReviewConfirmOptions, TaskIdentity } from "./types/task-lifecycle.js";
 
-function taskRoot(target, taskId, { moduleKey = "" } = {}) {
+type LifecycleGateEvent = "task-start" | "task-review" | "task-complete";
+
+function asLifecycleTarget(target: ReturnType<typeof normalizeTarget>): LifecycleTarget {
+  return target as LifecycleTarget;
+}
+
+function changeDestinations(changes: LifecycleChange[]): string[] {
+  return changes.map((change) => change.destination).filter(Boolean);
+}
+
+function lifecycleGateEvent(event: string): LifecycleGateEvent {
+  return String(event || "task-log") as LifecycleGateEvent;
+}
+
+function findReviewTaskByDirectory(target: { projectRoot: string }, taskDir: string): LifecycleTask | undefined {
+  return findTaskByDirectory(asLifecycleTarget(normalizeTarget(target.projectRoot)), taskDir);
+}
+
+function taskRoot(target: LifecycleTarget, taskId: string, { moduleKey = "" }: { moduleKey?: string } = {}): string {
   const normalizedTaskId = normalizeTaskId(taskId);
   if (moduleKey) {
     const moduleRoot = path.join(target.harness.modulesRoot, normalizeTaskId(moduleKey));
@@ -79,7 +51,7 @@ function taskRoot(target, taskId, { moduleKey = "" } = {}) {
   return path.join(target.harness.tasksRoot, normalizedTaskId);
 }
 
-export function resolveTaskDirectory(target, taskRef) {
+export function resolveTaskDirectory(target: LifecycleTarget, taskRef: string): string {
   const raw = String(taskRef || "")
     .replace(/^coding-agent-harness\/planning\//, "")
     .replace(/^planning\//, "")
@@ -120,20 +92,20 @@ export function resolveTaskDirectory(target, taskRef) {
   throw new Error(`Task not found: ${taskRef}`);
 }
 
-function directTaskRefPath(target, raw) {
+function directTaskRefPath(target: LifecycleTarget, raw: string): string {
   return taskRefPath(target.harness, raw);
 }
 
-function legacyPlanningPrefix() {
+function legacyPlanningPrefix(): string {
   return "docs\\/09-PLANNING";
 }
 
-function findTaskByDirectory(target, taskDir) {
+function findTaskByDirectory(target: LifecycleTarget, taskDir: string): LifecycleTask | undefined {
   const id = taskIdForDirectory(target, taskDir);
-  return collectTasks(target).find((task) => task.id === id) || null;
+  return collectTasks(target).find((task) => task.id === id);
 }
 
-function stateLabel(state, locale) {
+function stateLabel(state: string, locale: string): string {
   if (normalizeLocale(locale) !== "zh-CN") return state;
   return (
     {
@@ -147,19 +119,19 @@ function stateLabel(state, locale) {
   );
 }
 
-function normalizeTaskBudgetInput(budget) {
+function normalizeTaskBudgetInput(budget: string): TaskBudget {
   const normalized = String(budget || "standard").trim().toLowerCase().replaceAll("_", "-");
-  if (allowedTaskBudgets.has(normalized)) return normalized;
+  if (allowedTaskBudgets.has(normalized)) return normalized as TaskBudget;
   throw new Error(`Invalid task budget: ${budget}. Expected one of: simple, standard, complex`);
 }
 
-function normalizeTaskPresetInput(preset, { targetInput = "" } = {}) {
+function normalizeTaskPresetInput(preset: string, { targetInput = "" }: { targetInput?: string } = {}): string {
   const normalized = String(preset || "none").trim().toLowerCase().replaceAll("_", "-");
   if (!normalized || normalized === "none") return "none";
-  return readPresetPackage(normalized, { targetInput }).id;
+  return (readPresetPackage(normalized, { targetInput }) as PresetPackage).id;
 }
 
-function updateProgressState(content, state, locale) {
+function updateProgressState(content: string, state: string, locale: string): string {
   const label = stateLabel(state, locale);
   if (/^##\s*状态[:：][^\n]*/im.test(content)) {
     return content.replace(/^##\s*状态[:：][^\n]*/im, `## 状态：${label}`);
@@ -170,25 +142,25 @@ function updateProgressState(content, state, locale) {
   return `${content.trimEnd()}\n\n## Status\n\n${label}\n`;
 }
 
-function ensureDatePrefix(slug) {
+function ensureDatePrefix(slug: string): string {
   if (datePrefix.test(slug)) return slug;
   return `${localDate()}-${slug}`;
 }
 
-function bareSlug(datedId) {
+function bareSlug(datedId: string): string {
   if (datePrefix.test(datedId)) return datedId.replace(datePrefix, "");
   return datedId;
 }
 
-function automaticTaskSlug(seed) {
+function automaticTaskSlug(seed: string): string {
   return normalizeTaskId(seed || "task").slice(0, 48).replace(/-+$/g, "") || "task";
 }
 
-function randomTaskSuffix() {
+function randomTaskSuffix(): string {
   return crypto.randomBytes(4).toString("hex");
 }
 
-function resolveTaskIdentity({ target, taskId, title, presetPackage, moduleKey, automaticTaskId }) {
+function resolveTaskIdentity({ target, taskId, title, presetPackage, moduleKey, automaticTaskId }: { target: LifecycleTarget; taskId: string; title: string; presetPackage: PresetPackage | null; moduleKey: string; automaticTaskId: boolean }): TaskIdentity {
   if (!automaticTaskId) {
     const rawNormalized = normalizeTaskId(taskId || (presetPackage?.task?.defaultTaskId || ""));
     const normalizedTaskId = ensureDatePrefix(rawNormalized);
@@ -204,13 +176,13 @@ function resolveTaskIdentity({ target, taskId, title, presetPackage, moduleKey, 
   throw new Error(`Unable to allocate automatic task id for: ${semanticSlug}`);
 }
 
-export function createTask(targetInput, taskId, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard", longRunning = false, preset = "", fromSession = "", presetArgs = [], automaticTaskId = false, deferCommit = false, allowDirtyRelativePaths = [] } = {}) {
+export function createTask(targetInput: string, taskId: string, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard", longRunning = false, preset = "", fromSession = "", presetArgs = [], automaticTaskId = false, deferCommit = false, allowDirtyRelativePaths = [] }: CreateTaskOptions = {}) {
   const requestedPreset = preset || (moduleKey ? "module" : "");
   const presetTargetInput = resolveImplicitCreateTarget(targetInput, fromSession);
   const normalizedPreset = normalizeTaskPresetInput(requestedPreset, { targetInput: presetTargetInput });
-  const presetPackage = normalizedPreset === "none" ? null : readPresetPackage(normalizedPreset, { targetInput: presetTargetInput });
-  const presetInputs = presetPackage ? resolvePresetInputs(presetPackage, { cliArgs: presetArgs, fromSession, targetInput: presetTargetInput }) : null;
-  const target = normalizeTarget(presetInputs?.targetInput || presetTargetInput || targetInput);
+  const presetPackage: PresetPackage | null = normalizedPreset === "none" ? null : readPresetPackage(normalizedPreset, { targetInput: presetTargetInput }) as PresetPackage;
+  const presetInputs: PresetInputs | null = presetPackage ? resolveLifecyclePresetInputs(presetPackage, { cliArgs: presetArgs, fromSession, targetInput: presetTargetInput }) : null;
+  const target = asLifecycleTarget(normalizeTarget(presetInputs?.targetInput || presetTargetInput || targetInput));
   if (presetInputs?.targetInput && targetInput && targetInput !== "." && path.resolve(targetInput) !== path.resolve(presetInputs.targetInput)) {
     throw new Error(`--from-session target mismatch: session target is ${presetInputs.targetInput}`);
   }
@@ -240,9 +212,9 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
     automaticTaskId,
   });
   const baseTaskAudit = buildCreationTaskAudit(scaffoldProvenance, { projectRoot: target.projectRoot });
-  const evaluatedPresetValues = presetPackage ? evaluateTemplateValues(presetPackage, presetInputs.inputs, { taskId: normalizedTaskId, taskTitle, moduleKey: normalizedModuleKey, target }) : null;
-  const presetContext = presetPackage
-    ? buildPresetContext({ ...presetPackage, task: { ...(presetPackage.task || {}), kind: presetPackage.task?.kind || "general" } }, {
+  const evaluatedPresetValues = presetPackage && presetInputs ? evaluatePresetValues(presetPackage, presetInputs.inputs, { taskId: normalizedTaskId, taskTitle, moduleKey: normalizedModuleKey, target }) : null;
+  const presetContext: PresetContext | null = presetPackage && presetInputs && evaluatedPresetValues
+    ? buildLifecyclePresetContext({ ...presetPackage, task: { ...(presetPackage.task || {}), kind: presetPackage.task?.kind || "general" } }, {
         target,
         taskDir: directory,
         taskId: normalizedTaskId,
@@ -275,12 +247,11 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
     normalizedLocale,
     normalizedBudget,
     longRunning,
-    presetContext,
-    task,
+    presetContext: presetContext || undefined,
   });
   const plannedGovernance = syncTaskGovernance(target, task, { event: "new-task", state: "planned", message: "task registered by CLI", dryRun: true });
-  const plannedWriteScopes = governanceRelativePaths([...plannedChanges, ...plannedGovernance.changes]);
-  const changes = [];
+  const plannedWriteScopes = [...changeDestinations(plannedChanges), ...governanceRelativePaths(plannedGovernance.changes)];
+  const changes: LifecycleChange[] = [];
   const governanceContext = beginGovernanceSync(target, { operation: `new-task ${normalizedTaskId}`, dryRun, allowDirtyWorktree: true, allowedRelativePaths: [...plannedWriteScopes, ...(allowDirtyRelativePaths || [])], allowDirtyWriteScope: deferCommit });
   try {
   if (normalizedModuleKey) {
@@ -295,7 +266,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
         source,
         action: dryRun ? "would-create" : "create",
       });
-      if (presetPackage) assertPresetWriteScope(presetPackage, toPosix(path.relative(target.projectRoot, destinationPath)), target);
+      if (presetPackage) assertLifecyclePresetWriteScope(presetPackage, toPosix(path.relative(target.projectRoot, destinationPath)), target);
       if (dryRun) continue;
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
       fs.writeFileSync(
@@ -328,12 +299,12 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
       source,
       action: dryRun ? "would-create" : "create",
     });
-    if (presetPackage) assertPresetWriteScope(presetPackage, toPosix(path.relative(target.projectRoot, destinationPath)), target);
+    if (presetPackage) assertLifecyclePresetWriteScope(presetPackage, toPosix(path.relative(target.projectRoot, destinationPath)), target);
     if (dryRun) continue;
     fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
     fs.writeFileSync(
       destinationPath,
-      renderPresetTaskTemplate(destination, renderTaskTemplate(readBundledTemplate(source), {
+      renderLifecyclePresetTaskTemplate(destination, renderTaskTemplate(readBundledTemplate(source), {
         taskId: normalizedTaskId,
         title: taskTitle,
         locale: normalizedLocale,
@@ -355,14 +326,14 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
     );
   }
   if (presetContext) {
-    for (const evidence of presetContext.evidenceFiles) {
+    for (const evidence of presetContext.evidenceFiles || []) {
       const destinationPath = path.join(target.projectRoot, evidence.relativePath);
       changes.push({
         destination: toPosix(evidence.relativePath),
         source: evidence.source,
         action: dryRun ? "would-create" : "create",
       });
-      assertPresetWriteScope(presetPackage, toPosix(evidence.relativePath), target);
+      if (presetPackage) assertLifecyclePresetWriteScope(presetPackage, toPosix(evidence.relativePath), target);
       if (dryRun) continue;
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
       fs.writeFileSync(destinationPath, evidence.content);
@@ -374,7 +345,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
         source: resource.source,
         action: dryRun ? "would-create" : "create",
       });
-      assertPresetWriteScope(presetPackage, toPosix(resource.relativePath), target);
+      if (presetPackage) assertLifecyclePresetWriteScope(presetPackage, toPosix(resource.relativePath), target);
       if (dryRun) continue;
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
       fs.writeFileSync(destinationPath, resource.content);
@@ -389,7 +360,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
         source: `preset-${kind}-index`,
         action: dryRun ? "would-update" : "update",
       });
-      assertPresetWriteScope(presetPackage, relativePath, target);
+      if (presetPackage) assertLifecyclePresetWriteScope(presetPackage, relativePath, target);
       if (dryRun) continue;
       fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
       const existing = fs.existsSync(destinationPath) ? fs.readFileSync(destinationPath, "utf8") : "";
@@ -398,7 +369,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
   }
   const governance = syncTaskGovernance(target, task, { event: "new-task", state: "planned", message: "task registered by CLI", dryRun });
   changes.push(...governance.changes);
-  const commandWriteScopes = governanceRelativePaths(changes);
+  const commandWriteScopes = [...changeDestinations(changes), ...governanceRelativePaths(governance.changes)];
   if (presetContext) {
     refreshPresetCommandAudit(target, presetContext, { commandWriteScopes, dryRun });
     task.presetAudit = presetContext.audit;
@@ -415,8 +386,9 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
   }
 }
 
-export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", state = "", message = "", evidence = "" } = {}) {
-  const target = normalizeTarget(targetInput);
+export function updateTaskLifecycle(targetInput: string, taskId: string, { event = "task-log", state = "", message = "", evidence = "" }: LifecycleUpdateOptions = {}) {
+  const target = asLifecycleTarget(normalizeTarget(targetInput));
+  const normalizedEvent = lifecycleGateEvent(event);
   const taskDir = resolveTaskDirectory(target, taskId);
   const progressPath = path.join(taskDir, "progress.md");
   const registry = readCapabilityRegistry(target);
@@ -426,7 +398,7 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
   const canonicalTaskId = taskIdForDirectory(target, taskDir);
   const budget = parseTaskBudget(readFileSafe(path.join(taskDir, "task_plan.md")));
   validateLifecycleTransition({
-    event,
+    event: normalizedEvent,
     currentState: currentTask?.state || "unknown",
     budget,
     reviewContent: readFileSafe(path.join(taskDir, "review.md")),
@@ -439,11 +411,11 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
   const governanceContext = beginGovernanceSync(target, { operation: `${event} ${canonicalTaskId}` });
   try {
     let content = readFileSafe(progressPath);
-    if (normalizedState) content = updateProgressState(content, normalizedState, registry.locale);
+    if (normalizedState) content = updateProgressState(content, normalizedState, registry.locale || "en-US");
     content = appendProgressLog(content, { event, message, evidence });
     fs.writeFileSync(progressPath, content.endsWith("\n") ? content : `${content}\n`);
     const allowedPaths = [toPosix(path.relative(target.projectRoot, progressPath))];
-    const advancedPhasePath = advanceLifecyclePhase(target, taskDir, event);
+    const advancedPhasePath = advanceLifecyclePhase(target, taskDir, normalizedEvent);
     if (advancedPhasePath) allowedPaths.push(advancedPhasePath);
     if (event === "task-review") {
       const reviewPath = path.join(taskDir, "review.md");
@@ -494,17 +466,17 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
     releaseGovernanceSync(governanceContext);
   }
 }
-export function confirmTaskReview(targetInput, taskId, { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "", deferCommit = false } = {}) {
-  const target = normalizeTarget(targetInput);
-  return confirmTaskReviewWithContext({ target, taskDir: resolveTaskDirectory(target, taskId), findTaskByDirectory }, { reviewer, message, confirmText, evidence, deferCommit });
+export function confirmTaskReview(targetInput: string, taskId: string, { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "", deferCommit = false }: ReviewConfirmOptions = {}) {
+  const target = asLifecycleTarget(normalizeTarget(targetInput));
+  return confirmTaskReviewWithContext({ target, taskDir: resolveTaskDirectory(target, taskId), findTaskByDirectory: findReviewTaskByDirectory }, { reviewer, message, confirmText, evidence, deferCommit });
 }
 
-export function finalizeDeferredTaskReviewConfirmation(targetInput, taskId, { commitSha = "" } = {}) {
-  const target = normalizeTarget(targetInput);
-  return finalizeDeferredTaskReviewConfirmationWithContext({ target, taskDir: resolveTaskDirectory(target, taskId), findTaskByDirectory }, { commitSha });
+export function finalizeDeferredTaskReviewConfirmation(targetInput: string, taskId: string, { commitSha = "" }: DeferredReviewConfirmOptions = {}) {
+  const target = asLifecycleTarget(normalizeTarget(targetInput));
+  return finalizeDeferredTaskReviewConfirmationWithContext({ target, taskDir: resolveTaskDirectory(target, taskId), findTaskByDirectory: findReviewTaskByDirectory }, { commitSha });
 }
-export function updateTaskPhase(targetInput, taskId, phaseId, { state = "", completion = "", evidenceStatus = "" } = {}) {
-  const target = normalizeTarget(targetInput);
+export function updateTaskPhase(targetInput: string, taskId: string, phaseId: string, { state = "", completion = "", evidenceStatus = "" }: PhaseUpdateOptions = {}) {
+  const target = asLifecycleTarget(normalizeTarget(targetInput));
   const taskDir = resolveTaskDirectory(target, taskId);
   const visualMapPath = path.join(taskDir, visualMapFile);
   const legacyPath = path.join(taskDir, legacyVisualRoadmapFile);
@@ -547,8 +519,8 @@ export function updateTaskPhase(targetInput, taskId, phaseId, { state = "", comp
   }
 }
 
-export function updateModuleStep(targetInput, moduleKey, stepId, { state = "" } = {}) {
-  const target = normalizeTarget(targetInput);
+export function updateModuleStep(targetInput: string, moduleKey: string, stepId: string, { state = "" }: ModuleStepOptions = {}) {
+  const target = asLifecycleTarget(normalizeTarget(targetInput));
   const normalizedModuleKey = normalizeTaskId(moduleKey);
   const normalizedState = String(state || "done").toLowerCase().replaceAll("_", "-");
   if (!["planned", "in-progress", "done", "blocked", "superseded"].includes(normalizedState)) throw new Error(`Invalid module step state: ${state}`);
@@ -611,8 +583,8 @@ export function updateModuleStep(targetInput, moduleKey, stepId, { state = "" } 
   }
 }
 
-export function listLifecycleTasks(targetInput, { state = "", moduleKey = "", queue = "", preset = "", review = "", lesson = "", search = "", missingMaterials = false, includeArchived = false } = {}) {
-  const target = normalizeTarget(targetInput);
+export function listLifecycleTasks(targetInput: string, { state = "", moduleKey = "", queue = "", preset = "", review = "", lesson = "", search = "", missingMaterials = false, includeArchived = false }: ListLifecycleTasksOptions = {}) {
+  const target = asLifecycleTarget(normalizeTarget(targetInput));
   let tasks = collectTasks(target);
   if (!includeArchived) tasks = tasks.filter((task) => task.deletionState === "active" && task.hiddenByDefault !== true);
   if (state) tasks = tasks.filter((task) => task.state === String(state).toLowerCase().replaceAll("-", "_"));
@@ -644,6 +616,6 @@ export function listLifecycleTasks(targetInput, { state = "", moduleKey = "", qu
   return { tasks };
 }
 
-function queryToken(value) {
+function queryToken(value: unknown): string {
   return String(value || "").trim().toLowerCase().replaceAll("_", "-");
 }
