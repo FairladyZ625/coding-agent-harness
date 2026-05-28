@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncReturns } from "node:child_process";
 import {
   acceptNoLessonCandidate,
   assert,
@@ -16,26 +16,49 @@ import {
   todayLocal,
 } from "../helpers/harness-test-utils.mjs";
 
-function git(target, args) {
+type HarnessTask = {
+  id: string;
+  shortId: string;
+  path: string;
+  reviewPath?: string;
+};
+type NewTaskResponse = {
+  task: HarnessTask;
+};
+type MigrationPlanResponse = {
+  summary?: { legacyAuditBlocks?: number };
+  actions?: Array<{ taskId?: string }>;
+};
+type MigrationApplyResponse = {
+  result?: string;
+};
+type ReviewConfirmPayload = {
+  audit: { commitSha: string; auditCommitSha: string };
+};
+type ConfirmedTask = HarnessTask & {
+  taskDir: string;
+};
+
+function git(target: string, args: string[]): SpawnSyncReturns<string> {
   return spawnSync("git", args, { cwd: target, encoding: "utf8" });
 }
 
-function expectGit(target, args) {
+function expectGit(target: string, args: string[]): SpawnSyncReturns<string> {
   const result = git(target, args);
   assert(result.status === 0, `git ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;
 }
 
-function read(taskDir, file) {
+function read(taskDir: string, file: string): string {
   return fs.readFileSync(path.join(taskDir, file), "utf8");
 }
 
-function taskDirFor(target, task) {
+function taskDirFor(target: string, task: HarnessTask): string {
   return path.join(target, String(task.path).replace(/^TARGET:/, ""));
 }
 
-function prepareConfirmedTask(target, name) {
-  const created = expectJson(["new-task", name, "--title", name, "--locale", "en-US", target]);
+function prepareConfirmedTask(target: string, name: string): ConfirmedTask {
+  const created = expectJson<NewTaskResponse>(["new-task", name, "--title", name, "--locale", "en-US", target]);
   const taskDir = taskDirFor(target, created.task);
   const walkthroughPath = path.join(taskDir, "walkthrough.md");
   fs.writeFileSync(walkthroughPath, `# Walkthrough: ${name}\n\n## Summary\n\nReview fixture.\n`);
@@ -55,7 +78,7 @@ const auditTarget = path.join(tmpRoot, "task-index-audit-target");
 fs.mkdirSync(auditTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard", auditTarget]);
 
-const created = expectJson(["new-task", "index-audit-new-task", "--title", "INDEX audit new task", "--locale", "en-US", auditTarget]);
+const created = expectJson<NewTaskResponse>(["new-task", "index-audit-new-task", "--title", "INDEX audit new task", "--locale", "en-US", auditTarget]);
 const createdDir = taskDirFor(auditTarget, created.task);
 const createdIndex = read(createdDir, "INDEX.md");
 const createdBrief = read(createdDir, "brief.md");
@@ -92,7 +115,7 @@ const confirm = run([
   auditTarget,
 ]);
 assert(confirm.status === 0, `review-confirm should pass\nSTDOUT:\n${confirm.stdout}\nSTDERR:\n${confirm.stderr}`);
-const confirmPayload = JSON.parse(confirm.stdout);
+const confirmPayload = JSON.parse(confirm.stdout) as ReviewConfirmPayload;
 const confirmedIndex = read(confirmTask.taskDir, "INDEX.md");
 assert(confirmedIndex.includes("| Human Review Status | confirmed |"), "review-confirm should mark INDEX human review status confirmed");
 assert(confirmedIndex.includes(`| Review Commit SHA | ${confirmPayload.audit.commitSha} |`), "review-confirm should write the first confirmation commit SHA to INDEX");
@@ -108,7 +131,7 @@ for (const sha of [confirmPayload.audit.commitSha, confirmPayload.audit.auditCom
 const migrationTarget = path.join(tmpRoot, "task-index-audit-migration-target");
 fs.mkdirSync(migrationTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", migrationTarget]);
-const legacy = expectJson(["new-task", "legacy-audit", "--title", "Legacy audit", "--locale", "en-US", migrationTarget]);
+const legacy = expectJson<NewTaskResponse>(["new-task", "legacy-audit", "--title", "Legacy audit", "--locale", "en-US", migrationTarget]);
 const legacyDir = taskDirFor(migrationTarget, legacy.task);
 const legacyIndexPath = path.join(legacyDir, "INDEX.md");
 fs.writeFileSync(legacyIndexPath, fs.readFileSync(legacyIndexPath, "utf8").replace("| Legacy Extra Fields | {} |", '| Legacy Extra Fields | {"Existing":"keep"} |'));
@@ -120,10 +143,10 @@ fs.appendFileSync(
   path.join(legacyDir, "review.md"),
   `\n## Human Review Confirmation\n\n| Field | Value |\n| --- | --- |\n| Confirmation ID | HRC-20260526010101 |\n| Confirmed At | 2026-05-26T01:01:01+08:00 |\n| Reviewer | Legacy Reviewer |\n| Reviewer Email | legacy@example.invalid |\n| Task Key | ${legacy.task.id} |\n| Confirm Text | ${legacy.task.shortId} |\n| Evidence Checked | command:test |\n| Commit SHA | 1234567890abcdef1234567890abcdef12345678 |\n| Audit Status | committed |\n| Message | legacy confirmation |\n| Extra Legacy Field | preserve me |\n`,
 );
-const migrationPlan = expectJson(["migrate-task-audit-index", "--json", migrationTarget]);
+const migrationPlan = expectJson<MigrationPlanResponse>(["migrate-task-audit-index", "--json", migrationTarget]);
 assert(migrationPlan.summary?.legacyAuditBlocks === 2, "migration plan should count legacy audit blocks");
 assert(migrationPlan.actions?.some((action) => action.taskId === legacy.task.id), "migration plan should include the legacy task");
-const migrationApply = expectJson(["migrate-task-audit-index", "--apply", "--json", migrationTarget]);
+const migrationApply = expectJson<MigrationApplyResponse>(["migrate-task-audit-index", "--apply", "--json", migrationTarget]);
 assert(migrationApply.result === "applied", "migration apply should report applied");
 const migratedIndex = read(legacyDir, "INDEX.md");
 assert(migratedIndex.includes("| Created By | manual-exception |"), "migration should move creation audit metadata to INDEX");
@@ -134,19 +157,19 @@ assert(migratedIndex.includes('"Extra Legacy Field":"preserve me"'), "migration 
 assert(!read(legacyDir, "brief.md").includes("## Scaffold Provenance"), "migration should remove legacy Scaffold Provenance block");
 assert(!read(legacyDir, "review.md").includes("## Human Review Confirmation"), "migration should remove legacy Human Review Confirmation block");
 
-const looseLegacy = expectJson(["new-task", "legacy-loose-review", "--title", "Legacy loose review", "--locale", "en-US", migrationTarget]);
+const looseLegacy = expectJson<NewTaskResponse>(["new-task", "legacy-loose-review", "--title", "Legacy loose review", "--locale", "en-US", migrationTarget]);
 const looseLegacyDir = taskDirFor(migrationTarget, looseLegacy.task);
 fs.appendFileSync(
   path.join(looseLegacyDir, "review.md"),
   `\n## Human Review Confirmation\n\nReviewer: Coordinator adversarial review\n\n| Confirmed At | Reviewer | Message | Evidence |\n| --- | --- | --- | --- |\n| 2026-05-21 02:02 | Coordinator adversarial review | Human review confirmed | ${looseLegacy.task.reviewPath} |\n`,
 );
-const pendingLegacy = expectJson(["new-task", "legacy-pending-review", "--title", "Legacy pending review", "--locale", "en-US", migrationTarget]);
+const pendingLegacy = expectJson<NewTaskResponse>(["new-task", "legacy-pending-review", "--title", "Legacy pending review", "--locale", "en-US", migrationTarget]);
 const pendingLegacyDir = taskDirFor(migrationTarget, pendingLegacy.task);
 fs.appendFileSync(
   path.join(pendingLegacyDir, "review.md"),
   `\n## Human Review Confirmation\n\n| Field | Value |\n| --- | --- |\n| Confirmation ID | pending-human |\n| Confirmed At | pending |\n| Reviewer | pending |\n| Reviewer Email | pending |\n| Task Key | ${pendingLegacy.task.shortId} |\n| Confirm Text | pending |\n| Evidence Checked | pending |\n| Commit SHA | pending |\n| Audit Status | ready-for-pr |\n`,
 );
-const looseApply = expectJson(["migrate-task-audit-index", "--apply", "--json", migrationTarget]);
+const looseApply = expectJson<MigrationApplyResponse>(["migrate-task-audit-index", "--apply", "--json", migrationTarget]);
 assert(looseApply.result === "applied", "loose and pending legacy review migration should apply");
 const looseIndex = read(looseLegacyDir, "INDEX.md");
 assert(looseIndex.includes("| Human Review Status | confirmed |"), "loose legacy review should remain confirmed after migration");
@@ -157,7 +180,7 @@ const pendingIndex = read(pendingLegacyDir, "INDEX.md");
 assert(pendingIndex.includes("| Human Review Status | not-confirmed |"), "pending-human legacy review placeholder should migrate as not-confirmed");
 assert(!read(pendingLegacyDir, "review.md").includes("## Human Review Confirmation"), "pending legacy review block should be removed after migration");
 
-const malformed = expectJson(["new-task", "legacy-malformed", "--title", "Legacy malformed", "--locale", "en-US", migrationTarget]);
+const malformed = expectJson<NewTaskResponse>(["new-task", "legacy-malformed", "--title", "Legacy malformed", "--locale", "en-US", migrationTarget]);
 const malformedDir = taskDirFor(migrationTarget, malformed.task);
 fs.appendFileSync(
   path.join(malformedDir, "review.md"),
@@ -170,7 +193,7 @@ assert(read(malformedDir, "review.md").includes("## Human Review Confirmation"),
 const invalidStatusTarget = path.join(tmpRoot, "task-index-audit-invalid-status-target");
 fs.mkdirSync(invalidStatusTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", invalidStatusTarget]);
-const invalidStatus = expectJson(["new-task", "legacy-invalid-status", "--title", "Legacy invalid status", "--locale", "en-US", invalidStatusTarget]);
+const invalidStatus = expectJson<NewTaskResponse>(["new-task", "legacy-invalid-status", "--title", "Legacy invalid status", "--locale", "en-US", invalidStatusTarget]);
 const invalidStatusDir = taskDirFor(invalidStatusTarget, invalidStatus.task);
 fs.appendFileSync(
   path.join(invalidStatusDir, "review.md"),
@@ -183,7 +206,7 @@ assert(read(invalidStatusDir, "review.md").includes("## Human Review Confirmatio
 const invalidIndexTarget = path.join(tmpRoot, "task-index-audit-invalid-index-target");
 fs.mkdirSync(invalidIndexTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", invalidIndexTarget]);
-const invalidIndex = expectJson(["new-task", "invalid-index-audit", "--title", "Invalid INDEX audit", "--locale", "en-US", invalidIndexTarget]);
+const invalidIndex = expectJson<NewTaskResponse>(["new-task", "invalid-index-audit", "--title", "Invalid INDEX audit", "--locale", "en-US", invalidIndexTarget]);
 const invalidIndexPath = path.join(taskDirFor(invalidIndexTarget, invalidIndex.task), "INDEX.md");
 fs.writeFileSync(
   invalidIndexPath,

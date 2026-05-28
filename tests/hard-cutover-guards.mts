@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
@@ -8,6 +7,8 @@ import {
   assert,
   repoRoot,
 } from "./helpers/harness-test-utils.mjs";
+
+type PackFile = { path: string };
 
 const forbidden = /docs\/09-PLANNING|docs\/10-WALKTHROUGH|docs\/Harness-Ledger\.md|legacy-compat|safe-adoption|legacyChecker|runLegacyCheck|runDashboardLegacyCheck/;
 const runtimeRoots = [
@@ -32,11 +33,11 @@ const packageAllow = [
   /^templates(?:-zh-CN)?\/walkthrough\/Closeout-SSoT\.md$/,
 ];
 
-function walkFiles(root) {
+function walkFiles(root: string): string[] {
   const absolute = path.join(repoRoot, root);
   if (!fs.existsSync(absolute)) return [];
-  const results = [];
-  const visit = (file) => {
+  const results: string[] = [];
+  const visit = (file: string): void => {
     const stat = fs.lstatSync(file);
     if (stat.isSymbolicLink()) return;
     if (stat.isDirectory()) {
@@ -79,8 +80,8 @@ assert(packageOffenders.length === 0, `package-facing surfaces still contain leg
 
 console.log("Hard cutover guard tests passed");
 
-function packageFiles() {
+function packageFiles(): string[] {
   const result = spawnSync("npm", ["pack", "--dry-run", "--json"], { cwd: repoRoot, encoding: "utf8" });
   assert(result.status === 0, `npm pack dry-run failed:\n${result.stderr || result.stdout}`);
-  return JSON.parse(result.stdout)[0].files.map((file) => file.path).sort();
+  return (JSON.parse(result.stdout) as Array<{ files: PackFile[] }>)[0].files.map((file) => file.path).sort();
 }
