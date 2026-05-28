@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import os from "node:os";
@@ -10,11 +9,26 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const typescriptVersion = "5.9.3";
 
+type BuildRuntimeDistOptions = {
+  projectRoot?: string;
+  configPath?: string;
+  outDir?: string;
+};
+
+type BuildRuntimeDistResult =
+  | { ok: true; outDir: string; files: string[] }
+  | { ok: false; error: string; outDir?: string; files?: string[]; status?: number | null };
+
+type BuildDistCliOptions = Required<BuildRuntimeDistOptions> & {
+  json: boolean;
+  quiet: boolean;
+};
+
 export function buildRuntimeDist({
   projectRoot = repoRoot,
   configPath = path.join(projectRoot, "tsconfig.dist.json"),
   outDir = path.join(projectRoot, "dist"),
-} = {}) {
+}: BuildRuntimeDistOptions = {}): BuildRuntimeDistResult {
   const absoluteProjectRoot = path.resolve(projectRoot);
   const absoluteConfig = path.resolve(configPath);
   const absoluteOutDir = path.resolve(outDir);
@@ -97,7 +111,7 @@ export function buildRuntimeDist({
   };
 }
 
-function isDangerousOutDir({ projectRoot, outDir }) {
+function isDangerousOutDir({ projectRoot, outDir }: { projectRoot: string; outDir: string }): boolean {
   const parsed = path.parse(outDir);
   if (outDir === parsed.root) return true;
   if (outDir === projectRoot) return true;
@@ -114,13 +128,13 @@ function isDangerousOutDir({ projectRoot, outDir }) {
   return true;
 }
 
-function collectFiles(directory) {
-  const files = [];
+function collectFiles(directory: string): string[] {
+  const files: string[] = [];
   if (fs.existsSync(directory)) walk(directory, files);
   return files;
 }
 
-function walk(current, files) {
+function walk(current: string, files: string[]): void {
   const stat = fs.lstatSync(current);
   if (stat.isSymbolicLink()) return;
   if (stat.isDirectory()) {
@@ -130,7 +144,7 @@ function walk(current, files) {
   if (stat.isFile()) files.push(current);
 }
 
-function syncDirectory(sourceDir, targetDir) {
+function syncDirectory(sourceDir: string, targetDir: string): void {
   fs.mkdirSync(targetDir, { recursive: true });
   const sourceEntries = new Set(fs.readdirSync(sourceDir));
   for (const entry of sourceEntries) {
@@ -152,7 +166,7 @@ function syncDirectory(sourceDir, targetDir) {
   }
 }
 
-function restoreExecutableEntrypoints({ outDir, binRelativePaths }) {
+function restoreExecutableEntrypoints({ outDir, binRelativePaths }: { outDir: string; binRelativePaths: string[] }): void {
   for (const relativePath of binRelativePaths) {
     const file = path.join(outDir, relativePath);
     if (!fs.existsSync(file)) continue;
@@ -161,11 +175,11 @@ function restoreExecutableEntrypoints({ outDir, binRelativePaths }) {
   }
 }
 
-function toPosix(value) {
+function toPosix(value: string): string {
   return value.split(path.sep).join("/");
 }
 
-function parseArgs(argv) {
+function parseArgs(argv: string[]): BuildDistCliOptions {
   const options = {
     projectRoot: repoRoot,
     configPath: path.join(repoRoot, "tsconfig.dist.json"),
@@ -194,7 +208,7 @@ function parseArgs(argv) {
   return options;
 }
 
-function requireValue(argv, index, option) {
+function requireValue(argv: string[], index: number, option: string): string {
   const value = argv[index + 1];
   if (!value) throw new Error(`${option} requires a value`);
   return value;
@@ -210,11 +224,11 @@ function isMainModule() {
 }
 
 if (isMainModule()) {
-  let options;
+  let options: BuildDistCliOptions;
   try {
     options = parseArgs(process.argv.slice(2));
   } catch (error) {
-    console.error(error.message);
+    console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 

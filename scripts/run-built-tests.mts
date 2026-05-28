@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import path from "node:path";
@@ -45,8 +44,12 @@ const result = spawnSync(process.execPath, [runner], {
 });
 if (result.status !== 0) process.exit(result.status || 1);
 
-function parseArgs(argv) {
-  const parsed = { test: undefined };
+type RunBuiltTestsOptions = {
+  test?: string;
+};
+
+function parseArgs(argv: string[]): RunBuiltTestsOptions {
+  const parsed: RunBuiltTestsOptions = {};
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--test") {
@@ -59,7 +62,7 @@ function parseArgs(argv) {
   return parsed;
 }
 
-function requireValue(argv, index, option) {
+function requireValue(argv: string[], index: number, option: string): string {
   const value = argv[index + 1];
   if (!value) throw new Error(`${option} requires a value`);
   return value;

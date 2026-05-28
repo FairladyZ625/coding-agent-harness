@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import os from "node:os";
@@ -10,22 +9,33 @@ const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dist-build-"));
 const distRoot = path.join(tempRoot, "dist");
 
-function assert(condition, message) {
+type DistBuildSummary = {
+  ok: boolean;
+  files: string[];
+};
+
+type PackageJsonShape = {
+  bin?: { harness?: string };
+  scripts?: Record<string, string>;
+  files: string[];
+};
+
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-function collectFiles(directory) {
-  const files = [];
+function collectFiles(directory: string): string[] {
+  const files: string[] = [];
   if (!fs.existsSync(directory)) return files;
   walk(directory, files);
   return files.sort();
 }
 
-function readFile(relativePath) {
+function readFile(relativePath: string): string {
   return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
 }
 
-function walk(current, files) {
+function walk(current: string, files: string[]): void {
   const stat = fs.lstatSync(current);
   if (stat.isSymbolicLink()) return;
   if (stat.isDirectory()) {
@@ -60,14 +70,14 @@ assert(
   "unsafe output rejection should explain the refused clean",
 );
 
-const buildSummary = JSON.parse(build.stdout);
+const buildSummary = JSON.parse(build.stdout) as DistBuildSummary;
 assert(buildSummary.ok === true, "dist build JSON summary should report ok");
 assert(buildSummary.files.includes("harness.mjs"), "dist build should emit root harness.mjs");
 assert(buildSummary.files.includes("postinstall.mjs"), "dist build should emit root postinstall.mjs");
 assert(buildSummary.files.includes("lib/harness-core.mjs"), "dist build should emit runtime library files");
 assert(!buildSummary.files.includes("scripts/harness.mjs"), "dist build must not preserve the scripts/ prefix");
 
-const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")) as PackageJsonShape;
 assert(packageJson.bin?.harness === "dist/harness.mjs", "package bin should run the dist harness entrypoint");
 assert(packageJson.scripts?.postinstall === "node postinstall.mjs", "package postinstall should run the source-safe postinstall bootstrap");
 assert(packageJson.scripts?.prepare === "node postinstall.mjs --build-only", "package prepare should build dist for Git/source installs");
