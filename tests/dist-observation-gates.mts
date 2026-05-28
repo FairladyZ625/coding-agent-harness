@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import os from "node:os";
@@ -8,9 +7,75 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const { checkDistObservation } = await import(pathToFileURL(path.join(repoRoot, "dist/check-dist-observation.mjs")));
+const { checkDistObservation } = await import(pathToFileURL(path.join(repoRoot, "dist/check-dist-observation.mjs")).href) as DistObservationModule;
 
-function assert(condition, message) {
+type StatusEntry = {
+  id?: string;
+  status: number | null;
+};
+
+type DistObservationJson = {
+  ok: boolean;
+  observations: {
+    packageRuntime: {
+      bin: string;
+      scripts: Record<string, string>;
+    };
+    inventory: {
+      scriptShims: number;
+      testShims: number;
+      unpairedScriptShims: number;
+      unpairedTestShims: number;
+    };
+    commandMatrix: StatusEntry[];
+  };
+};
+
+type DistObservationFailure = {
+  code: string;
+};
+
+type ReleaseObservationResult = {
+  ok: boolean;
+  failures: DistObservationFailure[];
+  observations: {
+    package: {
+      hasDistHarness: boolean;
+      distHarnessExecutable: boolean;
+      hasDistPostinstall: boolean;
+      hasDistObservationGate: boolean;
+      hasPostinstallBootstrap: boolean;
+      hasRunDistBootstrap: boolean;
+      hasScriptsHarness: boolean;
+      hasScripts: boolean;
+      hasTests: boolean;
+    };
+    installSmoke: {
+      bin: string;
+      binExecutable: boolean;
+      nodeVersion: string;
+      postinstall: string;
+      observeDist: string;
+      binTarget: string;
+      hasTests: boolean;
+      hasScripts: boolean;
+      scriptsDisabled: unknown[];
+      steps: StatusEntry[];
+      observationOk: boolean;
+    };
+  };
+};
+
+type DistObservationModule = {
+  checkDistObservation(options: {
+    projectRoot: string;
+    runPack?: boolean;
+    runInstallSmoke?: boolean;
+    runCommandMatrix?: boolean;
+  }): ReleaseObservationResult;
+};
+
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
@@ -21,7 +86,7 @@ const observation = spawnSync("npm", ["run", "observe:dist", "--", "--json"], {
 });
 assert(observation.status === 0, `dist observation gate should pass\nSTDOUT:\n${observation.stdout}\nSTDERR:\n${observation.stderr}`);
 
-const result = JSON.parse(extractLastJsonObject(observation.stdout));
+const result = JSON.parse(extractLastJsonObject(observation.stdout)) as DistObservationJson;
 assert(result.ok === true, "dist observation JSON should report ok");
 assert(result.observations.packageRuntime.bin === "dist/harness.mjs", "package bin must be dist");
 assert(result.observations.packageRuntime.scripts.postinstall === "node postinstall.mjs", "postinstall must use the source-safe bootstrap");
@@ -75,7 +140,7 @@ assert(failed.failures.some((failure) => failure.code === "package-script-postin
 
 console.log("Dist observation gate tests passed");
 
-function extractLastJsonObject(stdout) {
+function extractLastJsonObject(stdout: string): string {
   const start = stdout.lastIndexOf("\n{");
   const json = start === -1 ? stdout.trim() : stdout.slice(start + 1).trim();
   assert(json.startsWith("{"), `expected JSON object in stdout:\n${stdout}`);

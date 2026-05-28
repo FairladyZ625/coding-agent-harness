@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import { seedBundledPresets } from "./lib/harness-core.mjs";
 
@@ -11,5 +10,6 @@ try {
   const summary = changed > 0 ? `${changed} bundled presets installed` : `${result.skipped} bundled presets already present`;
   console.log(`coding-agent-harness postinstall: ${summary} at ${result.target}`);
 } catch (error) {
-  console.warn(`coding-agent-harness postinstall: preset seed skipped (${error.message})`);
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`coding-agent-harness postinstall: preset seed skipped (${message})`);
 }
