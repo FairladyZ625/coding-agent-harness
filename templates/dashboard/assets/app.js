@@ -396,6 +396,22 @@ function stateToColorVar(state) {
   return map[state] || "--muted";
 }
 
+function taskStatRows(tasks) {
+  return [
+    { state: "in_progress", label: t("statInProgress"), className: "in-progress" },
+    { state: "review", label: t("statReview"), className: "review" },
+    { state: "blocked", label: t("statBlocked"), className: "blocked" },
+    { state: "done", label: t("statDone"), className: "done" },
+    { state: "planned", label: label("planned"), className: "planned" },
+    { state: "not_started", label: label("not_started"), className: "not-started" },
+    { state: "unknown", label: label("unknown"), className: "unknown" },
+  ].map((row) => ({
+    ...row,
+    count: tasks.filter((task) => task.state === row.state).length,
+    colorVar: stateToColorVar(row.state),
+  })).filter((row) => row.count > 0);
+}
+
 function taskSortLabel() {
   return state.taskSortOrder === "asc" ? t("sortOldest") : t("sortNewest");
 }
@@ -458,7 +474,7 @@ function taskToolbarCard(filteredCount) {
     <div class="select-group">
       <label>${t("stateFilter")}</label>
       <select data-state-filter aria-label="${t("stateFilter")}">
-        ${["all", "in_progress", "review", "blocked", "planned", "done", "unknown"].map((value) => `<option value="${value}" ${state.taskState === value ? "selected" : ""}>${label(value)}</option>`).join("")}
+        ${["all", "in_progress", "review", "blocked", "planned", "not_started", "done", "unknown"].map((value) => `<option value="${value}" ${state.taskState === value ? "selected" : ""}>${label(value)}</option>`).join("")}
       </select>
     </div>
     <div class="select-group">
@@ -511,13 +527,7 @@ function taskStatsCard() {
       <span class="gauge-label">${t("statOverall")}</span>
     </div>
     <div class="stats-breakdown">
-      ${[
-        { state: "in_progress", label: t("statInProgress"), colorVar: "--accent" },
-        { state: "review", label: t("statReview"), colorVar: "--accent-2" },
-        { state: "blocked", label: t("statBlocked"), colorVar: "--danger" },
-        { state: "done", label: t("statDone"), colorVar: "--ok" }
-      ].map(({ state, label, colorVar }) => {
-        const count = allTasks.filter(t => t.state === state).length;
+      ${taskStatRows(allTasks).map(({ label, colorVar, count }) => {
         return `<div class="stats-breakdown-row">
           <span class="stat-label">
             <span class="state-dot" style="background:var(${colorVar})"></span>
@@ -554,10 +564,6 @@ function taskLegendCard() {
 
 function taskStatsBar() {
   const allTasks = bundle.status?.tasks || [];
-  const inProgress = allTasks.filter(t => t.state === "in_progress").length;
-  const blocked = allTasks.filter(t => t.state === "blocked").length;
-  const done = allTasks.filter(t => t.state === "done").length;
-  const review = allTasks.filter(t => t.state === "review").length;
   const avgCompletion = allTasks.length ? clampCompletion(allTasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / allTasks.length) : 0;
 
   return `<section class="task-stats-bar">
@@ -565,22 +571,10 @@ function taskStatsBar() {
       <span class="stat-value">${allTasks.length}</span>
       <span class="stat-label">${t("statTotal")}</span>
     </div>
-    <div class="stat-chip in-progress">
-      <span class="stat-value">${inProgress}</span>
-      <span class="stat-label">${t("statInProgress")}</span>
-    </div>
-    <div class="stat-chip review">
-      <span class="stat-value">${review}</span>
-      <span class="stat-label">${t("statReview")}</span>
-    </div>
-    <div class="stat-chip blocked">
-      <span class="stat-value">${blocked}</span>
-      <span class="stat-label">${t("statBlocked")}</span>
-    </div>
-    <div class="stat-chip done">
-      <span class="stat-value">${done}</span>
-      <span class="stat-label">${t("statDone")}</span>
-    </div>
+    ${taskStatRows(allTasks).map((row) => `<div class="stat-chip ${escapeAttr(row.className)}" style="--stat-color: var(${row.colorVar})">
+      <span class="stat-value">${row.count}</span>
+      <span class="stat-label">${escapeHtml(row.label)}</span>
+    </div>`).join("")}
     <div class="stat-chip completion">
       <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${avgCompletion}%"></div></div>
       <div style="text-align:right">
@@ -2255,12 +2249,26 @@ window.setModulePage = function(moduleKey, page) {
   app();
 };
 
+function rerenderPreservingFieldFocus(field, selector) {
+  const shouldRestore = document.activeElement === field;
+  const selectionStart = typeof field.selectionStart === "number" ? field.selectionStart : null;
+  const selectionEnd = typeof field.selectionEnd === "number" ? field.selectionEnd : selectionStart;
+  app();
+  if (!shouldRestore) return;
+  const nextField = document.querySelector(selector);
+  if (!nextField || typeof nextField.focus !== "function") return;
+  nextField.focus({ preventScroll: true });
+  if (typeof nextField.setSelectionRange === "function" && selectionStart !== null) {
+    nextField.setSelectionRange(selectionStart, selectionEnd);
+  }
+}
+
 function bind() {
   document.querySelectorAll("[data-search]").forEach((input) => input.addEventListener("input", () => {
     state.query = input.value;
     state.taskPageByGroup = {};
     state.taskGroupPage = 1;
-    app();
+    rerenderPreservingFieldFocus(input, "[data-search]");
   }));
   document.querySelectorAll("[data-state-filter]").forEach((select) => select.addEventListener("change", () => {
     state.taskState = select.value;
@@ -2302,7 +2310,7 @@ function bind() {
   }));
   document.querySelectorAll("[data-preset-search]").forEach((input) => input.addEventListener("input", () => {
     state.presetQuery = input.value;
-    app();
+    rerenderPreservingFieldFocus(input, "[data-preset-search]");
   }));
   document.querySelectorAll("[data-preset-source-filter]").forEach((button) => button.addEventListener("click", () => {
     state.presetSourceFilter = button.dataset.presetSourceFilter || "all";

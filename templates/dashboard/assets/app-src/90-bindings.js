@@ -4,12 +4,26 @@ window.setModulePage = function(moduleKey, page) {
   app();
 };
 
+function rerenderPreservingFieldFocus(field, selector) {
+  const shouldRestore = document.activeElement === field;
+  const selectionStart = typeof field.selectionStart === "number" ? field.selectionStart : null;
+  const selectionEnd = typeof field.selectionEnd === "number" ? field.selectionEnd : selectionStart;
+  app();
+  if (!shouldRestore) return;
+  const nextField = document.querySelector(selector);
+  if (!nextField || typeof nextField.focus !== "function") return;
+  nextField.focus({ preventScroll: true });
+  if (typeof nextField.setSelectionRange === "function" && selectionStart !== null) {
+    nextField.setSelectionRange(selectionStart, selectionEnd);
+  }
+}
+
 function bind() {
   document.querySelectorAll("[data-search]").forEach((input) => input.addEventListener("input", () => {
     state.query = input.value;
     state.taskPageByGroup = {};
     state.taskGroupPage = 1;
-    app();
+    rerenderPreservingFieldFocus(input, "[data-search]");
   }));
   document.querySelectorAll("[data-state-filter]").forEach((select) => select.addEventListener("change", () => {
     state.taskState = select.value;
@@ -51,7 +65,7 @@ function bind() {
   }));
   document.querySelectorAll("[data-preset-search]").forEach((input) => input.addEventListener("input", () => {
     state.presetQuery = input.value;
-    app();
+    rerenderPreservingFieldFocus(input, "[data-preset-search]");
   }));
   document.querySelectorAll("[data-preset-source-filter]").forEach((button) => button.addEventListener("click", () => {
     state.presetSourceFilter = button.dataset.presetSourceFilter || "all";

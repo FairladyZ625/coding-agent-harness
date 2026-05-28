@@ -1263,7 +1263,7 @@ button, input, select {
 .stat-chip .stat-value {
   font-size: 20px;
   font-weight: 800;
-  color: var(--ink);
+  color: var(--stat-color, var(--ink));
   line-height: 1;
 }
 
