@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import fs from "node:fs";
 import os from "node:os";
@@ -9,15 +8,103 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const defaultProjectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+type Failure = {
+  code: string;
+  message: string;
+  actual?: unknown;
+  command?: string;
+  expected?: unknown;
+  expectedTokens?: readonly string[];
+  file?: string;
+  mode?: number;
+};
+
+type CommandStep = {
+  id: string;
+  status: number | null;
+};
+
+type PackageJson = {
+  bin?: {
+    harness?: string;
+  };
+  scripts?: Record<string, string | undefined>;
+};
+
+type PackedEntry = {
+  path: string;
+  mode?: number;
+};
+
+type PackageObservation = {
+  entryCount?: number;
+  hasDistHarness?: boolean;
+  hasDistPostinstall?: boolean;
+  hasDistObservationGate?: boolean;
+  hasPostinstallBootstrap?: boolean;
+  hasRunDistBootstrap?: boolean;
+  hasScriptsHarness?: boolean;
+  hasScripts?: boolean;
+  hasTests?: boolean;
+  distHarnessMode?: number;
+  distHarnessExecutable?: boolean;
+};
+
+type InventoryObservation = {
+  distMjs?: number;
+  scriptShims?: number;
+  testShims?: number;
+  unpairedScriptShims?: number;
+  unpairedTestShims?: number;
+};
+
+type InstallSmokeObservation = {
+  nodeVersion?: string;
+  tempRoot?: string;
+  binTarget?: string;
+  bin?: string;
+  binMode?: number;
+  binExecutable?: boolean;
+  postinstall?: string;
+  observeDist?: string;
+  hasTests?: boolean;
+  hasScripts?: boolean;
+  scriptsDisabled?: string[];
+  steps?: CommandStep[];
+  observationOk?: boolean;
+};
+
+type Observations = {
+  packageRuntime: {
+    bin?: string;
+    scripts?: Record<string, string | undefined>;
+  };
+  inventory: InventoryObservation;
+  package: PackageObservation;
+  installSmoke: InstallSmokeObservation;
+  commandMatrix: CommandStep[];
+};
+
+type CheckDistObservationOptions = {
+  projectRoot?: string;
+  runPack?: boolean;
+  runInstallSmoke?: boolean;
+  runCommandMatrix?: boolean;
+};
+
+type CliOptions = Required<CheckDistObservationOptions> & {
+  json: boolean;
+};
+
 export function checkDistObservation({
   projectRoot = defaultProjectRoot,
   runPack = true,
   runInstallSmoke = true,
   runCommandMatrix = true,
-} = {}) {
+}: CheckDistObservationOptions = {}) {
   const root = path.resolve(projectRoot);
-  const failures = [];
-  const observations = {
+  const failures: Failure[] = [];
+  const observations: Observations = {
     packageRuntime: {},
     inventory: {},
     package: {},
@@ -25,7 +112,7 @@ export function checkDistObservation({
     commandMatrix: [],
   };
 
-  const pkg = readJson(path.join(root, "package.json"), failures, "package-json");
+  const pkg = readJson<PackageJson>(path.join(root, "package.json"), failures, "package-json");
   if (!pkg) return { ok: false, failures, observations };
 
   expectEqual(failures, "package-bin-not-dist", pkg.bin?.harness, "dist/harness.mjs", "package bin.harness must resolve to dist/harness.mjs");
@@ -59,7 +146,7 @@ export function checkDistObservation({
     if (pack.status !== 0) {
       failures.push({ code: "pack-dry-run-failed", message: `npm pack dry-run failed\nSTDOUT:\n${pack.stdout}\nSTDERR:\n${pack.stderr}` });
     } else {
-      const packedEntries = JSON.parse(pack.stdout)[0].files;
+      const packedEntries = (JSON.parse(pack.stdout) as Array<{ files: PackedEntry[] }>)[0]?.files ?? [];
       const packed = packedEntries.map((file) => file.path).sort();
       const packedModeByPath = new Map(packedEntries.map((file) => [file.path, file.mode]));
       const distHarnessMode = packedModeByPath.get("dist/harness.mjs");
@@ -148,7 +235,7 @@ export function checkDistObservation({
   };
 }
 
-function runMatrix(root, failures, commandMatrix) {
+function runMatrix(root: string, failures: Failure[], commandMatrix: CommandStep[]) {
   const distHarness = path.join(root, "dist/harness.mjs");
   const matrix = [
     { id: "help", args: ["--help"] },
@@ -192,7 +279,7 @@ function runMatrix(root, failures, commandMatrix) {
   }
 }
 
-function runInstalledPackageSmoke(root, failures, observations) {
+function runInstalledPackageSmoke(root: string, failures: Failure[], observations: Observations) {
   const node24 = findNode24();
   if (!node24) {
     failures.push({ code: "node24-not-found", message: "install smoke requires a Node 24 executable" });
@@ -225,7 +312,12 @@ function runInstalledPackageSmoke(root, failures, observations) {
     return;
   }
 
-  const tarball = path.join(packDir, pack.stdout.trim().split(/\r?\n/).at(-1));
+  const tarballName = pack.stdout.trim().split(/\r?\n/).at(-1);
+  if (!tarballName) {
+    failures.push({ code: "install-smoke-pack-empty", message: "npm pack did not print a tarball name" });
+    return;
+  }
+  const tarball = path.join(packDir, tarballName);
   fs.writeFileSync(path.join(consumer, "package.json"), JSON.stringify({ private: true, type: "module" }, null, 2));
   const install = spawnSync("npm", ["install", "--silent", "--no-audit", "--no-fund", tarball], {
     cwd: consumer,
@@ -240,13 +332,16 @@ function runInstalledPackageSmoke(root, failures, observations) {
 
   const packageRoot = path.join(consumer, "node_modules/coding-agent-harness");
   const bin = path.join(consumer, "node_modules/.bin/harness");
-  const pkg = readJson(path.join(packageRoot, "package.json"), failures, "installed-package-json");
+  const pkg = readJson<PackageJson>(path.join(packageRoot, "package.json"), failures, "installed-package-json");
   if (!pkg) return;
 
   const binTarget = fs.existsSync(bin) ? fs.readlinkSync(bin) : "";
   const installedBinFile = path.join(packageRoot, "dist/harness.mjs");
   const installedBinMode = fs.existsSync(installedBinFile) ? fs.statSync(installedBinFile).mode : undefined;
-  observations.installSmoke = {
+  const installSmoke: InstallSmokeObservation & {
+    scriptsDisabled: string[];
+    steps: CommandStep[];
+  } = {
     nodeVersion,
     tempRoot,
     binTarget,
@@ -260,6 +355,7 @@ function runInstalledPackageSmoke(root, failures, observations) {
     scriptsDisabled: [],
     steps: [],
   };
+  observations.installSmoke = installSmoke;
 
   expectEqual(failures, "installed-bin-not-dist", pkg.bin?.harness, "dist/harness.mjs", "installed package bin.harness must resolve to dist/harness.mjs");
   expectScriptIncludes(failures, "installed-postinstall-not-source-safe", pkg.scripts?.postinstall, ["postinstall.mjs"], "installed package postinstall must use the source-safe bootstrap");
@@ -267,30 +363,30 @@ function runInstalledPackageSmoke(root, failures, observations) {
   if (!binTarget.includes("dist/harness.mjs")) {
     failures.push({ code: "installed-bin-link-not-dist", message: `installed bin link does not target dist/harness.mjs: ${binTarget}` });
   }
-  if (!observations.installSmoke.binExecutable) {
+  if (!installSmoke.binExecutable) {
     failures.push({ code: "installed-bin-not-executable", file: "dist/harness.mjs", mode: installedBinMode, message: "installed package bin dist/harness.mjs must be executable" });
   }
   for (const relative of ["postinstall.mjs", "run-dist.mjs", "dist/harness.mjs", "dist/postinstall.mjs", "dist/check-dist-observation.mjs"]) {
     if (!fs.existsSync(path.join(packageRoot, relative))) failures.push({ code: "installed-file-missing", file: relative, message: `installed package missing ${relative}` });
   }
-  if (observations.installSmoke.hasTests) failures.push({ code: "installed-package-includes-tests", message: "installed package must not include tests/**" });
-  if (observations.installSmoke.hasScripts) failures.push({ code: "installed-package-includes-scripts", message: "installed package must not include scripts/** after historical shim deletion" });
+  if (installSmoke.hasTests) failures.push({ code: "installed-package-includes-tests", message: "installed package must not include tests/**" });
+  if (installSmoke.hasScripts) failures.push({ code: "installed-package-includes-scripts", message: "installed package must not include scripts/** after historical shim deletion" });
 
   const installedScripts = path.join(packageRoot, "scripts");
   if (fs.existsSync(installedScripts)) {
     fs.renameSync(installedScripts, `${installedScripts}.disabled-by-dist-observation`);
-    observations.installSmoke.scriptsDisabled.push("scripts/");
+    installSmoke.scriptsDisabled.push("scripts/");
   }
 
   const runtimeEnv = isolatedEnv({ nodeBin, home, extraPath: [path.join(consumer, "node_modules", ".bin")] });
-  runInstalledMatrix(root, runtimeEnv, failures, observations.installSmoke.steps);
+  runInstalledMatrix(root, runtimeEnv, failures, installSmoke.steps);
 
   const postinstall = spawnSync(node24, [path.join(packageRoot, "dist/postinstall.mjs")], {
     cwd: packageRoot,
     encoding: "utf8",
     env: { ...runtimeEnv, CODING_AGENT_HARNESS_SKIP_POSTINSTALL: "1" },
   });
-  observations.installSmoke.steps.push({ id: "installed-dist-postinstall", status: postinstall.status });
+  installSmoke.steps.push({ id: "installed-dist-postinstall", status: postinstall.status });
   if (postinstall.status !== 0) failures.push({ code: "installed-postinstall-failed", message: `installed dist postinstall failed\nSTDOUT:\n${postinstall.stdout}\nSTDERR:\n${postinstall.stderr}` });
 
   const postinstallBootstrap = spawnSync(node24, [path.join(packageRoot, "postinstall.mjs")], {
@@ -298,7 +394,7 @@ function runInstalledPackageSmoke(root, failures, observations) {
     encoding: "utf8",
     env: { ...runtimeEnv, CODING_AGENT_HARNESS_SKIP_POSTINSTALL: "1" },
   });
-  observations.installSmoke.steps.push({ id: "installed-postinstall-bootstrap", status: postinstallBootstrap.status });
+  installSmoke.steps.push({ id: "installed-postinstall-bootstrap", status: postinstallBootstrap.status });
   if (postinstallBootstrap.status !== 0) failures.push({ code: "installed-postinstall-bootstrap-failed", message: `installed postinstall bootstrap failed\nSTDOUT:\n${postinstallBootstrap.stdout}\nSTDERR:\n${postinstallBootstrap.stderr}` });
 
   const installedObservation = spawnSync(
@@ -311,18 +407,18 @@ function runInstalledPackageSmoke(root, failures, observations) {
       maxBuffer: 32 * 1024 * 1024,
     },
   );
-  observations.installSmoke.steps.push({ id: "installed-observation", status: installedObservation.status });
+  installSmoke.steps.push({ id: "installed-observation", status: installedObservation.status });
   if (installedObservation.status !== 0) {
     failures.push({ code: "installed-observation-failed", message: `installed observation failed\nSTDOUT:\n${installedObservation.stdout}\nSTDERR:\n${installedObservation.stderr}` });
   } else {
-    const installedResult = JSON.parse(installedObservation.stdout);
-    observations.installSmoke.observationOk = installedResult.ok;
+    const installedResult = JSON.parse(installedObservation.stdout) as { ok?: boolean; failures?: unknown };
+    installSmoke.observationOk = installedResult.ok;
     if (!installedResult.ok) failures.push({ code: "installed-observation-not-ok", message: JSON.stringify(installedResult.failures, null, 2) });
   }
 
 }
 
-function runInstalledMatrix(root, runtimeEnv, failures, steps) {
+function runInstalledMatrix(root: string, runtimeEnv: NodeJS.ProcessEnv, failures: Failure[], steps: CommandStep[]) {
   const matrix = [
     { id: "installed-help", cwd: root, args: ["--help"] },
     { id: "installed-status", cwd: root, args: ["status", "--json", "examples/minimal-project"] },
@@ -353,7 +449,7 @@ function runInstalledMatrix(root, runtimeEnv, failures, steps) {
   }
 }
 
-function findNode24() {
+function findNode24(): string | undefined {
   const candidates = [
     process.env.NODE24,
     process.env.NODE24_PATH,
@@ -362,7 +458,7 @@ function findNode24() {
     path.join(os.homedir(), ".nvm", "versions", "node", "v24.13.1", "bin", "node"),
     "/opt/homebrew/opt/node@24/bin/node",
     "/usr/local/opt/node@24/bin/node",
-  ].filter(Boolean);
+  ].filter(isNonEmptyString);
 
   for (const candidate of candidates) {
     if (!fs.existsSync(candidate)) continue;
@@ -372,7 +468,19 @@ function findNode24() {
   return undefined;
 }
 
-function isolatedEnv({ nodeBin, home = process.env.HOME, extraPath = [] }) {
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function isolatedEnv({
+  nodeBin,
+  home = process.env.HOME || os.homedir(),
+  extraPath = [],
+}: {
+  nodeBin: string;
+  home?: string;
+  extraPath?: string[];
+}): NodeJS.ProcessEnv {
   return {
     ...process.env,
     HOME: home,
@@ -381,41 +489,45 @@ function isolatedEnv({ nodeBin, home = process.env.HOME, extraPath = [] }) {
   };
 }
 
-function readJson(file, failures, code) {
+function readJson<T>(file: string, failures: Failure[], code: string): T | undefined {
   try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
+    return JSON.parse(fs.readFileSync(file, "utf8")) as T;
   } catch (error) {
-    failures.push({ code, message: `failed to read ${file}: ${error.message}` });
+    failures.push({ code, message: `failed to read ${file}: ${errorMessage(error)}` });
     return undefined;
   }
 }
 
-function expectEqual(failures, code, actual, expected, message) {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function expectEqual(failures: Failure[], code: string, actual: unknown, expected: unknown, message: string) {
   if (actual !== expected) failures.push({ code, actual, expected, message });
 }
 
-function expectScriptIncludes(failures, code, script, tokens, message) {
+function expectScriptIncludes(failures: Failure[], code: string, script: unknown, tokens: readonly string[], message: string) {
   if (typeof script !== "string" || tokens.some((token) => !script.includes(token)) || script.includes("scripts/")) {
     failures.push({ code, actual: script, expectedTokens: tokens, message });
   }
 }
 
-function parseImportSpecifiers(content) {
-  const specifiers = [];
+function parseImportSpecifiers(content: string): string[] {
+  const specifiers: string[] = [];
   for (const match of content.matchAll(/\bfrom\s*["']([^"']+)["']/g)) specifiers.push(match[1]);
   for (const match of content.matchAll(/\bimport\s*["']([^"']+)["']/g)) specifiers.push(match[1]);
   for (const match of content.matchAll(/\bimport\s*\(\s*["']([^"']+)["']/g)) specifiers.push(match[1]);
   return specifiers;
 }
 
-function collectFiles(directory) {
-  const files = [];
+function collectFiles(directory: string): string[] {
+  const files: string[] = [];
   if (!fs.existsSync(directory)) return files;
   walk(directory, files);
   return files.sort();
 }
 
-function walk(current, files) {
+function walk(current: string, files: string[]) {
   const stat = fs.lstatSync(current);
   if (stat.isSymbolicLink()) return;
   if (stat.isDirectory()) {
@@ -425,12 +537,12 @@ function walk(current, files) {
   if (stat.isFile()) files.push(current);
 }
 
-function toPosix(value) {
+function toPosix(value: string): string {
   return value.split(path.sep).join("/");
 }
 
-function parseArgs(argv) {
-  const options = { json: false, runPack: true, runInstallSmoke: true, runCommandMatrix: true, projectRoot: defaultProjectRoot };
+function parseArgs(argv: string[]): CliOptions {
+  const options: CliOptions = { json: false, runPack: true, runInstallSmoke: true, runCommandMatrix: true, projectRoot: defaultProjectRoot };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--json") options.json = true;
@@ -447,13 +559,13 @@ function parseArgs(argv) {
   return options;
 }
 
-function requireValue(argv, index, option) {
+function requireValue(argv: string[], index: number, option: string): string {
   const value = argv[index + 1];
   if (!value) throw new Error(`${option} requires a value`);
   return value;
 }
 
-function isMainModule() {
+function isMainModule(): boolean {
   if (!process.argv[1]) return false;
   try {
     return fs.realpathSync.native(fileURLToPath(import.meta.url)) === fs.realpathSync.native(process.argv[1]);
@@ -467,7 +579,7 @@ if (isMainModule()) {
   try {
     options = parseArgs(process.argv.slice(2));
   } catch (error) {
-    console.error(error.message);
+    console.error(errorMessage(error));
     process.exit(1);
   }
   const result = checkDistObservation(options);
