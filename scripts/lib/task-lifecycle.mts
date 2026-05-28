@@ -281,13 +281,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
   const plannedGovernance = syncTaskGovernance(target, task, { event: "new-task", state: "planned", message: "task registered by CLI", dryRun: true });
   const plannedWriteScopes = governanceRelativePaths([...plannedChanges, ...plannedGovernance.changes]);
   const changes = [];
-  const governanceContext = beginGovernanceSync(target, {
-    operation: `new-task ${normalizedTaskId}`,
-    dryRun,
-    allowDirtyWorktree: true,
-    allowedRelativePaths: [...plannedWriteScopes, ...(allowDirtyRelativePaths || [])],
-    allowDirtyWriteScope: deferCommit,
-  });
+  const governanceContext = beginGovernanceSync(target, { operation: `new-task ${normalizedTaskId}`, dryRun, allowDirtyWorktree: true, allowedRelativePaths: [...plannedWriteScopes, ...(allowDirtyRelativePaths || [])], allowDirtyWriteScope: deferCommit });
   try {
   if (normalizedModuleKey) {
     const moduleDirectory = target.harness.version === 2
@@ -409,11 +403,7 @@ export function createTask(targetInput, taskId, { title = "", locale = "en-US", 
     refreshPresetCommandAudit(target, presetContext, { commandWriteScopes, dryRun });
     task.presetAudit = presetContext.audit;
   }
-  const commit = deferCommit
-    ? { committed: false, reason: "deferred", allowedPaths: commandWriteScopes }
-    : commitGovernanceSync(governanceContext, commandWriteScopes, {
-      message: `chore(harness): register task ${task.id}`,
-    });
+  const commit = deferCommit ? { committed: false, reason: "deferred", allowedPaths: commandWriteScopes } : commitGovernanceSync(governanceContext, commandWriteScopes, { message: `chore(harness): register task ${task.id}` });
   return {
     dryRun,
     task,
@@ -504,18 +494,14 @@ export function updateTaskLifecycle(targetInput, taskId, { event = "task-log", s
     releaseGovernanceSync(governanceContext);
   }
 }
-
-
 export function confirmTaskReview(targetInput, taskId, { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "", deferCommit = false } = {}) {
   const target = normalizeTarget(targetInput);
-  const taskDir = resolveTaskDirectory(target, taskId);
-  return confirmTaskReviewWithContext({ target, taskDir, findTaskByDirectory }, { reviewer, message, confirmText, evidence, deferCommit });
+  return confirmTaskReviewWithContext({ target, taskDir: resolveTaskDirectory(target, taskId), findTaskByDirectory }, { reviewer, message, confirmText, evidence, deferCommit });
 }
 
 export function finalizeDeferredTaskReviewConfirmation(targetInput, taskId, { commitSha = "" } = {}) {
   const target = normalizeTarget(targetInput);
-  const taskDir = resolveTaskDirectory(target, taskId);
-  return finalizeDeferredTaskReviewConfirmationWithContext({ target, taskDir, findTaskByDirectory }, { commitSha });
+  return finalizeDeferredTaskReviewConfirmationWithContext({ target, taskDir: resolveTaskDirectory(target, taskId), findTaskByDirectory }, { commitSha });
 }
 export function updateTaskPhase(targetInput, taskId, phaseId, { state = "", completion = "", evidenceStatus = "" } = {}) {
   const target = normalizeTarget(targetInput);

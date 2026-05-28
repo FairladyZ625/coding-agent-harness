@@ -2,6 +2,7 @@
 // Dashboard command parsing stays behavior-first until command handler types are modeled.
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {
   normalizeTarget,
@@ -10,6 +11,28 @@ import {
   writeDashboardSingleFile,
 } from "../lib/harness-core.mjs";
 import { dashboardWatchRoots } from "../lib/harness-paths.mjs";
+
+export async function runDevDashboardCommand({ takeFlag, takeOption, targetArg }) {
+  const open = !takeFlag("--no-open");
+  const outDir = takeOption("--out-dir", "");
+  const host = takeOption("--host", "127.0.0.1");
+  const port = takeOption("--port", "0");
+  const localeOverride = takeOption("--locale", "");
+  const target = targetArg();
+  const usesDefaultOutDir = !outDir;
+  const dashboardOutDir = outDir || defaultDevOutDir(target);
+  const opts = {
+    ...(localeOverride ? { localeOverride } : {}),
+    recoverGeneratedDashboard: usesDefaultOutDir,
+    replaceExistingDashboardOutput: usesDefaultOutDir,
+  };
+  try {
+    await serveDashboardWorkbench(dashboardOutDir, target, { ...opts, host, port, autoRefresh: true, open, label: "harness dev" });
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+}
 
 export async function runDashboardCommand({ takeFlag, takeOption, targetArg }) {
   const watch = takeFlag("--watch");
@@ -80,4 +103,11 @@ function assertV2DashboardTarget(target) {
   if (normalizedTarget.harness?.version === 2) return;
   console.error("dashboard requires v2 harness structure; run `harness migrate-structure --plan` then `harness migrate-structure --apply`");
   process.exit(1);
+}
+
+function defaultDevOutDir(targetInput) {
+  const target = path.resolve(targetInput || ".");
+  const name = path.basename(target) || "project";
+  const hash = Buffer.from(target).toString("hex").slice(0, 16);
+  return path.join(os.tmpdir(), "coding-agent-harness-dev", `${name}-${hash}`);
 }

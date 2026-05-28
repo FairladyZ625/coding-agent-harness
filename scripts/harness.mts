@@ -2,7 +2,6 @@
 // @ts-nocheck
 
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import {
@@ -14,11 +13,10 @@ import {
   normalizeLocale,
   refreshTemplateProjections,
   rebuildGovernanceIndexes,
-  serveDashboardWorkbench,
   validateSourcePackageBoundary,
   writeInitFiles,
 } from "./lib/harness-core.mjs";
-import { runDashboardCommand } from "./commands/dashboard-command.mjs";
+import { runDashboardCommand, runDevDashboardCommand } from "./commands/dashboard-command.mjs";
 import { runMigrationCommand } from "./commands/migration-command.mjs";
 import { runPresetCommand } from "./commands/preset-command.mjs";
 import { runTaskCommand } from "./commands/task-command.mjs";
@@ -192,25 +190,7 @@ if (command === "help" || command === "--help" || command === "-h") {
   }
   process.exitCode = status.checkState.status === "fail" ? 1 : 0;
 } else if (command === "dev") {
-  const open = !takeFlag("--no-open");
-  const outDir = takeOption("--out-dir", "");
-  const host = takeOption("--host", "127.0.0.1");
-  const port = takeOption("--port", "0");
-  const localeOverride = takeOption("--locale", "");
-  const target = targetArg();
-  const usesDefaultOutDir = !outDir;
-  const dashboardOutDir = outDir || defaultDevOutDir(target);
-  const opts = {
-    ...(localeOverride ? { localeOverride } : {}),
-    recoverGeneratedDashboard: usesDefaultOutDir,
-    replaceExistingDashboardOutput: usesDefaultOutDir,
-  };
-  try {
-    await serveDashboardWorkbench(dashboardOutDir, target, { ...opts, host, port, autoRefresh: true, open, label: "harness dev" });
-  } catch (error) {
-    console.error(error.message);
-    process.exit(1);
-  }
+  await runDevDashboardCommand({ takeFlag, takeOption, targetArg });
 } else if (command === "dashboard") {
   await runDashboardCommand({ takeFlag, takeOption, targetArg });
 } else if (command === "init") {
@@ -311,11 +291,4 @@ if (command === "help" || command === "--help" || command === "-h") {
 } else {
   printHelp();
   process.exit(2);
-}
-
-function defaultDevOutDir(targetInput) {
-  const target = path.resolve(targetInput || ".");
-  const name = path.basename(target) || "project";
-  const hash = Buffer.from(target).toString("hex").slice(0, 16);
-  return path.join(os.tmpdir(), "coding-agent-harness-dev", `${name}-${hash}`);
 }
