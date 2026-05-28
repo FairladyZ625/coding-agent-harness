@@ -22,7 +22,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install root dependencies
         run: npm install
@@ -39,13 +39,13 @@ jobs:
         run: npm test
 
       - name: Check source package boundary
-        run: node scripts/harness.mjs check --profile source-package .
+        run: npm run check
 
       - name: Check minimal target project
-        run: node scripts/harness.mjs check --profile target-project examples/minimal-project
+        run: node dist/harness.mjs check --profile target-project examples/minimal-project
 
       - name: Generate example dashboard
-        run: node scripts/harness.mjs dashboard --out tmp/example-dashboard.html examples/minimal-project
+        run: node dist/harness.mjs dashboard --out tmp/example-dashboard.html examples/minimal-project
 
       - name: Smoke test dashboard
         run: npm run smoke:dashboard
