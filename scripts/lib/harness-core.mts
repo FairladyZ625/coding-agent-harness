@@ -1,4 +1,3 @@
-// @ts-nocheck
 export * from "./core-shared.mjs";
 export * from "./markdown-utils.mjs";
 export * from "./capability-registry.mjs";
