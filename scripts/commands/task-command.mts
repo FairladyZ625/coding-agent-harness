@@ -53,6 +53,18 @@ type CreateTaskCliOptions = {
   fromSession: string;
   presetArgs: string[];
   automaticTaskId: boolean;
+  registerModule?: boolean;
+  moduleRegistration?: {
+    title?: string;
+    prefix?: string;
+    status?: string;
+    branch?: string;
+    owner?: string;
+    currentStep?: string;
+    scope?: string[];
+    shared?: string[];
+    dependsOn?: string[];
+  };
 };
 
 export function runTaskCommand(command: string, { args, takeFlag, takeOption, targetArg }: CommandContext) {
@@ -61,13 +73,25 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
     const locale = takeOption("--locale", "");
     const title = takeOption("--title", "");
     const moduleKey = takeOption("--module", "");
+    const registerModule = takeFlag("--register-module");
+    const moduleRegistration = {
+      title: takeOption("--module-title", ""),
+      prefix: takeOption("--module-prefix", ""),
+      status: takeOption("--module-status", "planned"),
+      branch: takeOption("--module-branch", ""),
+      owner: takeOption("--module-owner", "coordinator"),
+      currentStep: takeOption("--module-current-step", ""),
+      scope: takeRepeatedOptions(args, "--module-scope"),
+      shared: takeRepeatedOptions(args, "--module-shared"),
+      dependsOn: takeRepeatedOptions(args, "--module-depends-on"),
+    };
     const budget = takeOption("--budget", "standard");
     const preset = takeOption("--preset", "");
     const fromSession = takeOption("--from-session", "");
     const longRunning = takeFlag("--long-running");
     try {
       const parsed = parseNewTaskArgs(args, { preset, fromSession });
-      const createOptions = { title, locale, dryRun, moduleKey, budget, longRunning, preset, fromSession, presetArgs: parsed.presetArgs, automaticTaskId: parsed.automaticTaskId };
+      const createOptions = { title, locale, dryRun, moduleKey, budget, longRunning, preset, fromSession, presetArgs: parsed.presetArgs, automaticTaskId: parsed.automaticTaskId, registerModule, moduleRegistration };
       console.log(JSON.stringify(invokeCreateTask(parsed.target, parsed.taskId, createOptions), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
@@ -405,6 +429,21 @@ function takeRepeatedKeyValueOptions(args: string[], flag: string): Record<strin
     fields[key] = value;
   }
   return fields;
+}
+
+function takeRepeatedOptions(args: string[], flag: string): string[] {
+  const values: string[] = [];
+  for (let index = 0; index < args.length;) {
+    if (args[index] !== flag) {
+      index += 1;
+      continue;
+    }
+    const value = args[index + 1] || "";
+    args.splice(index, 2);
+    if (!value) throw new Error(`${flag} requires a value`);
+    values.push(value);
+  }
+  return values;
 }
 
 function readArrayProperty(value: unknown, key: string): unknown[] {

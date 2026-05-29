@@ -336,10 +336,12 @@ const explicitCustomHarnessRootStatus = expectJson<StatusJson>(["status", "--jso
 assert(explicitCustomHarnessRootStatus.project, "explicit custom harness root status should include project metadata");
 assert(explicitCustomHarnessRootStatus.project.root === "TARGET:.", "explicit custom harness-root target should resolve back to the project root");
 assert(explicitCustomHarnessRootStatus.tasks[0].path === "TARGET:.project-control/harness-state/planning/tasks/custom-harness-root-task", "explicit custom harness-root target should preserve project-root relative task paths");
+expectJson(["module", "register", "custom", "--title", "Custom Module", "--prefix", "CUS", "--scope", "src/custom/**", customHarnessRootTarget]);
 expectJson(["add-capability", "dashboard", customHarnessRootTarget]);
 const customHarnessManifestAfterAdd = fs.readFileSync(path.join(customHarnessRoot, "harness.yaml"), "utf8");
 assert(customHarnessManifestAfterAdd.includes("harnessRoot: .project-control/harness-state"), "add-capability should preserve custom harnessRoot from the existing manifest");
 assert(customHarnessManifestAfterAdd.includes("- dashboard"), "add-capability should update capabilities in the custom-root manifest");
+assert(customHarnessManifestAfterAdd.includes("modules:") && customHarnessManifestAfterAdd.includes("custom:"), "add-capability should preserve YAML module registrations");
 assert(fs.existsSync(path.join(customHarnessRoot, "governance/regression/Regression-SSoT.md")), "add-capability should write scaffold files under the custom harness root");
 assert(!fs.existsSync(path.join(customHarnessRootTarget, "coding-agent-harness")), "add-capability must not recreate the default harness root for custom-root projects");
 

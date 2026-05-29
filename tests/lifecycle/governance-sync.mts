@@ -42,6 +42,7 @@ git(target, ["config", "user.email", "harness-test@example.invalid"]);
 git(target, ["add", "."]);
 git(target, ["commit", "-m", "test fixture baseline"]);
 
+expectJson(["module", "register", "sync", "--title", "Sync", "--prefix", "SYNC", "--scope", "src/sync/**", target]);
 const created = expectJson<NewTaskResponse>(["new-task", "governance-owned", "--title", "Governance Owned", "--locale", "en-US", "--module", "sync", target]);
 assert(created.governance?.commit?.committed === true, "new-task should auto-commit governance sync in git targets");
 assert(git(target, ["status", "--short"]).stdout.trim() === "", "new-task governance sync should leave git clean");
@@ -57,7 +58,7 @@ assert(!fs.existsSync(featurePath), "new-task --module should not create Feature
 const ledgerContent = fs.readFileSync(ledgerPath, "utf8");
 assert(ledgerContent.includes(ownedTaskPlan), "new-task should register task in Harness Ledger");
 assert(ledgerContent.includes("| module | sync |"), "new-task --module should expose module scope in Harness Ledger");
-assert(fs.readFileSync(registryPath, "utf8").includes("coding-agent-harness/planning/modules/sync/module_plan.md"), "new-task --module should register module registry row");
+assert(fs.readFileSync(registryPath, "utf8").includes("coding-agent-harness/planning/modules/sync/module_plan.md"), "new-task --module should refresh the YAML-backed module registry view");
 assert(fs.readFileSync(modulePlanPath, "utf8").includes(ownedTaskPlan), "new-task --module should regenerate module plan index");
 assert(fs.readFileSync(moduleVisualPath, "utf8").includes(ownedTaskPlan), "new-task --module should regenerate module visual map index");
 

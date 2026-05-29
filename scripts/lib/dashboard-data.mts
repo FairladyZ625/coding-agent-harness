@@ -304,6 +304,26 @@ export function collectGraph(status: DashboardStatus, tables: DashboardTables = 
       addEdge({ from: `task:${task.id}`, to: handoffId, type: "handoff" });
     }
   }
+  for (const module of Array.isArray((status as Record<string, unknown>).modules) ? (status as Record<string, unknown>).modules as Array<Record<string, unknown>> : []) {
+    const key = String(module.key || "");
+    if (!key) continue;
+    const moduleId = `module:${key}`;
+    const currentStep = String(module.currentStep || "");
+    const state = module.status || "planned";
+    addNode({
+      id: moduleId,
+      type: "module",
+      label: String(module.title || key),
+      state,
+      currentStep,
+      ...moduleDocumentPaths(target, key),
+    });
+    if (currentStep) {
+      const stepId = `step:${currentStep}`;
+      if (!seenNodes.has(stepId)) addNode({ id: stepId, type: "step", label: currentStep, state, module: key });
+      addEdge({ from: moduleId, to: stepId, type: "current_step" });
+    }
+  }
   for (const table of tables.tables || []) {
     if (table.kind === "module-registry") {
       for (const row of table.rows) {
@@ -315,7 +335,7 @@ export function collectGraph(status: DashboardStatus, tables: DashboardTables = 
         addNode({
           id: moduleId,
           type: "module",
-          label: getCell(row.cells, ["Name", "Module", "模块名称", "模块"], key),
+          label: getCell(row.cells, ["Title", "Name", "Module", "模块名称", "模块"], key),
           state: status,
           currentStep,
           ...moduleDocumentPaths(target, key),

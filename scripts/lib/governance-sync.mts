@@ -10,6 +10,7 @@ import { readBundledTemplate, readFileSafe, readJsonSafe, repoRoot, todayDate, t
 import { collectTasks } from "./task-scanner.mjs";
 import { appendMarkdownTableRow, firstColumn, fitMarkdownTableRow, splitMarkdownRow, upsertMarkdownTableRow } from "./markdown-utils.mjs";
 import { resolveHarnessPaths } from "./harness-paths.mjs";
+import { moduleRegistryViewPath, renderModuleRegistryView } from "./module-registry.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 
 type StringRecord = Record<string, unknown>;
@@ -261,7 +262,7 @@ export function syncTaskGovernance(
   const moduleKey = task.module;
   if (moduleKey) {
     const taskWithModule = { ...task, module: moduleKey };
-    const moduleRegistry = syncModuleRegistryRow(target, taskWithModule, { state, planPath, dryRun });
+    const moduleRegistry = syncModuleRegistryView(target, { dryRun });
     if (moduleRegistry) changes.push(moduleRegistry);
     changes.push(...syncModuleGeneratedIndexes(target, moduleKey, { task: taskWithModule, dryRun }).changes);
   }
@@ -333,35 +334,12 @@ function syncLedgerRow(
   return { destination: relative, action: dryRun ? "would-sync-governance" : "sync-governance", surface: "harness-ledger" };
 }
 
-function syncModuleRegistryRow(
-  target: HarnessTarget,
-  task: GovernanceTask & { module: string },
-  { state, planPath, dryRun }: { state: string; planPath: string; dryRun: boolean },
-): GovernanceChange {
-  const harnessPaths = activeHarnessPaths(target);
-  const registryPath = path.join(harnessPaths.modulesRoot, "Module-Registry.md");
-  ensureFileFromTemplate(registryPath, "templates/ssot/Module-Registry.md", { dryRun });
+function syncModuleRegistryView(target: HarnessTarget, { dryRun }: { dryRun: boolean }): GovernanceChange {
+  const registryPath = moduleRegistryViewPath(target as HarnessTarget & { harness: ResolvedHarnessPaths });
   const relative = toPosix(path.relative(target.projectRoot, registryPath));
   if (!dryRun) {
-    const content = readFileSafe(registryPath);
-    const moduleKey = task.module;
-    const moduleDirRelative = toPosix(path.relative(target.projectRoot, path.join(harnessPaths.modulesRoot, moduleKey)));
-    const modulePlan = `${moduleDirRelative}/module_plan.md`;
-    const row = [
-      `M-${moduleKey.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}`,
-      moduleKey,
-      `${moduleDirRelative}/**`,
-      "coordinator",
-      state === "planned" ? "reserved" : mapModuleState(state),
-      `codex/${moduleKey}`,
-      modulePlan,
-      "none",
-      "none",
-      planPath,
-      "none",
-      todayDate(),
-    ];
-    fs.writeFileSync(registryPath, upsertMarkdownTableRow(content, /^ID$/i, (header, existing) => rowMatchesModule(header, existing, moduleKey, modulePlan), row));
+    fs.mkdirSync(path.dirname(registryPath), { recursive: true });
+    fs.writeFileSync(registryPath, renderModuleRegistryView(target as HarnessTarget & { harness: ResolvedHarnessPaths }));
   }
   return { destination: relative, action: dryRun ? "would-sync-governance" : "sync-governance", surface: "module-registry" };
 }

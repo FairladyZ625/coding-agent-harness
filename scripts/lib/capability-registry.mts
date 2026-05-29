@@ -30,6 +30,8 @@ import {
   legacyTaskRoot,
   legacyWalkthroughRoot,
   safeAdoptionCapability,
+  assertRenderableHarnessManifest,
+  renderHarnessManifest,
   v2HarnessRoot,
 } from "./harness-paths.mjs";
 import type { HarnessManifest } from "./harness-paths.mjs";
@@ -648,27 +650,6 @@ export function writeInitFiles(targetInput: string, capabilities: string[], { dr
   return { target, capabilities: normalizedCapabilities, locale: normalizedLocale, changes, presetSeed, nextCommands: initNextCommands(), report };
 }
 
-function renderHarnessManifest({ locale, capabilities, structure = null }: { locale: string; capabilities: string[]; structure?: Record<string, string> | null }): string {
-  const manifestStructure = structure || {
-    harnessRoot: v2HarnessRoot,
-    planningRoot: `${v2HarnessRoot}/planning`,
-    tasksRoot: `${v2HarnessRoot}/planning/tasks`,
-    modulesRoot: `${v2HarnessRoot}/planning/modules`,
-    externalRoot: `${v2HarnessRoot}/planning/external`,
-    governanceRoot: `${v2HarnessRoot}/governance`,
-    generatedRoot: `${v2HarnessRoot}/governance/generated`,
-  };
-  return [
-    "version: 2",
-    `locale: ${locale}`,
-    "capabilities:",
-    ...capabilities.map((capability) => `  - ${capability}`),
-    "structure:",
-    ...Object.entries(manifestStructure).map(([key, value]) => `  ${key}: ${value}`),
-    "",
-  ].join("\n");
-}
-
 function initNextCommands(): string[] {
   return [
     "npx --yes coding-agent-harness dev .",
@@ -838,8 +819,9 @@ export function addCapability(targetInput: string, capabilityName: string, { dry
     const manifestPath = target.harness?.version === 2 && target.manifestPath
       ? target.manifestPath
       : path.join(target.projectRoot, v2HarnessRoot, "harness.yaml");
+    assertRenderableHarnessManifest(target.harness?.manifest);
     fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
-    fs.writeFileSync(manifestPath, renderHarnessManifest({ locale: normalizedLocale, capabilities: nextCapabilities, structure: target.harness?.manifest?.structure }));
+    fs.writeFileSync(manifestPath, renderHarnessManifest({ locale: normalizedLocale, capabilities: nextCapabilities, structure: target.harness?.manifest?.structure, modules: target.harness?.manifest?.modules || null }));
     writeTemplateProjectionManifest(target, projectionEntries);
   }
   const report = buildInstallReport({ target, locale: normalizedLocale, capabilities: [...capabilityMap.keys()], changes, dryRun, operation: "add-capability" });

@@ -17,6 +17,7 @@ import { renderAgentReviewSubmission, replaceAgentReviewSubmission } from "./tas
 import { appendLongRunningContractFile, moduleTemplateFiles, taskFilesForBudget } from "./task-lifecycle/template-files.mjs";
 import { planCreateTaskChanges, refreshPresetCommandAudit, resolveImplicitCreateTarget } from "./task-lifecycle/create-task-helpers.mjs";
 import { beginGovernanceSync, commitGovernanceSync, governanceRelativePaths, releaseGovernanceSync, syncModuleStepGovernance, syncTaskGovernance } from "./governance-sync.mjs";
+import { normalizeHarnessModuleKey, prepareModuleRegistration, prepareModuleStepRegistrationUpdate, readHarnessModules, registeredHarnessModule } from "./module-registry.mjs";
 import { assertLifecyclePresetWriteScope, buildLifecyclePresetContext, evaluatePresetValues, renderLifecyclePresetTaskTemplate, resolveLifecyclePresetInputs } from "./task-lifecycle/preset-interop.mjs";
 import { taskRefPath } from "./harness-paths.mjs";
 import type { TaskBudget } from "./types/task-scanner.js";
@@ -176,7 +177,7 @@ function resolveTaskIdentity({ target, taskId, title, presetPackage, moduleKey, 
   throw new Error(`Unable to allocate automatic task id for: ${semanticSlug}`);
 }
 
-export function createTask(targetInput: string, taskId: string, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard", longRunning = false, preset = "", fromSession = "", presetArgs = [], automaticTaskId = false, deferCommit = false, allowDirtyRelativePaths = [] }: CreateTaskOptions = {}) {
+export function createTask(targetInput: string, taskId: string, { title = "", locale = "en-US", dryRun = false, moduleKey = "", budget = "standard", longRunning = false, preset = "", fromSession = "", presetArgs = [], automaticTaskId = false, deferCommit = false, allowDirtyRelativePaths = [], registerModule = false, moduleRegistration = {} }: CreateTaskOptions = {}) {
   const requestedPreset = preset || (moduleKey ? "module" : "");
   const presetTargetInput = resolveImplicitCreateTarget(targetInput, fromSession);
   const normalizedPreset = normalizeTaskPresetInput(requestedPreset, { targetInput: presetTargetInput });
@@ -190,7 +191,15 @@ export function createTask(targetInput: string, taskId: string, { title = "", lo
   if (presetPackage && !presetPackage.compatibleBudgets.includes(normalizedBudget)) throw new Error(`${normalizedPreset} preset requires --budget ${presetPackage.compatibleBudgets.join("|")}`);
   if (presetPackage?.task?.projectLevelOnly === true && moduleKey) throw new Error(`${normalizedPreset} preset is project-level and cannot be combined with --module`);
   if (presetPackage?.task?.requiresFromSession === true && !fromSession) throw new Error(`${normalizedPreset} preset requires --from-session`);
-  const normalizedModuleKey = moduleKey ? normalizeTaskId(moduleKey) : "";
+  const normalizedModuleKey = moduleKey ? normalizeHarnessModuleKey(moduleKey) : "";
+  const plannedModuleRegistration = normalizedModuleKey && !registeredHarnessModule(target, normalizedModuleKey)
+    ? registerModule
+      ? prepareModuleRegistration(target, normalizedModuleKey, moduleRegistration, { dryRun: true })
+      : null
+    : null;
+  if (normalizedModuleKey && !registeredHarnessModule(target, normalizedModuleKey) && !plannedModuleRegistration) {
+    throw new Error(`Unknown module: ${normalizedModuleKey}. Register it first with: harness module register ${normalizedModuleKey} --title <title> --prefix <PREFIX> --scope <path> ${target.projectRoot}`);
+  }
   const identity = resolveTaskIdentity({ target, taskId, title, presetPackage, moduleKey: normalizedModuleKey, automaticTaskId });
   const normalizedTaskId = identity.normalizedTaskId;
   const semanticSlug = identity.semanticSlug;
@@ -250,10 +259,14 @@ export function createTask(targetInput: string, taskId: string, { title = "", lo
     presetContext: presetContext || undefined,
   });
   const plannedGovernance = syncTaskGovernance(target, task, { event: "new-task", state: "planned", message: "task registered by CLI", dryRun: true });
-  const plannedWriteScopes = [...changeDestinations(plannedChanges), ...governanceRelativePaths(plannedGovernance.changes)];
+  const plannedWriteScopes = [...governanceRelativePaths(plannedModuleRegistration?.changes || []), ...changeDestinations(plannedChanges), ...governanceRelativePaths(plannedGovernance.changes)];
   const changes: LifecycleChange[] = [];
   const governanceContext = beginGovernanceSync(target, { operation: `new-task ${normalizedTaskId}`, dryRun, allowDirtyWorktree: true, allowedRelativePaths: [...plannedWriteScopes, ...(allowDirtyRelativePaths || [])], allowDirtyWriteScope: deferCommit });
   try {
+  if (plannedModuleRegistration) {
+    const moduleRegistrationResult = prepareModuleRegistration(target, normalizedModuleKey, moduleRegistration, { dryRun });
+    changes.push(...moduleRegistrationResult.changes);
+  }
   if (normalizedModuleKey) {
     const moduleDirectory = target.harness.version === 2
       ? path.join(target.harness.modulesRoot, normalizedModuleKey)
@@ -521,7 +534,7 @@ export function updateTaskPhase(targetInput: string, taskId: string, phaseId: st
 
 export function updateModuleStep(targetInput: string, moduleKey: string, stepId: string, { state = "" }: ModuleStepOptions = {}) {
   const target = asLifecycleTarget(normalizeTarget(targetInput));
-  const normalizedModuleKey = normalizeTaskId(moduleKey);
+  const normalizedModuleKey = normalizeHarnessModuleKey(moduleKey);
   const normalizedState = String(state || "done").toLowerCase().replaceAll("_", "-");
   if (!["planned", "in-progress", "done", "blocked", "superseded"].includes(normalizedState)) throw new Error(`Invalid module step state: ${state}`);
   const modulePlanPath = path.join(target.harness.modulesRoot, normalizedModuleKey, "module_plan.md");
@@ -541,38 +554,13 @@ export function updateModuleStep(targetInput: string, moduleKey: string, stepId:
     content = stepUpdate.content;
     fs.writeFileSync(modulePlanPath, content);
 
-    const registryPath = path.join(target.harness.modulesRoot, "Module-Registry.md");
-    if (fs.existsSync(registryPath)) {
-      let registry = readFileSafe(registryPath);
-      const registryUpdate = updateMarkdownTableRow(registry, /^(ID|模块 Key)$/i, (header, row) => {
-        const moduleIndex = firstColumn(header, ["Module", "模块", "模块 Key"]);
-        const taskPlanIndex = getColumn(header, "Task Plan");
-        const matchesModule = normalizeTaskId(row[moduleIndex] || "") === normalizedModuleKey;
-        const matchesPlan = taskPlanIndex >= 0 && String(row[taskPlanIndex] || "").includes(`/MODULES/${normalizedModuleKey}/`);
-        if (!matchesModule && !matchesPlan) return null;
-        const next = [...row];
-        const statusIndex = firstColumn(header, ["Status", "状态"]);
-        const updatedIndex = firstColumn(header, ["Updated", "更新时间"]);
-        const currentStepIndex = firstColumn(header, ["Current Step", "当前步骤"]);
-        const chineseRegistry = header.some((cell) => /模块 Key|模块名称|状态|更新时间/.test(cell));
-        if (statusIndex >= 0) {
-          next[statusIndex] = normalizedState === "done"
-            ? chineseRegistry ? "completed" : "merged"
-            : normalizedState === "in-progress" ? chineseRegistry ? "in-progress" : "active" : normalizedState;
-        }
-        if (currentStepIndex >= 0) next[currentStepIndex] = stepId;
-        if (updatedIndex >= 0) next[updatedIndex] = todayDate();
-        return next;
-      });
-      registry = registryUpdate.content;
-      fs.writeFileSync(registryPath, registry);
-    }
+    const moduleRegistration = prepareModuleStepRegistrationUpdate(target, normalizedModuleKey, { stepId, state: normalizedState });
     const governance = syncModuleStepGovernance(target, { moduleKey: normalizedModuleKey, stepId, state: normalizedState });
     const commit = commitGovernanceSync(
       governanceContext,
       [
         toPosix(path.relative(target.projectRoot, modulePlanPath)),
-        toPosix(path.relative(target.projectRoot, registryPath)),
+        ...governanceRelativePaths(moduleRegistration.changes),
         ...governanceRelativePaths(governance.changes),
       ],
       { message: `chore(harness): update module ${normalizedModuleKey} step ${stepId}` },
@@ -588,7 +576,7 @@ export function listLifecycleTasks(targetInput: string, { state = "", moduleKey 
   let tasks = collectTasks(target);
   if (!includeArchived) tasks = tasks.filter((task) => task.deletionState === "active" && task.hiddenByDefault !== true);
   if (state) tasks = tasks.filter((task) => task.state === String(state).toLowerCase().replaceAll("-", "_"));
-  if (moduleKey) tasks = tasks.filter((task) => task.module === normalizeTaskId(moduleKey));
+  if (moduleKey) tasks = tasks.filter((task) => task.module === normalizeHarnessModuleKey(moduleKey));
   if (queue) {
     const normalizedQueue = queryToken(queue);
     tasks = tasks.filter((task) => (task.taskQueues || []).map(queryToken).includes(normalizedQueue));
@@ -613,7 +601,14 @@ export function listLifecycleTasks(targetInput: string, { state = "", moduleKey 
       task.inferredModule,
     ].some((value) => String(value || "").toLowerCase().includes(needle)));
   }
-  return { tasks };
+  let modules: Array<Record<string, unknown>> = [];
+  try {
+    const registry = readHarnessModules(target);
+    modules = Object.entries(registry.items || {}).map(([key, module]) => ({ key, ...module }));
+  } catch {
+    modules = [];
+  }
+  return { tasks, modules };
 }
 
 function queryToken(value: unknown): string {

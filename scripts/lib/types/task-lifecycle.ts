@@ -113,6 +113,18 @@ export type CreateTaskOptions = {
   automaticTaskId?: boolean;
   deferCommit?: boolean;
   allowDirtyRelativePaths?: string[];
+  registerModule?: boolean;
+  moduleRegistration?: {
+    title?: string;
+    prefix?: string;
+    status?: string;
+    branch?: string;
+    owner?: string;
+    currentStep?: string;
+    scope?: string[];
+    shared?: string[];
+    dependsOn?: string[];
+  };
 };
 
 export type LifecycleUpdateOptions = {

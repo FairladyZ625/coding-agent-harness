@@ -120,6 +120,7 @@ if (search.tasks[0].taskQueues.length > 0) {
 const noMatch = expectJson<TaskListResponse>(["task-list", "--json", "--search", "does-not-exist", target]);
 assert(noMatch.tasks.length === 0, "task-list filters should return empty results on no match");
 
+expectJson(["module", "register", "pipe", "--title", "Pipe", "--prefix", "PIPE", "--scope", "src/pipe/**", target]);
 const pipeTitle = expectJson<NewTaskResponse>(["new-task", "module-pipe-title", "--module", "pipe", "--title", "Pipe | Title", target]);
 const pipeVisual = fs.readFileSync(path.join(target, "coding-agent-harness/planning/modules/pipe/visual_map.md"), "utf8");
 const incrementalLedger = fs.readFileSync(ledgerPath, "utf8");

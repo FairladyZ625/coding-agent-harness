@@ -539,6 +539,15 @@ const noExecutionReview = run(["task-review", "no-execution-kind", "--message", 
 assert(noExecutionReview.status !== 0, "task-review should reject phase maps without execution phases");
 assert(noExecutionReview.stderr.includes("execution phase"), "task-review failure should explain missing execution phase");
 
+const unregisteredModuleCreate = run(["new-task", "unregistered-module", "--module", "auth", "--title", "Unregistered", lifecycleTarget]);
+assert(unregisteredModuleCreate.status !== 0, "new-task --module should reject unregistered modules");
+assert(unregisteredModuleCreate.stderr.includes("harness module register auth"), "unregistered module error should provide a register hint");
+const authRegistration = expectJson(["module", "register", "auth", "--title", "Auth", "--prefix", "AUTH", "--scope", "src/auth/**", "--status", "in-progress", lifecycleTarget]);
+assert(authRegistration.moduleKey === "auth", "module register should report the normalized module key");
+assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/harness.yaml"), "utf8").includes("modules:"), "module register should persist modules in harness.yaml");
+const inlineModuleTask = expectJson(["new-task", "inline-module", "--module", "gui", "--register-module", "--module-title", "GUI", "--module-prefix", "GUI", "--module-scope", "src/gui/**", "--title", "Inline Module", lifecycleTarget]);
+assert(inlineModuleTask.task?.id === `MODULES/gui/${todayLocal}-inline-module`, "new-task --register-module should register and create a module task in one command");
+assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/harness.yaml"), "utf8").includes("gui:"), "new-task --register-module should persist the new module in harness.yaml");
 const moduleLifecycle = expectJson(["new-task", "module-lifecycle", "--module", "auth", "--budget", "complex", "--title", "模块生命周期", "--locale", "zh-CN", lifecycleTarget]);
 assert(moduleLifecycle.task?.id === `MODULES/auth/${todayLocal}-module-lifecycle`, "new-task --module should create a module task id");
 assert(moduleLifecycle.task?.preset === "module", "new-task --module should apply the module preset by default");
@@ -570,7 +579,7 @@ commitFixtureBaseline(lifecycleTarget, "before module step fixture");
 const moduleStep = expectJson(["module-step", "auth", "AUTH-01", "--state", "done", lifecycleTarget]);
 assert(moduleStep.moduleKey === "auth" && moduleStep.stepId === "AUTH-01", "module-step should report updated module step");
 assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/module_plan.md"), "utf8").includes("| AUTH-01 | Setup | done |"), "module-step should update module_plan status");
-assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/Module-Registry.md"), "utf8").includes("| M-AUTH | Auth | src/auth/** | coordinator | merged |"), "module-step should update module registry status when done");
+assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/Module-Registry.md"), "utf8").includes("| M-AUTH | auth | Auth | AUTH | codex/auth | AUTH-01 | completed |"), "module-step should update YAML-backed module registry status/current step when done");
 expectJson(["module-step", "auth", "AUTH-01", "--state", "done", lifecycleTarget]);
 const missingModuleStep = run(["module-step", "auth", "NO_SUCH_STEP", "--state", "done", lifecycleTarget]);
 assert(missingModuleStep.status !== 0, "module-step should fail for unknown step id");
@@ -889,6 +898,7 @@ expectJson(["init", "--locale", "zh-CN", "--capabilities", "core,module-parallel
 assert(fs.existsSync(path.join(zhRegistryTarget, "coding-agent-harness/planning/modules/Session-Prompt-Pack.md")), "module-parallel init should create a session prompt pack");
 assert(!fs.existsSync(path.join(zhRegistryTarget, "coding-agent-harness/planning/modules/_module-template")), "module-parallel init should not vendor module templates into the target project");
 assert(!fs.existsSync(path.join(zhRegistryTarget, "coding-agent-harness/planning/modules/_task-template")), "module-parallel init should not vendor module task templates into the target project");
+expectJson(["module", "register", "example", "--title", "示例模块", "--prefix", "EXM", "--scope", "src/example/**", zhRegistryTarget]);
 expectJson(["new-task", "zh-task", "--module", "example", "--title", "中文模块任务", "--locale", "zh-CN", zhRegistryTarget]);
 fs.mkdirSync(path.join(zhRegistryTarget, "coding-agent-harness/planning/modules/example"), { recursive: true });
 fs.writeFileSync(
@@ -897,7 +907,7 @@ fs.writeFileSync(
 );
 expectJson(["module-step", "example", "EXM-01", "--state", "done", zhRegistryTarget]);
 const zhRegistryContent = fs.readFileSync(path.join(zhRegistryTarget, "coding-agent-harness/planning/modules/Module-Registry.md"), "utf8");
-assert(zhRegistryContent.includes("| example | 示例模块 | EXM | `codex/example` | EXM-01 | completed |"), "module-step should update zh-CN module registry status/current step");
+assert(zhRegistryContent.includes("| M-EXM | example | 示例模块 | EXM | codex/example | EXM-01 | completed |"), "module-step should update zh-CN module registry status/current step");
 const zhGraphDir = path.join(tmpRoot, "zh-module-dashboard");
 expectPass(["dashboard", "--out-dir", zhGraphDir, zhRegistryTarget]);
 const zhGraph = JSON.parse(fs.readFileSync(path.join(zhGraphDir, "data/graph.json"), "utf8")) as {
@@ -907,6 +917,14 @@ assert(zhGraph.nodes.some((node) => node.type === "module" && node.id === "modul
 assert(zhGraph.nodes.some((node) => node.type === "step" && node.id === "step:EXM-01" && node.state === "done"), "zh-CN module plan should populate step graph");
 const moduleFiltered = expectJson(["task-list", "--json", "--module", "auth", lifecycleTarget]);
 assert(moduleFiltered.tasks.length === 1 && moduleFiltered.tasks[0].id === `MODULES/auth/${todayLocal}-module-lifecycle`, "task-list --module should filter module tasks");
+const moduleList = expectJson(["module", "list", "--json", lifecycleTarget]);
+assert((moduleList.modules as Array<{ key?: string }>).some((module) => module.key === "auth"), "module list should read registered modules from harness.yaml");
+expectJson(["module", "register", "empty", "--title", "Empty", "--prefix", "EMP", "--scope", "src/empty/**", lifecycleTarget]);
+expectJson(["module", "unregister", "empty", lifecycleTarget]);
+assert(!fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/harness.yaml"), "utf8").includes("empty:"), "module unregister should remove modules with no task or ledger references");
+const blockedUnregister = run(["module", "unregister", "auth", lifecycleTarget]);
+assert(blockedUnregister.status !== 0, "module unregister should fail closed when task or ledger references still exist");
+assert(blockedUnregister.stderr.includes("references still exist"), "module unregister refusal should explain remaining references");
 expectJson(["new-task", "module-lifecycle", "--title", "同名根任务", "--locale", "zh-CN", lifecycleTarget]);
 const ambiguousTask = run(["task-start", "module-lifecycle", "--message", "ambiguous", lifecycleTarget]);
 assert(ambiguousTask.status !== 0, "ambiguous task short name should fail");
@@ -941,6 +959,7 @@ assert(
 );
 
 // 3. Module task also gets date prefix
+expectJson(["module", "register", "payments", "--title", "Payments", "--prefix", "PAY", "--scope", "src/payments/**", datePrefixTarget]);
 const moduleWithDate = expectJson(["new-task", "module-feat", "--module", "payments", "--title", "Module Feature", datePrefixTarget]);
 assert(moduleWithDate.task?.shortId === `${todayLocal}-module-feat`, "new-task --module bare slug should auto-prefix local date");
 assert(moduleWithDate.task?.id === `MODULES/payments/${todayLocal}-module-feat`, "new-task --module task id should include date prefix");
