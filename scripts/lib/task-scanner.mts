@@ -347,6 +347,11 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       ? "closed"
       : closeoutInfo.status;
     const lifecycleState = deriveLifecycleState({ state: stateInfo.state, reviewStatus, closeoutStatus: effectiveCloseoutStatus, budget });
+    const reviewSurfaceRequired = requiresReviewMaterials({
+      state: stateInfo.state,
+      lifecycleState,
+      closeoutStatus: effectiveCloseoutStatus,
+    });
     const materialReadiness = assessMaterialsReadiness({
       budget,
       taskDir,
@@ -356,14 +361,25 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       lessonCandidates,
       phases,
       longRunningContractPath,
-      reviewSurfaceRequired: requiresReviewMaterials({
-        state: stateInfo.state,
-        lifecycleState,
-        closeoutStatus: effectiveCloseoutStatus,
-      }),
+      reviewSurfaceRequired,
     });
+    const templateMaterialIssues = reviewSurfaceRequired
+      ? collectUneditedTemplateMaterialIssues(target, taskDir, {
+        briefContent: brief.content,
+        taskPlanContent: taskPlan,
+        executionStrategyContent: readFileSafe(executionStrategyPath),
+        visualMapContent: visualMap.content,
+        progressContent: progress,
+        findingsContent: readFileSafe(findingsPath),
+        reviewContent: review,
+        lessonCandidatesContent: readFileSafe(lessonCandidatesPath),
+        walkthroughPath: closeoutInfo.walkthroughPath,
+        humanReviewConfirmed: taskAudit.summary.humanReviewStatus === "confirmed",
+      })
+      : [];
     const materialIssues = [
       ...materialReadiness.issues,
+      ...templateMaterialIssues,
       ...taskAuditMaterialIssues(target, taskDir, taskAudit),
       ...legacyAuditIssues(target, taskDir, { briefContent: brief.content, reviewContent: review }),
     ];
@@ -545,6 +561,78 @@ function taskCloseoutInfo(target: TaskScannerTarget, taskPlanPath: string, close
   const walkthroughPath = extractWalkthroughPath(target, line);
   const status = /\b(closed|complete|completed|done|skipped-with-reason|skipped|已关闭|已完成|跳过)\b/i.test(line) ? "closed" : "pending";
   return { status, walkthroughPath };
+}
+
+function collectUneditedTemplateMaterialIssues(target: TaskScannerTarget, taskDir: string, materials: {
+  briefContent: string;
+  taskPlanContent: string;
+  executionStrategyContent: string;
+  visualMapContent: string;
+  progressContent: string;
+  findingsContent: string;
+  reviewContent: string;
+  lessonCandidatesContent: string;
+  walkthroughPath: string;
+  humanReviewConfirmed: boolean;
+}) {
+  const issues = [];
+  const files: Array<{ label: string; sourcePath: string; content: string }> = [
+    { label: "brief.md", sourcePath: toPosix(path.relative(target.projectRoot, path.join(taskDir, "brief.md"))), content: materials.briefContent },
+    { label: "task_plan.md", sourcePath: toPosix(path.relative(target.projectRoot, path.join(taskDir, "task_plan.md"))), content: materials.taskPlanContent },
+    { label: "execution_strategy.md", sourcePath: toPosix(path.relative(target.projectRoot, path.join(taskDir, "execution_strategy.md"))), content: materials.executionStrategyContent },
+    { label: visualMapFile, sourcePath: toPosix(path.relative(target.projectRoot, path.join(taskDir, visualMapFile))), content: materials.visualMapContent },
+    { label: "progress.md", sourcePath: toPosix(path.relative(target.projectRoot, path.join(taskDir, "progress.md"))), content: materials.progressContent },
+    { label: "findings.md", sourcePath: toPosix(path.relative(target.projectRoot, path.join(taskDir, "findings.md"))), content: materials.findingsContent },
+    { label: "review.md", sourcePath: toPosix(path.relative(target.projectRoot, path.join(taskDir, "review.md"))), content: materials.reviewContent },
+    { label: lessonCandidatesFile, sourcePath: toPosix(path.relative(target.projectRoot, path.join(taskDir, lessonCandidatesFile))), content: materials.lessonCandidatesContent },
+  ];
+  if (materials.walkthroughPath) {
+    files.push({
+      label: path.basename(materials.walkthroughPath),
+      sourcePath: materials.walkthroughPath,
+      content: readFileSafe(path.join(target.projectRoot, materials.walkthroughPath)),
+    });
+  }
+  for (const file of files) {
+    const { label, sourcePath, content } = file;
+    const markers = uneditedTemplateMarkers(content);
+    if (markers.length === 0) continue;
+    issues.push({
+      code: "unedited-template-material",
+      severity: "P2",
+      queue: "missing-materials",
+      sourcePath: `TARGET:${sourcePath}`,
+      sourceLine: 0,
+      owner: "agent",
+      message: `[unedited-template-material] Reviewable task material still contains scaffold template content in ${label}: ${markers.slice(0, 3).join(", ")}.`,
+      allowedWritePaths: [`${toPosix(path.relative(target.projectRoot, taskDir))}/**`],
+      forbiddenActions: ["human-confirm", "edit-unrelated-task", "fabricate-evidence"],
+      validationCommands: ["node dist/harness.mjs check --profile target-project <target>"],
+      confidence: "high",
+      repairable: true,
+      enforceFailure: materials.humanReviewConfirmed,
+    });
+  }
+  return issues;
+}
+
+function uneditedTemplateMarkers(content: unknown): string[] {
+  const text = String(content || "");
+  const markers: string[] = [];
+  const markerSpecs: Array<[string, RegExp]> = [
+    ["mustache-token", /\{\{[A-Z0-9_ -]+\}\}/],
+    ["generic-placeholder", /\[(?:[^\]\n]*(?:用一句话|本轮|说明|为什么|步骤|标准|路径|分支|负责人|什么时候|阶段名称|具体操作|验证|下一步|遗留问题|审查范围|文件、模块|风险|证据|发现主题|当前可用判断|State the|specific files|First concrete step|Observable criterion|path or command|what was checked|generated by|timestamp|number|risk|owner)[^\]\n]*)\]/i],
+    ["pending-closeout", /^(?:Pending closeout\.|待收口。)\s*$/im],
+    ["pending-walkthrough-row", /^\|\s*pending\s*\|\s*pending\s*\|\s*(?:not run|pending)\s*\|\s*pending\s*\|/im],
+    ["brief-outcome-placeholder", /^(?:One sentence stating the concrete result this task must produce\.|说明这个任务完成后，用户或项目能直接看到的结果。)\s*$/im],
+    ["brief-first-step-placeholder", /^(?:State the first concrete action before implementation starts\.|开始实现前，把这里替换成第一个具体动作。)\s*$/im],
+    ["lesson-undecided-placeholder", /^(?:Not decided yet\. Fill this only when review accepts that the task produced no reusable lesson candidate\.|尚未判定。只有人工审查接受本任务没有可复用候选时，才填写这里。)\s*$/im],
+    ["authorization-pending-row", /^\|\s*worker subagent\s*\|\s*pending\s*\|\s*pending\s*\|\s*pending\s*\|\s*pending\s*\|\s*pending\s*\|/im],
+  ];
+  for (const [label, pattern] of markerSpecs) {
+    if (pattern.test(text)) markers.push(label);
+  }
+  return markers;
 }
 
 function extractWalkthroughPath(target: TaskScannerTarget, closeoutLine: string): string {

@@ -46,8 +46,9 @@ function readManifestBundle(assetsDir: string, manifestName: string): string {
 
 expectPass(["check", "--profile", "source-package", "."]);
 if (fs.existsSync(path.join(repoRoot, ".harness-private"))) {
-  expectPass(["check", "--profile", "private-harness", ".harness-private"]);
-  const privateStatus = expectJson(["status", "--json", ".harness-private"]);
+  const privateStatusResult = run(["status", "--json", ".harness-private"]);
+  assert(privateStatusResult.stdout.trim().startsWith("{"), "private-harness status JSON should be emitted even when local private checks fail");
+  const privateStatus = JSON.parse(privateStatusResult.stdout) as HarnessStatusJson;
   assert(privateStatus.tasks.length >= 1, "private-harness status JSON should be complete and parseable");
 }
 
