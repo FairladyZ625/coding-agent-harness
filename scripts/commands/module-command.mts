@@ -58,6 +58,7 @@ export function runModuleCommand({ args, takeFlag, takeOption, targetArg }: Comm
       branch: takeOption("--branch", ""),
       owner: takeOption("--owner", "coordinator"),
       currentStep: takeOption("--current-step", ""),
+      locale: takeOption("--locale", ""),
       scope: takeRepeatedOptions(args, "--scope"),
       shared: takeRepeatedOptions(args, "--shared"),
       dependsOn: takeRepeatedOptions(args, "--depends-on"),
