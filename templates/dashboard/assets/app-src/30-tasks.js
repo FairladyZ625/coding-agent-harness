@@ -220,12 +220,14 @@ function taskRow(task) {
   const mapReady = !!taskDocument(task, "visual_map.md");
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
+  const moduleLabel = taskModuleLabel(task);
+  const lifecycle = [task.lifecycleState, task.reviewStatus, task.closeoutStatus].filter(Boolean).map((item) => label(item)).join(" · ");
 
   return `<article class="task-row-card" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(task.state)})">
     <div class="row-accent-bar"></div>
     <div class="row-main">
       <strong>${escapeHtml(task.title)}</strong>
-      <span class="row-meta">${escapeHtml(task.id)} · ${escapeHtml(taskModuleKey(task))}</span>
+      <span class="row-meta">${escapeHtml(task.id)} · ${escapeHtml(moduleLabel)}${lifecycle ? ` · ${escapeHtml(lifecycle)}` : ""}</span>
       ${taskCopyButton(task, "row-copy")}
     </div>
     <div class="row-status">${tag(task.state)}</div>
@@ -327,6 +329,7 @@ function taskGroup(group, tasks) {
   const start = (page - 1) * taskPageSize;
   const visibleTasks = orderedTasks.slice(start, start + taskPageSize);
   const avgCompletion = orderedTasks.length ? clampCompletion(orderedTasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / orderedTasks.length) : 0;
+  const groupContext = taskGroupContext(group, orderedTasks);
 
   const isGrid = state.taskLayout === "grid";
   const layoutClass = isGrid ? "task-card-grid" : "task-list";
@@ -342,8 +345,10 @@ function taskGroup(group, tasks) {
   return `<section class="task-group">
       <div class="section-head">
         <div>
-          <h2>${taskGroupLabel(group)}</h2>
-          <p class="subtle">${t("showing")} ${Math.min(start + 1, orderedTasks.length)}-${Math.min(start + visibleTasks.length, orderedTasks.length)} / ${orderedTasks.length}</p>
+          <p class="eyebrow">${escapeHtml(groupContext.eyebrow)}</p>
+          <h2>${escapeHtml(groupContext.title)}</h2>
+          <p class="subtle">${escapeHtml(groupContext.summary)} · ${t("showing")} ${Math.min(start + 1, orderedTasks.length)}-${Math.min(start + visibleTasks.length, orderedTasks.length)} / ${orderedTasks.length}</p>
+          ${groupContext.chips.length ? `<div class="module-chip-row">${groupContext.chips.map((chip) => `<span class="module-chip">${escapeHtml(chip)}</span>`).join("")}</div>` : ""}
         </div>
         <div class="group-actions">
           <div class="group-progress" aria-label="${escapeAttr(t("groupCompletion"))}">
@@ -367,6 +372,7 @@ function taskCard(task) {
   const mapReady = !!taskDocument(task, "visual_map.md");
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
+  const lifecycle = [task.lifecycleState, task.reviewStatus, task.closeoutStatus].filter(Boolean).map((item) => label(item)).join(" · ");
 
   return `<article class="task-card" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateColor})">
     <div class="card-header">
@@ -380,8 +386,9 @@ function taskCard(task) {
     <div class="card-meta">
       <span class="meta-module" title="${escapeAttr(taskModuleKey(task))}">
         <svg style="width:12px;height:12px;vertical-align:middle;margin-right:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        ${escapeHtml(taskModuleKey(task))}
+        ${escapeHtml(taskModuleLabel(task))}
       </span>
+      ${lifecycle ? `<span class="meta-lifecycle" title="${escapeAttr(lifecycle)}">${escapeHtml(lifecycle)}</span>` : ""}
     </div>
     <div class="card-progress">
       <div class="card-progress-track"><div class="card-progress-fill" style="width:${completion}%"></div></div>
@@ -404,7 +411,7 @@ function taskGroupLabel(group) {
   if (group === "active") return t("activeCurrent");
   if (group === "brief-ready") return t("briefReadyGroup");
   if (group.startsWith("legacy:")) return `${t("legacyMonth")} ${group.slice("legacy:".length)}`;
-  if (group.startsWith("module:")) return `${t("inferredModule")} · ${group.slice("module:".length)}`;
+  if (group.startsWith("module:")) return taskGroupContext(group, []).title;
   if (group.startsWith("month:")) return `${t("legacyMonth")} ${group.slice("month:".length)}`;
   if (group.startsWith("state:")) return `${t("columnState")} · ${label(group.slice("state:".length))}`;
   return label(group);

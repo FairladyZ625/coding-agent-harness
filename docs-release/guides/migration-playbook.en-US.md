@@ -105,7 +105,9 @@ migration destination is `coding-agent-harness/`, and the old `docs/` root is
 archived under `coding-agent-harness/governance/archive/legacy-docs/`. Legacy
 `planning/**/_task-template` and `planning/**/_module-template` directories are
 generated copies of npm-package templates, so migration removes them from the
-target project when present:
+target project when present. New module templates live in bundled
+`templates/modules/**`; target projects keep only real module documents and YAML
+registration data:
 
 ```bash
 harness migrate-structure --plan --json /path/to/project
@@ -222,7 +224,7 @@ In baseline mode, only `current-active` tasks or tasks still referenced by SSoT 
 
 In status-aware rewrite mode, an existing `brief.md`, `execution_strategy.md`, or `visual_map.md` is not automatically preserved. If evidence shows it is an old template, parser residue, wrong language, or too weak for a human to judge current state, rewrite it. Historical tasks may become readable index cards or residuals, but that decision must be evidence-backed.
 
-Global table and module index migration is not manual refilling. Current Harness versions generate task lifecycle summaries into `Harness-Ledger.md` only; legacy `Feature-SSoT.md` and `Private-Feature-SSoT.md` files are archived during cutover and are not regenerated. Module `module_plan.md` Steps tables and module `visual_map.md` topology tables are still generated from module task files. Humans should inspect current state through the Dashboard; agents can use `task-list` / `task-index` queries for fast lookup. Before cutting over an older project, archive the legacy lifecycle tables and rebuild current indexes from task files:
+Global table and module index migration is not manual refilling. Current Harness versions generate task lifecycle summaries into `Harness-Ledger.md` only; legacy `Feature-SSoT.md` and `Private-Feature-SSoT.md` files are archived during cutover and are not regenerated. Module registration data lives in root `harness.yaml` `modules.items`; `Module-Registry.md` is a generated view. Module roots own only `brief.md` and `module_plan.md` by default; `execution_strategy.md`, `visual_map.md`, `review.md`, and `walkthrough.md` belong under concrete task directories. Humans should inspect current state through the Dashboard; agents can use `task-list` / `task-index` queries for fast lookup. Before cutting over an older project, archive the legacy lifecycle tables and rebuild current indexes from task files:
 
 ```bash
 harness governance rebuild --dry-run --archive /path/to/project
@@ -251,7 +253,8 @@ Do not turn many historical tasks into modules automatically. Adopt `module-para
 - the project has two or more independently evolving product or engineering domains;
 - every module has an owner, write scope, dependency model, and integration rule;
 - shared files are owned by the coordinator and worker changes flow through handoff;
-- `Module-Registry.md` and each `module_plan.md` can be maintained after migration.
+- root `harness.yaml` `modules.items` can remain the maintained registry, with `Module-Registry.md` only as its generated reading view;
+- each module root needs only real `brief.md` and `module_plan.md`; do not batch-create module-level task contract files just to enable modules.
 
 If the project merely has many historical tasks without stable module boundaries, keep `safe-adoption`, use `migrate-plan` as the action list, and add module capability later.
 
@@ -372,11 +375,11 @@ Treat any FAIL as valid until disproven with evidence. After fixing, regenerate 
 
 Module classification has three levels and must not skip levels:
 
-1. `explicit module`: tasks already live under `docs/09-PLANNING/MODULES/<module>/`, or a maintained `Module-Registry.md` exists.
+1. `explicit module`: tasks already live under v2 `planning/modules/<module>/tasks/`, or root `harness.yaml` `modules.items` registers the module.
 2. `inferred module`: dashboard temporary grouping from task path/title/ID keywords, for browsing and triage only. It does not mean the project adopted `module-parallel`.
 3. `legacy-unclassified`: historical tasks that cannot be classified reliably. Preserve history and do not batch-rewrite them.
 
-Before creating `Module-Registry.md`, produce a classification summary:
+Before registering modules, produce a classification summary:
 
 - candidate module name;
 - why this is a product/engineering domain rather than a folder or date range;

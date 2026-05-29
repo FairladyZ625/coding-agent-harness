@@ -110,7 +110,7 @@ export const capabilityDefinitions: Record<string, CapabilityDefinition> = {
     artifacts: [legacyPath(legacyPlanningRoot)],
   },
   "module-parallel": {
-    description: "Module registry, module plans, session prompts, and worker handoff.",
+    description: "YAML-backed module registry, module briefs/plans, and global worker handoff prompt pack.",
     selectWhen: "Use only when the project has two or more independent modules that need parallel ownership.",
     default: false,
     dependencies: ["core"],
@@ -576,8 +576,8 @@ export function plannedInitFiles(capabilities: string[] = ["core"], { locale = "
     [`${governanceRoot}/standards/external-source-intake-standard.md`, "templates/reference/external-source-intake-standard.md"],
   ];
   if (capabilities.includes("module-parallel")) {
-    files.push([`${modulesRoot}/Module-Registry.md`, "templates/ssot/Module-Registry.md"]);
-    files.push([`${modulesRoot}/Session-Prompt-Pack.md`, "templates/planning/module_session_prompt.md"]);
+  files.push([`${modulesRoot}/Module-Registry.md`, "templates/modules/registry_view.md"]);
+  files.push([`${modulesRoot}/Session-Prompt-Pack.md`, "templates/modules/session_prompt_pack.md"]);
   }
   return files.map(([destination, source]) => [destination, localizedTemplateSource(source, locale)]);
 }

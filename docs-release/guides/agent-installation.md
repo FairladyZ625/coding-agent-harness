@@ -92,7 +92,7 @@ Capability 要保守选择：
 | `dashboard` | 否 | 用户或 agent 需要本地状态页、静态证据快照，或本机动态 workbench。 |
 | `adversarial-review` | 否 | 发布、架构、安全、数据或策略风险需要独立 review artifact。 |
 | `long-running-task` | 否 | Agent 需要连续多轮执行，不能每步都询问用户。 |
-| `module-parallel` | 否 | 两个以上独立模块需要 owner、registry 和同步规则。 |
+| `module-parallel` | 否 | 两个以上独立模块需要 YAML 注册、owner、scope、依赖和同步规则。 |
 | `subagent-worker` | 否 | 会改代码的 subagent 需要独立 worktree 和 commit-backed handoff；依赖 `module-parallel`。 |
 
 `init` 的 JSON 输出会包含 `report`。交付 summary 必须包含：
@@ -196,7 +196,7 @@ harness new-task \
 - 已有项目事实只能 merge、append 或记录 residual；不能用泛化模板替换。
 - 历史合同缺口在普通模式下进入 `adoption-needed` warning。
 - `--strict` 必须仍然能因为旧 checker 失败或历史合同缺口而失败。
-- 旧全局表和模块索引先归档，再用 `harness governance rebuild --archive --apply` 重新生成；这些表是 Agent 索引，人看状态优先用 Dashboard。
+- 旧全局表和模块索引先归档，再用 `harness governance rebuild --archive --apply` 重新生成；这些表是 Agent 索引，人看状态优先用 Dashboard。模块注册表以根 `harness.yaml` 的 `modules.items` 为准，`Module-Registry.md` 是生成视图。
 - `migrate-verify` 必须通过，才能报告迁移输出可用；dashboard 路径必须是 HTML。
 - 必须基于验证通过的 `session.json` 创建 `legacy-migration` preset 任务。它记录 migration session、证据包、preset audit 和后续 work queue；不会自动重写历史任务正文。
 - 详细迁移策略见 `docs-release/guides/migration-playbook.md` 或英文镜像
@@ -247,6 +247,10 @@ harness task-complete <new-task 输出的 task-id> \
   `execution_strategy.md`、`findings.md`、`lesson_candidates.md` 和 `review.md`。
 - `new-task --budget complex` 创建 standard 文件，并额外创建
   `references/INDEX.md` 和 `artifacts/INDEX.md`。
+- `module register` 只创建模块根 `brief.md`、`module_plan.md`，并把模块登记到
+  `harness.yaml modules.items`；`module scaffold` 只修复这两个模块根文档。
+- `new-task --module <key>` 在 `planning/modules/<key>/tasks/<task-id>/` 下创建任务，
+  任务目录内才包含 `execution_strategy.md`、`visual_map.md` 等执行合同。
 - 已存在的任务目录不会被覆盖；需要改名或继续旧任务时，由 coordinator 决定。
 - `task-start`、`task-block`、`task-complete` 只更新 `progress.md` 的生命周期状态和日志。
 - `task-log` 只追加执行记录；证据使用 `type:PATH:summary`，例如

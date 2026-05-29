@@ -152,13 +152,13 @@ flowchart TD
 flowchart TD
   Collect["collectMarkdownDocuments()"]
 
-  Collect --> Fixed["固定路径（存在时收集）\nHarness-Ledger.md\ncoding-agent-harness/planning/modules/Module-Registry.md\ncoding-agent-harness/governance/regression/Regression-SSoT.md\ncoding-agent-harness/governance/generated/Closeout-Index.md"]
+  Collect --> Fixed["固定路径（存在时收集）\nHarness-Ledger.md\nharness.yaml modules.items\ncoding-agent-harness/planning/modules/Module-Registry.md\ncoding-agent-harness/governance/regression/Regression-SSoT.md\ncoding-agent-harness/governance/generated/Closeout-Index.md"]
 
   Collect --> Walkthrough["coding-agent-harness/planning/tasks/<task>/ 下所有 .md\n（排除 _archive/ 和 _ 开头文件）"]
 
   Collect --> TaskDocs["每个任务目录下：\nbrief / task_plan / execution_strategy\nvisual_map / lesson_candidates\nprogress / review / findings\nreferences/INDEX.md / artifacts/INDEX.md"]
 
-  Collect --> ModuleDocs["coding-agent-harness/planning/modules/ 下：\n每个模块的 module_plan.md\n每个模块的 brief.md"]
+  Collect --> ModuleDocs["coding-agent-harness/planning/modules/ 下：\n每个模块根 brief.md / module_plan.md\n每个模块 tasks/<task>/ 的任务合同"]
 
   Collect --> Lessons["01-GOVERNANCE/lessons/ 下所有 .md"]
 ```

@@ -54,11 +54,21 @@
 
 Preset 包不能新增或替换根级 base scaffold 文档。Preset 只能追加固定基础文档的受控 section，或把隔离资源写入 `references/**` 和 `artifacts/**`。resource rows 只能登记在 `references/INDEX.md` 和 `artifacts/INDEX.md`；根 `INDEX.md` 最多显示系统渲染的 preset summary 字段。
 
+## 模块包边界
+
+已注册模块写在根 `harness.yaml` 的 `modules.items`。生成的
+`planning/modules/Module-Registry.md` 是阅读视图，不是可编辑事实源。
+
+使用 `harness module register` 或 `harness module scaffold`，不要手工复制模块文件。
+模块根目录默认只拥有 `brief.md` 和 `module_plan.md`。`execution_strategy.md`、
+`visual_map.md`、`review.md`、`walkthrough.md` 等执行合同属于具体任务目录，包括
+`planning/modules/<key>/tasks/<task-id>/`。
+
 ## 完成任务后
 
 1. 按 `testing-standard.md` 和 Regression SSoT 运行对应检查。
 2. 确认 repo governance、CI/CD required checks 已执行、更新或 residualized。
-3. 更新功能 SSoT；多人、多仓、多模块任务同时更新 Delivery SSoT 或 Module Registry。
+3. 更新功能 SSoT；多人、多仓、多模块任务同时更新 Delivery SSoT，模块注册变化通过 `harness.yaml` 的 `modules.items` 并重新生成 Module Registry 视图。
 4. 更新 Regression SSoT 和 Cadence Ledger（如适用）。
 5. 确认 `review.md` 没有 open P0/P1 finding；material P2 已修复或写为 `accepted-risk` 并路由。
 6. planned task 必须完成 closeout review，或写明 `skipped-with-reason`。

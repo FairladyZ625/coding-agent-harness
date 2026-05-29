@@ -44,6 +44,5 @@
 
 ## 模板边界
 
-这份 planning 模板仅为兼容旧安装保留。新的模块根目录从 `templates/modules/**`
-生成，默认只拥有 `brief.md` 和 `module_plan.md`。`execution_strategy.md`、
+模块根目录默认只拥有 `brief.md` 和 `module_plan.md`。`execution_strategy.md`、
 `visual_map.md`、`review.md`、`walkthrough.md` 等执行合同属于具体任务目录。

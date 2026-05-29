@@ -143,6 +143,8 @@ for (const required of [
   "data/tables.json",
   "data/documents.json",
   "data/graph.json",
+  "data/modules.json",
+  "data/moduleSummary.json",
   "data/adoption.json",
   "data/presetCatalog.json",
 ]) {
@@ -207,6 +209,10 @@ assert(dashboardApp.includes("taskGroupsPerPage"), "dashboard missing global tas
 assert(dashboardApp.includes("taskStatsBar"), "dashboard missing task stats bar");
 assert(dashboardApp.includes("task-row-card"), "dashboard missing upgraded task row card");
 assert(dashboardApp.includes("taskSortOrder"), "dashboard missing task time sort state");
+assert(dashboardApp.includes("harness.taskGroupMode"), "dashboard should persist task grouping mode");
+assert(dashboardApp.includes("taskGroupContext(group, orderedTasks)"), "dashboard task groups should render structured module context");
+assert(dashboardApp.includes("moduleRunStrip"), "dashboard module page should expose a module run strip");
+assert(dashboardApp.includes("moduleUnclassifiedPanel"), "dashboard module page should expose unclassified tasks separately");
 assert(dashboardApp.includes("data-task-sort-order"), "dashboard missing task time sort controls");
 assert(dashboardApp.includes("sortTasksByTime"), "dashboard missing reusable task time sort helper");
 assert(dashboardApp.includes("function taskFolderName"), "dashboard missing reusable task folder name helper");
@@ -275,6 +281,8 @@ assert(dashboardCss.includes(".brief-scroll"), "dashboard missing scrollable act
 assert(dashboardMarkdown.includes("rendered-table"), "dashboard missing rendered markdown table support");
 assert(dashboardMermaid.includes("mermaid-rendered"), "dashboard missing rendered mermaid output");
 assert(dashboardCss.includes(".runtime-banner"), "dashboard missing static read-only banner styling");
+assert(dashboardCss.includes(".module-console-grid"), "dashboard missing module console layout");
+assert(dashboardCss.includes(".module-boundary-grid"), "dashboard missing module boundary layout");
 assert(dashboardCss.includes(".archive-task-row"), "dashboard missing archive task row styling");
 assert(dashboardCss.includes(".archive-meta-grid"), "dashboard missing archive metadata grid styling");
 assert(dashboardCss.includes(".bulk-action-bar"), "dashboard missing bulk action bar styling");
@@ -304,7 +312,7 @@ assert(dashboardCss.includes("max-height: min(58vh, 560px)"), "review document p
 assert(dashboardCss.includes("overflow: hidden;"), "document panels must prevent long review content from widening the page");
 assert(dashboardCss.includes("max-width: 100%;"), "markdown and review panels must cap rendered content width");
 assert(dashboardCss.includes("transform: translateX(105%)"), "closed task drawer must not widen the page");
-for (const generated of ["data/status.json", "data/tables.json", "data/documents.json", "data/graph.json", "data/adoption.json", "assets/dashboard-data.js"]) {
+for (const generated of ["data/status.json", "data/tables.json", "data/documents.json", "data/graph.json", "data/modules.json", "data/moduleSummary.json", "data/adoption.json", "assets/dashboard-data.js"]) {
   const content = fs.readFileSync(path.join(dashboardDir, generated), "utf8");
   assert(!content.includes(repoRoot), `${generated} leaked absolute repo path`);
   assert(!content.includes("file://"), `${generated} leaked file URL`);
@@ -383,6 +391,18 @@ assert(isolatedHomeCatalog.presets.some((preset) => preset.id === "legacy-migrat
 assert(isolatedHomeCatalog.presets.some((preset) => preset.id === "module" && preset.source === "builtin" && preset.effective === false), "preset catalog should include shadowed builtin layers with isolated home");
 const helpOutput = expectPass(["help"]).stdout;
 assert(helpOutput.includes("harness dev"), "help should advertise harness dev as the daily dynamic workbench entry");
+assert(helpOutput.includes("Module workflow:"), "help should explain the module YAML registry workflow");
+
+const moduleDashboardTarget = path.join(tmpRoot, "module-dashboard-target");
+fs.cpSync(path.join(repoRoot, "examples/minimal-project"), moduleDashboardTarget, { recursive: true });
+expectPass(["module", "register", "gui", "--title", "Dashboard GUI", "--prefix", "GUI", "--scope", "templates/dashboard/**", "--status", "in-progress", moduleDashboardTarget]);
+expectPass(["new-task", "module-dashboard-ux", "--module", "gui", "--title", "Module Dashboard UX", moduleDashboardTarget]);
+const moduleDashboardDir = path.join(tmpRoot, "module-dashboard");
+expectPass(["dashboard", "--out-dir", moduleDashboardDir, moduleDashboardTarget]);
+const moduleData = JSON.parse(fs.readFileSync(path.join(moduleDashboardDir, "data/modules.json"), "utf8")) as Array<{ key: string; title?: string; counts?: Record<string, number> }>;
+const moduleSummary = JSON.parse(fs.readFileSync(path.join(moduleDashboardDir, "data/moduleSummary.json"), "utf8")) as { registered?: number };
+assert(moduleData.some((module) => module.key === "gui" && module.title === "Dashboard GUI" && Number(module.counts?.total || 0) >= 1), "dashboard bundle should expose structured YAML-backed modules with task counts");
+assert(moduleSummary.registered === 1, "dashboard module summary should count registered modules");
 
 const devRecoveryTarget = path.join(tmpRoot, "dev-recovery-target");
 fs.cpSync(path.join(repoRoot, "examples/minimal-project"), devRecoveryTarget, { recursive: true });

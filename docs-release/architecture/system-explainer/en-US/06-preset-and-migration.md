@@ -221,7 +221,7 @@ must be satisfied to pass.
 flowchart TD
   Core["core\n(required, foundation for all other capabilities)"]
 
-  Core --> ModParallel["module-parallel\nModule registry + parallel work"]
+  Core --> ModParallel["module-parallel\nYAML module registry + parallel work"]
   Core --> AdvReview["adversarial-review\nAdversarial review reports\n(alias: review-contract)"]
   Core --> LongRunning["long-running-task\nLong-running task contracts"]
   Core --> Dashboard["dashboard\nLocal HTML Dashboard"]
@@ -233,7 +233,7 @@ flowchart TD
 | Capability | When to enable |
 | --- | --- |
 | `core` | Always — this is the required foundation |
-| `module-parallel` | When the project has 2+ independent modules needing parallel ownership |
+| `module-parallel` | When the project has 2+ independent modules and needs `harness.yaml modules.items` to maintain owner, scope, dependencies, and sync rules |
 | `subagent-worker` | When code-change subagents need to work in isolated worktrees and commit handoffs |
 | `adversarial-review` | When release, architecture, security, data, or policy risks require independent review artifacts |
 | `long-running-task` | When Agents may run across multiple loops without per-step user confirmation |

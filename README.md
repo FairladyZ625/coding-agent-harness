@@ -96,6 +96,14 @@ runtime. Target projects should not treat `planning/**/_task-template` or
 migration removes those generated legacy template directories when it finds
 them.
 
+Modules are registered in the root `harness.yaml` under `modules.items`.
+`harness module register` creates only the module-owned `brief.md` and
+`module_plan.md`, then regenerates `planning/modules/Module-Registry.md` as a
+read-only view. Task execution files such as `execution_strategy.md`,
+`visual_map.md`, `review.md`, and `walkthrough.md` are created under concrete
+project or module task directories, including
+`planning/modules/<key>/tasks/<task-id>/`.
+
 ### Safe Migration For Existing Projects
 
 Legacy project migration starts with a scan, a migration plan, a recommended migration mode, and user confirmation. Only then should the agent write files. Final status is proven with a dashboard and checks.

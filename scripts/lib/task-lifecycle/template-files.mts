@@ -36,11 +36,8 @@ export function optionalTaskTemplateFiles({ locale = "en-US" } = {}): TemplatePa
 
 export function moduleTemplateFiles({ locale = "en-US" } = {}): TemplatePair[] {
   return [
-    ["brief.md", "templates/planning/module_brief.md"],
-    ["module_plan.md", "templates/planning/module_plan.md"],
-    ["execution_strategy.md", "templates/planning/execution_strategy.md"],
-    [visualMapFile, "templates/planning/visual_map.md"],
-    ["session_prompt.md", "templates/planning/module_session_prompt.md"],
+    ["brief.md", "templates/modules/module_brief.md"],
+    ["module_plan.md", "templates/modules/module_plan.md"],
   ].map(([destination, source]) => [destination, localizedTemplateSource(source, locale)] as TemplatePair);
 }
 

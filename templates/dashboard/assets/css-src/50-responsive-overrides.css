@@ -245,6 +245,15 @@
   gap: 8px;
   min-width: 0;
 }
+
+.module-task-left small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .module-task-dot {
   width: 8px;
   height: 8px;
@@ -270,6 +279,20 @@
   font-weight: 700;
   flex-shrink: 0;
   margin-left: 8px;
+}
+
+@media (max-width: 900px) {
+  .module-console-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .module-list-panel {
+    position: static;
+  }
+
+  .module-boundary-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Inline card pagination controls */

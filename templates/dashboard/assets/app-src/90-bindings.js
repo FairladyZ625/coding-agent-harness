@@ -33,6 +33,7 @@ function bind() {
   }));
   document.querySelectorAll("[data-group-mode]").forEach((select) => select.addEventListener("change", () => {
     state.taskGroupMode = select.value;
+    localStorage.setItem("harness.taskGroupMode", state.taskGroupMode);
     state.taskPageByGroup = {};
     state.taskGroupPage = 1;
     app();

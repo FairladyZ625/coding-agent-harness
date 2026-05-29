@@ -20,6 +20,10 @@ Define when work needs review, which reviewer identity is appropriate, and how r
 12. Worker subagents require one user authorization recorded in `execution_strategy.md`; reuse is limited to the same task, scope, and worktree/branch.
 13. A `Would a worker subagent materially help?` decision of `ask-user` is a blocking gate until `User Authorization Decision` records `authorized`, `denied`, or `not-needed`.
 
+Subagent authorization is task-local. Do not look for module-root
+`execution_strategy.md`; module roots use `brief.md` and `module_plan.md`, while
+worker authorization belongs in the concrete task directory.
+
 ## Required Checklist
 
 - Review trigger and reviewer identity are documented.
