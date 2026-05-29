@@ -7,7 +7,7 @@ let labels = window.HarnessI18n?.[locale] || {};
 const state = {
   query: "",
   taskState: "all",
-  taskGroupMode: "migration",
+  taskGroupMode: localStorage.getItem("harness.taskGroupMode") || ((Array.isArray(bundle.modules) && bundle.modules.length > 0) ? "module" : "migration"),
   taskPageByGroup: {},
   taskGroupPage: 1,
   warningFilter: "all",
@@ -619,12 +619,14 @@ function taskRow(task) {
   const mapReady = !!taskDocument(task, "visual_map.md");
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
+  const moduleLabel = taskModuleLabel(task);
+  const lifecycle = [task.lifecycleState, task.reviewStatus, task.closeoutStatus].filter(Boolean).map((item) => label(item)).join(" · ");
 
   return `<article class="task-row-card" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(task.state)})">
     <div class="row-accent-bar"></div>
     <div class="row-main">
       <strong>${escapeHtml(task.title)}</strong>
-      <span class="row-meta">${escapeHtml(task.id)} · ${escapeHtml(taskModuleKey(task))}</span>
+      <span class="row-meta">${escapeHtml(task.id)} · ${escapeHtml(moduleLabel)}${lifecycle ? ` · ${escapeHtml(lifecycle)}` : ""}</span>
       ${taskCopyButton(task, "row-copy")}
     </div>
     <div class="row-status">${tag(task.state)}</div>
@@ -726,6 +728,7 @@ function taskGroup(group, tasks) {
   const start = (page - 1) * taskPageSize;
   const visibleTasks = orderedTasks.slice(start, start + taskPageSize);
   const avgCompletion = orderedTasks.length ? clampCompletion(orderedTasks.reduce((sum, task) => sum + clampCompletion(task.completion), 0) / orderedTasks.length) : 0;
+  const groupContext = taskGroupContext(group, orderedTasks);
 
   const isGrid = state.taskLayout === "grid";
   const layoutClass = isGrid ? "task-card-grid" : "task-list";
@@ -741,8 +744,10 @@ function taskGroup(group, tasks) {
   return `<section class="task-group">
       <div class="section-head">
         <div>
-          <h2>${taskGroupLabel(group)}</h2>
-          <p class="subtle">${t("showing")} ${Math.min(start + 1, orderedTasks.length)}-${Math.min(start + visibleTasks.length, orderedTasks.length)} / ${orderedTasks.length}</p>
+          <p class="eyebrow">${escapeHtml(groupContext.eyebrow)}</p>
+          <h2>${escapeHtml(groupContext.title)}</h2>
+          <p class="subtle">${escapeHtml(groupContext.summary)} · ${t("showing")} ${Math.min(start + 1, orderedTasks.length)}-${Math.min(start + visibleTasks.length, orderedTasks.length)} / ${orderedTasks.length}</p>
+          ${groupContext.chips.length ? `<div class="module-chip-row">${groupContext.chips.map((chip) => `<span class="module-chip">${escapeHtml(chip)}</span>`).join("")}</div>` : ""}
         </div>
         <div class="group-actions">
           <div class="group-progress" aria-label="${escapeAttr(t("groupCompletion"))}">
@@ -766,6 +771,7 @@ function taskCard(task) {
   const mapReady = !!taskDocument(task, "visual_map.md");
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
+  const lifecycle = [task.lifecycleState, task.reviewStatus, task.closeoutStatus].filter(Boolean).map((item) => label(item)).join(" · ");
 
   return `<article class="task-card" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateColor})">
     <div class="card-header">
@@ -779,8 +785,9 @@ function taskCard(task) {
     <div class="card-meta">
       <span class="meta-module" title="${escapeAttr(taskModuleKey(task))}">
         <svg style="width:12px;height:12px;vertical-align:middle;margin-right:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        ${escapeHtml(taskModuleKey(task))}
+        ${escapeHtml(taskModuleLabel(task))}
       </span>
+      ${lifecycle ? `<span class="meta-lifecycle" title="${escapeAttr(lifecycle)}">${escapeHtml(lifecycle)}</span>` : ""}
     </div>
     <div class="card-progress">
       <div class="card-progress-track"><div class="card-progress-fill" style="width:${completion}%"></div></div>
@@ -803,7 +810,7 @@ function taskGroupLabel(group) {
   if (group === "active") return t("activeCurrent");
   if (group === "brief-ready") return t("briefReadyGroup");
   if (group.startsWith("legacy:")) return `${t("legacyMonth")} ${group.slice("legacy:".length)}`;
-  if (group.startsWith("module:")) return `${t("inferredModule")} · ${group.slice("module:".length)}`;
+  if (group.startsWith("module:")) return taskGroupContext(group, []).title;
   if (group.startsWith("month:")) return `${t("legacyMonth")} ${group.slice("month:".length)}`;
   if (group.startsWith("state:")) return `${t("columnState")} · ${label(group.slice("state:".length))}`;
   return label(group);
@@ -1475,63 +1482,248 @@ function evidenceList(task) {
   </section>`;
 }
 
+function dashboardModules() {
+  const structured = Array.isArray(bundle.modules) ? bundle.modules : [];
+  if (structured.length > 0) return structured;
+  const graphModules = (bundle.graph?.nodes || []).filter((node) => node.type === "module").map((node) => ({
+    key: String(node.id || "").replace(/^module:/, ""),
+    title: node.label,
+    status: node.state,
+    currentStep: node.currentStep,
+    source: "graph",
+    briefPath: node.briefPath,
+    modulePlanPath: node.modulePlanPath,
+  })).filter((module) => module.key);
+  return graphModules;
+}
+
+function moduleDefinition(key) {
+  return dashboardModules().find((module) => module.key === key) || null;
+}
+
+function taskModuleLabel(task) {
+  const key = taskModuleKey(task);
+  if (key === "legacy-unclassified") return t("unclassifiedModule");
+  return moduleDefinition(key)?.title || key;
+}
+
+function taskGroupContext(group, tasks) {
+  if (group.startsWith("module:")) {
+    const key = group.slice("module:".length);
+    const counts = moduleCountsForTasks(tasks);
+    if (key === "legacy-unclassified") {
+      return {
+        eyebrow: t("unclassifiedWarning"),
+        title: t("unclassifiedModule"),
+        summary: t("unclassifiedSummary").replace("{count}", String(tasks.length)),
+        chips: [`${tasks.length} ${t("tasks")}`, `${counts.risk} ${t("moduleRisks")}`],
+      };
+    }
+    const module = moduleDefinition(key) || { key, title: key, source: "inferred" };
+    const chips = [
+      module.status ? `${t("columnState")}: ${label(module.status)}` : "",
+      module.owner ? `${t("moduleOwner")}: ${module.owner}` : "",
+      module.currentStep ? `${t("moduleCurrentStep")}: ${module.currentStep}` : "",
+      module.dependsOn?.length ? `${t("moduleDependsOn")}: ${module.dependsOn.join(", ")}` : "",
+      module.scope?.length ? `${t("moduleScope")}: ${module.scope.join(", ")}` : "",
+    ].filter(Boolean);
+    return {
+      eyebrow: module.source === "registry" ? t("registeredModule") : t("inferredModule"),
+      title: module.title || key,
+      summary: `${tasks.length} ${t("tasks")} · ${counts.active} ${t("active")} · ${counts.review} ${t("statReview")} · ${counts.blocked} ${t("statBlocked")}`,
+      chips,
+    };
+  }
+  return {
+    eyebrow: t("groupBy"),
+    title: taskGroupLabel(group),
+    summary: `${tasks.length} ${t("tasks")}`,
+    chips: [],
+  };
+}
+
+function moduleCountsForTasks(tasks) {
+  return {
+    active: tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state)).length,
+    review: tasks.filter((task) => task.state === "review").length,
+    blocked: tasks.filter((task) => task.state === "blocked").length,
+    risk: tasks.filter((task) => task.state === "blocked" || String(task.reviewStatus || "").includes("blocked") || String(task.visualMapStatus || "") === "missing").length,
+  };
+}
+
 function modulesView(moduleId = "") {
-  const graph = bundle.graph || { nodes: [], edges: [] };
-  const explicitModules = (graph.nodes || []).filter((node) => node.type === "module");
-  const moduleMap = new Map(explicitModules.map((module) => [module.id.replace(/^module:/, ""), module]));
+  const modules = modulesWithTaskFallback();
+  const selectedKey = moduleId || state.selectedModuleKey || modules[0]?.key || "";
+  state.selectedModuleKey = selectedKey;
+  const selected = modules.find((module) => module.key === selectedKey) || modules[0] || null;
+  const unclassified = normalCycleTasks().filter((task) => taskModuleKey(task) === "legacy-unclassified");
+  return `<main class="stack module-console">
+    ${moduleRunStrip(modules, unclassified)}
+    <section class="module-console-grid">
+      <nav class="module-list-panel" aria-label="${escapeAttr(t("moduleView"))}">
+        ${modules.map((module) => moduleListItem(module, selected?.key === module.key)).join("") || emptyState(t("noModules"))}
+      </nav>
+      <article class="module-detail-panel">
+        ${selected ? moduleDetail(selected) : emptyState(t("noModules"))}
+      </article>
+    </section>
+    ${unclassified.length ? moduleUnclassifiedPanel(unclassified) : ""}
+  </main>`;
+}
+
+function modulesWithTaskFallback() {
+  const moduleMap = new Map(dashboardModules().map((module) => [module.key, {
+    ...module,
+    counts: module.counts || emptyUiModuleCounts(),
+    tasks: Array.isArray(module.tasks) ? module.tasks : [],
+  }]));
   for (const task of normalCycleTasks()) {
     const key = taskModuleKey(task);
-    if (!moduleMap.has(key)) moduleMap.set(key, { id: `module:${key}`, type: "module", label: key, state: task.classificationSource || "inferred" });
+    if (key === "legacy-unclassified") continue;
+    if (!moduleMap.has(key)) {
+      moduleMap.set(key, {
+        key,
+        title: key,
+        source: "inferred",
+        status: task.classificationSource || "inferred",
+        counts: emptyUiModuleCounts(),
+        tasks: [],
+      });
+    }
+    const module = moduleMap.get(key);
+    if (!module.tasks.some((item) => item.id === task.id)) module.tasks.push(task);
+    module.counts.total = (module.counts.total || 0) + 1;
+    if (["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state)) module.counts.active = (module.counts.active || 0) + 1;
+    module.counts[task.state || "unknown"] = (module.counts[task.state || "unknown"] || 0) + 1;
   }
-  const modules = [...moduleMap.values()];
-  return `<main class="stack">
-    <section class="module-grid">
-      ${modules.map((module) => moduleCard(module)).join("") || emptyState(t("noModules"))}
+  return [...moduleMap.values()].sort((left, right) => {
+    const leftActive = Number(left.counts?.active || 0);
+    const rightActive = Number(right.counts?.active || 0);
+    if (leftActive !== rightActive) return rightActive - leftActive;
+    return left.key.localeCompare(right.key);
+  });
+}
+
+function emptyUiModuleCounts() {
+  return { total: 0, active: 0, review: 0, blocked: 0, risk: 0, missingDocs: 0 };
+}
+
+function moduleRunStrip(modules, unclassified) {
+  const active = modules.filter((module) => Number(module.counts?.active || 0) > 0).length;
+  const risk = modules.reduce((sum, module) => sum + Number(module.counts?.risk || 0), 0);
+  const registered = modules.filter((module) => module.source === "registry").length;
+  return `<section class="module-run-strip">
+    ${metric(t("moduleRegistered"), registered)}
+    ${metric(t("moduleActive"), active)}
+    ${metric(t("moduleRisks"), risk)}
+    ${metric(t("moduleUnclassified"), unclassified.length)}
+  </section>`;
+}
+
+function moduleListItem(module, active) {
+  const counts = module.counts || emptyUiModuleCounts();
+  return `<a class="module-list-item ${active ? "active" : ""}" href="#/modules/${encodeURIComponent(module.key)}" data-module-select="${escapeAttr(module.key)}">
+    <span>
+      <strong>${escapeHtml(module.title || module.key)}</strong>
+      <small>${escapeHtml(module.key)} · ${escapeHtml(module.source || "registry")}</small>
+    </span>
+    <span class="module-list-counts">
+      <b>${Number(counts.active || 0)}</b>
+      ${tag(module.status || "planned")}
+    </span>
+  </a>`;
+}
+
+function moduleDetail(module) {
+  const tasks = normalCycleTasks().filter((task) => taskModuleKey(task) === module.key);
+  const activeTasks = tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state));
+  const riskTasks = tasks.filter((task) => task.state === "blocked" || String(task.reviewStatus || "").includes("blocked") || String(task.visualMapStatus || "") === "missing");
+  const brief = findDocument(module.briefPath || `TARGET:coding-agent-harness/planning/modules/${module.key}/brief.md`);
+  const plan = findDocument(module.modulePlanPath || "");
+  return `<div class="module-detail-stack">
+    <header class="module-detail-header">
+      <div>
+        <p class="eyebrow">${escapeHtml(module.source === "registry" ? t("registeredModule") : t("inferredModule"))}</p>
+        <h2>${escapeHtml(module.title || module.key)}</h2>
+        <p class="subtle">${escapeHtml(module.key)}${module.currentStep ? ` · ${escapeHtml(module.currentStep)}` : ""}</p>
+      </div>
+      ${tag(module.status || "planned")}
+    </header>
+    <div class="module-chip-row">
+      ${module.owner ? `<span class="module-chip">${t("moduleOwner")}: ${escapeHtml(module.owner)}</span>` : ""}
+      ${module.branch ? `<span class="module-chip">${t("moduleBranch")}: ${escapeHtml(module.branch)}</span>` : ""}
+      ${module.dependsOn?.length ? `<span class="module-chip">${t("moduleDependsOn")}: ${escapeHtml(module.dependsOn.join(", "))}</span>` : ""}
+    </div>
+    <section class="module-boundary-grid">
+      ${moduleBoundaryBlock(t("moduleScope"), module.scope)}
+      ${moduleBoundaryBlock(t("moduleShared"), module.shared)}
+      ${moduleBoundaryBlock(t("moduleDependsOn"), module.dependsOn)}
     </section>
-  </main>`;
+    <section class="module-work-panel">
+      <div class="section-head">
+        <div>
+          <h3>${t("moduleCurrentWork")}</h3>
+          <p class="subtle">${activeTasks.length} ${t("active")} · ${riskTasks.length} ${t("moduleRisks")}</p>
+        </div>
+        <a href="#/tasks">${t("openTaskIndex")}</a>
+      </div>
+      <div class="module-task-list">
+        ${activeTasks.slice(0, 10).map(moduleTaskRow).join("") || `<p>${t("noModuleTasks")}</p>`}
+      </div>
+    </section>
+    ${riskTasks.length ? `<section class="module-risk-panel">
+      <h3>${t("moduleRiskPanel")}</h3>
+      <div class="module-task-list">${riskTasks.slice(0, 8).map(moduleTaskRow).join("")}</div>
+    </section>` : ""}
+    <section class="module-doc-panel">
+      <h3>${t("sourceDocuments")}</h3>
+      <div class="module-doc-links">
+        ${moduleDocLink(t("brief"), module.briefPath, brief)}
+        ${moduleDocLink(t("taskPlan"), module.modulePlanPath, plan)}
+      </div>
+      <div class="markdown module-doc-preview">${brief ? window.HarnessMarkdown.render(brief.content, "rendered") : `<p>${t("moduleBriefMissing")}</p>`}</div>
+    </section>
+  </div>`;
+}
+
+function moduleBoundaryBlock(title, values) {
+  const items = Array.isArray(values) && values.length ? values : [t("none")];
+  return `<div class="module-boundary-block">
+    <strong>${escapeHtml(title)}</strong>
+    ${items.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+  </div>`;
+}
+
+function moduleDocLink(labelText, pathValue, document) {
+  if (!pathValue && !document) return `<span class="module-doc-link missing">${escapeHtml(labelText)} · ${t("documentMissing")}</span>`;
+  return `<span class="module-doc-link">${escapeHtml(labelText)} · ${escapeHtml(pathValue || document.path || t("ready"))}</span>`;
 }
 
 function moduleTaskRow(task) {
   const dotClass = /fail|blocked|open/i.test(task.state) ? "state-fail" : /warn|advice|planned|missing|unknown/i.test(task.state) ? "state-warn" : "state-pass";
+  const lifecycle = [task.lifecycleState, task.reviewStatus, task.closeoutStatus].filter(Boolean).map((item) => label(item)).join(" · ");
   return `<a class="module-task-row" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}">
     <div class="module-task-left">
       <i class="module-task-dot ${dotClass}" title="${escapeAttr(task.state)}"></i>
-      <span class="module-task-title">${escapeHtml(task.title)}</span>
+      <span class="module-task-title">${escapeHtml(task.title || task.id)}</span>
+      ${lifecycle ? `<small>${escapeHtml(lifecycle)}</small>` : ""}
     </div>
-    <span class="module-task-pct">${task.completion}%</span>
+    <span class="module-task-pct">${clampCompletion(task.completion)}%</span>
   </a>`;
 }
 
-function moduleCard(module) {
-  const moduleKey = module.id.replace(/^module:/, "");
-  const tasks = normalCycleTasks().filter((task) => taskModuleKey(task) === moduleKey);
-
-  // Inline Pagination
-  state.modulePages = state.modulePages || {};
-  const currentPage = state.modulePages[moduleKey] || 1;
-  const pageCount = Math.ceil(tasks.length / 8) || 1;
-  const visibleTasks = tasks.slice((currentPage - 1) * 8, currentPage * 8);
-
-  const brief = findDocument(module.briefPath || `TARGET:coding-agent-harness/planning/modules/${moduleKey}/brief.md`);
-
-  let pagerHtml = "";
-  if (tasks.length > 8) {
-    pagerHtml = `<div class="module-pager">
-      <button ${currentPage <= 1 ? "disabled" : ""} onclick="window.setModulePage('${escapeAttr(moduleKey)}', ${currentPage - 1})">${t("prevPage")}</button>
-      <span>${currentPage} / ${pageCount}</span>
-      <button ${currentPage >= pageCount ? "disabled" : ""} onclick="window.setModulePage('${escapeAttr(moduleKey)}', ${currentPage + 1})">${t("nextPage")}</button>
-    </div>`;
-  }
-
-  return `<article class="module-card">
-    <div class="card-head"><h2>${escapeHtml(module.label || moduleKey)}</h2>${tag(module.state || "unknown")}</div>
-    <div class="markdown">${brief ? window.HarnessMarkdown.render(brief.content, "rendered") : `<p>${t("moduleBriefMissing")}</p>`}</div>
-    <h3>${t("moduleTasks")} · ${tasks.length}</h3>
-    <div class="module-task-list">
-      ${visibleTasks.map(moduleTaskRow).join("") || `<p>${t("noModuleTasks")}</p>`}
+function moduleUnclassifiedPanel(tasks) {
+  return `<section class="module-unclassified-panel">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">${t("unclassifiedWarning")}</p>
+        <h2>${t("unclassifiedModule")}</h2>
+        <p class="subtle">${t("unclassifiedSummary").replace("{count}", String(tasks.length))}</p>
+      </div>
+      <a href="#/tasks">${t("openTaskIndex")}</a>
     </div>
-    ${pagerHtml}
-  </article>`;
+    <div class="module-task-list">${tasks.slice(0, 12).map(moduleTaskRow).join("")}</div>
+  </section>`;
 }
 
 function reviewQueue() {
@@ -2650,6 +2842,7 @@ function bind() {
   }));
   document.querySelectorAll("[data-group-mode]").forEach((select) => select.addEventListener("change", () => {
     state.taskGroupMode = select.value;
+    localStorage.setItem("harness.taskGroupMode", state.taskGroupMode);
     state.taskPageByGroup = {};
     state.taskGroupPage = 1;
     app();

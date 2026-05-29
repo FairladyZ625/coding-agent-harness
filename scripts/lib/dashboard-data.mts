@@ -104,6 +104,13 @@ type DashboardTaskRef = Partial<ScannedTask> & {
   id?: string;
   taskPlanPath?: string;
 };
+type DashboardModuleSummary = Record<string, unknown> & {
+  key: string;
+  title?: string;
+  source: string;
+  counts: Record<string, number>;
+  tasks: Array<Record<string, unknown>>;
+};
 type DashboardPhaseRef = {
   id: string;
   state?: string;
@@ -403,6 +410,129 @@ function moduleDocumentPaths(target: DashboardTarget | null, moduleKey: string) 
   };
 }
 
+function collectDashboardModules(status: DashboardStatus, target: DashboardTarget): { modules: DashboardModuleSummary[]; summary: Record<string, unknown> } {
+  const tasks = Array.isArray(status.tasks) ? status.tasks as Array<Record<string, unknown>> : [];
+  const registered = Array.isArray((status as Record<string, unknown>).modules)
+    ? (status as Record<string, unknown>).modules as Array<Record<string, unknown>>
+    : [];
+  const modules = new Map<string, DashboardModuleSummary>();
+  for (const module of registered) {
+    const key = String(module.key || "").trim();
+    if (!key) continue;
+    modules.set(key, {
+      ...module,
+      key,
+      title: String(module.title || key),
+      source: "registry",
+      ...moduleDocumentPaths(target, key),
+      counts: emptyModuleCounts(),
+      tasks: [],
+    });
+  }
+  for (const task of tasks) {
+    if (isArchivedDashboardTask(task)) continue;
+    const key = dashboardTaskModuleKey(task);
+    if (key === "legacy-unclassified") continue;
+    if (!modules.has(key)) {
+      modules.set(key, {
+        key,
+        title: key,
+        source: "inferred",
+        status: String(task.classificationSource || "inferred"),
+        ...moduleDocumentPaths(target, key),
+        counts: emptyModuleCounts(),
+        tasks: [],
+      });
+    }
+    const module = modules.get(key);
+    if (!module) continue;
+    accumulateModuleTask(module, task);
+  }
+  const unclassifiedTasks = tasks.filter((task) => !isArchivedDashboardTask(task) && dashboardTaskModuleKey(task) === "legacy-unclassified");
+  const moduleList = [...modules.values()].sort((left, right) => {
+    const leftStatus = String(left.status || "");
+    const rightStatus = String(right.status || "");
+    if (leftStatus === "in-progress" && rightStatus !== "in-progress") return -1;
+    if (rightStatus === "in-progress" && leftStatus !== "in-progress") return 1;
+    return left.key.localeCompare(right.key);
+  });
+  return {
+    modules: moduleList,
+    summary: {
+      total: moduleList.length,
+      registered: registered.length,
+      inferred: moduleList.filter((module) => module.source === "inferred").length,
+      active: moduleList.filter((module) => Number(module.counts.active || 0) > 0).length,
+      risk: moduleList.reduce((sum, module) => sum + Number(module.counts.risk || 0), 0),
+      unclassifiedTasks: unclassifiedTasks.length,
+    },
+  };
+}
+
+function emptyModuleCounts(): Record<string, number> {
+  return {
+    total: 0,
+    active: 0,
+    in_progress: 0,
+    review: 0,
+    blocked: 0,
+    done: 0,
+    planned: 0,
+    not_started: 0,
+    unknown: 0,
+    risk: 0,
+    missingDocs: 0,
+  };
+}
+
+function accumulateModuleTask(module: DashboardModuleSummary, task: Record<string, unknown>): void {
+  const state = String(task.state || "unknown");
+  module.counts.total += 1;
+  module.counts[state] = (module.counts[state] || 0) + 1;
+  if (["in_progress", "review", "blocked", "planned", "not_started"].includes(state)) module.counts.active += 1;
+  if (dashboardTaskHasRisk(task)) module.counts.risk += 1;
+  if (dashboardTaskMissingDocs(task)) module.counts.missingDocs += 1;
+  if (module.tasks.length < 16) {
+    module.tasks.push({
+      id: task.id,
+      shortId: task.shortId,
+      title: task.title,
+      state,
+      completion: task.completion,
+      reviewStatus: task.reviewStatus,
+      closeoutStatus: task.closeoutStatus,
+      lifecycleState: task.lifecycleState,
+      taskQueues: task.taskQueues,
+      queueReasons: task.queueReasons,
+      visualMapStatus: task.visualMapStatus,
+      briefSource: task.briefSource,
+      path: task.path,
+    });
+  }
+}
+
+function dashboardTaskModuleKey(task: Record<string, unknown>): string {
+  return String(task.module || task.inferredModule || "legacy-unclassified");
+}
+
+function isArchivedDashboardTask(task: Record<string, unknown>): boolean {
+  const archiveState = String((task.archiveMetadata as Record<string, unknown> | undefined)?.state || "").toLowerCase();
+  return task.deletionState === "archived" || archiveState === "archived";
+}
+
+function dashboardTaskHasRisk(task: Record<string, unknown>): boolean {
+  if (task.state === "blocked") return true;
+  if (String(task.reviewStatus || "").includes("blocked")) return true;
+  if (Array.isArray(task.materialIssues) && task.materialIssues.length > 0) return true;
+  if (Array.isArray(task.queueReasons) && task.queueReasons.length > 0) return true;
+  if (String(task.visualMapStatus || "") === "missing") return true;
+  return false;
+}
+
+function dashboardTaskMissingDocs(task: Record<string, unknown>): boolean {
+  return task.briefSource !== "standalone" || String(task.visualMapStatus || "") === "missing";
+}
+
 export function categorizeWarning(message: string): string {
   if (/governance-table-entropy/i.test(message)) return "Governance Table Boundary";
   if (/missing execution_strategy\.md|missing visual_(?:map|roadmap)\.md|Visual (?:Map|Roadmap)/i.test(message)) return "Plan Contract Missing";
@@ -614,9 +744,10 @@ export function buildDashboardBundle(targetInput: string, options: DashboardOpti
   const documents = { documents: collectMarkdownDocuments(target, { taskPlanPaths, tasks: status.tasks as DashboardTaskRef[] }) };
   const tables = collectTables(documents.documents);
   const graph = collectGraph(status, tables, target);
+  const modules = collectDashboardModules(status, target);
   const adoption = collectAdoption(status);
   const presetCatalog = collectPresetCatalog(targetInput, target, options);
-  return sanitizeDeep({ status, tables, documents, graph, adoption, presetCatalog }) as DashboardBundle;
+  return sanitizeDeep({ status, tables, documents, graph, modules: modules.modules, moduleSummary: modules.summary, adoption, presetCatalog }) as DashboardBundle;
 }
 
 function runDashboardCompatibilityCheck(target: DashboardTarget) {

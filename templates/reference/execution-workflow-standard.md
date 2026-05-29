@@ -40,6 +40,19 @@ Optional directories are created only when triggered:
 
 Preset packages must not add or replace root-level base scaffold documents. Presets may append controlled sections to fixed base documents or add isolated resources under `references/**` and `artifacts/**`. Resource rows belong only in `references/INDEX.md` and `artifacts/INDEX.md`; the root `INDEX.md` may show only system-rendered preset summary fields.
 
+## Module Package Boundary
+
+Registered modules live in root `harness.yaml` under `modules.items`. The
+generated `planning/modules/Module-Registry.md` is a reading view, not the
+editable source of truth.
+
+Use `harness module register` or `harness module scaffold` instead of
+hand-copying module files. The module root owns only `brief.md` and
+`module_plan.md` by default. Task execution contracts such as
+`execution_strategy.md`, `visual_map.md`, `review.md`, and `walkthrough.md`
+belong under concrete task directories, including
+`planning/modules/<key>/tasks/<task-id>/`.
+
 ## Required Checklist
 
 - Goal, scope, acceptance criteria, and constraints are written down.

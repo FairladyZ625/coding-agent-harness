@@ -53,7 +53,11 @@ export function planCreateTaskChanges({
 }): CreateTaskChange[] {
   const changes: CreateTaskChange[] = [];
   if (normalizedModuleKey) {
-    const moduleDirectory = path.dirname(directory);
+    const harness = target.harness as Record<string, unknown> | undefined;
+    const modulesRoot = String(harness?.modulesRoot || target.modulesRoot || "");
+    const moduleDirectory = modulesRoot
+      ? path.join(modulesRoot, normalizedModuleKey)
+      : path.dirname(directory);
     for (const [destination, source] of moduleTemplateFiles({ locale: normalizedLocale })) {
       const destinationPath = path.join(moduleDirectory, destination);
       if (fs.existsSync(destinationPath)) continue;

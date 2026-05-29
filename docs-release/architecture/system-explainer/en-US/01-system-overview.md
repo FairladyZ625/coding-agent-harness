@@ -88,7 +88,7 @@ flowchart TD
 
   PKG --> CLI["harness CLI\ndist/harness.mjs\nSingle command entry point"]
   PKG --> Lib["Core library\nscripts/lib/\n~30 modules, 6 functional layers"]
-  PKG --> Templates["Task templates\ntemplates/\nTask scaffold files (task_plan / visual_map etc.)"]
+  PKG --> Templates["Templates\ntemplates/\nTask scaffolds + module-root templates"]
   PKG --> References["Operating standards\nreferences/\nSpec docs that can be copied to target repos"]
   PKG --> Presets["Preset packages\npresets/\nReusable task methods (legacy-migration / module etc.)"]
 ```
@@ -116,6 +116,9 @@ flowchart TD
 
 Each task corresponds to a directory under `coding-agent-harness/planning/tasks/<task-id>/`,
 containing files like `task_plan.md`, `progress.md`, `visual_map.md`, `review.md`, etc.
+Modules are registered in `harness.yaml` `modules.items`. A module root owns
+only `brief.md` and `module_plan.md` by default, while module tasks live under
+`coding-agent-harness/planning/modules/<key>/tasks/<task-id>/`.
 
 ### What the Runtime does
 
@@ -143,6 +146,7 @@ caching no intermediate state (except file watching in `harness dev`).
 | **Budget** | Task complexity: `simple` / `standard` / `complex`, determines gate strictness | `task_plan.md` |
 | **Phase** | An execution phase in the Visual Map, with state and completion | `visual_map.md` |
 | **Capability** | Optional feature module, e.g. `dashboard`, `module-parallel` | `coding-agent-harness/harness.yaml` |
+| **Module** | YAML-registered parallel work domain with owner, scope, dependencies, and task grouping | `harness.yaml modules.items` + `planning/modules/<key>/` |
 | **Review Gate** | A review gate that blocks task completion, requires human confirmation to pass | `review.md` |
 | **Governance Sync** | Atomic operation that auto-updates the global ledger on task state changes | `coding-agent-harness/governance/generated/Harness-Ledger.md` |
 | **Preset** | A reusable task method package, e.g. `legacy-migration`, `module` | `presets/<id>/` |

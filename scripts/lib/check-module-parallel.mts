@@ -233,12 +233,7 @@ export function checkModuleParallelStructure(context: ModuleParallelContext): vo
     }
 
     const block = modulePromptBlock(promptPack, key);
-    if (!block) {
-      if (!exists(legacyPath(legacyModuleRoot, key, "session_prompt.md"))) {
-        fail(`missing module session prompt for ${key}`);
-      }
-      continue;
-    }
+    if (!block) continue;
     for (const term of [
       "Current Step",
       branchName,

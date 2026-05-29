@@ -148,6 +148,16 @@ Preset discovery:
   Use "harness preset list --json" to see available presets, their source,
   purpose, compatible budgets, and manifest path. Use "harness preset inspect
   <id> --json" for the full preset manifest summary.
+
+Module workflow:
+  Registered modules are stored in the root harness.yaml under modules.items.
+  "harness module register" writes YAML, creates module brief.md/module_plan.md,
+  and regenerates planning/modules/Module-Registry.md as a read-only view.
+  "harness module scaffold" repairs only module-owned root docs; task execution
+  files stay under planning/modules/<key>/tasks/<task-id>/.
+  "harness new-task --module <key>" creates a module task and applies the module
+  task preset by default. Unknown modules must be registered first, or use
+  --register-module with --module-title/--module-prefix/--module-scope.
 `);
 }
 

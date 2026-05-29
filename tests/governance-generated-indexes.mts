@@ -122,9 +122,10 @@ assert(noMatch.tasks.length === 0, "task-list filters should return empty result
 
 expectJson(["module", "register", "pipe", "--title", "Pipe", "--prefix", "PIPE", "--scope", "src/pipe/**", target]);
 const pipeTitle = expectJson<NewTaskResponse>(["new-task", "module-pipe-title", "--module", "pipe", "--title", "Pipe | Title", target]);
-const pipeVisual = fs.readFileSync(path.join(target, "coding-agent-harness/planning/modules/pipe/visual_map.md"), "utf8");
+const pipeModulePlan = fs.readFileSync(path.join(target, "coding-agent-harness/planning/modules/pipe/module_plan.md"), "utf8");
 const incrementalLedger = fs.readFileSync(ledgerPath, "utf8");
-assert(pipeVisual.includes("Pipe \\| Title"), "generated module visual map should escape table pipes in task titles");
+assert(pipeModulePlan.includes("Pipe \\| Title"), "generated module plan index should escape table pipes in task titles");
+assert(!fs.existsSync(path.join(target, "coding-agent-harness/planning/modules/pipe/visual_map.md")), "module task governance sync should not create a module-root visual_map.md");
 assert(incrementalLedger.includes("| module | pipe |"), "new-task --module ledger row should expose module scope and key");
 assert(!fs.existsSync(featurePath), "new-task should not recreate public Feature SSoT");
 assert(!fs.existsSync(privateFeaturePath), "new-task should not recreate private Feature SSoT");

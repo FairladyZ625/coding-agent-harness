@@ -39,7 +39,7 @@ Read the smallest context that can answer the task.
 | Long-running task | Current task `long-running-task-contract.md` when present |
 | Reviewer, subagent, or adversarial review | Current task `review.md`, `{{paths.harnessRoot}}/governance/standards/review-routing-standard.md` |
 | Team, multi-repo, or staged delivery | `{{paths.harnessRoot}}/governance/standards/delivery-operating-model-standard.md`, `{{paths.harnessRoot}}/planning/Delivery-SSoT.md` |
-| Module-parallel work | `{{paths.harnessRoot}}/planning/modules/Module-Registry.md` and the related module plan |
+| Module-parallel work | `{{paths.harnessRoot}}/harness.yaml`, generated `{{paths.harnessRoot}}/planning/modules/Module-Registry.md`, the module `brief.md`, and the related `module_plan.md` |
 | Documentation governance or Harness update | `{{paths.harnessRoot}}/governance/standards/docs-library-standard.md`, `{{paths.harnessRoot}}/harness.yaml` |
 | External source material intake | `{{paths.harnessRoot}}/governance/standards/external-source-intake-standard.md` |
 | Regression SSoT maintenance | `{{paths.harnessRoot}}/governance/standards/regression-ssot-governance.md` |
@@ -70,11 +70,13 @@ Read the smallest context that can answer the task.
 - Worker subagents require one user authorization recorded in `execution_strategy.md`; after that, reuse is allowed only within the same task, scope, and worktree/branch.
 - Shared ledgers, registries, and SSoT files are coordinator-owned unless a lock is explicitly assigned.
 - Worker handoff must include branch or worktree, changed files, checks, evidence, and residual risks.
+- Modules are registered in `{{paths.harnessRoot}}/harness.yaml` under `modules.items`. `Module-Registry.md` is generated; do not hand-edit it as the source of truth.
+- Module roots own only `brief.md` and `module_plan.md` by default. Task execution contracts such as `execution_strategy.md`, `visual_map.md`, `review.md`, and `walkthrough.md` belong under concrete task directories, including `{{paths.harnessRoot}}/planning/modules/<key>/tasks/<task-id>/`.
 
 ## Single Sources Of Truth
 
 - Delivery SSoT: `{{paths.harnessRoot}}/planning/Delivery-SSoT.md`
-- Module Registry: `{{paths.harnessRoot}}/planning/modules/Module-Registry.md`
+- Module Registry: `{{paths.harnessRoot}}/harness.yaml` `modules.items`; generated view at `{{paths.harnessRoot}}/planning/modules/Module-Registry.md`
 - Regression SSoT: `{{paths.harnessRoot}}/governance/regression/Regression-SSoT.md`
 - Cadence Ledger: `{{paths.harnessRoot}}/governance/regression/Cadence-Ledger.md`
 - Lesson Candidates: current task `lesson_candidates.md`

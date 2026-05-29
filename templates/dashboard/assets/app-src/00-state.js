@@ -7,7 +7,7 @@ let labels = window.HarnessI18n?.[locale] || {};
 const state = {
   query: "",
   taskState: "all",
-  taskGroupMode: "migration",
+  taskGroupMode: localStorage.getItem("harness.taskGroupMode") || ((Array.isArray(bundle.modules) && bundle.modules.length > 0) ? "module" : "migration"),
   taskPageByGroup: {},
   taskGroupPage: 1,
   warningFilter: "all",

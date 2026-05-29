@@ -1,8 +1,8 @@
 # Module Session Prompt Pack
 
-This legacy planning template is kept as a compatibility alias. New installs use
-the global `templates/modules/session_prompt_pack.md`; per-module
-`session_prompt.md` files are not scaffolded by default.
+Use this global prompt pack when a coordinator starts work for a registered
+module. Replace placeholders with current module facts from `harness.yaml`,
+the generated `Module-Registry.md`, and the module's `module_plan.md`.
 
 ## Context Package
 
@@ -23,12 +23,8 @@ You may edit only:
 
 - [path]
 
-Do not edit shared SSoT files, coordinator-owned integration files, or unrelated modules unless the coordinator explicitly assigns that scope.
-
-Create or update concrete work under
-`{{paths.modulesRoot}}/<module-key>/tasks/<task-id>/`. Task execution contracts
-such as `execution_strategy.md` and `visual_map.md` live in those task
-directories, not in the module root.
+Do not edit shared SSoT files, coordinator-owned integration files, or unrelated
+modules unless the coordinator explicitly assigns that scope.
 
 ## Required Output
 
@@ -48,8 +44,12 @@ directories, not in the module root.
 
 ## Shared Sync Rule
 
-Do not update Module Registry, Harness Ledger, Closeout Index, Regression SSoT, or Cadence Ledger from a worker session unless the coordinator assigned the shared lock.
+Do not update Module Registry, Harness Ledger, Closeout Index, Regression SSoT,
+or Cadence Ledger from a worker session unless the coordinator assigned the
+shared lock.
 
 ## Stop Rule
 
-Pause and report if the requested change requires editing outside the assigned scope, resolving unrelated dirty files, making a product decision, or changing a shared contract.
+Pause and report if the requested change requires editing outside the assigned
+scope, resolving unrelated dirty files, making a product decision, or changing a
+shared contract.

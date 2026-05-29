@@ -35,17 +35,15 @@
 
 ## Handoff
 
-- Branch: [branch]
-- Commit SHA: [sha]
-- Checks: [summary]
-- Files changed: [summary]
-- Residual risks: [none / list]
-- Coordinator updates needed: [none / list]
+- Branch:
+- Commit SHA:
+- Checks:
+- Files changed:
+- Residual risks:
+- Coordinator updates needed:
 
 ## Template Boundary
 
-This legacy planning template is kept for compatibility. New module roots are
-scaffolded from `templates/modules/**` and own only `brief.md` plus
-`module_plan.md` by default. Task execution contracts such as
-`execution_strategy.md`, `visual_map.md`, `review.md`, and `walkthrough.md`
-belong under concrete task directories.
+This module root owns only `brief.md` and `module_plan.md` by default. Task
+execution contracts such as `execution_strategy.md`, `visual_map.md`,
+`review.md`, and `walkthrough.md` belong under concrete task directories.

@@ -212,7 +212,7 @@ flowchart TD
 flowchart TD
   Core["core\n（必选，所有其他能力的基础）"]
 
-  Core --> ModParallel["module-parallel\n模块注册表 + 并行工作"]
+  Core --> ModParallel["module-parallel\nYAML 模块注册 + 并行工作"]
   Core --> AdvReview["adversarial-review\n对抗审查报告\n（别名：review-contract）"]
   Core --> LongRunning["long-running-task\n长时间运行任务合约"]
   Core --> Dashboard["dashboard\n本地 HTML Dashboard"]
@@ -224,7 +224,7 @@ flowchart TD
 | 能力 | 何时启用 |
 | --- | --- |
 | `core` | 始终，这是必选基础 |
-| `module-parallel` | 项目有 2 个以上独立模块需要并行所有权时 |
+| `module-parallel` | 项目有 2 个以上独立模块，需要在 `harness.yaml modules.items` 里维护 owner、scope、依赖和同步规则时 |
 | `subagent-worker` | 代码变更 subagent 需要在独立 worktree 工作并 commit 交接时 |
 | `adversarial-review` | 发布、架构、安全、数据或策略风险需要独立审查产物时 |
 | `long-running-task` | Agent 可能跨多个 loop 运行而无需每步用户确认时 |

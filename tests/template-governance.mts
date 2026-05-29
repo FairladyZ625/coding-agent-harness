@@ -176,6 +176,7 @@ function englishOutcomeFirstBriefTemplates(): string[] {
   return [
     "templates/planning/brief.md",
     "templates/planning/module_brief.md",
+    "templates/modules/module_brief.md",
     "templates/planning/optional/slices/_slice-template/brief.md",
     "skills/preset-creator/references/complex-task-skeleton/brief.md",
   ];
@@ -185,6 +186,7 @@ function chineseOutcomeFirstBriefTemplates(): string[] {
   return [
     "templates-zh-CN/planning/brief.md",
     "templates-zh-CN/planning/module_brief.md",
+    "templates-zh-CN/modules/module_brief.md",
     "templates-zh-CN/planning/optional/slices/_slice-template/brief.md",
   ];
 }

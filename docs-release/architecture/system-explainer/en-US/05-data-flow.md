@@ -155,13 +155,13 @@ Which files `collectMarkdownDocuments()` collects:
 flowchart TD
   Collect["collectMarkdownDocuments()"]
 
-  Collect --> Fixed["Fixed paths (collected when they exist)\nHarness-Ledger.md\ncoding-agent-harness/planning/modules/Module-Registry.md\ncoding-agent-harness/governance/regression/Regression-SSoT.md\ncoding-agent-harness/governance/generated/Closeout-Index.md"]
+  Collect --> Fixed["Fixed paths (collected when they exist)\nHarness-Ledger.md\nharness.yaml modules.items\ncoding-agent-harness/planning/modules/Module-Registry.md\ncoding-agent-harness/governance/regression/Regression-SSoT.md\ncoding-agent-harness/governance/generated/Closeout-Index.md"]
 
   Collect --> Walkthrough["All .md files under coding-agent-harness/planning/tasks/<task>/\n(excluding _archive/ and files starting with _)"]
 
   Collect --> TaskDocs["Under each task directory:\nbrief / task_plan / execution_strategy\nvisual_map / lesson_candidates\nprogress / review / findings\nreferences/INDEX.md / artifacts/INDEX.md"]
 
-  Collect --> ModuleDocs["Under coding-agent-harness/planning/modules/:\nmodule_plan.md for each module\nbrief.md for each module"]
+  Collect --> ModuleDocs["Under coding-agent-harness/planning/modules/:\nroot brief.md / module_plan.md for each module\ntask contracts under tasks/<task>/"]
 
   Collect --> Lessons["All .md files under 01-GOVERNANCE/lessons/"]
 ```

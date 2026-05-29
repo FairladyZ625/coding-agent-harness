@@ -53,14 +53,13 @@ const featurePath = path.join(target, "coding-agent-harness/planning/Feature-SSo
 const ledgerPath = path.join(target, "coding-agent-harness/governance/generated/Harness-Ledger.md");
 const registryPath = path.join(target, "coding-agent-harness/planning/modules/Module-Registry.md");
 const modulePlanPath = path.join(target, "coding-agent-harness/planning/modules/sync/module_plan.md");
-const moduleVisualPath = path.join(target, "coding-agent-harness/planning/modules/sync/visual_map.md");
 assert(!fs.existsSync(featurePath), "new-task --module should not create Feature SSoT lifecycle projection");
 const ledgerContent = fs.readFileSync(ledgerPath, "utf8");
 assert(ledgerContent.includes(ownedTaskPlan), "new-task should register task in Harness Ledger");
 assert(ledgerContent.includes("| module | sync |"), "new-task --module should expose module scope in Harness Ledger");
 assert(fs.readFileSync(registryPath, "utf8").includes("coding-agent-harness/planning/modules/sync/module_plan.md"), "new-task --module should refresh the YAML-backed module registry view");
 assert(fs.readFileSync(modulePlanPath, "utf8").includes(ownedTaskPlan), "new-task --module should regenerate module plan index");
-assert(fs.readFileSync(moduleVisualPath, "utf8").includes(ownedTaskPlan), "new-task --module should regenerate module visual map index");
+assert(!fs.existsSync(path.join(target, "coding-agent-harness/planning/modules/sync/visual_map.md")), "new-task --module should not create a module-root visual map index");
 
 fs.writeFileSync(path.join(target, "UNRELATED.txt"), "dirty\n");
 const dirtyResult = expectJson<NewTaskResponse>(["new-task", "dirty-allowed", "--title", "Dirty Allowed", target]);

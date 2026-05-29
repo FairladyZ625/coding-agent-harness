@@ -546,18 +546,25 @@ assert(unregisteredModuleCreate.stderr.includes("harness module register auth"),
 const authRegistration = expectJson(["module", "register", "auth", "--title", "Auth", "--prefix", "AUTH", "--scope", "src/auth/**", "--status", "in-progress", lifecycleTarget]);
 assert(authRegistration.moduleKey === "auth", "module register should report the normalized module key");
 assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/harness.yaml"), "utf8").includes("modules:"), "module register should persist modules in harness.yaml");
-for (const required of ["brief.md", "module_plan.md", "execution_strategy.md", "visual_map.md", "session_prompt.md"]) {
+for (const required of ["brief.md", "module_plan.md"]) {
   assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth", required)), `module register should scaffold ${required}`);
+}
+for (const omitted of ["execution_strategy.md", "visual_map.md", "session_prompt.md"]) {
+  assert(!fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth", omitted)), `module register should not scaffold module-root ${omitted}`);
 }
 assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/brief.md"), "utf8").includes("Auth"), "module register should render module title into scaffolded brief");
 const inlineModuleTask = expectJson(["new-task", "inline-module", "--module", "gui", "--register-module", "--module-title", "GUI", "--module-prefix", "GUI", "--module-scope", "src/gui/**", "--title", "Inline Module", lifecycleTarget]);
 assert(inlineModuleTask.task?.id === `MODULES/gui/${todayLocal}-inline-module`, "new-task --register-module should register and create a module task in one command");
 assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/harness.yaml"), "utf8").includes("gui:"), "new-task --register-module should persist the new module in harness.yaml");
-assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/gui/session_prompt.md")), "new-task --register-module should scaffold module template files");
-fs.rmSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/gui/session_prompt.md"));
+assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/gui/module_plan.md")), "new-task --register-module should scaffold module-owned template files");
+assert(!fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/gui/session_prompt.md")), "new-task --register-module should not create per-module session prompts");
+fs.rmSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/gui/module_plan.md"));
 const scaffoldRepair = expectJson(["module", "scaffold", "gui", lifecycleTarget]);
-assert(scaffoldRepair.changes.some((change) => change.destination.endsWith("planning/modules/gui/session_prompt.md")), "module scaffold should report repaired missing template files");
-assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/gui/session_prompt.md")), "module scaffold should repair missing registered module template files");
+assert(scaffoldRepair.changes.some((change) => change.destination.endsWith("planning/modules/gui/module_plan.md")), "module scaffold should report repaired missing module-owned template files");
+assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/gui/module_plan.md")), "module scaffold should repair missing registered module template files");
+for (const omitted of ["execution_strategy.md", "visual_map.md", "session_prompt.md"]) {
+  assert(!fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/gui", omitted)), `module scaffold should not create module-root ${omitted}`);
+}
 const moduleLifecycle = expectJson(["new-task", "module-lifecycle", "--module", "auth", "--budget", "complex", "--title", "模块生命周期", "--locale", "zh-CN", lifecycleTarget]);
 assert(moduleLifecycle.task?.id === `MODULES/auth/${todayLocal}-module-lifecycle`, "new-task --module should create a module task id");
 assert(moduleLifecycle.task?.preset === "module", "new-task --module should apply the module preset by default");
@@ -570,9 +577,11 @@ assert(fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/m
 assert(fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/modules/auth/tasks/${todayLocal}-module-lifecycle/artifacts/INDEX.md`)), "complex module task should create artifacts index");
 assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/brief.md")), "new-task --module should create a module brief when missing");
 assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/module_plan.md")), "new-task --module should create a module plan when missing");
-assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/execution_strategy.md")), "new-task --module should create module-level execution strategy when missing");
-assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/visual_map.md")), "new-task --module should create module-level visual map when missing");
-assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/session_prompt.md")), "new-task --module should create a module session prompt when missing");
+assert(!fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/execution_strategy.md")), "new-task --module should not create module-level execution strategy");
+assert(!fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/visual_map.md")), "new-task --module should not create module-level visual map");
+assert(!fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/session_prompt.md")), "new-task --module should not create a per-module session prompt");
+assert(fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/modules/auth/tasks/${todayLocal}-module-lifecycle/execution_strategy.md`)), "module task should create task-level execution strategy");
+assert(fs.existsSync(path.join(lifecycleTarget, `coding-agent-harness/planning/modules/auth/tasks/${todayLocal}-module-lifecycle/visual_map.md`)), "module task should create task-level visual map");
 const moduleLifecyclePlan = fs.readFileSync(path.join(lifecycleTarget, `coding-agent-harness/planning/modules/auth/tasks/${todayLocal}-module-lifecycle/task_plan.md`), "utf8");
 assert(moduleLifecyclePlan.includes("Task Preset: module"), "module task plan should persist module preset metadata");
 assert(moduleLifecyclePlan.includes("Module Context Entry Points"), "module preset should append module context entry points");

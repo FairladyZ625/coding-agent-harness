@@ -1,4 +1,8 @@
-# 模块会话提示词（Module Session Prompt）
+# 模块会话提示词包
+
+这份 planning 模板作为兼容旧安装的别名保留。新的安装使用全局
+`templates/modules/session_prompt_pack.md`；CLI 默认不会创建每个模块自己的
+`session_prompt.md`。
 
 用于为模块并行项目启动一个长程模块会话。交给新 agent 前，coordinator 必须先用真实项目事实替换占位符。
 
@@ -18,7 +22,7 @@
 冷启动：
 1. 阅读 AGENTS.md。
 2. 阅读 {{paths.harnessRoot}}/planning/modules/Module-Registry.md。
-3. 阅读 {{paths.harnessRoot}}/planning/modules/Session-Prompt-Pack.md 或 {{paths.harnessRoot}}/planning/modules/<module-key>/session_prompt.md。
+3. 阅读 {{paths.harnessRoot}}/planning/modules/Session-Prompt-Pack.md。
 4. 阅读 {{paths.harnessRoot}}/planning/modules/<module-key>/module_plan.md。
 5. 按项目任务阅读矩阵读取本任务涉及文件对应的标准文档。
 
@@ -29,7 +33,7 @@
 - 如果另一个活跃会话拥有该模块或必需共享文件，停止并记录冲突。
 - 代码编辑前，基于项目 planning 模板创建或更新 {{paths.harnessRoot}}/planning/modules/<module-key>/tasks/<current-step>-<short-name>/task_plan.md，写清范围、验收、验证、分支/worktree 和共享协调。
 - 代码编辑前，确认模块任务目录含有 `execution_strategy.md` 与 `visual_map.md`。如缺失，先补齐再实现。
-- 如果 {{paths.harnessRoot}}/planning/modules/<module-key>/ 缺少模块级 `execution_strategy.md` 或 `visual_map.md`，在派发 worker 前补齐或更新。
+- 模块根目录默认只维护 `brief.md` 和 `module_plan.md`；不要把任务执行合同放到模块根目录。
 
 分支与工作树：
 - Worktree path: <worktree-path>.

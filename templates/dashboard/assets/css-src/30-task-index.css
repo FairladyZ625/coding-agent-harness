@@ -570,6 +570,14 @@
   gap: 4px;
 }
 
+.task-card .meta-lifecycle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  color: var(--muted);
+}
+
 .task-card .card-progress {
   display: flex;
   align-items: center;

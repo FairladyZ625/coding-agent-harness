@@ -43,6 +43,8 @@ export function writeDashboardDirectory(outDir: string, bundle: AnyRecord, optio
   writeJsonFile(path.join(target, "data/tables.json"), bundle.tables);
   writeJsonFile(path.join(target, "data/documents.json"), bundle.documents);
   writeJsonFile(path.join(target, "data/graph.json"), bundle.graph);
+  writeJsonFile(path.join(target, "data/modules.json"), bundle.modules || []);
+  writeJsonFile(path.join(target, "data/moduleSummary.json"), bundle.moduleSummary || {});
   writeJsonFile(path.join(target, "data/adoption.json"), bundle.adoption);
   writeJsonFile(path.join(target, "data/presetCatalog.json"), bundle.presetCatalog);
   fs.writeFileSync(

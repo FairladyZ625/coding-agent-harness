@@ -38,7 +38,7 @@
 | 长程任务 | 当前任务的 `long-running-task-contract.md`（如存在） |
 | reviewer、subagent、对抗性审查 | 当前任务 `review.md`、`{{paths.harnessRoot}}/governance/standards/review-routing-standard.md` |
 | 多人协作、多仓交付、阶段性交付 | `{{paths.harnessRoot}}/governance/standards/delivery-operating-model-standard.md`、`{{paths.harnessRoot}}/planning/Delivery-SSoT.md` |
-| 模块并行 | `{{paths.harnessRoot}}/planning/modules/Module-Registry.md` 和相关 module plan |
+| 模块并行 | `{{paths.harnessRoot}}/harness.yaml`、生成的 `{{paths.harnessRoot}}/planning/modules/Module-Registry.md`、模块 `brief.md` 和相关 `module_plan.md` |
 | 文档治理或 Harness 更新 | `{{paths.harnessRoot}}/governance/standards/docs-library-standard.md`、`{{paths.harnessRoot}}/harness.yaml` |
 | 外部资料摄取 | `{{paths.harnessRoot}}/governance/standards/external-source-intake-standard.md` |
 | Regression SSoT 维护 | `{{paths.harnessRoot}}/governance/standards/regression-ssot-governance.md` |
@@ -69,12 +69,14 @@
 - worker subagent 需要用户授权一次，并记录到 `execution_strategy.md`；之后只可在同一任务、同一范围、同一 worktree/branch 内复用。
 - 共享 ledger、registry 和 SSoT 默认由 coordinator 维护，除非明确登记锁。
 - worker 交接必须包含分支或 worktree、改动文件、检查、证据和残余风险。
+- 模块注册以 `{{paths.harnessRoot}}/harness.yaml` 的 `modules.items` 为准。`Module-Registry.md` 是生成视图，不要把它当作手写事实源。
+- 模块根目录默认只拥有 `brief.md` 和 `module_plan.md`。`execution_strategy.md`、`visual_map.md`、`review.md`、`walkthrough.md` 等执行合同属于具体任务目录，包括 `{{paths.harnessRoot}}/planning/modules/<key>/tasks/<task-id>/`。
 
 ## 单一事实源
 
 - Harness Ledger：`{{paths.harnessRoot}}/governance/generated/Harness-Ledger.md`（任务生命周期总账，由 CLI 生成）
 - Delivery SSoT：`{{paths.harnessRoot}}/planning/Delivery-SSoT.md`
-- Module Registry：`{{paths.harnessRoot}}/planning/modules/Module-Registry.md`
+- Module Registry：`{{paths.harnessRoot}}/harness.yaml` 的 `modules.items`；生成视图在 `{{paths.harnessRoot}}/planning/modules/Module-Registry.md`
 - Regression SSoT：`{{paths.harnessRoot}}/governance/regression/Regression-SSoT.md`
 - Cadence Ledger：`{{paths.harnessRoot}}/governance/regression/Cadence-Ledger.md`
 - Lesson Candidates：当前任务 `lesson_candidates.md`
