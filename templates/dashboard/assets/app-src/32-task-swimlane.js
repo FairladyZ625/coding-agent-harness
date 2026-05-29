@@ -32,7 +32,7 @@ function taskSwimlaneModel(tasks) {
   });
   return {
     stages: swimlaneStageOrder.map(([key, labelKey]) => ({ key, label: t(labelKey) })),
-    lanes: laneKeys.map((key) => ({ key, label: key === "legacy-unclassified" ? t("unclassifiedModule") : key })),
+    lanes: laneKeys.map((key) => ({ key, label: taskModuleDisplayLabel(key) })),
     cards,
   };
 }

@@ -32,7 +32,7 @@ export type VisualMapContractFile = {
 
 export type TaskClassification = {
   module: string;
-  source: "explicit" | "inferred" | "fallback";
+  source: "explicit" | "structure" | "inferred" | "fallback";
   bucket: "module" | "legacy" | "current";
 };
 

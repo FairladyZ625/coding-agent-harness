@@ -43,6 +43,8 @@ type RenderedSwimlane = {
   zhHeatmapLabel: string;
   enPageLabel: string;
   zhPageLabel: string;
+  enBaseLabel: string;
+  zhBaseLabel: string;
 };
 
 type SandboxContext = {
@@ -119,6 +121,7 @@ function renderTasks(mutator: string): RenderedSwimlane {
             fixtureTask({ id: "TASKS/2026-05-28-core-evidence-4", shortId: "2026-05-28-core-evidence-4", title: "Core evidence 4", module: "core", state: "in_progress", visualMapStatus: "missing" }),
             fixtureTask({ id: "TASKS/2026-05-28-review", shortId: "2026-05-28-review", title: "Confirm review", module: "governance", state: "review", reviewStatus: "agent-reviewed", reviewQueueState: "ready-to-confirm", taskQueues: ["review"] }),
             fixtureTask({ id: "TASKS/2026-05-28-blocked", shortId: "2026-05-28-blocked", title: "Blocked follow-up", module: "dashboard", state: "blocked", reviewStatus: "blocked-open-findings", visualMapStatus: "missing", briefSource: "missing", queueReasons: ["Open P1 finding"] }),
+            fixtureTask({ id: "TASKS/2026-05-28-root-base", shortId: "2026-05-28-root-base", title: "Root base task", module: "", inferredModule: "base", state: "planned", completion: 0 }),
             fixtureTask({ id: "TASKS/2026-05-28-done", shortId: "2026-05-28-done", title: "Historical task", module: "archive", state: "done", completion: 100, closeoutStatus: "closed" }),
           ],
         },
@@ -156,6 +159,8 @@ const rendered = renderTasks(`
     zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
     enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
     zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
+    enBaseLabel: window.HarnessI18n.en.baseModule,
+    zhBaseLabel: window.HarnessI18n.zh.baseModule,
   };
 `);
 
@@ -165,11 +170,14 @@ assert(rendered.enHeatmapLabel === "Heatmap overview", "English i18n should expo
 assert(rendered.zhHeatmapLabel === "热力图鸟瞰", "Chinese i18n should expose the heatmap overview label");
 assert(rendered.enPageLabel === "Page", "English i18n should expose the swimlane pagination label");
 assert(rendered.zhPageLabel === "页", "Chinese i18n should expose the swimlane pagination label");
+assert(rendered.enBaseLabel === "Base", "English i18n should expose the base module label");
+assert(rendered.zhBaseLabel === "Base（未分模块）", "Chinese i18n should expose the base module label");
 assert(rendered.html.includes('data-layout="swimlane"'), "task toolbar should expose a swimlane layout toggle");
 assert(rendered.html.includes("task-swimlane"), "task index should render the swimlane view when selected");
 assert(rendered.html.includes('data-swimlane-heatmap="true"'), "swimlane should render a heatmap overview by default");
 assert(rendered.html.includes('data-swimlane-drilldown-host="true"'), "swimlane should expose a single drilldown host");
 assert(rendered.html.includes('data-swimlane-row="core"'), "swimlane should expose module rows in the heatmap");
+assert(rendered.html.includes('data-swimlane-row="base"'), "swimlane should expose project-root tasks as a base row");
 assert(rendered.html.includes('data-swimlane-row-total="6"'), "swimlane should render row totals");
 assert(rendered.html.includes('data-swimlane-stage-total="review" data-total="2"'), "swimlane should render stage totals in headers");
 assert(rendered.html.includes('data-swimlane-stage="evidence" data-count="4"'), "swimlane heatmap cells should expose module-stage counts");
@@ -179,10 +187,12 @@ assert(rendered.html.includes('data-swimlane-expand="lane"'), "module row labels
 assert(!rendered.html.includes("Implement CLI support"), "default heatmap should not render task titles before drilldown");
 assert(!rendered.html.includes("Confirm review"), "default heatmap should not render review task titles before drilldown");
 assert(!rendered.html.includes("Blocked follow-up"), "default heatmap should not render blocked task titles before drilldown");
+assert(!rendered.html.includes("Root base task"), "default heatmap should not render base task titles before drilldown");
 assert(!rendered.html.includes("Historical task"), "swimlane should keep closed historical work out of the first view");
 assert(!rendered.html.includes("Needs runtime evidence"), "default heatmap should not render queue reason text before drilldown");
 assert(!rendered.html.includes('data-open-drawer="TASKS/2026-05-28-review"'), "default heatmap should not render task drawer triggers before drilldown");
 assert(rendered.model.lanes.some((lane) => lane.key === "core"), "swimlane model should group tasks by module");
+assert(rendered.model.lanes.some((lane) => lane.key === "base"), "swimlane model should group project-root tasks into base");
 assert(rendered.model.stages.some((stage) => stage.key === "review"), "swimlane model should include a review stage");
 assert(rendered.model.cards.some((card) => card.stage === "blocked" && card.lane === "dashboard"), "blocked tasks should project into a blocked swimlane stage");
 assert(!rendered.model.cards.some((card) => card.title === "Historical task"), "swimlane model should exclude closed historical work");
@@ -192,6 +202,8 @@ assert(css.includes(".swimlane-drilldown"), "dashboard CSS should style the dril
 assert(css.includes("--dashboard-page-gap"), "dashboard CSS should expose a shared page gap density token");
 assert(css.includes(".swimlane-pager"), "dashboard CSS should style swimlane pagination controls");
 assert(css.includes("@media (max-width: 760px)"), "swimlane CSS should include a narrow-screen adaptation");
+assert(css.includes("--dashboard-page-gap: 8px;"), "dashboard page gap should use the denser 8px rhythm");
+assert(css.includes("--dashboard-panel-gap: 8px;"), "dashboard panel gap should use the denser 8px rhythm");
 
 const pagedDrilldown = renderTasks(`
   for (let index = 1; index <= 12; index += 1) {
@@ -226,6 +238,8 @@ const pagedDrilldown = renderTasks(`
     zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
     enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
     zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
+    enBaseLabel: window.HarnessI18n.en.baseModule,
+    zhBaseLabel: window.HarnessI18n.zh.baseModule,
   };
 `);
 
@@ -270,6 +284,8 @@ const laneDrilldown = renderTasks(`
     zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
     enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
     zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
+    enBaseLabel: window.HarnessI18n.en.baseModule,
+    zhBaseLabel: window.HarnessI18n.zh.baseModule,
   };
 `);
 
