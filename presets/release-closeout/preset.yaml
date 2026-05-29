@@ -58,19 +58,19 @@ entrypoints:
     type: script
     command: scripts/generate-release-package.mjs
     writes: [{{paths.governanceRoot}}/releases/**]
-    reads: [{{paths.tasksRoot}}/**]
+    reads: [{{paths.tasksRoot}}/**, {{paths.modulesRoot}}/**]
     audit: true
   scaffold:
     type: script
     command: scripts/generate-release-package.mjs
     writes: [{{paths.governanceRoot}}/releases/**]
-    reads: [{{paths.tasksRoot}}/**]
+    reads: [{{paths.tasksRoot}}/**, {{paths.modulesRoot}}/**]
     audit: true
   check:
     type: check
     command: checks/check-release-package.mjs
     writes: [{{paths.governanceRoot}}/releases/**]
-    reads: [{{paths.governanceRoot}}/releases/**, {{paths.tasksRoot}}/**]
+    reads: [{{paths.governanceRoot}}/releases/**, {{paths.tasksRoot}}/**, {{paths.modulesRoot}}/**]
     audit: true
 evidence:
   bundleDir: artifacts/preset

@@ -15,12 +15,11 @@ if (!paths.tasksRoot || !paths.governanceRoot) {
   console.error("release-closeout requires structure-aware context.paths from the preset runner");
   process.exit(2);
 }
-const tasksRoot = path.join(context.targetRoot, paths.tasksRoot);
 const releaseRoot = path.join(context.outputRoot, "release");
 fs.mkdirSync(releaseRoot, { recursive: true });
 
-const allTasks = collectTasks(tasksRoot)
-  .filter((task) => task.id !== context.task.id && task.preset !== "release-closeout")
+const allTasks = collectTasks(taskRootsFromContext(context.targetRoot, paths))
+  .filter((task) => task.id !== context.task.id && task.shortId !== context.task.id && task.preset !== "release-closeout")
   .sort((a, b) => a.id.localeCompare(b.id));
 let selection;
 try {
@@ -170,10 +169,9 @@ function selectTasks(tasks, inputs, release) {
     if (taskList.release && taskList.release !== release) {
       throw new Error(`--task-list release ${taskList.release} does not match --release ${release}`);
     }
-    const taskIds = Array.isArray(taskList.taskIds) ? taskList.taskIds.map(normalizeTaskListId).filter(Boolean) : [];
-    if (taskIds.length === 0) throw new Error("--task-list requires non-empty taskIds");
-    const byId = new Map(tasks.map((task) => [task.id, task]));
-    const selected = taskIds.map((id) => byId.get(id)).filter(Boolean);
+    const requestedTaskIds = Array.isArray(taskList.taskIds) ? taskList.taskIds.map(normalizeTaskListId).filter(Boolean) : [];
+    if (requestedTaskIds.length === 0) throw new Error("--task-list requires non-empty taskIds");
+    const selected = resolveTaskReferences(requestedTaskIds, tasks);
     const selectedIds = new Set(selected.map((task) => task.id));
     return {
       selector: {
@@ -181,11 +179,12 @@ function selectTasks(tasks, inputs, release) {
         schemaVersion: taskList.schemaVersion,
         release,
         sourcePath: taskList.sourcePath || "",
-        taskIds,
+        taskIds: requestedTaskIds,
+        resolvedTaskIds: selected.map((task) => task.id),
       },
       tasks: selected,
       excluded: tasks.filter((task) => !selectedIds.has(task.id)),
-      missing: taskIds.filter((id) => !byId.has(id)),
+      missing: [],
     };
   }
 
@@ -206,7 +205,26 @@ function selectTasks(tasks, inputs, release) {
 }
 
 function normalizeTaskListId(value) {
-  return String(value || "").trim().replace(/^TASKS\//, "");
+  return String(value || "").trim();
+}
+
+function resolveTaskReferences(references, tasks) {
+  return references.map((reference) => {
+    const canonical = tasks.filter((task) => task.id === reference);
+    const candidates = canonical.length > 0 ? canonical : tasks.filter((task) => taskReferenceMatches(task, reference));
+    if (candidates.length === 0) {
+      throw new Error(`Missing task reference: ${reference}`);
+    }
+    if (candidates.length > 1) {
+      throw new Error(`Ambiguous task reference: ${reference} matched ${candidates.map((task) => task.id).join(", ")}`);
+    }
+    return candidates[0];
+  });
+}
+
+function taskReferenceMatches(task, reference) {
+  if (/^(TASKS|MODULES|EXTERNAL)\//.test(reference)) return task.id === reference;
+  return task.shortId === reference || task.legacyId === reference || task.id.endsWith(`/${reference}`);
 }
 
 function parseTaskQuery(query) {
@@ -219,17 +237,20 @@ function parseTaskQuery(query) {
     if (match) return { type: "state", value: normalizeState(match[1]) };
     match = term.match(/^preset:([A-Za-z0-9._-]+)$/);
     if (match) return { type: "preset", value: match[1].toLowerCase() };
+    match = term.match(/^module:([A-Za-z0-9._-]+)$/);
+    if (match) return { type: "module", value: match[1].toLowerCase() };
     throw new Error(`Unsupported --task-query term: ${term}`);
   });
 }
 
 function matchesQueryTerm(task, term) {
   if (term.type === "date") {
-    const date = task.id.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || "";
+    const date = task.date || "";
     return date >= term.from && date <= term.to;
   }
   if (term.type === "state") return task.state === term.value;
   if (term.type === "preset") return (task.preset || "none") === term.value;
+  if (term.type === "module") return (task.module || "").toLowerCase() === term.value;
   return false;
 }
 
@@ -240,6 +261,8 @@ function taskSummary(task) {
     state: task.state,
     preset: task.preset || "none",
     deletionState: task.deletionState,
+    module: task.module || "",
+    shortId: task.shortId || "",
   };
 }
 
@@ -278,32 +301,110 @@ function quoteCli(value) {
   return `"${String(value || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-function collectTasks(root) {
-  if (!fs.existsSync(root)) return [];
-  const taskPlans = walk(root).filter((file) => path.basename(file) === "task_plan.md");
-  return taskPlans.map((taskPlanPath) => {
-    const taskDir = path.dirname(taskPlanPath);
-    const taskPlan = read(taskPlanPath);
-    const progress = read(path.join(taskDir, "progress.md"));
-    const review = read(path.join(taskDir, "review.md"));
-    const index = read(path.join(taskDir, "INDEX.md"));
-    const budget = parseBudget(taskPlan);
-    const tombstone = parseTombstone(taskPlan);
+function taskRootsFromContext(targetRoot, paths) {
+  const roots = [];
+  const seen = new Set();
+  const addRoot = (kind, relativeRoot) => {
+    if (!relativeRoot) return;
+    const root = path.join(targetRoot, relativeRoot);
+    const key = path.resolve(root);
+    if (seen.has(key)) return;
+    seen.add(key);
+    roots.push({ kind, root, relativeRoot: toPosix(relativeRoot) });
+  };
+  addRoot("TASKS", paths.tasksRoot);
+  addRoot("MODULES", paths.modulesRoot);
+  addRoot("EXTERNAL", paths.externalRoot);
+  if (Array.isArray(paths.taskRoots)) {
+    for (const relativeRoot of paths.taskRoots) addRoot(inferTaskRootKind(relativeRoot, paths), relativeRoot);
+  }
+  return roots;
+}
+
+function inferTaskRootKind(relativeRoot, paths) {
+  const normalized = toPosix(relativeRoot);
+  if (normalized === toPosix(paths.tasksRoot || "")) return "TASKS";
+  if (normalized === toPosix(paths.modulesRoot || "")) return "MODULES";
+  if (normalized === toPosix(paths.externalRoot || "")) return "EXTERNAL";
+  return "EXTERNAL";
+}
+
+function collectTasks(roots) {
+  const tasks = [];
+  for (const rootInfo of roots) {
+    if (!fs.existsSync(rootInfo.root)) continue;
+    const taskPlans = walk(rootInfo.root).filter((file) => path.basename(file) === "task_plan.md");
+    for (const taskPlanPath of taskPlans) {
+      const taskDir = path.dirname(taskPlanPath);
+      const identity = taskIdentity(rootInfo, taskDir);
+      if (!identity) continue;
+      const taskPlan = read(taskPlanPath);
+      const progress = read(path.join(taskDir, "progress.md"));
+      const review = read(path.join(taskDir, "review.md"));
+      const index = read(path.join(taskDir, "INDEX.md"));
+      const budget = parseBudget(taskPlan);
+      const state = parseState(progress);
+      const tombstone = parseTombstone(taskPlan);
+      tasks.push({
+        ...identity,
+        title: titleFrom(taskPlan, identity.shortId),
+        preset: metadataLine(taskPlan, ["Task Preset", "Preset"]).toLowerCase(),
+        state,
+        deletionState: tombstone.state || "active",
+        queue: state === "blocked" ? "blocked" : "active",
+        budget,
+        hasOpenBlockingFindings: hasOpenBlockingReviewFinding(review),
+        materialsIncomplete: budget !== "simple" && hasIncompleteMaterials(taskDir),
+        reviewConfirmation: parseReviewConfirmation(index, identity.id),
+        evidenceSnippet: progress.split(/\r?\n/).find((line) => /\/Users\/|\/Volumes\/|file:\/\//.test(line)) || "",
+        tombstone,
+      });
+    }
+  }
+  return tasks;
+}
+
+function taskIdentity(rootInfo, taskDir) {
+  const relative = toPosix(path.relative(rootInfo.root, taskDir));
+  if (!relative || relative.startsWith("..")) return null;
+  const segments = relative.split("/").filter(Boolean);
+  const shortId = segments.at(-1) || path.basename(taskDir);
+  const date = shortId.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || "";
+  if (rootInfo.kind === "TASKS") {
     return {
-      id: path.basename(taskDir),
-      title: titleFrom(taskPlan, path.basename(taskDir)),
-      preset: metadataLine(taskPlan, ["Task Preset", "Preset"]).toLowerCase(),
-      state: parseState(progress),
-      deletionState: tombstone.state || "active",
-      queue: parseState(progress) === "blocked" ? "blocked" : "active",
-      budget,
-      hasOpenBlockingFindings: hasOpenBlockingReviewFinding(review),
-      materialsIncomplete: budget !== "simple" && hasIncompleteMaterials(taskDir),
-      reviewConfirmation: parseReviewConfirmation(index, path.basename(taskDir)),
-      evidenceSnippet: progress.split(/\r?\n/).find((line) => /\/Users\/|\/Volumes\/|file:\/\//.test(line)) || "",
-      tombstone,
+      id: `TASKS/${relative}`,
+      legacyId: shortId,
+      shortId,
+      date,
+      module: "",
+      rootKind: "TASKS",
     };
-  });
+  }
+  if (rootInfo.kind === "MODULES") {
+    if (segments.length < 3 || segments[1] !== "tasks") return null;
+    const moduleKey = segments[0];
+    const taskRelative = segments.slice(2).join("/");
+    return {
+      id: `MODULES/${moduleKey}/${taskRelative}`,
+      legacyId: shortId,
+      shortId,
+      date,
+      module: moduleKey,
+      rootKind: "MODULES",
+    };
+  }
+  return {
+    id: `EXTERNAL/${toPosix(path.basename(rootInfo.root))}/${relative}`,
+    legacyId: shortId,
+    shortId,
+    date,
+    module: "",
+    rootKind: "EXTERNAL",
+  };
+}
+
+function toPosix(value) {
+  return String(value || "").split(path.sep).join("/");
 }
 
 function walk(root) {

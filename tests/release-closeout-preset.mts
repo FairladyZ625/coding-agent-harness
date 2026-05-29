@@ -16,6 +16,7 @@ type ReleaseFixtureOptions = {
   tombstone?: string;
   localPath?: string;
   confirmedReview?: boolean;
+  moduleKey?: string;
 };
 
 type ReleaseTaskIndexTask = {
@@ -210,8 +211,11 @@ const directMutationResult = run(["preset", "run", "runner-direct-mutation", "pl
 assert(directMutationResult.status !== 0, "generic preset runner should reject scripts that mutate the target outside manifest materialization");
 assert(`${directMutationResult.stdout}\n${directMutationResult.stderr}`.includes("Preset script mutated target before materialization"), "direct target mutation failure should explain the audit failure");
 
-function writeTaskFixture(slug: string, { title, state = "done", tombstone = "", localPath = "", confirmedReview = false }: ReleaseFixtureOptions = {}): string {
-  const taskDir = path.join(target, "coding-agent-harness/planning/tasks", slug);
+function writeTaskFixture(slug: string, { title, state = "done", tombstone = "", localPath = "", confirmedReview = false, moduleKey }: ReleaseFixtureOptions = {}): string {
+  const taskPathPrefix = moduleKey
+    ? `coding-agent-harness/planning/modules/${moduleKey}/tasks/${slug}`
+    : `coding-agent-harness/planning/tasks/${slug}`;
+  const taskDir = path.join(target, taskPathPrefix);
   fs.mkdirSync(taskDir, { recursive: true });
   fs.writeFileSync(path.join(taskDir, "task_plan.md"), `# ${title || slug}
 
@@ -244,7 +248,7 @@ ${tombstone}
 | Reviewer | ${confirmedReview ? "Release Reviewer" : "n/a"} |
 | Reviewer Email | ${confirmedReview ? "release-reviewer@example.invalid" : "n/a"} |
 | Confirm Text | ${confirmedReview ? slug : "n/a"} |
-| Evidence Checked | ${confirmedReview ? "TARGET:coding-agent-harness/planning/tasks/" + slug + "/review.md" : "n/a"} |
+| Evidence Checked | ${confirmedReview ? "TARGET:" + taskPathPrefix + "/review.md" : "n/a"} |
 | Review Commit SHA | ${confirmedReview ? "1234567890abcdef1234567890abcdef12345678" : "n/a"} |
 | Audit Source | ${confirmedReview ? "migrated-legacy-review" : "native-index"} |
 | Audit Status | ${confirmedReview ? "committed" : "created"} |
@@ -275,6 +279,19 @@ writeTaskFixture(`${todayLocal}-release-done-path`, {
 });
 writeTaskFixture(`${todayLocal}-release-unconfirmed`, { title: "Done task without human review confirmation", state: "done" });
 writeTaskFixture(`${todayLocal}-release-blocked`, { title: "Blocked task must stay active", state: "blocked" });
+writeTaskFixture(`${todayLocal}-release-module-done`, {
+  title: "Module done task with review confirmation",
+  state: "done",
+  moduleKey: "life-circle",
+  confirmedReview: true,
+});
+writeTaskFixture(`${todayLocal}-release-ambiguous`, { title: "Root ambiguous done task", state: "done", confirmedReview: true });
+writeTaskFixture(`${todayLocal}-release-ambiguous`, {
+  title: "Module ambiguous done task",
+  state: "done",
+  moduleKey: "life-circle",
+  confirmedReview: true,
+});
 for (let index = 0; index < 105; index += 1) {
   writeTaskFixture(`${todayLocal}-bulk-done-${String(index).padStart(3, "0")}`, { title: `Bulk done ${index}`, state: "done" });
 }
@@ -314,7 +331,7 @@ const taskListPath = path.join(tmpRoot, "release-closeout-task-list.json");
 fs.writeFileSync(taskListPath, JSON.stringify({
   schemaVersion: "release-closeout-task-list/v1",
   release: "1.0.5",
-  taskIds: [`TASKS/${todayLocal}-release-done-path`, `TASKS/${todayLocal}-release-unconfirmed`],
+  taskIds: [`TASKS/${todayLocal}-release-done-path`, `TASKS/${todayLocal}-release-unconfirmed`, `MODULES/life-circle/${todayLocal}-release-module-done`],
 }, null, 2));
 const releaseTask = expectJson(["new-task", "release-closeout-1-0-5", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.5", "--task-list", taskListPath, target], { env });
 const releaseTaskPlanPath = path.join(target, releaseTask.task.path.replace(/^TARGET:/, ""), "task_plan.md");
@@ -333,12 +350,16 @@ const publicRedactionReport = JSON.parse(fs.readFileSync(path.join(releaseRoot, 
 const aggregate = JSON.parse(fs.readFileSync(path.join(releaseRoot, "task-aggregate.json"), "utf8")) as ReleaseTaskAggregate;
 assert(releaseIndex.includes("Release Closeout Package") && releaseIndex.includes("1.0.5"), "release package should include a version index");
 assert(aggregate.selector?.type === "task-list", "task-list release aggregation should record selector type");
-assert(aggregate.summary.totalTasks === 2, "task-list release aggregation should include only the selected tasks");
-assert(aggregate.matched.map((task) => task.id).join(",") === `${todayLocal}-release-done-path,${todayLocal}-release-unconfirmed`, "task-list release aggregation should match only requested task IDs");
+assert(aggregate.summary.totalTasks === 3, "task-list release aggregation should include only the selected tasks");
+assert(
+  aggregate.matched.map((task) => task.id).sort().join(",") === `MODULES/life-circle/${todayLocal}-release-module-done,TASKS/${todayLocal}-release-done-path,TASKS/${todayLocal}-release-unconfirmed`,
+  "task-list release aggregation should match requested root and module task IDs",
+);
 assert(aggregate.excluded.some((task) => task.id.endsWith("release-blocked") && task.reason === "not-selected"), "task-list release aggregation should record unselected tasks as excluded");
 assert(archivePlan.includes("task-archive") && archivePlan.includes("--archived-by \"Release Reviewer\"") && archivePlan.includes("--archive-field \"retention bucket=release:1.0.5\""), "release archive plan should emit executable generic archive-field commands with an accountable archive actor");
 assert(archivePlan.includes("--archive-field \"release package=coding-agent-harness/governance/releases/1.0.5/INDEX.md\""), "release archive plan should include release package archive metadata");
 assert(archivePlan.includes("release-done-path"), "release archive plan should include completed eligible tasks");
+assert(archivePlan.includes(`task-archive "MODULES/life-circle/${todayLocal}-release-module-done"`), "release archive plan should emit full module task IDs");
 const eligibleSection = archivePlan.split("## Not Eligible")[0];
 assert(!eligibleSection.includes("release-blocked"), "release archive plan should not emit archive commands for blocked tasks");
 assert(!eligibleSection.includes("release-unconfirmed"), "release archive plan should not emit archive commands for unconfirmed tasks");
@@ -347,16 +368,35 @@ assert(!/\/Users\/|LOCAL_PATH_REDACTED\/secret/.test(publicSummary), "public rel
 assert(publicSummary.includes("LOCAL_PATH_REDACTED") || !publicSummary.includes("secret"), "public release summary should avoid leaking local paths");
 assert(publicRedactionReport.status === "pass", "release preset should emit a public redaction report for public-facing output");
 
+const ambiguousTaskListPath = path.join(tmpRoot, "release-closeout-ambiguous-task-list.json");
+fs.writeFileSync(ambiguousTaskListPath, JSON.stringify({
+  schemaVersion: "release-closeout-task-list/v1",
+  release: "1.0.5",
+  taskIds: [`${todayLocal}-release-ambiguous`],
+}, null, 2));
+expectJson(["new-task", "release-closeout-ambiguous", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.5", "--task-list", ambiguousTaskListPath, target], { env });
+const ambiguousScaffold = run(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-ambiguous", "--json", target], { env });
+assert(ambiguousScaffold.status !== 0, "release-closeout should reject ambiguous bare task IDs");
+assert(`${ambiguousScaffold.stdout}\n${ambiguousScaffold.stderr}`.includes("Ambiguous task reference"), "ambiguous task-list failure should explain the selector ambiguity");
+
 expectJson(["new-task", "release-closeout-query", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.6", "--task-query", `date:${todayLocal}..${todayLocal} state:done`, target], { env });
 expectJson(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-query", "--json", target], { env });
 const queryReleaseRoot = path.join(target, "coding-agent-harness/governance/releases/1.0.6");
 const queryAggregate = JSON.parse(fs.readFileSync(path.join(queryReleaseRoot, "task-aggregate.json"), "utf8")) as ReleaseTaskAggregate;
 const queryArchivePlan = fs.readFileSync(path.join(queryReleaseRoot, "task-archive-plan.md"), "utf8");
 assert(queryAggregate.selector?.type === "task-query", "task-query release aggregation should record selector type");
-assert(queryAggregate.summary.totalTasks >= 106 && queryAggregate.summary.doneTasks >= 106, "task-query release aggregation should handle large selected task sets");
+assert(queryAggregate.summary.totalTasks >= 109 && queryAggregate.summary.doneTasks >= 109, "task-query release aggregation should handle large selected task sets");
 assert(queryAggregate.matched.every((task) => task.state === "done"), "task-query state filter should only match done tasks");
+assert(queryAggregate.matched.some((task) => task.id === `MODULES/life-circle/${todayLocal}-release-module-done`), "task-query date/state selector should include module tasks");
 assert(!queryAggregate.matched.some((task) => task.id.endsWith("release-blocked")), "task-query state filter should exclude blocked tasks");
 assert(!queryArchivePlan.split("## Not Eligible")[0].includes("release-blocked"), "task-query archive plan should not emit archive commands for blocked tasks");
+
+expectJson(["new-task", "release-closeout-module-query", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.7", "--task-query", `date:${todayLocal}..${todayLocal} state:done module:life-circle`, target], { env });
+expectJson(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-module-query", "--json", target], { env });
+const moduleQueryReleaseRoot = path.join(target, "coding-agent-harness/governance/releases/1.0.7");
+const moduleQueryAggregate = JSON.parse(fs.readFileSync(path.join(moduleQueryReleaseRoot, "task-aggregate.json"), "utf8")) as ReleaseTaskAggregate;
+assert(moduleQueryAggregate.matched.length >= 2, "module query should include module-owned selected tasks");
+assert(moduleQueryAggregate.matched.every((task) => task.id.startsWith("MODULES/life-circle/")), "module query should only include tasks from the requested module");
 const check = expectJson(["preset", "run", "release-closeout", "check", "--task", "release-closeout-1-0-5", "--json", target], { env });
 assert(check.status === "pass", "release closeout check entrypoint should pass after scaffold materializes the version package");
 
