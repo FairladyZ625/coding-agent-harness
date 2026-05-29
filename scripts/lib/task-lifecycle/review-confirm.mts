@@ -61,10 +61,18 @@ type ConfirmTaskReviewOptions = {
 
 type AuditFields = Record<string, string>;
 
+const agentRuntimeEnvPatterns = [
+  /^CODEX(?:_|$)/,
+  /^CLAUDE_CODE(?:_|$)/,
+  /^CURSOR_AGENT(?:_|$)/,
+  /^AIDER(?:_|$)/,
+];
+
 export function confirmTaskReview(
   { target, taskDir, findTaskByDirectory }: ReviewConfirmationContext,
   { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "", deferCommit = false }: ConfirmTaskReviewOptions = {},
 ) {
+  assertHumanControlledRuntime();
   assertTaskDirectoryInsidePlanning(target, taskDir);
   const canonicalTaskId = taskIdForDirectory(target, taskDir);
   const shortId = path.basename(taskDir);
@@ -164,6 +172,19 @@ export function finalizeDeferredTaskReviewConfirmation(
     task: findTaskByDirectory(target, taskDir) || { id: canonicalTaskId, reviewStatus: "confirmed" },
     indexPath,
   };
+}
+
+function assertHumanControlledRuntime() {
+  const actor = String(process.env.HARNESS_ACTOR || "").trim().toLowerCase();
+  if (actor && actor !== "human") {
+    throw new Error(`Human review confirmation must be performed by a human-controlled runtime; HARNESS_ACTOR is ${actor}.`);
+  }
+  const detected = Object.keys(process.env)
+    .filter((key) => agentRuntimeEnvPatterns.some((pattern) => pattern.test(key)))
+    .sort();
+  if (detected.length > 0) {
+    throw new Error(`Human review confirmation must be performed by a human-controlled runtime; detected agent runtime env: ${detected.join(", ")}.`);
+  }
 }
 
 function assertTaskDirectoryInsidePlanning(target: ReviewConfirmationTarget, taskDir: string) {

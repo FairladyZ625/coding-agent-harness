@@ -11,6 +11,7 @@ import {
   expectJson,
   node,
   cli,
+  humanControlledTestEnv,
   repoRoot,
   tmpRoot,
   todayLocal,
@@ -36,11 +37,15 @@ const gitEnv = {
   ...process.env,
 };
 
+function humanReviewEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  return humanControlledTestEnv({ ...gitEnv, ...overrides });
+}
+
 function runHarness(args: string[], options: RunOptions = {}): SpawnSyncReturns<string> {
   return spawnSync(node, [cli, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
-    env: { ...gitEnv, ...(options.env || {}) },
+    env: { ...humanReviewEnv(), ...(options.env || {}) },
     ...options,
   });
 }
@@ -108,6 +113,15 @@ function readReview(fixture: ReviewFixture): string {
 
 function readIndex(fixture: ReviewFixture): string {
   return fs.readFileSync(path.join(fixture.taskDir, "INDEX.md"), "utf8");
+}
+
+{
+  const fixture = prepareReviewTarget("git-gate-agent-runtime-refusal");
+  const result = reviewConfirm(fixture, { env: { ...humanReviewEnv(), CODEX_CI: "1", CODEX_THREAD_ID: "test-agent-thread" } });
+  assert(result.status !== 0, "review-confirm should reject detected agent runtimes");
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert(output.includes("Human review confirmation must be performed by a human-controlled runtime"), "agent-runtime refusal should identify the human-only gate");
+  assert(!readIndex(fixture).includes("| Human Review Status | confirmed |"), "agent-runtime refusal should not write confirmed audit metadata");
 }
 
 {
@@ -182,7 +196,7 @@ function readIndex(fixture: ReviewFixture): string {
   const isolatedHome = fs.mkdtempSync(path.join(os.tmpdir(), "harness-git-home-"));
   const result = reviewConfirm(fixture, {
     env: {
-      ...gitEnv,
+      ...humanReviewEnv(),
       GIT_AUTHOR_NAME: "",
       GIT_AUTHOR_EMAIL: "",
       GIT_COMMITTER_NAME: "",

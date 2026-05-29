@@ -89,13 +89,15 @@ flowchart TD
 
 ## Level 3 — review-confirm 的门禁细节
 
-当人类执行 `harness review-confirm` 时，系统在**执行确认之前**做四项检查：
+当人类执行 `harness review-confirm` 时，系统在**执行确认之前**做五项检查：
 
 ```mermaid
 flowchart TD
   Trigger["harness review-confirm task-123"]
 
-  Trigger --> C1{"确认文本与任务 ID 匹配?"}
+  Trigger --> A1{"运行环境是 human-controlled?\n未检测到 CODEX/CLAUDE_CODE 等 agent runtime"}
+  A1 -->|"否"| EA["❌ 拒绝\nAgent 不能代办人工确认"]
+  A1 -->|"是"| C1{"确认文本与任务 ID 匹配?"}
   C1 -->|"否"| E1["❌ 拒绝\n确认文本不对"]
   C1 -->|"是"| C2{"无阻塞性审查发现?\n（P0/P1/P2 open findings）"}
   C2 -->|"否"| E2["❌ 拒绝\n还有未关闭的 blocking findings"]
@@ -107,6 +109,10 @@ flowchart TD
   Write1 --> Commit1["Git 提交 #1\nchore: confirm review task-123"]
   Commit1 --> Commit2["Git 提交 #2\nchore: record review confirmation audit task-123"]
 ```
+
+Agent runtime 检测是防误操作护栏，不是密码学身份认证。如果 Agent 和人共享同一个
+系统用户并能篡改环境变量、文件和 Git 提交，CLI 无法独立证明真实操作者身份；更强隔离
+需要外部 human approval service、OS keychain/passkey 或不同系统用户边界。
 
 **两次提交策略**：第一次提交 `INDEX.md` 中的确认字段，第二次提交最终审计元数据。
 这样即使第二次提交失败，第一次提交也已经锁定了确认记录。

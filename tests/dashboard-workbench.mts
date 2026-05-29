@@ -8,6 +8,7 @@ import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
 import {
   assert,
   cli,
+  humanControlledTestEnv,
   node,
   repoRoot,
   tmpRoot,
@@ -66,7 +67,7 @@ writeZipFromDirectory(archivePresetSource, archivePresetZip, { rootName: "archiv
 
 const workbench = spawn(node, [cli, "dashboard", "--workbench", "--out-dir", outDir, "--host", "127.0.0.1", "--port", "0", target], {
   cwd: repoRoot,
-  env: { ...process.env, HOME: home },
+  env: humanControlledTestEnv({ HOME: home }),
   stdio: ["ignore", "pipe", "pipe"],
 });
 const runtime = await waitForWorkbench(workbench);

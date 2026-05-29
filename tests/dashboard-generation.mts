@@ -89,10 +89,19 @@ const node = process.execPath;
 const cli = path.join(repoRoot, "dist/harness.mjs");
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dashboard-generation-"));
 
+function humanControlledTestEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const env = { ...process.env, ...overrides };
+  for (const key of Object.keys(env)) {
+    if (/^(CODEX|CLAUDE_CODE)(_|$)/.test(key)) delete env[key];
+  }
+  return env;
+}
+
 function run(args: string[], options: TestRunOptions = {}): SpawnSyncReturns<string> {
   return spawnSync(node, [cli, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
+    env: { ...humanControlledTestEnv(), ...(options.env || {}) },
     ...options,
   });
 }
@@ -554,7 +563,7 @@ writeScopes:
 
 function expectDevStarts(args: string[]): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(node, [cli, ...args], { cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(node, [cli, ...args], { cwd: repoRoot, env: humanControlledTestEnv(), stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => {

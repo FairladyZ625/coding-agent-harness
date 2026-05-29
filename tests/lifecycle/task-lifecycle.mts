@@ -11,6 +11,7 @@ import {
   cli,
   expectJson,
   expectPass,
+  humanControlledTestEnv,
   node,
   repoRoot,
   run,
@@ -686,6 +687,7 @@ commitFixtureBaseline(lifecycleTarget, "before workbench lesson sedimentation fi
 const workbenchDir = path.join(tmpRoot, "review-workbench");
 const workbench = spawn(node, [cli, "dashboard", "--workbench", "--out-dir", workbenchDir, "--host", "127.0.0.1", "--port", "0", lifecycleTarget], {
   cwd: repoRoot,
+  env: humanControlledTestEnv(),
   stdio: ["ignore", "pipe", "pipe"],
 });
 const runtime = await waitForWorkbench(workbench);
@@ -877,6 +879,7 @@ function prepareWorkbenchReviewConfirmationFixture(slug: string): { id: string; 
 const devDir = path.join(tmpRoot, "dev-workbench");
 const dev = spawn(node, [cli, "dev", "--no-open", "--out-dir", devDir, "--host", "127.0.0.1", "--port", "0", lifecycleTarget], {
   cwd: repoRoot,
+  env: humanControlledTestEnv(),
   stdio: ["ignore", "pipe", "pipe"],
 });
 const devRuntime = await waitForWorkbench(dev);

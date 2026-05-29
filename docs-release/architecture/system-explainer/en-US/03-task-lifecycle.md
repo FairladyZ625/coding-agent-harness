@@ -91,14 +91,16 @@ After entering review state, the Agent needs to write `review.md` and fill in th
 
 ## Level 3 — Gate details for review-confirm
 
-When a human runs `harness review-confirm`, the system performs four checks
+When a human runs `harness review-confirm`, the system performs five checks
 **before executing the confirmation**:
 
 ```mermaid
 flowchart TD
   Trigger["harness review-confirm task-123"]
 
-  Trigger --> C1{"Confirmation text matches task ID?"}
+  Trigger --> A1{"Runtime is human-controlled?\nNo CODEX/CLAUDE_CODE agent runtime detected"}
+  A1 -->|"no"| EA["❌ Rejected\nAgents cannot perform human confirmation"]
+  A1 -->|"yes"| C1{"Confirmation text matches task ID?"}
   C1 -->|"no"| E1["❌ Rejected\nWrong confirmation text"]
   C1 -->|"yes"| C2{"No blocking review findings?\n(P0/P1/P2 open findings)"}
   C2 -->|"no"| E2["❌ Rejected\nStill has unclosed blocking findings"]
@@ -110,6 +112,12 @@ flowchart TD
   Write1 --> Commit1["Git commit #1\nchore: confirm review task-123"]
   Commit1 --> Commit2["Git commit #2\nchore: record review confirmation audit task-123"]
 ```
+
+Agent runtime detection is an accidental-self-approval guard, not cryptographic identity.
+If an agent and a human share the same OS user and the agent can mutate environment
+variables, files, and Git commits, the CLI cannot independently prove who operated it.
+Stronger isolation requires an external human approval service, OS keychain/passkey, or
+separate system-user boundary.
 
 **Two-commit strategy**: The first commit covers confirmation fields in `INDEX.md`; the second
 commits the final audit metadata. Even if the second commit fails, the first commit has

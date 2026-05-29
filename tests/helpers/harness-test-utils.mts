@@ -44,8 +44,17 @@ export function run(args: string[], options: TestRunOptions = {}): SpawnSyncRetu
   return spawnSync(node, [cli, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
+    env: { ...humanControlledTestEnv(), ...(options.env || {}) },
     ...options,
   });
+}
+
+export function humanControlledTestEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const env = { ...process.env, ...overrides };
+  for (const key of Object.keys(env)) {
+    if (/^(CODEX|CLAUDE_CODE)(_|$)/.test(key)) delete env[key];
+  }
+  return env;
 }
 
 export function assert(condition: unknown, message: string): asserts condition {
@@ -140,6 +149,7 @@ export function runInTty(args: string[], options: TtyRunOptions = {}): SpawnSync
   return spawnSync("expect", ["-c", expectLines.join("\n")], {
     cwd: repoRoot,
     encoding: "utf8",
+    env: { ...humanControlledTestEnv(), ...(options.env || {}) },
     timeout,
   });
 }

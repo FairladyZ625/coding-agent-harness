@@ -117,7 +117,7 @@ Usage:
   harness task-log <task-id> --message text [--evidence type:PATH:summary] [target]
   harness task-block <task-id> [--message text] [target]
   harness task-review <task-id> [--message text] [target]
-  harness review-confirm <task-id> --confirm task-id [--reviewer name] [--message text] [target]
+  harness review-confirm <task-id> --confirm task-id [--reviewer name] [--message text] [target]  # human-only; denied in detected agent runtimes
   harness lesson-promote <task-id> <candidate-id> [--dry-run|--apply] [target]
   harness lesson-sediment <task-id> <candidate-id> [--dry-run] [--title title] [target]
   harness task-complete <task-id> [--message text] [target]
