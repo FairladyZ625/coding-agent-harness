@@ -39,9 +39,10 @@ assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-lifecycle/review-conf
 assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-lifecycle/text-utils.mts")), "task lifecycle text helpers should live under scripts/lib/task-lifecycle/");
 
 const taskScannerModule = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-scanner.mts"), "utf8");
-assert(taskScannerModule.split(/\r?\n/).length <= 600, "task scanner should stay below 600 lines by routing lesson candidate parsing out");
+assert(taskScannerModule.split(/\r?\n/).length <= 600, "task scanner should stay below 600 lines by routing material checks out");
 assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-metadata.mts")), "task metadata parsing should live outside task-scanner.mts");
 assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-lesson-candidates.mts")), "lesson candidate parsing should live outside task-scanner.mts");
+assert(fs.existsSync(path.join(repoRoot, "scripts/lib/task-template-materials.mts")), "template material checks should live outside task-scanner.mts");
 
 const harnessChecker = fs.readFileSync(path.join(repoRoot, "scripts/check-harness.mts"), "utf8");
 assert(harnessChecker.split(/\r?\n/).length <= 650, "check-harness should stay below 650 lines by routing module-parallel checks out");

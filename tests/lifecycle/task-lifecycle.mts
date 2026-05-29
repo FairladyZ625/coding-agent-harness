@@ -15,6 +15,7 @@ import {
   node,
   repoRoot,
   run,
+  sanitizeTemplateFixtureMaterials,
   tmpRoot,
   todayLocal,
   waitForCondition,
@@ -358,6 +359,7 @@ assert(simpleComplete.task?.state === "done", "simple task should be able to com
 assert(simpleComplete.task?.phases?.some((phase) => phase.id === "GATE-01" && phase.state === "done" && phase.completion === 100), "task-complete should mark the simple gate phase complete");
 assert(simpleComplete.task?.lifecycleState === "closed", "completed simple task should be closed without separate closeout SSoT");
 assert(simpleComplete.task?.taskQueues?.includes("finalized"), "completed simple task should enter the finalized queue");
+sanitizeTemplateFixtureMaterials(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-simple-lifecycle`));
 const earlyReview = run(["task-review", "review-too-early", lifecycleTarget]);
 assert(earlyReview.status !== 0, "task-review should reject unknown tasks");
 const tooEarlyTask = expectJson(["new-task", "review-too-early", "--title", "Too early review", "--locale", "zh-CN", lifecycleTarget]);
@@ -389,12 +391,16 @@ const directComplete = run(["task-complete", "phase-2-lifecycle", "--message", "
 assert(directComplete.status !== 0, "standard task-complete should require review state");
 assert(directComplete.stderr.includes("task-review"), "standard task-complete failure should tell the user to run task-review first");
 expectJson(["task-start", "phase-2-lifecycle", "--message", "恢复执行生命周期切片", lifecycleTarget]);
+sanitizeTemplateFixtureMaterials(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle`));
 const lifecycleReview = expectJson(["task-review", "phase-2-lifecycle", "--message", "进入执行审查", lifecycleTarget]);
 assert(lifecycleReview.task?.state === "review", "task-review should report review state");
 assert(lifecycleReview.task?.phases?.some((phase) => phase.id === "GATE-01" && phase.state === "done" && phase.completion === 100), "task-review should mark the agent review gate complete");
 assert(lifecycleReview.task?.lessonCandidateDecisionComplete === true, "task-review should auto-record no-candidate lesson decisions for empty candidate tables");
 assert(!lifecycleReview.task?.materialIssues?.some((issue) => issue.code === "missing-lesson-decision"), "task-review should not leave empty lesson candidates as missing material");
-assert(lifecycleReview.task?.taskQueues?.includes("review"), "reviewed tasks with task-local walkthrough should enter the review queue");
+assert(
+  lifecycleReview.task?.taskQueues?.includes("review"),
+  `reviewed tasks with task-local walkthrough should enter the review queue: ${JSON.stringify({ taskQueues: lifecycleReview.task?.taskQueues, materialIssues: lifecycleReview.task?.materialIssues })}`,
+);
 const lifecycleReviewPath = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/review.md`);
 fs.writeFileSync(
   lifecycleReviewPath,
@@ -495,6 +501,7 @@ Visual Map Contract: v1.0
 `,
 );
 fs.writeFileSync(path.join(phaseKindDir, "progress.md"), "# Progress\n\n## Status\n\ndone\n");
+sanitizeTemplateFixtureMaterials(phaseKindDir);
 const phaseKindStatus = expectJson(["status", "--json", phaseKindTarget]);
 const phaseKindTask = phaseKindStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-phase-kind-closeout`);
 assert(phaseKindTask?.completion === 100, "status should compute completion from execution phases only");
@@ -610,6 +617,7 @@ const moduleTaskDir = path.join(lifecycleTarget, `coding-agent-harness/planning/
 const moduleWalkthrough = path.join(moduleTaskDir, "walkthrough.md");
 fs.writeFileSync(moduleWalkthrough, `${fs.readFileSync(moduleWalkthrough, "utf8").trimEnd()}\n\n## Summary\n\nHuman-readable module walkthrough for review confirmation.\n`);
 acceptNoLessonCandidate(moduleTaskDir);
+sanitizeTemplateFixtureMaterials(moduleTaskDir);
 commitFixtureBaseline(lifecycleTarget, "before module lifecycle review confirmation");
 const moduleConfirm = expectJson(["review-confirm", `MODULES/auth/${todayLocal}-module-lifecycle`, "--reviewer", "Human Reviewer", "--confirm", `${todayLocal}-module-lifecycle`, lifecycleTarget]);
 assert(moduleConfirm.task?.id === `MODULES/auth/${todayLocal}-module-lifecycle`, "review-confirm should accept full module task ids");
@@ -627,7 +635,9 @@ commitFixtureBaseline(lifecycleTarget, "before workbench closed review phase fix
 expectJson(["task-phase", "workbench-closed-review", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
 const closedReviewWalkthrough = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-workbench-closed-review/walkthrough.md`);
 fs.writeFileSync(closedReviewWalkthrough, "# Walkthrough: Closed review debt\n\nCloseout Status: closed\n\n## Summary\n\nHuman-readable closeout walkthrough for dashboard review.\n");
-acceptNoLessonCandidate(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-workbench-closed-review`));
+const workbenchClosedReviewDir = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-workbench-closed-review`);
+acceptNoLessonCandidate(workbenchClosedReviewDir);
+sanitizeTemplateFixtureMaterials(workbenchClosedReviewDir);
 const closedReviewStatus = expectJson(["status", "--json", lifecycleTarget]);
 const closedReviewTask = closedReviewStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-workbench-closed-review`);
 assert(closedReviewTask?.walkthroughPath?.endsWith(`coding-agent-harness/planning/tasks/${todayLocal}-workbench-closed-review/walkthrough.md`), "status should expose task-local walkthrough path");
@@ -791,6 +801,8 @@ try {
     fs.readFileSync(workbenchReviewProgress, "utf8").replace(/^## 状态：.*$/m, "## 状态：review"),
   );
   const workbenchReviewWalkthrough = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-workbench-review/walkthrough.md`);
+  const workbenchReviewDir = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-workbench-review`);
+  sanitizeTemplateFixtureMaterials(workbenchReviewDir);
   const workbenchReviewWalkthroughContent = fs.readFileSync(workbenchReviewWalkthrough, "utf8");
   fs.rmSync(workbenchReviewWalkthrough);
   const missingWalkthroughResponse = await fetch(new URL("api/tasks/review-complete", runtime.url), {
@@ -807,6 +819,7 @@ try {
   expectJson(["task-start", "workbench-review", "--message", "readying workbench review fixture", lifecycleTarget]);
   expectJson(["task-phase", "workbench-review", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
   expectJson(["task-review", "workbench-review", "--message", "submitted for workbench confirmation", "--evidence", "command:TARGET:workbench-smoke:passed", lifecycleTarget]);
+  sanitizeTemplateFixtureMaterials(workbenchReviewDir);
   commitFixtureBaseline(lifecycleTarget, "before workbench review confirmation");
   const bulkReviewA = prepareWorkbenchReviewConfirmationFixture("workbench-bulk-review-a");
   const bulkReviewB = prepareWorkbenchReviewConfirmationFixture("workbench-bulk-review-b");
@@ -882,6 +895,7 @@ function prepareWorkbenchReviewConfirmationFixture(slug: string): { id: string; 
   expectJson(["task-start", slug, "--message", "readying bulk workbench review fixture", lifecycleTarget]);
   expectJson(["task-phase", slug, "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
   expectJson(["task-review", slug, "--message", "submitted for bulk workbench confirmation", "--evidence", "command:TARGET:bulk-workbench-smoke:passed", lifecycleTarget]);
+  sanitizeTemplateFixtureMaterials(taskDir);
   commitFixtureBaseline(lifecycleTarget, `before ${slug} review confirmation`);
   return { id: created.task.id, shortId: created.task.shortId || `${todayLocal}-${slug}` };
 }

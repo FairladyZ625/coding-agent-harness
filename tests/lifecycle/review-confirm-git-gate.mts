@@ -13,6 +13,7 @@ import {
   cli,
   humanControlledTestEnv,
   repoRoot,
+  sanitizeTemplateFixtureMaterials,
   tmpRoot,
   todayLocal,
 } from "../helpers/harness-test-utils.mjs";
@@ -85,6 +86,7 @@ function prepareReviewTarget(name: string): ReviewFixture {
   expectHarnessJson(["task-start", name, "--message", "start", target]);
   expectHarnessJson(["task-phase", name, "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
   expectHarnessJson(["task-review", name, "--message", "submitted", "--evidence", "command:test", target]);
+  sanitizeTemplateFixtureMaterials(taskDir);
   expectGit(target, ["init"]);
   expectGit(target, ["config", "user.name", "Harness Test"]);
   expectGit(target, ["config", "user.email", "harness-test@example.invalid"]);

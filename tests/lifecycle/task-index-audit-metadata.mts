@@ -12,6 +12,7 @@ import {
   node,
   repoRoot,
   run,
+  sanitizeTemplateFixtureMaterials,
   tmpRoot,
   todayLocal,
 } from "../helpers/harness-test-utils.mjs";
@@ -66,6 +67,7 @@ function prepareConfirmedTask(target: string, name: string): ConfirmedTask {
   expectJson(["task-start", name, "--message", "start", target]);
   expectJson(["task-phase", name, "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
   expectJson(["task-review", name, "--message", "submitted", "--evidence", "command:test", target]);
+  sanitizeTemplateFixtureMaterials(taskDir);
   expectGit(target, ["init"]);
   expectGit(target, ["config", "user.name", "Harness Test"]);
   expectGit(target, ["config", "user.email", "harness-test@example.invalid"]);

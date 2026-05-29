@@ -40,6 +40,7 @@ import {
   parseLessonCandidateStatus,
   validateLessonCandidateDetailArtifacts,
 } from "./task-lesson-candidates.mjs";
+import { collectUneditedTemplateMaterialIssues } from "./task-template-materials.mjs";
 import {
   assessMaterialsReadiness,
   collectReviewRisks,
@@ -347,6 +348,11 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       ? "closed"
       : closeoutInfo.status;
     const lifecycleState = deriveLifecycleState({ state: stateInfo.state, reviewStatus, closeoutStatus: effectiveCloseoutStatus, budget });
+    const reviewSurfaceRequired = requiresReviewMaterials({
+      state: stateInfo.state,
+      lifecycleState,
+      closeoutStatus: effectiveCloseoutStatus,
+    });
     const materialReadiness = assessMaterialsReadiness({
       budget,
       taskDir,
@@ -356,14 +362,25 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       lessonCandidates,
       phases,
       longRunningContractPath,
-      reviewSurfaceRequired: requiresReviewMaterials({
-        state: stateInfo.state,
-        lifecycleState,
-        closeoutStatus: effectiveCloseoutStatus,
-      }),
+      reviewSurfaceRequired,
     });
+    const templateMaterialIssues = reviewSurfaceRequired
+      ? collectUneditedTemplateMaterialIssues(target, taskDir, {
+        briefContent: brief.content,
+        taskPlanContent: taskPlan,
+        executionStrategyContent: readFileSafe(executionStrategyPath),
+        visualMapContent: visualMap.content,
+        progressContent: progress,
+        findingsContent: readFileSafe(findingsPath),
+        reviewContent: review,
+        lessonCandidatesContent: readFileSafe(lessonCandidatesPath),
+        walkthroughPath: closeoutInfo.walkthroughPath,
+        humanReviewConfirmed: taskAudit.summary.humanReviewStatus === "confirmed",
+      })
+      : [];
     const materialIssues = [
       ...materialReadiness.issues,
+      ...templateMaterialIssues,
       ...taskAuditMaterialIssues(target, taskDir, taskAudit),
       ...legacyAuditIssues(target, taskDir, { briefContent: brief.content, reviewContent: review }),
     ];

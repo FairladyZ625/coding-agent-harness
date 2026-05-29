@@ -383,9 +383,14 @@ export function buildStatus(targetInput: string | undefined, options: BuildStatu
   const briefMissing = tasks.length - briefReady;
   for (const task of tasks) {
     for (const issue of task.materialIssues || []) {
-      if (!String(issue.code || "").startsWith("missing-task-audit") && !String(issue.code || "").startsWith("legacy-")) continue;
+      const forceFailure = Boolean((issue as { enforceFailure?: boolean }).enforceFailure);
+      if (
+        !String(issue.code || "").startsWith("missing-task-audit") &&
+        !String(issue.code || "").startsWith("legacy-") &&
+        issue.code !== "unedited-template-material"
+      ) continue;
       const message = `${String(issue.sourcePath || task.path).replace(/^TARGET:/, "")} ${issue.message}`;
-      if (contractStrict || options.strictLegacy) failures.push(message);
+      if (forceFailure || contractStrict || options.strictLegacy) failures.push(message);
       else warnings.push(`adoption-needed: ${message}`);
     }
     if (task.stateSource === "invalid") {

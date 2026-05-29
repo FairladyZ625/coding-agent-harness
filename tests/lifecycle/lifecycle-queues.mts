@@ -12,6 +12,7 @@ import {
   expectJson,
   expectPass,
   run,
+  sanitizeTemplateFixtureMaterials,
   tmpRoot,
   todayLocal,
 } from "../helpers/harness-test-utils.mjs";
@@ -136,6 +137,7 @@ assert(activeTask.reviewQueueState === "not-in-queue", "in-progress complex task
 expectJson(["task-phase", "queue-ready", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
 acceptNoLessonCandidate(taskDir);
 expectJson(["task-review", "queue-ready", "--message", "ready for human review", "--evidence", "command:TARGET:npm-test:passed", target]);
+sanitizeTemplateFixtureMaterials(taskDir);
 
 const afterSubmitReview = fs.readFileSync(reviewPath, "utf8");
 assert(afterSubmitReview.includes("## Agent Review Submission"), "task-review should write strict Agent Review Submission block");
@@ -324,6 +326,7 @@ fs.writeFileSync(
 commitFixtureBaseline(target, "before queue lesson review");
 expectJson(["task-review", "queue-lesson", "--message", "ready except lesson promotion", "--evidence", "command:TARGET:npm-test:passed", target]);
 fs.appendFileSync(path.join(lessonDir, "walkthrough.md"), "\n## Evidence\n\nEvidence reviewed.\n");
+sanitizeTemplateFixtureMaterials(lessonDir);
 const lessonStatus = expectJson(["status", "--json", target]);
 const lessonStatusTask = lessonStatus.tasks.find((task) => task.id === lessonTask.task.id);
 assert(lessonStatusTask.taskQueues.includes("lessons"), "needs-promotion lesson work should enter Lessons queue");
