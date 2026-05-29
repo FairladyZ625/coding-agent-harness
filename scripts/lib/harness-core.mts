@@ -16,3 +16,4 @@ export * from "./task-lesson-sedimentation.mjs";
 export * from "./lesson-maintenance.mjs";
 export * from "./task-index.mjs";
 export * from "./task-tombstone-commands.mjs";
+export * from "./impact-classifier.mjs";

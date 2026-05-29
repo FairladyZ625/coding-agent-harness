@@ -18,6 +18,7 @@ function assert(condition: boolean, message: string): void {
 }
 
 const expectedFiles = [
+  "scripts/lib/types/impact.ts",
   "scripts/lib/types/index.ts",
   "scripts/lib/types/review.ts",
   "scripts/lib/types/snapshot.ts",
