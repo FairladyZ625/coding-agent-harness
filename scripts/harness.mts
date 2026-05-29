@@ -109,6 +109,7 @@ Usage:
   harness module list [--json] [target]
   harness module inspect <key> [target]
   harness module register <key> --title title --prefix PREFIX --scope path [--status state] [--branch branch] [--owner owner] [--current-step step] [--shared path] [--depends-on key] [--locale zh-CN|en-US] [--dry-run] [target]
+  harness module scaffold <key|--all> [--locale zh-CN|en-US] [--dry-run] [target]
   harness module unregister <key> [--dry-run] [target]
   harness new-task [task-id] [--module key] [--register-module --module-title title --module-prefix PREFIX --module-scope path] [--budget simple|standard|complex] [--preset id] [--from-session session.json] [--long-running] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
   harness task-start <task-id> [--message text] [target]

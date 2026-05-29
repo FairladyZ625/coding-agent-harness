@@ -553,6 +553,10 @@ const inlineModuleTask = expectJson(["new-task", "inline-module", "--module", "g
 assert(inlineModuleTask.task?.id === `MODULES/gui/${todayLocal}-inline-module`, "new-task --register-module should register and create a module task in one command");
 assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/harness.yaml"), "utf8").includes("gui:"), "new-task --register-module should persist the new module in harness.yaml");
 assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/gui/session_prompt.md")), "new-task --register-module should scaffold module template files");
+fs.rmSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/gui/session_prompt.md"));
+const scaffoldRepair = expectJson(["module", "scaffold", "gui", lifecycleTarget]);
+assert(scaffoldRepair.changes.some((change) => change.destination.endsWith("planning/modules/gui/session_prompt.md")), "module scaffold should report repaired missing template files");
+assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/gui/session_prompt.md")), "module scaffold should repair missing registered module template files");
 const moduleLifecycle = expectJson(["new-task", "module-lifecycle", "--module", "auth", "--budget", "complex", "--title", "模块生命周期", "--locale", "zh-CN", lifecycleTarget]);
 assert(moduleLifecycle.task?.id === `MODULES/auth/${todayLocal}-module-lifecycle`, "new-task --module should create a module task id");
 assert(moduleLifecycle.task?.preset === "module", "new-task --module should apply the module preset by default");

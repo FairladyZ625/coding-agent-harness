@@ -118,6 +118,23 @@ export function prepareModuleUnregister(
   return { moduleKey: key, changes: result.changes };
 }
 
+export function prepareModuleScaffold(
+  targetInput: HarnessTargetInput,
+  moduleKey: string,
+  { dryRun = false, locale = "" }: { dryRun?: boolean; locale?: string } = {},
+): { moduleKey: string; changes: ModuleMutationChange[] } {
+  const target = asHarnessTarget(targetInput);
+  ensureV2Harness(target);
+  const key = normalizeHarnessModuleKey(moduleKey);
+  const modules = readHarnessModules(target);
+  const module = modules.items[key];
+  if (!module) throw new Error(`Module is not registered: ${key}`);
+  return {
+    moduleKey: key,
+    changes: scaffoldModuleFiles(target, key, module, { dryRun, locale }),
+  };
+}
+
 export function moduleRegistryViewPath(targetInput: HarnessTargetInput): string {
   const target = asHarnessTarget(targetInput);
   const modules = readHarnessModules(target);

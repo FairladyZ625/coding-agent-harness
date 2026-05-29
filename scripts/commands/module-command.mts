@@ -1,6 +1,7 @@
 import {
   normalizeTarget,
   prepareModuleRegistration,
+  prepareModuleScaffold,
   prepareModuleUnregister,
   readHarnessModules,
 } from "../lib/harness-core.mjs";
@@ -103,6 +104,40 @@ export function runModuleCommand({ args, takeFlag, takeOption, targetArg }: Comm
       const result = prepareModuleUnregister(target, moduleKey, { dryRun });
       const commit = commitGovernanceSync(context, governanceRelativePaths(result.changes), { message: `chore(harness): unregister module ${result.moduleKey}` });
       console.log(JSON.stringify({ ...result, governance: { commit } }, null, 2));
+    } catch (error) {
+      console.error(errorMessage(error));
+      process.exit(1);
+    } finally {
+      releaseGovernanceSync(context);
+    }
+    return;
+  }
+
+  if (subcommand === "scaffold") {
+    const dryRun = takeFlag("--dry-run");
+    const all = takeFlag("--all");
+    const locale = takeOption("--locale", "");
+    const moduleKey = all ? "" : args.shift();
+    if (!all && !moduleKey) {
+      console.error("Missing module key");
+      process.exit(2);
+    }
+    const target = normalizeTarget(targetArg());
+    const modules = readHarnessModules(target);
+    const keys = all ? Object.keys(modules.items || {}).sort() : [moduleKey || ""];
+    const plannedChanges = keys.flatMap((key) => prepareModuleScaffold(target, key, { dryRun: true, locale }).changes);
+    const context = beginGovernanceSync(target, {
+      operation: all ? "module scaffold --all" : `module scaffold ${moduleKey}`,
+      dryRun,
+      allowDirtyWorktree: true,
+      allowedRelativePaths: governanceRelativePaths(plannedChanges),
+      allowDirtyWriteScope: true,
+    });
+    try {
+      const results = keys.map((key) => prepareModuleScaffold(target, key, { dryRun, locale }));
+      const changes = results.flatMap((result) => result.changes);
+      const commit = commitGovernanceSync(context, governanceRelativePaths(changes), { message: all ? "chore(harness): scaffold registered modules" : `chore(harness): scaffold module ${moduleKey}` });
+      console.log(JSON.stringify({ modules: results, changes, governance: { commit } }, null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
