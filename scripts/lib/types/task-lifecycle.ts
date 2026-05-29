@@ -124,6 +124,7 @@ export type CreateTaskOptions = {
     scope?: string[];
     shared?: string[];
     dependsOn?: string[];
+    locale?: string;
   };
 };
 

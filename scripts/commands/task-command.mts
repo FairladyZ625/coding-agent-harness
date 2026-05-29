@@ -64,6 +64,7 @@ type CreateTaskCliOptions = {
     scope?: string[];
     shared?: string[];
     dependsOn?: string[];
+    locale?: string;
   };
 };
 
@@ -81,6 +82,7 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       branch: takeOption("--module-branch", ""),
       owner: takeOption("--module-owner", "coordinator"),
       currentStep: takeOption("--module-current-step", ""),
+      locale,
       scope: takeRepeatedOptions(args, "--module-scope"),
       shared: takeRepeatedOptions(args, "--module-shared"),
       dependsOn: takeRepeatedOptions(args, "--module-depends-on"),

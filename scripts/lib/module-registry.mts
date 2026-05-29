@@ -1,12 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { collectTasks } from "./task-scanner.mjs";
-import { normalizeTarget, readFileSafe, todayDate, toPosix } from "./core-shared.mjs";
+import { normalizeLocale, normalizeTarget, readBundledTemplate, readFileSafe, renderTaskTemplate, todayDate, toPosix } from "./core-shared.mjs";
 import { assertRenderableHarnessManifest, renderHarnessManifest } from "./harness-paths.mjs";
+import { moduleTemplateFiles } from "./task-lifecycle/template-files.mjs";
 import type { HarnessModuleDefinition, HarnessModulesManifest, ResolvedHarnessPaths } from "./harness-paths.mjs";
 
 type HarnessTarget = {
   projectRoot: string;
+  docsRoot: string;
   harness: ResolvedHarnessPaths;
 };
 
@@ -45,6 +47,7 @@ export type ModuleRegistrationInput = {
   plan?: string;
   brief?: string;
   updated?: string;
+  locale?: string;
 };
 
 export function normalizeHarnessModuleKey(value: string): string {
@@ -78,7 +81,7 @@ export function prepareModuleRegistration(
   if (existed && !allowExisting) throw new Error(`Module already registered: ${key}`);
   const module = normalizeModuleDefinition(target, key, { ...(modules.items[key] || {}), ...input });
   modules.items[key] = module;
-  return writeModuleRegistryMutation(target, modules, key, { dryRun, action: existed ? "sync-module-registry" : "register-module" });
+  return writeModuleRegistryMutation(target, modules, key, { dryRun, action: existed ? "sync-module-registry" : "register-module", scaffold: true, locale: input.locale });
 }
 
 export function prepareModuleStepRegistrationUpdate(
@@ -165,7 +168,7 @@ function writeModuleRegistryMutation(
   target: HarnessTarget,
   modules: HarnessModulesManifest,
   moduleKey: string,
-  { dryRun, action }: { dryRun: boolean; action: string },
+  { dryRun, action, scaffold = false, locale = "" }: { dryRun: boolean; action: string; scaffold?: boolean; locale?: string },
 ): { moduleKey: string; module: HarnessModuleDefinition; changes: ModuleMutationChange[] } {
   assertRenderableHarnessManifest(target.harness.manifest);
   const manifest = target.harness.manifest;
@@ -173,6 +176,8 @@ function writeModuleRegistryMutation(
   const manifestRelative = toPosix(path.relative(target.projectRoot, target.harness.manifestPath));
   const viewPath = moduleRegistryViewPath(target);
   const viewRelative = toPosix(path.relative(target.projectRoot, viewPath));
+  const module = modules.items[moduleKey] || {};
+  const scaffoldChanges = scaffold ? scaffoldModuleFiles(target, moduleKey, module, { dryRun, locale }) : [];
   if (!dryRun) {
     manifest.modules = modules;
     fs.mkdirSync(path.dirname(target.harness.manifestPath), { recursive: true });
@@ -187,12 +192,45 @@ function writeModuleRegistryMutation(
   }
   return {
     moduleKey,
-    module: modules.items[moduleKey] || {},
+    module,
     changes: [
       { destination: manifestRelative, action: dryRun ? `would-${action}` : action, surface: "harness-manifest" },
       { destination: viewRelative, action: dryRun ? `would-${action}` : action, surface: "module-registry-view" },
+      ...scaffoldChanges,
     ],
   };
+}
+
+function scaffoldModuleFiles(
+  target: HarnessTarget,
+  moduleKey: string,
+  module: HarnessModuleDefinition,
+  { dryRun, locale }: { dryRun: boolean; locale?: string },
+): ModuleMutationChange[] {
+  const moduleDir = path.join(target.harness.modulesRoot, moduleKey);
+  const normalizedLocale = normalizeLocale(locale || target.harness.manifest?.locale || "en-US");
+  const changes: ModuleMutationChange[] = [];
+  for (const [destination, source] of moduleTemplateFiles({ locale: normalizedLocale })) {
+    const destinationPath = path.join(moduleDir, destination);
+    if (fs.existsSync(destinationPath)) continue;
+    const relative = toPosix(path.relative(target.projectRoot, destinationPath));
+    changes.push({
+      destination: relative,
+      action: dryRun ? "would-create-module-file" : "create-module-file",
+      surface: "module-scaffold",
+    });
+    if (dryRun) continue;
+    fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+    fs.writeFileSync(destinationPath, renderTaskTemplate(readBundledTemplate(source), {
+      taskId: moduleKey,
+      title: module.title || moduleKey,
+      locale: normalizedLocale,
+      budget: "standard",
+      moduleKey,
+      target,
+    }));
+  }
+  return changes;
 }
 
 function normalizeHarnessModules(target: HarnessTarget, modules: HarnessModulesManifest | null): HarnessModulesManifest {
@@ -290,10 +328,10 @@ function ensureV2Harness(target: HarnessTarget): void {
 
 function asHarnessTarget(targetInput: HarnessTargetInput): HarnessTarget {
   const candidate = typeof targetInput === "string" ? normalizeTarget(targetInput) : targetInput;
-  if (isResolvedHarnessPaths(candidate.harness)) return { projectRoot: candidate.projectRoot, harness: candidate.harness };
+  if (isResolvedHarnessPaths(candidate.harness)) return { projectRoot: candidate.projectRoot, docsRoot: candidate.harness.docsRoot, harness: candidate.harness };
   const normalized = normalizeTarget(candidate.projectRoot);
   if (!isResolvedHarnessPaths(normalized.harness)) throw new Error("Could not resolve harness paths for module registry target");
-  return { projectRoot: normalized.projectRoot, harness: normalized.harness };
+  return { projectRoot: normalized.projectRoot, docsRoot: normalized.harness.docsRoot, harness: normalized.harness };
 }
 
 function isResolvedHarnessPaths(value: unknown): value is ResolvedHarnessPaths {

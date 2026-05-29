@@ -545,9 +545,14 @@ assert(unregisteredModuleCreate.stderr.includes("harness module register auth"),
 const authRegistration = expectJson(["module", "register", "auth", "--title", "Auth", "--prefix", "AUTH", "--scope", "src/auth/**", "--status", "in-progress", lifecycleTarget]);
 assert(authRegistration.moduleKey === "auth", "module register should report the normalized module key");
 assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/harness.yaml"), "utf8").includes("modules:"), "module register should persist modules in harness.yaml");
+for (const required of ["brief.md", "module_plan.md", "execution_strategy.md", "visual_map.md", "session_prompt.md"]) {
+  assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth", required)), `module register should scaffold ${required}`);
+}
+assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/auth/brief.md"), "utf8").includes("Auth"), "module register should render module title into scaffolded brief");
 const inlineModuleTask = expectJson(["new-task", "inline-module", "--module", "gui", "--register-module", "--module-title", "GUI", "--module-prefix", "GUI", "--module-scope", "src/gui/**", "--title", "Inline Module", lifecycleTarget]);
 assert(inlineModuleTask.task?.id === `MODULES/gui/${todayLocal}-inline-module`, "new-task --register-module should register and create a module task in one command");
 assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/harness.yaml"), "utf8").includes("gui:"), "new-task --register-module should persist the new module in harness.yaml");
+assert(fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/gui/session_prompt.md")), "new-task --register-module should scaffold module template files");
 const moduleLifecycle = expectJson(["new-task", "module-lifecycle", "--module", "auth", "--budget", "complex", "--title", "模块生命周期", "--locale", "zh-CN", lifecycleTarget]);
 assert(moduleLifecycle.task?.id === `MODULES/auth/${todayLocal}-module-lifecycle`, "new-task --module should create a module task id");
 assert(moduleLifecycle.task?.preset === "module", "new-task --module should apply the module preset by default");
