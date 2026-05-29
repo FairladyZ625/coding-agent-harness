@@ -224,6 +224,13 @@ export function inferTaskClassification({ id, title, relative, explicitModule, l
       bucket: "module",
     };
   }
+  if (id.startsWith("TASKS/")) {
+    return {
+      module: "base",
+      source: "structure",
+      bucket: legacyCandidate ? "legacy" : "current",
+    };
+  }
   const text = `${id} ${title} ${relative}`.toLowerCase();
   const rules: Array<[string, RegExp]> = [
     ["dashboard", /dashboard|visibility|cockpit|console|ui|frontend|view|页面|看板|驾驶舱/],

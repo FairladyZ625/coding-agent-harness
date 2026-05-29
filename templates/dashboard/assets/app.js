@@ -830,6 +830,12 @@ function taskModuleKey(task) {
   return task.module || task.inferredModule || "legacy-unclassified";
 }
 
+function taskModuleDisplayLabel(key) {
+  if (key === "base") return t("baseModule");
+  if (key === "legacy-unclassified") return t("unclassifiedModule");
+  return key;
+}
+
 function archiveView() {
   const tasks = sortTasksByTime(archivedTasks());
   const groups = Object.entries(groupBy(tasks, archiveBucket)).sort(([left], [right]) => left.localeCompare(right));
@@ -927,7 +933,7 @@ function taskSwimlaneModel(tasks) {
   });
   return {
     stages: swimlaneStageOrder.map(([key, labelKey]) => ({ key, label: t(labelKey) })),
-    lanes: laneKeys.map((key) => ({ key, label: key === "legacy-unclassified" ? t("unclassifiedModule") : key })),
+    lanes: laneKeys.map((key) => ({ key, label: taskModuleDisplayLabel(key) })),
     cards,
   };
 }
@@ -1503,7 +1509,7 @@ function moduleDefinition(key) {
 
 function taskModuleLabel(task) {
   const key = taskModuleKey(task);
-  if (key === "legacy-unclassified") return t("unclassifiedModule");
+  if (key === "base" || key === "legacy-unclassified") return taskModuleDisplayLabel(key);
   return moduleDefinition(key)?.title || key;
 }
 
@@ -1511,6 +1517,14 @@ function taskGroupContext(group, tasks) {
   if (group.startsWith("module:")) {
     const key = group.slice("module:".length);
     const counts = moduleCountsForTasks(tasks);
+    if (key === "base") {
+      return {
+        eyebrow: t("baseModuleEyebrow"),
+        title: t("baseModule"),
+        summary: `${tasks.length} ${t("tasks")} · ${counts.active} ${t("active")} · ${counts.review} ${t("statReview")} · ${counts.blocked} ${t("statBlocked")}`,
+        chips: [`${tasks.length} ${t("tasks")}`, `${counts.risk} ${t("moduleRisks")}`],
+      };
+    }
     if (key === "legacy-unclassified") {
       return {
         eyebrow: t("unclassifiedWarning"),
@@ -1583,8 +1597,8 @@ function modulesWithTaskFallback() {
     if (!moduleMap.has(key)) {
       moduleMap.set(key, {
         key,
-        title: key,
-        source: "inferred",
+        title: taskModuleDisplayLabel(key),
+        source: key === "base" ? "structure" : "inferred",
         status: task.classificationSource || "inferred",
         counts: emptyUiModuleCounts(),
         tasks: [],
@@ -1624,7 +1638,7 @@ function moduleListItem(module, active) {
   const counts = module.counts || emptyUiModuleCounts();
   return `<a class="module-list-item ${active ? "active" : ""}" href="#/modules/${encodeURIComponent(module.key)}" data-module-select="${escapeAttr(module.key)}">
     <span>
-      <strong>${escapeHtml(module.title || module.key)}</strong>
+      <strong>${escapeHtml(module.key === "base" ? t("baseModule") : module.title || module.key)}</strong>
       <small>${escapeHtml(module.key)} · ${escapeHtml(module.source || "registry")}</small>
     </span>
     <span class="module-list-counts">
@@ -1643,8 +1657,8 @@ function moduleDetail(module) {
   return `<div class="module-detail-stack">
     <header class="module-detail-header">
       <div>
-        <p class="eyebrow">${escapeHtml(module.source === "registry" ? t("registeredModule") : t("inferredModule"))}</p>
-        <h2>${escapeHtml(module.title || module.key)}</h2>
+        <p class="eyebrow">${escapeHtml(module.key === "base" ? t("baseModuleEyebrow") : module.source === "registry" ? t("registeredModule") : t("inferredModule"))}</p>
+        <h2>${escapeHtml(module.key === "base" ? t("baseModule") : module.title || module.key)}</h2>
         <p class="subtle">${escapeHtml(module.key)}${module.currentStep ? ` · ${escapeHtml(module.currentStep)}` : ""}</p>
       </div>
       ${tag(module.status || "planned")}

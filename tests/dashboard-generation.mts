@@ -15,7 +15,7 @@ type DashboardDocument = { path: string };
 type DashboardDocuments = { documents: DashboardDocument[] };
 type DashboardStatus = {
   schemaVersion: number;
-  tasks: Array<{ visualMapSource?: string; roadmapSource?: string }>;
+  tasks: Array<{ module?: string | null; inferredModule?: string; classificationSource?: string; visualMapSource?: string; roadmapSource?: string }>;
   summary: {
     fullCutoverEligible?: boolean;
     legacyVisualOnlyCount?: number;
@@ -156,6 +156,9 @@ assert(folderIndex.includes("rel=\"icon\""), "dashboard index should suppress fa
 const folderApp = fs.readFileSync(path.join(dashboardDir, "assets/app.js"), "utf8");
 assert(folderApp.includes("snapshotNotValidated"), "dashboard data-only UI should label status as snapshot-only");
 const folderStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8")) as DashboardStatus;
+assert(!folderStatus.tasks[0].module, "dashboard status should keep project-root tasks out of explicit module ownership");
+assert(folderStatus.tasks[0].inferredModule === "base", "dashboard status should expose base for project-root tasks");
+assert(folderStatus.tasks[0].classificationSource === "structure", "dashboard status should mark project-root base classification as structure-derived");
 assert(folderStatus.tasks[0].visualMapSource === "canonical", "folder status should use canonical visual_map.md");
 assert(folderStatus.tasks[0].roadmapSource === "canonical", "folder status should preserve roadmapSource compatibility as canonical");
 assert(folderStatus.schemaVersion === 2, "dashboard folder status should expose schemaVersion 2");

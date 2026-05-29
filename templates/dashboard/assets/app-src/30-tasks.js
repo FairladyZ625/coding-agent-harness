@@ -431,6 +431,12 @@ function taskModuleKey(task) {
   return task.module || task.inferredModule || "legacy-unclassified";
 }
 
+function taskModuleDisplayLabel(key) {
+  if (key === "base") return t("baseModule");
+  if (key === "legacy-unclassified") return t("unclassifiedModule");
+  return key;
+}
+
 function archiveView() {
   const tasks = sortTasksByTime(archivedTasks());
   const groups = Object.entries(groupBy(tasks, archiveBucket)).sort(([left], [right]) => left.localeCompare(right));
