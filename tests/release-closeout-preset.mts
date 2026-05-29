@@ -314,7 +314,7 @@ const taskListPath = path.join(tmpRoot, "release-closeout-task-list.json");
 fs.writeFileSync(taskListPath, JSON.stringify({
   schemaVersion: "release-closeout-task-list/v1",
   release: "1.0.5",
-  taskIds: [`${todayLocal}-release-done-path`, `${todayLocal}-release-unconfirmed`],
+  taskIds: [`TASKS/${todayLocal}-release-done-path`, `TASKS/${todayLocal}-release-unconfirmed`],
 }, null, 2));
 const releaseTask = expectJson(["new-task", "release-closeout-1-0-5", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.5", "--task-list", taskListPath, target], { env });
 const releaseTaskPlanPath = path.join(target, releaseTask.task.path.replace(/^TARGET:/, ""), "task_plan.md");

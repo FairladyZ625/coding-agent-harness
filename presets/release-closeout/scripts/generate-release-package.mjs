@@ -170,7 +170,7 @@ function selectTasks(tasks, inputs, release) {
     if (taskList.release && taskList.release !== release) {
       throw new Error(`--task-list release ${taskList.release} does not match --release ${release}`);
     }
-    const taskIds = Array.isArray(taskList.taskIds) ? taskList.taskIds.map((item) => String(item || "").trim()).filter(Boolean) : [];
+    const taskIds = Array.isArray(taskList.taskIds) ? taskList.taskIds.map(normalizeTaskListId).filter(Boolean) : [];
     if (taskIds.length === 0) throw new Error("--task-list requires non-empty taskIds");
     const byId = new Map(tasks.map((task) => [task.id, task]));
     const selected = taskIds.map((id) => byId.get(id)).filter(Boolean);
@@ -203,6 +203,10 @@ function selectTasks(tasks, inputs, release) {
     excluded: tasks.filter((task) => !selectedIds.has(task.id)),
     missing: [],
   };
+}
+
+function normalizeTaskListId(value) {
+  return String(value || "").trim().replace(/^TASKS\//, "");
 }
 
 function parseTaskQuery(query) {
