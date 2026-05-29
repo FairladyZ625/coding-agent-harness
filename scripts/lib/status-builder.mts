@@ -3,6 +3,7 @@ import { normalizeTarget, toPosix } from "./core-shared.mjs";
 import { capabilityDefinitions, readCapabilityRegistry } from "./capability-registry.mjs";
 import { summarizeGitState } from "./git-status-summary.mjs";
 import { collectTasks, taskCutoverCounters } from "./task-scanner.mjs";
+import { readHarnessModules } from "./module-registry.mjs";
 
 type HarnessTarget = {
   projectRoot: string;
@@ -132,6 +133,7 @@ export function buildStatusData(targetInput: HarnessTarget | string | undefined,
     taskPlanPaths: options.taskPlanPaths,
     closeoutContent: options.closeoutContent,
   });
+  const modules = harnessModulesForStatus(target);
   const briefReady = tasks.filter((task) => task.briefSource === "standalone").length;
   const briefMissing = tasks.length - briefReady;
   const capabilityNames = new Map(registry.capabilities.map((capability) => [capability.name, capability]));
@@ -168,6 +170,7 @@ export function buildStatusData(targetInput: HarnessTarget | string | undefined,
     git: gitState.summary,
     summary: {
       tasks: tasks.length,
+      modules: modules.length,
       briefCoverage: {
         ready: briefReady,
         missing: briefMissing,
@@ -195,9 +198,19 @@ export function buildStatusData(targetInput: HarnessTarget | string | undefined,
       warnings: capabilityWarnings.filter((warning) => warning.includes(capability.name)),
     })),
     tasks,
+    modules,
     handoffs: tasks.flatMap((task) => task.handoffs || []),
     recentActivity: tasks.slice(0, 8).map((task) => ({ at: new Date().toISOString(), type: "task", summary: task.title })),
   };
+}
+
+function harnessModulesForStatus(target: HarnessTarget): Array<Record<string, unknown>> {
+  try {
+    const registry = readHarnessModules(target);
+    return Object.entries(registry.items || {}).map(([key, module]) => ({ key, ...module }));
+  } catch {
+    return [];
+  }
 }
 
 function hasProjectRoot(value: unknown): value is HarnessTarget {

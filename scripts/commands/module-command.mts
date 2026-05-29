@@ -1,0 +1,135 @@
+import {
+  normalizeTarget,
+  prepareModuleRegistration,
+  prepareModuleUnregister,
+  readHarnessModules,
+} from "../lib/harness-core.mjs";
+import { beginGovernanceSync, commitGovernanceSync, governanceRelativePaths, releaseGovernanceSync } from "../lib/governance-sync.mjs";
+
+type FlagReader = (name: string, fallback?: boolean) => boolean;
+type OptionReader = (name: string, fallback?: string) => string;
+type TargetReader = () => string;
+type CommandContext = {
+  args: string[];
+  takeFlag: FlagReader;
+  takeOption: OptionReader;
+  targetArg: TargetReader;
+};
+
+export function runModuleCommand({ args, takeFlag, takeOption, targetArg }: CommandContext) {
+  const subcommand = args.shift() || "list";
+  const json = takeFlag("--json");
+
+  if (subcommand === "list") {
+    const modules = readHarnessModules(targetArg());
+    const items = Object.entries(modules.items || {}).map(([key, module]) => ({ key, ...module }));
+    if (json) console.log(JSON.stringify({ schema: modules.schema, generatedView: modules.generatedView, modules: items }, null, 2));
+    else for (const item of items) console.log(`${item.key}\t${item.status || "planned"}\t${item.title || item.key}`);
+    return;
+  }
+
+  if (subcommand === "inspect") {
+    const moduleKey = args.shift();
+    if (!moduleKey) {
+      console.error("Missing module key");
+      process.exit(2);
+    }
+    const modules = readHarnessModules(targetArg());
+    const module = modules.items[moduleKey];
+    if (!module) {
+      console.error(`Module is not registered: ${moduleKey}`);
+      process.exit(1);
+    }
+    console.log(JSON.stringify({ key: moduleKey, ...module }, null, 2));
+    return;
+  }
+
+  if (subcommand === "register") {
+    const dryRun = takeFlag("--dry-run");
+    const moduleKey = args.shift();
+    if (!moduleKey) {
+      console.error("Missing module key");
+      process.exit(2);
+    }
+    const input = {
+      title: takeOption("--title", ""),
+      prefix: takeOption("--prefix", ""),
+      status: takeOption("--status", "planned"),
+      branch: takeOption("--branch", ""),
+      owner: takeOption("--owner", "coordinator"),
+      currentStep: takeOption("--current-step", ""),
+      scope: takeRepeatedOptions(args, "--scope"),
+      shared: takeRepeatedOptions(args, "--shared"),
+      dependsOn: takeRepeatedOptions(args, "--depends-on"),
+    };
+    const target = normalizeTarget(targetArg());
+    const planned = prepareModuleRegistration(target, moduleKey, input, { dryRun: true });
+    const context = beginGovernanceSync(target, {
+      operation: `module register ${moduleKey}`,
+      dryRun,
+      allowDirtyWorktree: true,
+      allowedRelativePaths: governanceRelativePaths(planned.changes),
+    });
+    try {
+      const result = prepareModuleRegistration(target, moduleKey, input, { dryRun });
+      const commit = commitGovernanceSync(context, governanceRelativePaths(result.changes), { message: `chore(harness): register module ${result.moduleKey}` });
+      console.log(JSON.stringify({ ...result, governance: { commit } }, null, 2));
+    } catch (error) {
+      console.error(errorMessage(error));
+      process.exit(1);
+    } finally {
+      releaseGovernanceSync(context);
+    }
+    return;
+  }
+
+  if (subcommand === "unregister") {
+    const dryRun = takeFlag("--dry-run");
+    const moduleKey = args.shift();
+    if (!moduleKey) {
+      console.error("Missing module key");
+      process.exit(2);
+    }
+    const target = normalizeTarget(targetArg());
+    const planned = prepareModuleUnregister(target, moduleKey, { dryRun: true });
+    const context = beginGovernanceSync(target, {
+      operation: `module unregister ${moduleKey}`,
+      dryRun,
+      allowDirtyWorktree: true,
+      allowedRelativePaths: governanceRelativePaths(planned.changes),
+    });
+    try {
+      const result = prepareModuleUnregister(target, moduleKey, { dryRun });
+      const commit = commitGovernanceSync(context, governanceRelativePaths(result.changes), { message: `chore(harness): unregister module ${result.moduleKey}` });
+      console.log(JSON.stringify({ ...result, governance: { commit } }, null, 2));
+    } catch (error) {
+      console.error(errorMessage(error));
+      process.exit(1);
+    } finally {
+      releaseGovernanceSync(context);
+    }
+    return;
+  }
+
+  console.error(`Unknown module subcommand: ${subcommand}`);
+  process.exit(2);
+}
+
+function takeRepeatedOptions(args: string[], flag: string): string[] {
+  const values: string[] = [];
+  for (let index = 0; index < args.length;) {
+    if (args[index] !== flag) {
+      index += 1;
+      continue;
+    }
+    const value = args[index + 1] || "";
+    args.splice(index, 2);
+    if (!value) throw new Error(`${flag} requires a value`);
+    values.push(value);
+  }
+  return values;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

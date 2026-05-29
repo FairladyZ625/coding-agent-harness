@@ -17,6 +17,7 @@ import {
 } from "./lib/harness-core.mjs";
 import { runDashboardCommand, runDevDashboardCommand } from "./commands/dashboard-command.mjs";
 import { runMigrationCommand } from "./commands/migration-command.mjs";
+import { runModuleCommand } from "./commands/module-command.mjs";
 import { runPresetCommand } from "./commands/preset-command.mjs";
 import { runTaskCommand } from "./commands/task-command.mjs";
 
@@ -104,7 +105,11 @@ Usage:
   harness preset run <id> <plan|scaffold|check> --task <task-id> [--json] [target]
   harness templates audit [--json] [target]
   harness templates refresh [--apply] [--json] [target]
-  harness new-task [task-id] [--module key] [--budget simple|standard|complex] [--preset id] [--from-session session.json] [--long-running] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
+  harness module list [--json] [target]
+  harness module inspect <key> [target]
+  harness module register <key> --title title --prefix PREFIX --scope path [--status state] [--branch branch] [--owner owner] [--current-step step] [--shared path] [--depends-on key] [--dry-run] [target]
+  harness module unregister <key> [--dry-run] [target]
+  harness new-task [task-id] [--module key] [--register-module --module-title title --module-prefix PREFIX --module-scope path] [--budget simple|standard|complex] [--preset id] [--from-session session.json] [--long-running] [--title title] [--locale zh-CN|en-US] [--dry-run] [target]
   harness task-start <task-id> [--message text] [target]
   harness task-phase <task-id> <phase-id> [--state done] [--completion 100] [--evidence present] [target]
   harness task-log <task-id> --message text [--evidence type:PATH:summary] [target]
@@ -240,6 +245,8 @@ if (command === "help" || command === "--help" || command === "-h") {
   }
 } else if (command === "preset") {
   runPresetCommand({ args, takeFlag, targetArg });
+} else if (command === "module") {
+  runModuleCommand({ args, takeFlag, takeOption, targetArg });
 } else if (command === "templates") {
   const subcommand = args.shift() || "audit";
   const json = takeFlag("--json");
