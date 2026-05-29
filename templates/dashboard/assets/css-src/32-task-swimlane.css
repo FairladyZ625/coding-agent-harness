@@ -1,4 +1,4 @@
-/* Read-only runtime swimlane */
+/* Read-only runtime swimlane heatmap */
 .task-swimlane {
   background: var(--paper);
   border: 1px solid var(--line);
@@ -27,111 +27,263 @@
   line-height: 1.2;
 }
 
-.swimlane-stage-legend {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(92px, 1fr));
-  gap: 8px;
-  margin-bottom: 10px;
-  padding-left: 168px;
-}
-
-.swimlane-stage-legend span,
-.swimlane-cell-title {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
-.swimlane-board {
+.swimlane-heatmap {
+  --swimlane-stage-columns: repeat(7, minmax(76px, 1fr));
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   overflow-x: auto;
   padding-bottom: 4px;
 }
 
-.swimlane-row {
+.swimlane-heatmap-row {
   display: grid;
-  grid-template-columns: 156px minmax(720px, 1fr);
-  gap: 12px;
-  min-width: 900px;
+  grid-template-columns: minmax(104px, 150px) var(--swimlane-stage-columns) 44px;
+  gap: 6px;
+  min-width: 0;
 }
 
-.swimlane-lane-label {
-  border: 1px solid var(--line);
-  border-radius: 10px;
+.swimlane-heatmap-head {
+  align-items: stretch;
+}
+
+.swimlane-heatmap-row > * {
+  min-width: 0;
+}
+
+.swimlane-axis-label,
+.swimlane-total-header,
+.swimlane-stage-header {
+  align-items: center;
   background: var(--bg);
-  min-height: 96px;
-  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
   display: flex;
-  flex-direction: column;
+  font-size: 10px;
+  font-weight: 800;
+  gap: 6px;
   justify-content: space-between;
+  line-height: 1.2;
+  min-height: 34px;
+  overflow: hidden;
+  padding: 7px 6px;
+  text-transform: uppercase;
 }
 
-.swimlane-lane-label strong {
+.swimlane-stage-header span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.swimlane-stage-header strong,
+.swimlane-row-total strong {
   color: var(--ink);
-  font-size: 13px;
-  line-height: 1.25;
+  font-size: 11px;
+}
+
+.swimlane-lane-button,
+.swimlane-heat-cell,
+.swimlane-mobile-module {
+  appearance: none;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.swimlane-lane-button {
+  align-items: center;
+  background: var(--bg);
+  border-radius: 8px;
+  color: var(--ink);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 8px 9px;
+  text-align: left;
+}
+
+.swimlane-lane-button strong {
+  font-size: 11px;
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
-.swimlane-lane-label span {
+.swimlane-lane-button span {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
-.swimlane-cells {
+.swimlane-lane-button:hover,
+.swimlane-lane-button.active,
+.swimlane-mobile-module:hover,
+.swimlane-mobile-module.active {
+  border-color: var(--accent);
+}
+
+.swimlane-heat-cell {
+  align-items: center;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--ink);
+  display: flex;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0;
+}
+
+.swimlane-heat-cell span {
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.swimlane-heat-cell.heat-0 {
+  color: color-mix(in srgb, var(--muted) 58%, transparent);
+  cursor: default;
+  opacity: 0.46;
+}
+
+.swimlane-heat-cell.heat-1 {
+  background: color-mix(in srgb, var(--accent) 12%, var(--paper));
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+}
+
+.swimlane-heat-cell.heat-2 {
+  background: color-mix(in srgb, var(--accent) 24%, var(--paper));
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
+}
+
+.swimlane-heat-cell.heat-3 {
+  background: color-mix(in srgb, var(--accent) 40%, var(--paper));
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
+}
+
+.swimlane-heat-cell:not(:disabled):hover,
+.swimlane-heat-cell.active {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.swimlane-row-total {
+  align-items: center;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  min-height: 38px;
+}
+
+.swimlane-drilldown-host {
   display: grid;
-  grid-template-columns: repeat(7, minmax(92px, 1fr));
-  gap: 8px;
+  grid-template-rows: 0fr;
+  margin-top: 0;
+  transition: grid-template-rows 0.22s ease, margin-top 0.22s ease;
 }
 
-.swimlane-cell {
+.swimlane-drilldown-host.open {
+  grid-template-rows: 1fr;
+  margin-top: 14px;
+}
+
+.swimlane-drilldown {
+  background: color-mix(in srgb, var(--bg) 70%, var(--paper));
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--bg) 72%, var(--paper));
-  min-height: 96px;
-  padding: 8px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.swimlane-drilldown-head {
+  align-items: flex-start;
   display: flex;
-  flex-direction: column;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.swimlane-drilldown-head h3 {
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.25;
+  margin: 2px 0 0;
+}
+
+.swimlane-drilldown-actions {
+  align-items: center;
+  display: flex;
   gap: 8px;
 }
 
-.swimlane-cell[data-swimlane-stage="blocked"] {
-  background: color-mix(in srgb, var(--danger) 8%, var(--paper));
-}
-
-.swimlane-cell[data-swimlane-stage="review"] {
-  background: color-mix(in srgb, var(--accent-2) 8%, var(--paper));
-}
-
-.swimlane-cell[data-swimlane-stage="evidence"] {
-  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
-}
-
-.swimlane-cell-empty {
+.swimlane-drilldown-actions span {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 700;
-  margin-top: auto;
-  opacity: 0.72;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.swimlane-drilldown-actions button {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 8px;
+}
+
+.swimlane-mini-board {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  overflow-x: visible;
+  padding-bottom: 2px;
+}
+
+.swimlane-mini-column {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 0;
+  padding: 8px;
+}
+
+.swimlane-mini-column-head {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 10px;
+  font-weight: 800;
+  justify-content: space-between;
+  line-height: 1.2;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.swimlane-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
 
 .swimlane-card {
+  align-items: center;
   background: var(--paper);
   border: 1px solid var(--line);
-  border-top: 3px solid var(--row-accent, var(--accent));
-  border-radius: 8px;
-  padding: 8px;
+  border-radius: 7px;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 104px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 8px minmax(0, 1fr) 30px;
+  min-height: 34px;
+  min-width: 0;
+  padding: 7px 8px;
   transition: border-color 0.18s ease, transform 0.18s ease;
 }
 
@@ -140,48 +292,47 @@
   transform: translateY(-1px);
 }
 
-.swimlane-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.swimlane-card-head > span:last-child {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
+.swimlane-status-dot {
+  background: var(--row-accent, var(--accent));
+  border-radius: 999px;
+  height: 8px;
+  width: 8px;
 }
 
 .swimlane-card strong {
   color: var(--ink);
-  display: -webkit-box;
   font-size: 12px;
-  line-height: 1.25;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swimlane-progress {
+  background: var(--bg);
+  border-radius: 999px;
+  height: 5px;
   overflow: hidden;
 }
 
-.swimlane-card p {
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.25;
-  margin: 0;
-  overflow-wrap: anywhere;
+.swimlane-progress i {
+  background: var(--row-accent, var(--accent));
+  display: block;
+  height: 100%;
+  width: var(--task-progress, 0%);
 }
 
-.swimlane-card-reason {
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 6px;
+.swimlane-mini-empty {
   color: var(--muted);
-  font-size: 10px;
+  display: block;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.25;
-  margin-top: auto;
-  padding: 5px 6px;
-  overflow-wrap: anywhere;
+  opacity: 0.72;
+  padding: 7px 2px;
+}
+
+.swimlane-mobile-list {
+  display: none;
 }
 
 @media (max-width: 760px) {
@@ -189,38 +340,77 @@
     padding: 14px;
   }
 
-  .swimlane-header {
+  .swimlane-header,
+  .swimlane-drilldown-head {
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
 
-  .swimlane-stage-legend {
+  .swimlane-heatmap {
     display: none;
   }
 
-  .swimlane-board {
+  .swimlane-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .swimlane-mobile-module {
+    align-items: flex-start;
+    background: var(--bg);
+    border-radius: 9px;
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    text-align: left;
+  }
+
+  .swimlane-mobile-module span:first-child {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .swimlane-mobile-module strong {
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .swimlane-mobile-module small {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .swimlane-mobile-stages {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .swimlane-mobile-stages em {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 800;
+    padding: 4px 6px;
+  }
+
+  .swimlane-mini-board {
+    grid-template-columns: 1fr;
     overflow-x: visible;
   }
 
-  .swimlane-row {
-    grid-template-columns: 1fr;
-    min-width: 0;
-  }
-
-  .swimlane-lane-label {
-    min-height: auto;
-    gap: 4px;
-  }
-
-  .swimlane-cells {
-    grid-template-columns: 1fr;
-  }
-
-  .swimlane-cell {
-    min-height: auto;
-  }
-
-  .swimlane-cell-title {
-    display: block;
+  .swimlane-card {
+    grid-template-columns: 8px minmax(0, 1fr) 42px;
   }
 }
