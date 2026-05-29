@@ -32,6 +32,12 @@
   /* Typography Scale */
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Dashboard Density */
+  --dashboard-page-gap: 16px;
+  --dashboard-panel-gap: 14px;
+  --dashboard-card-padding: 16px;
+  --dashboard-compact-row-height: 32px;
 }
 
 [data-theme="dark"] {
@@ -137,7 +143,7 @@ button, input, select {
 .visibility-shell {
   width: 100%;
   max-width: 100%;
-  padding: 40px clamp(16px, 3vw, 48px) 80px;
+  padding: 32px clamp(14px, 3vw, 44px) 64px;
   box-sizing: border-box;
 }
 
@@ -147,7 +153,7 @@ button, input, select {
   justify-content: space-between;
   align-items: center;
   gap: 24px;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .hero-copy h1 {
@@ -222,15 +228,15 @@ button, input, select {
 
 .stack {
   display: grid;
-  gap: 24px;
+  gap: var(--dashboard-page-gap);
 }
 
 /* Cockpit Two-Column Layout Grid */
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 24px;
-  margin-top: 16px;
+  gap: var(--dashboard-page-gap);
+  margin-top: 10px;
 }
 
 .dashboard-main,
@@ -249,7 +255,7 @@ button, input, select {
 .status-card-group {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--dashboard-page-gap);
 }
 
 .metrics-grid {

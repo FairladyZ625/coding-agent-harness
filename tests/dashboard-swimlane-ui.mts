@@ -41,6 +41,8 @@ type RenderedSwimlane = {
   zhLabel: string;
   enHeatmapLabel: string;
   zhHeatmapLabel: string;
+  enPageLabel: string;
+  zhPageLabel: string;
 };
 
 type SandboxContext = {
@@ -152,6 +154,8 @@ const rendered = renderTasks(`
     zhLabel: window.HarnessI18n.zh.layoutSwimlane,
     enHeatmapLabel: window.HarnessI18n.en.swimlaneHeatmapLabel,
     zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
+    enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
+    zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
   };
 `);
 
@@ -159,6 +163,8 @@ assert(rendered.enLabel === "Swimlane", "English i18n should expose the swimlane
 assert(rendered.zhLabel === "泳道图", "Chinese i18n should expose the swimlane layout label");
 assert(rendered.enHeatmapLabel === "Heatmap overview", "English i18n should expose the heatmap overview label");
 assert(rendered.zhHeatmapLabel === "热力图鸟瞰", "Chinese i18n should expose the heatmap overview label");
+assert(rendered.enPageLabel === "Page", "English i18n should expose the swimlane pagination label");
+assert(rendered.zhPageLabel === "页", "Chinese i18n should expose the swimlane pagination label");
 assert(rendered.html.includes('data-layout="swimlane"'), "task toolbar should expose a swimlane layout toggle");
 assert(rendered.html.includes("task-swimlane"), "task index should render the swimlane view when selected");
 assert(rendered.html.includes('data-swimlane-heatmap="true"'), "swimlane should render a heatmap overview by default");
@@ -183,6 +189,93 @@ assert(!rendered.model.cards.some((card) => card.title === "Historical task"), "
 assert(css.includes(".task-swimlane"), "dashboard CSS should style the swimlane surface");
 assert(css.includes(".swimlane-heatmap"), "dashboard CSS should style the heatmap surface");
 assert(css.includes(".swimlane-drilldown"), "dashboard CSS should style the drilldown surface");
+assert(css.includes("--dashboard-page-gap"), "dashboard CSS should expose a shared page gap density token");
+assert(css.includes(".swimlane-pager"), "dashboard CSS should style swimlane pagination controls");
 assert(css.includes("@media (max-width: 760px)"), "swimlane CSS should include a narrow-screen adaptation");
+
+const pagedDrilldown = renderTasks(`
+  for (let index = 1; index <= 12; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    bundle.status.tasks.push({
+      id: "TASKS/2026-05-29-core-review-extra-" + suffix,
+      shortId: "2026-05-29-core-review-extra-" + suffix,
+      title: "Core review extra " + index,
+      path: "TARGET:coding-agent-harness/planning/tasks/2026-05-29-core-review-extra-" + suffix,
+      state: "review",
+      module: "core",
+      inferredModule: "",
+      completion: 10 + index,
+      reviewStatus: "agent-reviewed",
+      reviewQueueState: "ready-to-confirm",
+      closeoutStatus: "missing",
+      visualMapStatus: "present",
+      briefSource: "standalone",
+      taskQueues: ["review"],
+      queueReasons: [],
+    });
+  }
+  state.taskLayout = "swimlane";
+  state.taskSortOrder = "asc";
+  swimlaneExpansion = { mode: "cell", lane: "core", stage: "review", page: 1 };
+  __result = {
+    html: taskIndex(),
+    model: taskSwimlaneModel(bundle.status.tasks),
+    enLabel: window.HarnessI18n.en.layoutSwimlane,
+    zhLabel: window.HarnessI18n.zh.layoutSwimlane,
+    enHeatmapLabel: window.HarnessI18n.en.swimlaneHeatmapLabel,
+    zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
+    enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
+    zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
+  };
+`);
+
+assert(pagedDrilldown.html.includes('data-swimlane-page="1"'), "cell drilldown should preserve active page state");
+assert(pagedDrilldown.html.includes('data-swimlane-page-action="prev"'), "cell drilldown should render a previous page control");
+assert(pagedDrilldown.html.includes('data-swimlane-page-action="next"'), "cell drilldown should render a next page control");
+assert(pagedDrilldown.html.includes("11-13 / 13"), "cell drilldown should summarize the visible page range");
+assert(!pagedDrilldown.html.includes("Core review extra 3"), "second page should not render first page tasks");
+assert(pagedDrilldown.html.includes("Core review extra 10"), "second page should render the first task in its visible slice");
+assert(pagedDrilldown.html.includes("Core review extra 12"), "second page should render the last task in its visible slice");
+
+const laneDrilldown = renderTasks(`
+  for (let index = 1; index <= 12; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    bundle.status.tasks.push({
+      id: "TASKS/2026-05-29-core-review-extra-" + suffix,
+      shortId: "2026-05-29-core-review-extra-" + suffix,
+      title: "Core review extra " + index,
+      path: "TARGET:coding-agent-harness/planning/tasks/2026-05-29-core-review-extra-" + suffix,
+      state: "review",
+      module: "core",
+      inferredModule: "",
+      completion: 10 + index,
+      reviewStatus: "agent-reviewed",
+      reviewQueueState: "ready-to-confirm",
+      closeoutStatus: "missing",
+      visualMapStatus: "present",
+      briefSource: "standalone",
+      taskQueues: ["review"],
+      queueReasons: [],
+    });
+  }
+  state.taskLayout = "swimlane";
+  state.taskSortOrder = "asc";
+  swimlaneExpansion = { mode: "lane", lane: "core", stage: "" };
+  __result = {
+    html: taskIndex(),
+    model: taskSwimlaneModel(bundle.status.tasks),
+    enLabel: window.HarnessI18n.en.layoutSwimlane,
+    zhLabel: window.HarnessI18n.zh.layoutSwimlane,
+    enHeatmapLabel: window.HarnessI18n.en.swimlaneHeatmapLabel,
+    zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
+    enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
+    zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
+  };
+`);
+
+assert(laneDrilldown.html.includes('data-swimlane-stage-drilldown="review"'), "lane mini board should expose a stage drilldown control when a column overflows");
+assert(laneDrilldown.html.includes("+8"), "lane mini board should summarize hidden overflow tasks");
+assert(laneDrilldown.html.includes("Core review extra 4"), "lane mini board should render tasks up to its visible column limit");
+assert(!laneDrilldown.html.includes("Core review extra 5"), "lane mini board should not render all overflow tasks inline");
 
 console.log("Dashboard swimlane UI tests passed");

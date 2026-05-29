@@ -7,6 +7,8 @@ const swimlaneStageOrder = [
   ["closeout", "swimlaneStageCloseout"],
   ["blocked", "swimlaneStageBlocked"],
 ];
+const swimlaneCellPageSize = 10;
+const swimlaneMiniColumnLimit = 5;
 
 function taskSwimlaneModel(tasks) {
   const cards = sortTasksByTime(tasks)
@@ -200,7 +202,7 @@ function taskSwimlaneDrilldown(view, active) {
           <button type="button" data-swimlane-collapse>${escapeHtml(t("swimlaneCollapse"))}</button>
         </div>
       </div>
-      ${active.mode === "lane" ? taskSwimlaneLaneBoard(lane, view.stages) : `<div class="swimlane-card-list">${cards.map((card) => taskSwimlaneCard(card)).join("")}</div>`}
+      ${active.mode === "lane" ? taskSwimlaneLaneBoard(lane, view.stages) : taskSwimlanePagedCardList(cards, active.page || 0)}
     </section>
   </div>`;
 }
@@ -209,11 +211,34 @@ function taskSwimlaneLaneBoard(lane, stages) {
   return `<div class="swimlane-mini-board">
     ${stages.map((stage) => {
       const cards = lane.stageCards[stage.key] || [];
+      const visibleCards = cards.slice(0, swimlaneMiniColumnLimit);
+      const hidden = Math.max(0, cards.length - visibleCards.length);
       return `<div class="swimlane-mini-column">
         <div class="swimlane-mini-column-head"><span>${escapeHtml(stage.label)}</span><strong>${cards.length}</strong></div>
-        <div class="swimlane-card-list">${cards.map((card) => taskSwimlaneCard(card)).join("") || `<span class="swimlane-mini-empty">${escapeHtml(t("none"))}</span>`}</div>
+        <div class="swimlane-card-list">${visibleCards.map((card) => taskSwimlaneCard(card)).join("") || `<span class="swimlane-mini-empty">${escapeHtml(t("none"))}</span>`}</div>
+        ${hidden ? `<button class="swimlane-stage-drilldown" type="button" data-swimlane-expand="cell" data-swimlane-stage-drilldown="${escapeAttr(stage.key)}" data-lane="${escapeAttr(lane.key)}" data-swimlane-stage="${escapeAttr(stage.key)}">
+          <span>+${hidden}</span>
+          <strong>${escapeHtml(t("swimlaneViewStage"))}</strong>
+        </button>` : ""}
       </div>`;
     }).join("")}
+  </div>`;
+}
+
+function taskSwimlanePagedCardList(cards, page) {
+  const total = cards.length;
+  const pageCount = Math.max(1, Math.ceil(total / swimlaneCellPageSize));
+  const safePage = Math.max(0, Math.min(pageCount - 1, Number(page) || 0));
+  const start = safePage * swimlaneCellPageSize;
+  const end = Math.min(total, start + swimlaneCellPageSize);
+  const visibleCards = cards.slice(start, end);
+  return `<div class="swimlane-paged-list">
+    <div class="swimlane-card-list">${visibleCards.map((card) => taskSwimlaneCard(card)).join("")}</div>
+    ${total > swimlaneCellPageSize ? `<div class="swimlane-pager" data-swimlane-page="${safePage}" aria-label="${escapeAttr(t("swimlanePageLabel"))}">
+      <button type="button" data-swimlane-page-action="prev" data-page="${safePage - 1}" ${safePage <= 0 ? "disabled" : ""}>${escapeHtml(t("swimlanePrevPage"))}</button>
+      <span>${start + 1}-${end} / ${total}</span>
+      <button type="button" data-swimlane-page-action="next" data-page="${safePage + 1}" ${safePage >= pageCount - 1 ? "disabled" : ""}>${escapeHtml(t("swimlaneNextPage"))}</button>
+    </div>` : ""}
   </div>`;
 }
 
@@ -239,7 +264,11 @@ function taskSwimlaneActiveExpansion(view) {
   const lane = view.lanes.find((candidate) => candidate.key === swimlaneExpansion.lane);
   if (!lane) return null;
   if (swimlaneExpansion.mode === "cell" && !view.stages.some((stage) => stage.key === swimlaneExpansion.stage)) return null;
-  return swimlaneExpansion;
+  if (swimlaneExpansion.mode !== "cell") return swimlaneExpansion;
+  const count = (lane.stageCards[swimlaneExpansion.stage] || []).length;
+  const pageCount = Math.max(1, Math.ceil(count / swimlaneCellPageSize));
+  const page = Math.max(0, Math.min(pageCount - 1, Number(swimlaneExpansion.page) || 0));
+  return { ...swimlaneExpansion, page };
 }
 
 let swimlaneExpansion = null;
@@ -248,11 +277,17 @@ if (typeof window !== "undefined" && typeof document !== "undefined" && typeof d
   window.__HARNESS_SWIMLANE_BOUND__ = true;
   document.addEventListener("click", (event) => {
     const collapse = event.target.closest?.("[data-swimlane-collapse]");
+    const pager = event.target.closest?.("[data-swimlane-page-action]");
     const trigger = event.target.closest?.("[data-swimlane-expand]");
-    if (!collapse && !trigger) return;
+    if (!collapse && !pager && !trigger) return;
     event.preventDefault();
     if (collapse) {
       swimlaneExpansion = null;
+      app();
+      return;
+    }
+    if (pager && swimlaneExpansion?.mode === "cell") {
+      swimlaneExpansion = { ...swimlaneExpansion, page: Number(pager.dataset.page) || 0 };
       app();
       return;
     }
@@ -260,7 +295,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined" && typeof d
     const lane = trigger.dataset.lane;
     const stage = trigger.dataset.swimlaneStage || "";
     const same = swimlaneExpansion?.mode === mode && swimlaneExpansion?.lane === lane && (swimlaneExpansion?.stage || "") === stage;
-    swimlaneExpansion = same ? null : { mode, lane, stage };
+    swimlaneExpansion = same ? null : { mode, lane, stage, page: 0 };
     app();
   });
 }
