@@ -39,6 +39,8 @@ type RenderedSwimlane = {
   model: SwimlaneModel;
   enLabel: string;
   zhLabel: string;
+  enHeatmapLabel: string;
+  zhHeatmapLabel: string;
 };
 
 type SandboxContext = {
@@ -108,6 +110,11 @@ function renderTasks(mutator: string): RenderedSwimlane {
           checkState: { status: "pass", validationMode: "data-only", warnings: 0, failures: 0, details: { warnings: [], failures: [] } },
           tasks: [
             fixtureTask({ title: "Implement CLI support", module: "core", state: "in_progress", queueReasons: ["Needs runtime evidence"] }),
+            fixtureTask({ id: "TASKS/2026-05-28-core-review", shortId: "2026-05-28-core-review", title: "Core review", module: "core", state: "review", reviewStatus: "agent-reviewed", reviewQueueState: "ready-to-confirm", taskQueues: ["review"] }),
+            fixtureTask({ id: "TASKS/2026-05-28-core-evidence", shortId: "2026-05-28-core-evidence", title: "Core evidence", module: "core", state: "in_progress", visualMapStatus: "missing" }),
+            fixtureTask({ id: "TASKS/2026-05-28-core-evidence-2", shortId: "2026-05-28-core-evidence-2", title: "Core evidence 2", module: "core", state: "in_progress", visualMapStatus: "missing" }),
+            fixtureTask({ id: "TASKS/2026-05-28-core-evidence-3", shortId: "2026-05-28-core-evidence-3", title: "Core evidence 3", module: "core", state: "in_progress", visualMapStatus: "missing" }),
+            fixtureTask({ id: "TASKS/2026-05-28-core-evidence-4", shortId: "2026-05-28-core-evidence-4", title: "Core evidence 4", module: "core", state: "in_progress", visualMapStatus: "missing" }),
             fixtureTask({ id: "TASKS/2026-05-28-review", shortId: "2026-05-28-review", title: "Confirm review", module: "governance", state: "review", reviewStatus: "agent-reviewed", reviewQueueState: "ready-to-confirm", taskQueues: ["review"] }),
             fixtureTask({ id: "TASKS/2026-05-28-blocked", shortId: "2026-05-28-blocked", title: "Blocked follow-up", module: "dashboard", state: "blocked", reviewStatus: "blocked-open-findings", visualMapStatus: "missing", briefSource: "missing", queueReasons: ["Open P1 finding"] }),
             fixtureTask({ id: "TASKS/2026-05-28-done", shortId: "2026-05-28-done", title: "Historical task", module: "archive", state: "done", completion: 100, closeoutStatus: "closed" }),
@@ -143,24 +150,39 @@ const rendered = renderTasks(`
     model: taskSwimlaneModel(bundle.status.tasks),
     enLabel: window.HarnessI18n.en.layoutSwimlane,
     zhLabel: window.HarnessI18n.zh.layoutSwimlane,
+    enHeatmapLabel: window.HarnessI18n.en.swimlaneHeatmapLabel,
+    zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
   };
 `);
 
 assert(rendered.enLabel === "Swimlane", "English i18n should expose the swimlane layout label");
 assert(rendered.zhLabel === "泳道图", "Chinese i18n should expose the swimlane layout label");
+assert(rendered.enHeatmapLabel === "Heatmap overview", "English i18n should expose the heatmap overview label");
+assert(rendered.zhHeatmapLabel === "热力图鸟瞰", "Chinese i18n should expose the heatmap overview label");
 assert(rendered.html.includes('data-layout="swimlane"'), "task toolbar should expose a swimlane layout toggle");
 assert(rendered.html.includes("task-swimlane"), "task index should render the swimlane view when selected");
-assert(rendered.html.includes("Implement CLI support"), "swimlane should render active work cards");
-assert(rendered.html.includes("Confirm review"), "swimlane should render review work cards");
-assert(rendered.html.includes("Blocked follow-up"), "swimlane should render blocked work cards");
+assert(rendered.html.includes('data-swimlane-heatmap="true"'), "swimlane should render a heatmap overview by default");
+assert(rendered.html.includes('data-swimlane-drilldown-host="true"'), "swimlane should expose a single drilldown host");
+assert(rendered.html.includes('data-swimlane-row="core"'), "swimlane should expose module rows in the heatmap");
+assert(rendered.html.includes('data-swimlane-row-total="6"'), "swimlane should render row totals");
+assert(rendered.html.includes('data-swimlane-stage-total="review" data-total="2"'), "swimlane should render stage totals in headers");
+assert(rendered.html.includes('data-swimlane-stage="evidence" data-count="4"'), "swimlane heatmap cells should expose module-stage counts");
+assert(rendered.html.includes("heat-2"), "swimlane heatmap should classify 4-7 tasks into the middle heat band");
+assert(rendered.html.includes('data-swimlane-expand="cell"'), "heatmap cells should be expandable controls");
+assert(rendered.html.includes('data-swimlane-expand="lane"'), "module row labels should be expandable controls");
+assert(!rendered.html.includes("Implement CLI support"), "default heatmap should not render task titles before drilldown");
+assert(!rendered.html.includes("Confirm review"), "default heatmap should not render review task titles before drilldown");
+assert(!rendered.html.includes("Blocked follow-up"), "default heatmap should not render blocked task titles before drilldown");
 assert(!rendered.html.includes("Historical task"), "swimlane should keep closed historical work out of the first view");
-assert(rendered.html.includes("Needs runtime evidence"), "swimlane cards should expose queue or blocker context");
-assert(rendered.html.includes('data-open-drawer="TASKS/2026-05-28-review"'), "swimlane cards should reuse existing task drawer interactions");
+assert(!rendered.html.includes("Needs runtime evidence"), "default heatmap should not render queue reason text before drilldown");
+assert(!rendered.html.includes('data-open-drawer="TASKS/2026-05-28-review"'), "default heatmap should not render task drawer triggers before drilldown");
 assert(rendered.model.lanes.some((lane) => lane.key === "core"), "swimlane model should group tasks by module");
 assert(rendered.model.stages.some((stage) => stage.key === "review"), "swimlane model should include a review stage");
 assert(rendered.model.cards.some((card) => card.stage === "blocked" && card.lane === "dashboard"), "blocked tasks should project into a blocked swimlane stage");
 assert(!rendered.model.cards.some((card) => card.title === "Historical task"), "swimlane model should exclude closed historical work");
 assert(css.includes(".task-swimlane"), "dashboard CSS should style the swimlane surface");
+assert(css.includes(".swimlane-heatmap"), "dashboard CSS should style the heatmap surface");
+assert(css.includes(".swimlane-drilldown"), "dashboard CSS should style the drilldown surface");
 assert(css.includes("@media (max-width: 760px)"), "swimlane CSS should include a narrow-screen adaptation");
 
 console.log("Dashboard swimlane UI tests passed");
