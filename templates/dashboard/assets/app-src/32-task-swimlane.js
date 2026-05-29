@@ -100,7 +100,7 @@ function taskSwimlane(tasks) {
 
 function taskSwimlaneHeatmapModel(model) {
   const stageTotals = Object.fromEntries(model.stages.map((stage) => [stage.key, 0]));
-  const lanes = model.lanes.map((lane) => {
+  const lanes = taskSwimlaneRenderLanes(model).map((lane) => {
     const stageCards = Object.fromEntries(model.stages.map((stage) => [stage.key, []]));
     for (const card of model.cards) {
       if (card.lane !== lane.key) continue;
@@ -125,6 +125,18 @@ function taskSwimlaneHeatmapModel(model) {
     return "minmax(104px, 1.16fr)";
   }).join(" ");
   return { stages: model.stages, lanes, stageTotals, total, columnTemplate };
+}
+
+function taskSwimlaneRenderLanes(model) {
+  const lanes = new Map(model.lanes.map((lane) => [lane.key, { ...lane }]));
+  const modules = typeof dashboardModules === "function" ? dashboardModules() : [];
+  for (const module of modules) {
+    const key = String(module.key || "").trim();
+    if (!key || key === "legacy-unclassified") continue;
+    const label = key === "base" ? taskModuleDisplayLabel(key) : String(module.title || taskModuleDisplayLabel(key) || key);
+    lanes.set(key, { ...(lanes.get(key) || { key }), key, label });
+  }
+  return [...lanes.values()];
 }
 
 function taskSwimlaneHeatmap(view, active) {

@@ -64,6 +64,7 @@ type SandboxContext = {
         };
         tasks: DashboardTask[];
       };
+      modules: Array<{ key: string; title: string; source: string; status: string; counts?: Record<string, number>; tasks?: DashboardTask[] }>;
       documents: { documents: { path: string; content: string }[] };
       graph: { nodes: unknown[]; edges: unknown[] };
       adoption: { warnings: unknown[] };
@@ -125,6 +126,11 @@ function renderTasks(mutator: string): RenderedSwimlane {
             fixtureTask({ id: "TASKS/2026-05-28-done", shortId: "2026-05-28-done", title: "Historical task", module: "archive", state: "done", completion: 100, closeoutStatus: "closed" }),
           ],
         },
+        modules: [
+          { key: "core", title: "Core", source: "registry", status: "in-progress", counts: { total: 6, active: 6, review: 1, blocked: 0, risk: 4 }, tasks: [] },
+          { key: "dashboard", title: "Dashboard", source: "registry", status: "in-progress", counts: { total: 1, active: 1, review: 0, blocked: 1, risk: 1 }, tasks: [] },
+          { key: "qa", title: "Quality Assurance", source: "registry", status: "planned", counts: { total: 0, active: 0, review: 0, blocked: 0, risk: 0 }, tasks: [] },
+        ],
         documents: {
           documents: [
             { path: "TARGET:coding-agent-harness/planning/tasks/2026-05-28-fixture/brief.md", content: "# Brief" },
@@ -178,6 +184,8 @@ assert(rendered.html.includes('data-swimlane-heatmap="true"'), "swimlane should 
 assert(rendered.html.includes('data-swimlane-drilldown-host="true"'), "swimlane should expose a single drilldown host");
 assert(rendered.html.includes('data-swimlane-row="core"'), "swimlane should expose module rows in the heatmap");
 assert(rendered.html.includes('data-swimlane-row="base"'), "swimlane should expose project-root tasks as a base row");
+assert(rendered.html.includes('data-swimlane-row="qa"'), "swimlane should include registered YAML modules even when they have no active swimlane tasks");
+assert(rendered.html.includes('data-swimlane-row="qa" data-swimlane-row-total="0"'), "registered modules with no active swimlane tasks should render a zero-total heatmap row");
 assert(rendered.html.includes('data-swimlane-row-total="6"'), "swimlane should render row totals");
 assert(rendered.html.includes('data-swimlane-stage-total="review" data-total="2"'), "swimlane should render stage totals in headers");
 assert(rendered.html.includes('data-swimlane-stage="evidence" data-count="4"'), "swimlane heatmap cells should expose module-stage counts");
@@ -293,5 +301,27 @@ assert(laneDrilldown.html.includes('data-swimlane-stage-drilldown="review"'), "l
 assert(laneDrilldown.html.includes("+8"), "lane mini board should summarize hidden overflow tasks");
 assert(laneDrilldown.html.includes("Core review extra 4"), "lane mini board should render tasks up to its visible column limit");
 assert(!laneDrilldown.html.includes("Core review extra 5"), "lane mini board should not render all overflow tasks inline");
+
+const moduleRenderStability = renderTasks(`
+  state.taskLayout = "list";
+  const first = modulesView("core");
+  const second = modulesView("core");
+  __result = {
+    html: first + second,
+    model: taskSwimlaneModel(bundle.status.tasks),
+    enLabel: String(bundle.modules.find((module) => module.key === "core")?.counts?.active ?? ""),
+    zhLabel: String(bundle.modules.find((module) => module.key === "qa")?.counts?.active ?? ""),
+    enHeatmapLabel: window.HarnessI18n.en.swimlaneHeatmapLabel,
+    zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
+    enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
+    zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
+    enBaseLabel: window.HarnessI18n.en.baseModule,
+    zhBaseLabel: window.HarnessI18n.zh.baseModule,
+  };
+`);
+
+assert(moduleRenderStability.enLabel === "6", "module view rendering should not mutate structured module active counts");
+assert(moduleRenderStability.zhLabel === "0", "zero-task registered module counts should remain stable after module view rendering");
+assert(moduleRenderStability.html.includes("Quality Assurance"), "module view should retain zero-task registered YAML modules");
 
 console.log("Dashboard swimlane UI tests passed");

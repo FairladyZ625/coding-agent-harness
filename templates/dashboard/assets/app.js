@@ -1001,7 +1001,7 @@ function taskSwimlane(tasks) {
 
 function taskSwimlaneHeatmapModel(model) {
   const stageTotals = Object.fromEntries(model.stages.map((stage) => [stage.key, 0]));
-  const lanes = model.lanes.map((lane) => {
+  const lanes = taskSwimlaneRenderLanes(model).map((lane) => {
     const stageCards = Object.fromEntries(model.stages.map((stage) => [stage.key, []]));
     for (const card of model.cards) {
       if (card.lane !== lane.key) continue;
@@ -1026,6 +1026,18 @@ function taskSwimlaneHeatmapModel(model) {
     return "minmax(104px, 1.16fr)";
   }).join(" ");
   return { stages: model.stages, lanes, stageTotals, total, columnTemplate };
+}
+
+function taskSwimlaneRenderLanes(model) {
+  const lanes = new Map(model.lanes.map((lane) => [lane.key, { ...lane }]));
+  const modules = typeof dashboardModules === "function" ? dashboardModules() : [];
+  for (const module of modules) {
+    const key = String(module.key || "").trim();
+    if (!key || key === "legacy-unclassified") continue;
+    const label = key === "base" ? taskModuleDisplayLabel(key) : String(module.title || taskModuleDisplayLabel(key) || key);
+    lanes.set(key, { ...(lanes.get(key) || { key }), key, label });
+  }
+  return [...lanes.values()];
 }
 
 function taskSwimlaneHeatmap(view, active) {
@@ -1619,8 +1631,8 @@ function modulesView(moduleId = "") {
 function modulesWithTaskFallback() {
   const moduleMap = new Map(dashboardModules().map((module) => [module.key, {
     ...module,
-    counts: module.counts || emptyUiModuleCounts(),
-    tasks: Array.isArray(module.tasks) ? module.tasks : [],
+    counts: emptyUiModuleCounts(),
+    tasks: [],
   }]));
   for (const task of normalCycleTasks()) {
     const key = taskModuleKey(task);
@@ -1636,10 +1648,7 @@ function modulesWithTaskFallback() {
       });
     }
     const module = moduleMap.get(key);
-    if (!module.tasks.some((item) => item.id === task.id)) module.tasks.push(task);
-    module.counts.total = (module.counts.total || 0) + 1;
-    if (["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state)) module.counts.active = (module.counts.active || 0) + 1;
-    module.counts[task.state || "unknown"] = (module.counts[task.state || "unknown"] || 0) + 1;
+    accumulateUiModuleTask(module, task);
   }
   return [...moduleMap.values()].sort((left, right) => {
     const leftActive = Number(left.counts?.active || 0);
@@ -1651,6 +1660,23 @@ function modulesWithTaskFallback() {
 
 function emptyUiModuleCounts() {
   return { total: 0, active: 0, review: 0, blocked: 0, risk: 0, missingDocs: 0 };
+}
+
+function accumulateUiModuleTask(module, task) {
+  if (!module || !task) return;
+  const stateValue = String(task.state || "unknown");
+  if (!module.tasks.some((item) => item.id === task.id)) module.tasks.push(task);
+  module.counts.total = (module.counts.total || 0) + 1;
+  if (["active", "in_progress", "review", "blocked", "planned", "not_started"].includes(stateValue)) {
+    module.counts.active = (module.counts.active || 0) + 1;
+  }
+  if (stateValue !== "active") module.counts[stateValue] = (module.counts[stateValue] || 0) + 1;
+  if (stateValue === "blocked" || String(task.reviewStatus || "").includes("blocked") || String(task.visualMapStatus || "") === "missing") {
+    module.counts.risk = (module.counts.risk || 0) + 1;
+  }
+  if (task.briefSource && task.briefSource !== "standalone") {
+    module.counts.missingDocs = (module.counts.missingDocs || 0) + 1;
+  }
 }
 
 function moduleRunStrip(modules, unclassified) {
