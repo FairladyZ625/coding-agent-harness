@@ -81,6 +81,20 @@ assert(agentsTemplate.includes("unrelated dirty changes"), "English AGENTS templ
 const zhAgentsTemplate = fs.readFileSync(path.join(repoRoot, "templates-zh-CN", "AGENTS.md.template"), "utf8");
 assert(zhAgentsTemplate.includes("no-commit reason"), "Chinese AGENTS template should require a no-commit reason when a verified slice is not committed");
 assert(zhAgentsTemplate.includes("归属不清"), "Chinese AGENTS template should name unclear dirty ownership as a commit deferral condition");
+for (const relativeFile of englishOutcomeFirstBriefTemplates()) {
+  const content = fs.readFileSync(path.join(repoRoot, relativeFile), "utf8");
+  assert(content.includes("## Outcome Statement"), `${relativeFile} should lead with an outcome statement section`);
+  assert(content.includes("## Outcome Value"), `${relativeFile} should explain what the user or project gets when complete`);
+  assert(content.includes("## Deliverables"), `${relativeFile} should identify visible deliverables`);
+  assert(content.indexOf("## Outcome Statement") < content.indexOf("## Deliverables"), `${relativeFile} should put outcome before deliverables`);
+}
+for (const relativeFile of chineseOutcomeFirstBriefTemplates()) {
+  const content = fs.readFileSync(path.join(repoRoot, relativeFile), "utf8");
+  assert(content.includes("## 一句话结果"), `${relativeFile} should lead with a Chinese one-sentence outcome section`);
+  assert(content.includes("## 完成后能得到什么"), `${relativeFile} should explain what the user or project gets when complete`);
+  assert(content.includes("## 交付物"), `${relativeFile} should identify visible deliverables`);
+  assert(content.indexOf("## 一句话结果") < content.indexOf("## 交付物"), `${relativeFile} should put outcome before deliverables`);
+}
 for (const relativeFile of chineseNonDashboardTemplateFiles) {
   const content = fs.readFileSync(path.join(repoRoot, "templates-zh-CN", relativeFile), "utf8");
   assert(!brokenMechanicalTemplatePattern.test(content), `Chinese template contains mechanical placeholder text: ${relativeFile}`);
@@ -155,6 +169,23 @@ function lifecycleContractFiles(): string[] {
     "references/ssot-governance.md",
     "docs-release/guides/migration-playbook.md",
     "docs-release/guides/migration-playbook.en-US.md",
+  ];
+}
+
+function englishOutcomeFirstBriefTemplates(): string[] {
+  return [
+    "templates/planning/brief.md",
+    "templates/planning/module_brief.md",
+    "templates/planning/optional/slices/_slice-template/brief.md",
+    "skills/preset-creator/references/complex-task-skeleton/brief.md",
+  ];
+}
+
+function chineseOutcomeFirstBriefTemplates(): string[] {
+  return [
+    "templates-zh-CN/planning/brief.md",
+    "templates-zh-CN/planning/module_brief.md",
+    "templates-zh-CN/planning/optional/slices/_slice-template/brief.md",
   ];
 }
 
