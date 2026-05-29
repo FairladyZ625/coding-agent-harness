@@ -3222,6 +3222,27 @@ async function completeTaskFromDashboard(taskId) {
   }
 }
 
+function dashboardActionErrorDetail(error, fallback) {
+  const direct = error?.error || error?.message;
+  if (direct) return direct;
+  const failedResults = Array.isArray(error?.results) ? error.results.filter((result) => result?.ok === false) : [];
+  if (failedResults.length > 0) {
+    const reasons = [];
+    for (const result of failedResults) {
+      const reason = result?.error || result?.message;
+      if (reason && !reasons.includes(reason)) reasons.push(reason);
+    }
+    if (reasons.length > 0) {
+      return formatMessage("bulkActionFailedWithReason", {
+        failed: error?.failed || failedResults.length,
+        reason: reasons.slice(0, 3).join("; "),
+      });
+    }
+    return formatMessage("bulkActionFailedSummary", { failed: error?.failed || failedResults.length });
+  }
+  return String(error || fallback);
+}
+
 async function confirmSelectedReviewsFromDashboard(button) {
   const taskIds = reviewBulkSelectedIds();
   if (!taskIds.length) {
@@ -3255,7 +3276,7 @@ async function confirmSelectedReviewsFromDashboard(button) {
     app();
     if ((payload.confirmed || 0) > 0) setTimeout(() => window.location.reload(), 1500);
   } catch (error) {
-    state.reviewBulkResult = { ok: false, message: `${t("reviewCompleteFailed")}: ${error?.error || error?.message || String(error)}` };
+    state.reviewBulkResult = { ok: false, message: `${t("reviewCompleteFailed")}: ${dashboardActionErrorDetail(error, t("reviewCompleteFailed"))}` };
     app();
   }
 }

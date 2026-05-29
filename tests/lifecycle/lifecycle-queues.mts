@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import type { SpawnSyncReturns } from "node:child_process";
+import { confirmTaskReview } from "../../scripts/lib/task-lifecycle.mjs";
 import { parseReviewConfirmation } from "../../scripts/lib/task-review-model.mjs";
 import type { HarnessTestLooseJson } from "../helpers/harness-test-types.js";
 import {
@@ -18,6 +19,26 @@ import {
 } from "../helpers/harness-test-utils.mjs";
 
 const parserTaskKey = `TASKS/${todayLocal}-parser-confirmation`;
+
+function runReviewConfirm(taskId: string, confirmText: string, message = "review confirmed"): SpawnSyncReturns<string> {
+  try {
+    const payload = confirmTaskReview(target, taskId, {
+      reviewer: "Human Reviewer",
+      message,
+      confirmText,
+    });
+    return { status: 0, stdout: `${JSON.stringify(payload)}\n`, stderr: "" } as SpawnSyncReturns<string>;
+  } catch (error) {
+    return { status: 1, stdout: "", stderr: `${error instanceof Error ? error.message : String(error || "unknown error")}\n` } as SpawnSyncReturns<string>;
+  }
+}
+
+function expectReviewConfirmJson(taskId: string, confirmText: string, message = "review confirmed"): HarnessTestLooseJson {
+  const result = runReviewConfirm(taskId, confirmText, message);
+  assert(result.status === 0, `review confirmation failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
+  return JSON.parse(result.stdout) as HarnessTestLooseJson;
+}
+
 const writeOnlyParsed = parseReviewConfirmation(
   [
     "## Human Review Confirmation",
@@ -218,25 +239,13 @@ assert(blockedStatusResult.stdout.trim().startsWith("{"), "blocked status should
 const blockedStatus = JSON.parse(blockedStatusResult.stdout) as HarnessTestLooseJson;
 const blockedTask = blockedStatus.tasks.find((task) => task.id === taskId);
 assert(blockedTask.taskQueues.includes("blocked"), "Chinese open/blocking finding should enter blocked queue");
-const blockedConfirm = run(["review-confirm", taskId, "--reviewer", "Human Reviewer", "--confirm", `${todayLocal}-queue-ready`, target]);
+const blockedConfirm = runReviewConfirm(taskId, `${todayLocal}-queue-ready`);
 assert(blockedConfirm.status !== 0, "review-confirm should reject blocked queue tasks");
 assert(blockedConfirm.stderr.includes("blocking review findings"), "blocked confirmation failure should explain finding blocker");
 
 fs.writeFileSync(reviewPath, afterSubmitReview);
 commitFixtureBaseline(target, "before queue review confirmation");
-const confirmed = expectJson([
-  "review-confirm",
-  taskId,
-  "--reviewer",
-  "Human Reviewer",
-  "--message",
-  "review packet checked",
-  "--evidence",
-  "command:TARGET:npm-test:passed",
-  "--confirm",
-  `${todayLocal}-queue-ready`,
-  target,
-]);
+const confirmed = expectReviewConfirmJson(taskId, `${todayLocal}-queue-ready`, "review packet checked");
 assert(confirmed.task.reviewStatus === "confirmed", "review-confirm should produce confirmed status");
 const confirmationIndex = fs.readFileSync(path.join(taskDir, "INDEX.md"), "utf8");
 assert(confirmationIndex.includes("| Confirmation ID |"), "INDEX Human Review fields should include strict confirmation fields");
@@ -365,7 +374,7 @@ assert(followUpTaskPlan.includes("Review Summary"), "lesson-sediment context sho
 assert(followUpTaskPlan.includes("Findings Summary"), "lesson-sediment context should include source findings summary");
 const lessonCandidatesAfterSediment = fs.readFileSync(path.join(lessonDir, "lesson_candidates.md"), "utf8");
 assert(lessonCandidatesAfterSediment.includes(lessonSediment.followUpTask.id), "lesson-sediment should record follow-up task id on source candidate");
-const lessonConfirm = run(["review-confirm", lessonTask.task.id, "--reviewer", "Human Reviewer", "--confirm", `${todayLocal}-queue-lesson`, target]);
+const lessonConfirm = runReviewConfirm(lessonTask.task.id, `${todayLocal}-queue-lesson`);
 assert(lessonConfirm.status !== 0, "review-confirm should reject tasks that are only in Lessons queue");
 assert(lessonConfirm.stderr.includes("Review queue"), "Lessons queue confirmation failure should mention Review queue gate");
 

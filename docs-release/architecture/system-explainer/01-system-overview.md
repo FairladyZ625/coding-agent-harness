@@ -63,7 +63,7 @@ flowchart LR
   A -->|"scaffold + validate"| B
   B -->|"读取"| C
   C -->|"生成"| D
-  D -->|"review-confirm"| B
+  D -->|"workbench confirmation"| B
 ```
 
 - **Package**：你 `npm install` 的那个东西，包含 CLI、模板、标准文档、Preset 包
@@ -72,7 +72,7 @@ flowchart LR
 - **Human**：浏览器里看 Dashboard，在 Workbench 里做审查确认
 
 注意这个循环的方向：**Package 写入 Target Repo，Runtime 读取 Target Repo，
-Human 通过 review-confirm 再写回 Target Repo**。
+Human 通过 Workbench 人工确认再写回 Target Repo**。
 整个系统是一个以 Markdown 文件为中心的读写循环，没有任何隐藏状态。
 
 ---
@@ -187,9 +187,9 @@ Agent 需要在本地文件系统上读写状态。SaaS 会引入网络依赖、
 破坏 Agent 的自主执行能力。npm 包让任何能运行 Node.js 的环境都能直接使用，
 无需账号或网络。`package.json` 的 `dependencies` 为空——零运行时依赖。
 
-### 为什么 review-confirm 必须是人工操作
+### 为什么人工确认必须只在 Workbench 里操作
 
-`review-confirm` 是整个系统里**唯一不能被 Agent 自动执行**的操作。
+人工确认是整个系统里**唯一不能由普通 CLI 暴露给 Agent 的操作**。
 
 原因：
 
@@ -197,7 +197,7 @@ Agent 需要在本地文件系统上读写状态。SaaS 会引入网络依赖、
 
 这个边界不是一开始就有的。最初 Dashboard workbench 的 review action 没有 Agent/Human 区分。
 后来通过竞品分析（Taskr competitive intake）识别出"Agent 自动确认 review"是 P0 风险，
-才引入了 Git 提交门禁：`review-confirm` 会把带有 Git `user.name` / `user.email` 的
+才引入了 Workbench 写入口和 Git 提交门禁：Dashboard workbench 会把带有 Git `user.name` / `user.email` 的
 人工确认审计字段写入任务 `INDEX.md`，并做两次 Git 原子提交——第一次提交确认字段，
 第二次提交包含第一个 commit SHA 的最终审计记录。这个 Git commit 是**可审计的人类签名**，
 证明有真实的人类看过这个任务。
@@ -208,7 +208,7 @@ Agent 需要在本地文件系统上读写状态。SaaS 会引入网络依赖、
 不写回 Markdown 文件。原因有三：
 
 1. **避免事实漂移**：如果派生状态也写回文件，就有了两份事实源，任何一份过期都会造成误报
-2. **防止绕过门禁**：如果 Agent 能直接修改派生字段，就能绕过 review-confirm 的门禁
+2. **防止绕过门禁**：如果 Agent 能直接修改派生字段，就能绕过人工确认门禁
 3. **治理规则即代码**：scanner 的推导规则本身就是治理规则的机器可读表达，每次运行重新计算等于每次都重新执行一遍治理检查
 
 ---

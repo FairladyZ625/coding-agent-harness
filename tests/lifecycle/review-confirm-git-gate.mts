@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import type { SpawnSyncOptionsWithStringEncoding, SpawnSyncReturns } from "node:child_process";
+import { confirmTaskReview } from "../../scripts/lib/task-lifecycle.mjs";
 import {
   acceptNoLessonCandidate,
   assert,
@@ -97,17 +98,42 @@ function prepareReviewTarget(name: string): ReviewFixture {
 }
 
 function reviewConfirm(fixture: ReviewFixture, options: RunOptions & { message?: string } = {}): SpawnSyncReturns<string> {
-  return runHarness([
-    "review-confirm",
-    fixture.shortId,
-    "--reviewer",
-    "Human Reviewer",
-    "--message",
-    options.message || "confirmed",
-    "--confirm",
-    fixture.shortId,
-    fixture.target,
-  ], options);
+  return withEnv(options.env || {}, () => {
+    try {
+      const payload = confirmTaskReview(fixture.target, fixture.shortId, {
+        reviewer: "Human Reviewer",
+        message: options.message || "confirmed",
+        confirmText: fixture.shortId,
+      });
+      return { status: 0, stdout: `${JSON.stringify(payload)}\n`, stderr: "" } as SpawnSyncReturns<string>;
+    } catch (error) {
+      return { status: 1, stdout: "", stderr: `${errorMessage(error)}\n` } as SpawnSyncReturns<string>;
+    }
+  });
+}
+
+function withEnv<T>(overrides: NodeJS.ProcessEnv, fn: () => T): T {
+  const previous = new Map<string, string | undefined>();
+  for (const [key, value] of Object.entries(overrides || {})) {
+    previous.set(key, process.env[key]);
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  try {
+    return fn();
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+function errorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return String(error || "unknown error");
+  const details = "details" in error ? JSON.stringify((error as { details?: unknown }).details || {}) : "";
+  const recovery = "recovery" in error ? JSON.stringify((error as { recovery?: unknown }).recovery || []) : "";
+  return [error.message, details, recovery].filter(Boolean).join("\n");
 }
 
 function readReview(fixture: ReviewFixture): string {
@@ -119,12 +145,12 @@ function readIndex(fixture: ReviewFixture): string {
 }
 
 {
-  const fixture = prepareReviewTarget("git-gate-agent-runtime-refusal");
-  const result = reviewConfirm(fixture, { env: { ...humanReviewEnv(), CODEX_CI: "1", CODEX_THREAD_ID: "test-agent-thread" } });
-  assert(result.status !== 0, "review-confirm should reject detected agent runtimes");
+  const fixture = prepareReviewTarget("git-gate-cli-hidden");
+  const result = runHarness(["review-confirm", fixture.shortId, "--confirm", fixture.shortId, fixture.target]);
+  assert(result.status !== 0, "review-confirm must not be exposed as a top-level CLI command");
   const output = `${result.stdout}\n${result.stderr}`;
-  assert(output.includes("Human review confirmation must be performed by a human-controlled runtime"), "agent-runtime refusal should identify the human-only gate");
-  assert(!readIndex(fixture).includes("| Human Review Status | confirmed |"), "agent-runtime refusal should not write confirmed audit metadata");
+  assert(output.includes("Unknown command") || output.includes("Usage:"), "hidden CLI command should fail before running review confirmation");
+  assert(!readIndex(fixture).includes("| Human Review Status | confirmed |"), "hidden CLI command should not write confirmed audit metadata");
 }
 
 {
@@ -159,7 +185,7 @@ function readIndex(fixture: ReviewFixture): string {
   assert(task?.reviewStatus !== "confirmed", "status must reject forged committed review confirmation with fake SHA");
   const complete = runHarness(["task-complete", fixture.shortId, "--message", "done", fixture.target]);
   assert(complete.status !== 0, "task-complete must reject forged committed review confirmation with fake SHA");
-  assert(`${complete.stdout}\n${complete.stderr}`.includes("review-confirm"), "fake committed audit rejection should route through review-confirm");
+  assert(`${complete.stdout}\n${complete.stderr}`.includes("Dashboard workbench"), "fake committed audit rejection should route through Dashboard confirmation");
 }
 
 {

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import type { SpawnSyncReturns } from "node:child_process";
+import { confirmTaskReview } from "../../scripts/lib/task-lifecycle.mjs";
 import {
   acceptNoLessonCandidate,
   assert,
@@ -105,19 +106,11 @@ assert(!createdReview.includes("## Human Review Confirmation"), "review.md shoul
 const confirmTask = prepareConfirmedTask(auditTarget, "index-audit-review-confirm");
 const beforeConfirmReview = read(confirmTask.taskDir, "review.md");
 const beforeConfirmProgress = read(confirmTask.taskDir, "progress.md");
-const confirm = run([
-  "review-confirm",
-  confirmTask.shortId,
-  "--reviewer",
-  "Human Reviewer",
-  "--message",
-  "index audit confirmed",
-  "--confirm",
-  confirmTask.shortId,
-  auditTarget,
-]);
-assert(confirm.status === 0, `review-confirm should pass\nSTDOUT:\n${confirm.stdout}\nSTDERR:\n${confirm.stderr}`);
-const confirmPayload = JSON.parse(confirm.stdout) as ReviewConfirmPayload;
+const confirmPayload = confirmTaskReview(auditTarget, confirmTask.shortId, {
+  reviewer: "Human Reviewer",
+  message: "index audit confirmed",
+  confirmText: confirmTask.shortId,
+}) as unknown as ReviewConfirmPayload;
 const confirmedIndex = read(confirmTask.taskDir, "INDEX.md");
 assert(confirmedIndex.includes("| Human Review Status | confirmed |"), "review-confirm should mark INDEX human review status confirmed");
 assert(confirmedIndex.includes(`| Review Commit SHA | ${confirmPayload.audit.commitSha} |`), "review-confirm should write the first confirmation commit SHA to INDEX");

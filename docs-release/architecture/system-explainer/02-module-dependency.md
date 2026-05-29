@@ -22,7 +22,7 @@ flowchart TD
 
   Entry -->|"dashboard\ndev"| DashCmd["dist/commands/dashboard-command.mjs\nDashboard 生成 + 动态服务"]
   Entry -->|"migrate-plan\nmigrate-run\nmigrate-verify"| MigCmd["dist/commands/migration-command.mjs\n迁移三阶段命令"]
-  Entry -->|"new-task / task-start\ntask-phase / task-review\ntask-complete / review-confirm\ntask-tombstone"| TaskCmd["dist/commands/task-command.mjs\n任务生命周期命令"]
+  Entry -->|"new-task / task-start\ntask-phase / task-review\ntask-complete / task-tombstone"| TaskCmd["dist/commands/task-command.mjs\n任务生命周期命令"]
   Entry -->|"preset catalog\npreset install\npreset uninstall"| PresetCmd["dist/commands/preset-command.mjs\nPreset 管理命令"]
   Entry -->|"check / status / init\ngovernance / lesson-promote\n..."| Core["dist/lib/harness-core.mjs\n（直接调用）"]
 ```
@@ -176,7 +176,7 @@ flowchart TD
   TaskLifecycle["task-lifecycle.mjs\n生命周期命令实现\nnew-task / task-start / task-phase\ntask-review / task-complete"]
 
   TaskLifecycle --> ReviewGates["task-lifecycle/review-gates.mjs\n门禁验证逻辑\n（进入 review 前的检查）"]
-  TaskLifecycle --> ReviewConfirm["task-lifecycle/review-confirm.mjs\n人工确认执行\n（review-confirm 命令）"]
+  TaskLifecycle --> ReviewConfirm["task-lifecycle/review-confirm.mjs\n人工确认执行\n（Workbench 内部写入口）"]
   TaskLifecycle --> TextUtils["task-lifecycle/text-utils.mjs\n文本追加工具\n（向 Markdown 文件追加内容）"]
   TaskLifecycle --> GovSync["governance-sync.mjs\n状态变更时同步账本"]
   TaskLifecycle --> MigPreset["task-migration-preset.mjs\n迁移 preset 上下文注入"]
@@ -184,8 +184,8 @@ flowchart TD
   ReviewConfirm --> GitGate["review-confirm-git-gate.mjs\nGit 原子提交门禁\n（写入人工确认块 + commit）"]
 ```
 
-`review-confirm` 是整个生命周期层里最特殊的命令——它是唯一需要 Git 原子提交的操作，
-也是唯一不能被 Agent 自动执行的操作（见 [01-system-overview.md](01-system-overview.md) 的设计决策）。
+人工确认是整个生命周期层里最特殊的写操作——它只通过本地 Workbench 触发，并需要 Git 原子提交
+（见 [01-system-overview.md](01-system-overview.md) 的设计决策）。
 
 ---
 

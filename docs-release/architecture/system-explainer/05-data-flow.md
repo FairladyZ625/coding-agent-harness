@@ -191,12 +191,12 @@ flowchart LR
     DC["harness dev"]
     DC --> HTTP["本地 HTTP 服务\nlocalhost:PORT"]
     DC --> Watch["文件监听\n轮询模式，每 1 秒检查一次\n变化后延迟 250ms 重新生成"]
-    HTTP --> Browser["浏览器实时查看\n支持 review-confirm 等写操作"]
+    HTTP --> Browser["浏览器实时查看\n支持人工确认等写操作"]
   end
 ```
 
 **关键边界**：静态 Dashboard 是只读的，不能触发任何写操作。
-只有 `harness dev`（Workbench 模式）才能执行 `review-confirm`、`task-start` 等写操作。
+只有 `harness dev`（Workbench 模式）才能执行人工确认等写操作。
 
 ### Dashboard HTML 生成方式
 
@@ -255,8 +255,8 @@ app-src 里的 vanilla JS 组件（`DashboardShell`、`SidebarNav`、`TableView`
 ### 为什么 `harness dev` 和 `harness dashboard` 是两个命令
 
 `harness dashboard` 生成静态只读快照（适合 CI、迁移报告、离线证据）。
-`harness dev` 启动本地动态 Workbench server，支持文件 watch、自动刷新、
-review-confirm 写操作。两者的边界是：**静态快照可以分享，动态 Workbench 只能本地用**。
+`harness dev` 启动本地动态 Workbench server，支持文件 watch、自动刷新和人工确认写操作。
+两者的边界是：**静态快照可以分享，动态 Workbench 只能本地用**。
 
 ### 为什么文件监听用轮询而不是 fs.watch
 

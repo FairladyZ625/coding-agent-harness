@@ -105,7 +105,7 @@ flowchart LR
   CLI --> Status["status / check<br/>推导健康状态与失败项"]
   CLI --> Dashboard["dashboard / dev<br/>渲染可读状态"]
   CLI --> Migration["migrate-plan / migrate-run / migrate-verify<br/>旧项目迁移"]
-  CLI --> Task["new-task / task-* / review-confirm<br/>任务生命周期操作"]
+  CLI --> Task["new-task / task-*<br/>任务生命周期操作"]
   CLI --> UserSkill["install-user / doctor-user<br/>本机 Skill 设置"]
 
   Status --> Scanner["任务扫描器 + check profiles"]
@@ -153,7 +153,7 @@ stateDiagram-v2
   active --> in_review: task-review
   in_review --> review_blocked: 存在 P0-P2 finding
   review_blocked --> in_review: finding 关闭或路由
-  in_review --> closing: review-confirm + task-complete
+  in_review --> closing: Workbench 人工确认 + task-complete
   closing --> closed: 收口证据已链接
   closed --> [*]
 ```

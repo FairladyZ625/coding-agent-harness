@@ -225,10 +225,8 @@ harness task-log <new-task 输出的 task-id> \
   --evidence "command:TARGET:npm-test:passed" \
   /path/to/project
 
-harness review-confirm <new-task 输出的 task-id> \
-  --reviewer "Human Reviewer" \
-  --confirm <new-task 输出的 task-id> \
-  /path/to/project
+# 人工确认只能在本地 Dashboard workbench 中点击完成：
+harness dev /path/to/project
 
 harness task-complete <new-task 输出的 task-id> \
   --message "验证闭环完成" \
@@ -255,7 +253,7 @@ harness task-complete <new-task 输出的 task-id> \
 - `task-start`、`task-block`、`task-complete` 只更新 `progress.md` 的生命周期状态和日志。
 - `task-log` 只追加执行记录；证据使用 `type:PATH:summary`，例如
   `command:TARGET:npm-test:passed`。
-- `review-confirm` 会通过受控提交把人工确认审计字段写入任务 `INDEX.md`；如果存在 `Open: yes` 或 `Blocks Release: yes` 的开放 P0/P1/P2 finding，必须拒绝确认。
+- Dashboard workbench 会通过受控提交把人工确认审计字段写入任务 `INDEX.md`；如果存在 `Open: yes` 或 `Blocks Release: yes` 的开放 P0/P1/P2 finding，必须拒绝确认。普通 CLI 不暴露人工确认命令。
 - CLI-owned lifecycle 和 lesson 命令会在干净 Git root 中自动提交 allowlisted 写入；dirty 状态会出现在 `status` / dashboard 的警告里，并阻塞这些机械化提交。Agent 手工改动仍要主动提交，不能提交时记录 no-commit reason、owner 和下一步。
 - `status --json` 保留旧 `task.state` 用于兼容，并新增 `lifecycleState`、`reviewStatus`、`closeoutStatus` 和 `stateConflicts`。`done` 只表示实现完成，不等于 `closed`。
 - 人工操作入口使用本地 HTML workbench：`harness dev /path/to/project`。它会启动只绑定 `127.0.0.1` 的动态页面、自动选择端口、打开浏览器并随 docs 变更刷新。无 GUI 或 CI 场景使用 `harness dev --no-open /path/to/project`。

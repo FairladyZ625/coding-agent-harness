@@ -17,7 +17,7 @@
 - 为什么状态存在 Markdown 文件里，而不是数据库？
 - 为什么有三种 check profile，而不是一种？
 - `governance-sync` 和 `governance rebuild` 有什么区别，为什么要分开？
-- `review-confirm` 为什么必须是人工操作，不能自动化？
+- 人工确认为什么只能通过本地 Workbench，不能作为普通 CLI 命令暴露？
 
 这些问题的答案散落在设计决策、历史演进和操作规范里。
 这套文档把它们集中起来，让你不需要翻 git log 就能理解系统的"为什么"。
