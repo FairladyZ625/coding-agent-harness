@@ -6,7 +6,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
-import { confirmTaskReview, finalizeDeferredTaskReviewConfirmation } from "./task-lifecycle.mjs";
+import { confirmTaskReview, finalizeDeferredTaskReviewConfirmation, updateTaskLifecycle } from "./task-lifecycle.mjs";
 import { createAggregateLessonSedimentationTask, createLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
 import { normalizeTarget } from "./core-shared.mjs";
 import { beginGovernanceSync, commitGovernanceSync, releaseGovernanceSync } from "./governance-sync.mjs";
@@ -105,7 +105,7 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
         writeJson(response, 200, {
           mode: "workbench",
           csrfToken,
-          writableActions: ["review-complete", "review-complete-bulk", "lesson-sedimentation-task", "lesson-sedimentation-bulk", "preset-check", "preset-install", "preset-seed", "preset-uninstall"],
+          writableActions: ["review-complete", "review-complete-bulk", "task-complete", "lesson-sedimentation-task", "lesson-sedimentation-bulk", "preset-check", "preset-install", "preset-seed", "preset-uninstall"],
           target: target.projectRoot,
           autoRefresh: autoRefresh === true,
           snapshotVersion,
@@ -135,6 +135,34 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
           message: body.message || "confirmed from dashboard workbench",
           evidence: body.evidence || "",
           confirmText: body.confirmText || "",
+        });
+        regenerate();
+        writeJson(response, 200, result);
+        return;
+      }
+
+      if (requestUrl.pathname === "/api/tasks/task-complete" && request.method === "POST") {
+        assertTrustedWorkbenchRequest(request, { origin, csrfToken });
+        const body = await readJsonBody(request);
+        const taskId = String(body.taskId || "");
+        const task = collectTasks(target).find((item) => item.id === taskId);
+        if (!task) {
+          writeJson(response, 404, { error: "Task not found" });
+          return;
+        }
+        if (taskHasPendingLessonWork(task)) {
+          writeJson(response, 409, closeoutRejectionPayload(task, "Lesson candidate promotion or sedimentation work must be resolved before closeout."));
+          return;
+        }
+        if (!taskReadyForCloseout(task)) {
+          writeJson(response, 409, closeoutRejectionPayload(task));
+          return;
+        }
+        const result = updateTaskLifecycle(target.projectRoot, taskId, {
+          event: "task-complete",
+          state: "done",
+          message: body.message || "closed from dashboard workbench",
+          evidence: body.evidence || "",
         });
         regenerate();
         writeJson(response, 200, result);
@@ -414,6 +442,23 @@ function isTaskInReviewQueue(task: ScannedTask | undefined): boolean {
   return task?.reviewQueueState === "ready-to-confirm" && Array.isArray(task?.taskQueues) && task.taskQueues.includes("review");
 }
 
+function taskHasPendingLessonWork(task: ScannedTask | undefined): boolean {
+  const queues = Array.isArray(task?.taskQueues) ? task.taskQueues : [];
+  const candidateRows = Array.isArray(task?.lessonCandidateRows) ? task.lessonCandidateRows : [];
+  return queues.includes("lessons") ||
+    task?.lessonCandidateStatus === "needs-promotion" ||
+    task?.lessonCandidatePromotionState === "queued" ||
+    candidateRows.some((candidate) => ["ready-for-review", "needs-promotion"].includes(String(candidate?.status || "")));
+}
+
+function taskReadyForCloseout(task: ScannedTask | undefined): boolean {
+  if (!task) return false;
+  if (task.reviewStatus !== "confirmed") return false;
+  if (task.closeoutStatus === "closed") return false;
+  if (taskHasPendingLessonWork(task)) return false;
+  return ["no-candidate-accepted", "promoted", "rejected"].includes(String(task.lessonCandidateStatus || ""));
+}
+
 function reviewQueueRejectionPayload(task: ScannedTask): JsonPayload {
   return {
     error: "Review completion is only available for tasks in the review queue.",
@@ -422,6 +467,19 @@ function reviewQueueRejectionPayload(task: ScannedTask): JsonPayload {
     queueReasons: Array.isArray(task?.queueReasons) ? task.queueReasons : [],
     repairPrompt: task?.repairPrompt || "",
     reviewStatus: task?.reviewStatus || "unknown",
+    taskId: task?.id || "",
+  };
+}
+
+function closeoutRejectionPayload(task: ScannedTask, error = "Task closeout is only available after human review is confirmed and Lesson routing is complete."): JsonPayload {
+  return {
+    error,
+    closeoutStatus: task?.closeoutStatus || "unknown",
+    lifecycleState: task?.lifecycleState || "unknown",
+    reviewStatus: task?.reviewStatus || "unknown",
+    taskQueues: Array.isArray(task?.taskQueues) ? task.taskQueues : [],
+    lessonCandidateStatus: task?.lessonCandidateStatus || "unknown",
+    lessonCandidatePromotionState: task?.lessonCandidatePromotionState || "unknown",
     taskId: task?.id || "",
   };
 }

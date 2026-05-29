@@ -7,7 +7,9 @@ import {
 } from "../core-shared.mjs";
 import {
   collectReviewRisks,
+  isLessonCandidateDecisionComplete,
   isBlockingReviewRisk,
+  parseLessonCandidateStatus,
   parseTaskAuditMetadata,
   parsePhases,
   parseReviewConfirmation,
@@ -63,6 +65,14 @@ export function validateLifecycleTransition({
     }
     if (!parseReviewConfirmation(reviewContent, { taskKey: reviewTaskKey, taskAudit: parseTaskAuditMetadata(indexContent), projectRoot, taskDir, indexPath: path.join(taskDir, "INDEX.md") })?.confirmed) {
       throw new Error("Human review must be confirmed before task-complete. Run review-confirm first.");
+    }
+    const lessonCandidateStatus = parseLessonCandidateStatus(fs.existsSync(path.join(taskDir, lessonCandidatesFile)) ? fs.readFileSync(path.join(taskDir, lessonCandidatesFile), "utf8") : "");
+    if (!isLessonCandidateDecisionComplete(lessonCandidateStatus)) {
+      throw new Error(`Lesson candidate decision must be complete before task-complete; current status is ${lessonCandidateStatus.status}.`);
+    }
+    const hasLessonWork = lessonCandidateStatus.status === "needs-promotion" || lessonCandidateStatus.promotionState === "queued" || lessonCandidateStatus.openCount > 0;
+    if (hasLessonWork) {
+      throw new Error("Lesson candidate promotion or sedimentation work must be resolved before task-complete.");
     }
   }
 }

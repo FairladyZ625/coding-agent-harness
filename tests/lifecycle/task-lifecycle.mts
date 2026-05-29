@@ -715,6 +715,7 @@ try {
   assert(runtimeResponse.status === 200, "workbench should expose runtime metadata");
   const runtimePayload = await runtimeResponse.json();
   assert(runtimePayload.mode === "workbench" && runtimePayload.csrfToken === runtime.csrf, "workbench runtime should expose mode and csrf token");
+  assert(runtimePayload.writableActions.includes("task-complete"), "workbench runtime should expose task-complete as an explicit writable action");
   const dashboardData = fs.readFileSync(path.join(workbenchDir, "assets/dashboard-data.js"), "utf8");
   assert(dashboardData.includes("Walkthrough: Closed review debt"), "dashboard data should include closeout walkthrough documents");
   assert(dashboardData.includes("LC-WORKBENCH-001"), "dashboard data should include actionable lesson candidates for workbench actions");
@@ -856,6 +857,27 @@ try {
   assert(okResponse.status === 200, `workbench review completion should pass, got ${okResponse.status}: ${okText}`);
   const okPayload = JSON.parse(okText);
   assert(okPayload.task?.reviewStatus === "confirmed", "workbench review completion should return confirmed task status");
+  const closeoutResponse = await fetch(new URL("api/tasks/task-complete", runtime.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
+    body: JSON.stringify({ taskId: `TASKS/${todayLocal}-workbench-review`, message: "closed from workbench", evidence: "dashboard:task-complete" }),
+  });
+  const closeoutText = await closeoutResponse.text();
+  assert(closeoutResponse.status === 200, `workbench task-complete should close confirmed no-lesson tasks, got ${closeoutResponse.status}: ${closeoutText}`);
+  const closeoutPayload = JSON.parse(closeoutText);
+  assert(closeoutPayload.task?.state === "done", "workbench task-complete should return done task state");
+  const closeoutStatus = expectJson(["status", "--json", lifecycleTarget]);
+  const closedWorkbenchTask = closeoutStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-workbench-review`);
+  assert(closedWorkbenchTask?.closeoutStatus === "closed", "workbench task-complete should mark walkthrough closeout closed");
+  assert(closedWorkbenchTask?.lifecycleState === "closed", "workbench task-complete should move the task out of confirmed-finalization-pending");
+  const lessonCloseoutResponse = await fetch(new URL("api/tasks/task-complete", runtime.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
+    body: JSON.stringify({ taskId: workbenchLessonTask.task.id, message: "attempt lesson closeout", evidence: "dashboard:task-complete" }),
+  });
+  const lessonCloseoutText = await lessonCloseoutResponse.text();
+  assert(lessonCloseoutResponse.status === 409, `workbench task-complete should reject pending Lesson debt, got ${lessonCloseoutResponse.status}: ${lessonCloseoutText}`);
+  assert(lessonCloseoutText.includes("Lesson"), "workbench lesson closeout rejection should explain pending Lesson work");
   const closedReviewResponse = await fetch(new URL("api/tasks/review-complete", runtime.url), {
     method: "POST",
     headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },

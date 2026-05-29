@@ -54,9 +54,10 @@ function taskSwimlaneStage(task) {
   const reviewQueue = String(task.reviewQueueState || "");
   const closeout = String(task.closeoutStatus || "");
   if (stateValue === "blocked" || review.includes("blocked") || reviewQueue.includes("blocked")) return "blocked";
-  if (stateValue === "review" || reviewQueue === "ready-to-confirm" || (task.taskQueues || []).includes("review") || ["agent-reviewed", "in_review"].includes(review)) return "review";
-  if (review === "confirmed" && ["missing", "required", "closing"].includes(closeout)) return "closeout";
+  if (review === "confirmed" && taskHasPendingLessonWork(task)) return "closeout";
+  if (review === "confirmed" && ["missing", "pending", "required", "closing"].includes(closeout)) return "closeout";
   if (review === "confirmed") return "confirmed";
+  if (stateValue === "review" || reviewQueue === "ready-to-confirm" || (task.taskQueues || []).includes("review") || ["agent-reviewed", "in_review"].includes(review)) return "review";
   if (["planned", "not_started"].includes(stateValue)) return "planned";
   if (taskNeedsEvidence(task)) return "evidence";
   if (["active", "in_progress", "reopened", "current-evidence"].includes(stateValue)) return "in_progress";

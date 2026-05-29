@@ -226,26 +226,41 @@ function reviewActionPanel(task, { mode = "summary" } = {}) {
   if (!isTaskInReviewQueue(task)) return "";
   const blocking = task.reviewStatus === "blocked-open-findings" || (task.risks || []).some((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease));
   const confirmed = task.reviewStatus === "confirmed";
+  const readyForCloseout = taskReadyForCloseout(task);
+  const hasLessonWork = taskHasPendingLessonWork(task);
   const candidateBlocked = task.budget !== "simple" && !task.lessonCandidateDecisionComplete;
   const candidateStatus = task.lessonCandidateStatus || "missing";
   if (mode !== "workspace") {
+    const summaryMessage = confirmed && hasLessonWork ? t("reviewConfirmedLessonPending") : confirmed && readyForCloseout ? t("reviewConfirmedCloseoutReady") : confirmed ? t("reviewAlreadyConfirmed") : t("reviewOpenInWorkspace");
     return `<section class="side-panel review-actions">
       <h3>${t("reviewActions")}</h3>
-      <p>${escapeHtml(confirmed ? t("reviewAlreadyConfirmed") : t("reviewOpenInWorkspace"))}</p>
+      <p>${escapeHtml(summaryMessage)}</p>
       <p>${escapeHtml(t("lessonCandidateStatus"))}: ${tag(candidateStatus)}</p>
       <a href="#/review/${encodeURIComponent(task.id)}">${t("openReviewWorkspace")}</a>
+    </section>`;
+  }
+  if (confirmed) {
+    if (hasLessonWork) {
+      return `<section class="side-panel review-actions">
+        <h3>${t("reviewActions")}</h3>
+        <p>${escapeHtml(t("reviewConfirmedLessonPending"))}</p>
+        <p>${escapeHtml(t("lessonCandidateStatus"))}: ${tag(candidateStatus)}</p>
+        ${lessonCandidatePanel(task, { context: "detail", limit: 3 })}
+      </section>`;
+    }
+    const closeoutDisabled = !readyForCloseout || !canUseWorkbenchAction("task-complete");
+    return `<section class="side-panel review-actions">
+      <h3>${t("reviewActions")}</h3>
+      <p>${escapeHtml(readyForCloseout ? t("reviewConfirmedCloseoutReady") : t("reviewAlreadyConfirmed"))}</p>
+      <p>${escapeHtml(t("lessonCandidateStatus"))}: ${tag(candidateStatus)}</p>
+      <button data-task-complete="${escapeAttr(task.id)}" ${closeoutDisabled ? "disabled" : ""}>${t("completeTaskCloseout")}</button>
+      <div class="review-result" data-task-complete-result="${escapeAttr(task.id)}"></div>
     </section>`;
   }
   if (!canUseWorkbenchAction("review-complete")) {
     return `<section class="side-panel review-actions">
       <h3>${t("reviewActions")}</h3>
       <p>${escapeHtml(t("staticReadOnlyDetail"))}</p>
-    </section>`;
-  }
-  if (confirmed) {
-    return `<section class="side-panel review-actions">
-      <h3>${t("reviewActions")}</h3>
-      <p>${escapeHtml(t("reviewAlreadyConfirmed"))}</p>
     </section>`;
   }
   const missingWalkthrough = task.budget !== "simple" && !task.walkthroughPath;
@@ -275,6 +290,21 @@ function isTaskInReviewQueue(task) {
 
 function taskCanBeHumanConfirmed(task) {
   return task?.reviewQueueState === "ready-to-confirm" && Array.isArray(task?.taskQueues) && task.taskQueues.includes("review");
+}
+
+function taskHasPendingLessonWork(task) {
+  const queues = Array.isArray(task?.taskQueues) ? task.taskQueues : [];
+  const candidates = Array.isArray(task?.lessonCandidateRows) ? task.lessonCandidateRows : [];
+  return queues.includes("lessons")
+    || task?.lessonCandidateStatus === "needs-promotion"
+    || task?.lessonCandidatePromotionState === "queued"
+    || candidates.some((candidate) => ["ready-for-review", "needs-promotion"].includes(String(candidate?.status || "")));
+}
+
+function taskReadyForCloseout(task) {
+  if (!task || task.reviewStatus !== "confirmed" || task.closeoutStatus === "closed") return false;
+  if (taskHasPendingLessonWork(task)) return false;
+  return ["no-candidate-accepted", "promoted", "rejected"].includes(String(task.lessonCandidateStatus || ""));
 }
 
 function evidenceList(task) {

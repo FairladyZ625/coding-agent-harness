@@ -955,9 +955,10 @@ function taskSwimlaneStage(task) {
   const reviewQueue = String(task.reviewQueueState || "");
   const closeout = String(task.closeoutStatus || "");
   if (stateValue === "blocked" || review.includes("blocked") || reviewQueue.includes("blocked")) return "blocked";
-  if (stateValue === "review" || reviewQueue === "ready-to-confirm" || (task.taskQueues || []).includes("review") || ["agent-reviewed", "in_review"].includes(review)) return "review";
-  if (review === "confirmed" && ["missing", "required", "closing"].includes(closeout)) return "closeout";
+  if (review === "confirmed" && taskHasPendingLessonWork(task)) return "closeout";
+  if (review === "confirmed" && ["missing", "pending", "required", "closing"].includes(closeout)) return "closeout";
   if (review === "confirmed") return "confirmed";
+  if (stateValue === "review" || reviewQueue === "ready-to-confirm" || (task.taskQueues || []).includes("review") || ["agent-reviewed", "in_review"].includes(review)) return "review";
   if (["planned", "not_started"].includes(stateValue)) return "planned";
   if (taskNeedsEvidence(task)) return "evidence";
   if (["active", "in_progress", "reopened", "current-evidence"].includes(stateValue)) return "in_progress";
@@ -1429,26 +1430,41 @@ function reviewActionPanel(task, { mode = "summary" } = {}) {
   if (!isTaskInReviewQueue(task)) return "";
   const blocking = task.reviewStatus === "blocked-open-findings" || (task.risks || []).some((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease));
   const confirmed = task.reviewStatus === "confirmed";
+  const readyForCloseout = taskReadyForCloseout(task);
+  const hasLessonWork = taskHasPendingLessonWork(task);
   const candidateBlocked = task.budget !== "simple" && !task.lessonCandidateDecisionComplete;
   const candidateStatus = task.lessonCandidateStatus || "missing";
   if (mode !== "workspace") {
+    const summaryMessage = confirmed && hasLessonWork ? t("reviewConfirmedLessonPending") : confirmed && readyForCloseout ? t("reviewConfirmedCloseoutReady") : confirmed ? t("reviewAlreadyConfirmed") : t("reviewOpenInWorkspace");
     return `<section class="side-panel review-actions">
       <h3>${t("reviewActions")}</h3>
-      <p>${escapeHtml(confirmed ? t("reviewAlreadyConfirmed") : t("reviewOpenInWorkspace"))}</p>
+      <p>${escapeHtml(summaryMessage)}</p>
       <p>${escapeHtml(t("lessonCandidateStatus"))}: ${tag(candidateStatus)}</p>
       <a href="#/review/${encodeURIComponent(task.id)}">${t("openReviewWorkspace")}</a>
+    </section>`;
+  }
+  if (confirmed) {
+    if (hasLessonWork) {
+      return `<section class="side-panel review-actions">
+        <h3>${t("reviewActions")}</h3>
+        <p>${escapeHtml(t("reviewConfirmedLessonPending"))}</p>
+        <p>${escapeHtml(t("lessonCandidateStatus"))}: ${tag(candidateStatus)}</p>
+        ${lessonCandidatePanel(task, { context: "detail", limit: 3 })}
+      </section>`;
+    }
+    const closeoutDisabled = !readyForCloseout || !canUseWorkbenchAction("task-complete");
+    return `<section class="side-panel review-actions">
+      <h3>${t("reviewActions")}</h3>
+      <p>${escapeHtml(readyForCloseout ? t("reviewConfirmedCloseoutReady") : t("reviewAlreadyConfirmed"))}</p>
+      <p>${escapeHtml(t("lessonCandidateStatus"))}: ${tag(candidateStatus)}</p>
+      <button data-task-complete="${escapeAttr(task.id)}" ${closeoutDisabled ? "disabled" : ""}>${t("completeTaskCloseout")}</button>
+      <div class="review-result" data-task-complete-result="${escapeAttr(task.id)}"></div>
     </section>`;
   }
   if (!canUseWorkbenchAction("review-complete")) {
     return `<section class="side-panel review-actions">
       <h3>${t("reviewActions")}</h3>
       <p>${escapeHtml(t("staticReadOnlyDetail"))}</p>
-    </section>`;
-  }
-  if (confirmed) {
-    return `<section class="side-panel review-actions">
-      <h3>${t("reviewActions")}</h3>
-      <p>${escapeHtml(t("reviewAlreadyConfirmed"))}</p>
     </section>`;
   }
   const missingWalkthrough = task.budget !== "simple" && !task.walkthroughPath;
@@ -1478,6 +1494,21 @@ function isTaskInReviewQueue(task) {
 
 function taskCanBeHumanConfirmed(task) {
   return task?.reviewQueueState === "ready-to-confirm" && Array.isArray(task?.taskQueues) && task.taskQueues.includes("review");
+}
+
+function taskHasPendingLessonWork(task) {
+  const queues = Array.isArray(task?.taskQueues) ? task.taskQueues : [];
+  const candidates = Array.isArray(task?.lessonCandidateRows) ? task.lessonCandidateRows : [];
+  return queues.includes("lessons")
+    || task?.lessonCandidateStatus === "needs-promotion"
+    || task?.lessonCandidatePromotionState === "queued"
+    || candidates.some((candidate) => ["ready-for-review", "needs-promotion"].includes(String(candidate?.status || "")));
+}
+
+function taskReadyForCloseout(task) {
+  if (!task || task.reviewStatus !== "confirmed" || task.closeoutStatus === "closed") return false;
+  if (taskHasPendingLessonWork(task)) return false;
+  return ["no-candidate-accepted", "promoted", "rejected"].includes(String(task.lessonCandidateStatus || ""));
 }
 
 function evidenceList(task) {
@@ -1966,6 +1997,9 @@ function reviewQueueCard(task, tab) {
   const reasons = task.queueReasons || [];
   const canCopyRepairPrompt = tab?.repair && String(task.repairPrompt || "").trim();
   const lessonActions = tab?.id === "lessons" ? lessonCandidatePanel(task, { context: "card", limit: 2 }) : "";
+  const closeoutAction = taskReadyForCloseout(task)
+    ? `<button data-task-complete="${escapeAttr(task.id)}" ${canUseWorkbenchAction("task-complete") ? "" : "disabled"}>${t("completeTaskCloseout")}</button><span class="inline-result" data-task-complete-result="${escapeAttr(task.id)}"></span>`
+    : "";
   const displayId = task.shortId || taskFolderName(task) || task.id;
   const canBulkConfirm = tab?.id === "review" && taskCanBeHumanConfirmed(task);
   const bulkSelected = state.reviewBulkSelection?.[task.id] === true;
@@ -1995,6 +2029,7 @@ function reviewQueueCard(task, tab) {
       <a href="#/review/${encodeURIComponent(task.id)}">${t("openReviewWorkspace")}</a>
       <a href="#/tasks/${encodeURIComponent(task.id)}">${t("fullView")}</a>
       <button data-open-drawer="${escapeAttr(task.id)}">${t("viewDetails")}</button>
+      ${closeoutAction}
       ${tab?.repair ? `<button data-copy-repair-prompt="${escapeAttr(task.id)}" data-repair-prompt="${escapeAttr(task.repairPrompt || "")}" ${canCopyRepairPrompt ? "" : "disabled"}>${t("copyRepairPrompt")}</button>` : ""}
     </div>
   </article>`;
@@ -3052,6 +3087,7 @@ function bind() {
     openLessonDrawer(lessonId);
   }));
   document.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
+  document.querySelectorAll("[data-task-complete]").forEach((button) => button.addEventListener("click", () => completeTaskFromDashboard(button.dataset.taskComplete)));
   const overlay = document.getElementById("drawer-overlay");
   if (overlay) overlay.addEventListener("click", closeDrawer);
 }
@@ -3123,6 +3159,31 @@ async function completeReviewFromDashboard(taskId) {
     setTimeout(() => window.location.reload(), 500);
   } catch (error) {
     if (result) result.textContent = `${t("reviewCompleteFailed")}: ${error.message}`;
+  }
+}
+
+async function completeTaskFromDashboard(taskId) {
+  const result = document.querySelector(`[data-task-complete-result="${CSS.escape(taskId)}"]`);
+  if (result) result.textContent = t("taskCloseoutSubmitting");
+  try {
+    const response = await fetch("/api/tasks/task-complete", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-harness-csrf": state.runtime?.csrfToken || "",
+      },
+      body: JSON.stringify({
+        taskId,
+        message: "closed from dashboard workbench",
+        evidence: "dashboard:task-complete",
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || t("taskCloseoutFailed"));
+    if (result) result.textContent = t("taskCloseoutSuccess");
+    setTimeout(() => window.location.reload(), 500);
+  } catch (error) {
+    if (result) result.textContent = `${t("taskCloseoutFailed")}: ${error.message}`;
   }
 }
 
@@ -3262,6 +3323,7 @@ function openDrawer(taskId) {
   bindRepairPromptButtons(drawer);
   bindLessonSedimentationButtons(drawer);
   drawer.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
+  drawer.querySelectorAll("[data-task-complete]").forEach((button) => button.addEventListener("click", () => completeTaskFromDashboard(button.dataset.taskComplete)));
 }
 
 function bindCopyTaskNameButtons(root) {

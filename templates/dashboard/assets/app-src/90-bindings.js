@@ -229,6 +229,7 @@ function bind() {
     openLessonDrawer(lessonId);
   }));
   document.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
+  document.querySelectorAll("[data-task-complete]").forEach((button) => button.addEventListener("click", () => completeTaskFromDashboard(button.dataset.taskComplete)));
   const overlay = document.getElementById("drawer-overlay");
   if (overlay) overlay.addEventListener("click", closeDrawer);
 }
@@ -300,6 +301,31 @@ async function completeReviewFromDashboard(taskId) {
     setTimeout(() => window.location.reload(), 500);
   } catch (error) {
     if (result) result.textContent = `${t("reviewCompleteFailed")}: ${error.message}`;
+  }
+}
+
+async function completeTaskFromDashboard(taskId) {
+  const result = document.querySelector(`[data-task-complete-result="${CSS.escape(taskId)}"]`);
+  if (result) result.textContent = t("taskCloseoutSubmitting");
+  try {
+    const response = await fetch("/api/tasks/task-complete", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-harness-csrf": state.runtime?.csrfToken || "",
+      },
+      body: JSON.stringify({
+        taskId,
+        message: "closed from dashboard workbench",
+        evidence: "dashboard:task-complete",
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || t("taskCloseoutFailed"));
+    if (result) result.textContent = t("taskCloseoutSuccess");
+    setTimeout(() => window.location.reload(), 500);
+  } catch (error) {
+    if (result) result.textContent = `${t("taskCloseoutFailed")}: ${error.message}`;
   }
 }
 
@@ -439,6 +465,7 @@ function openDrawer(taskId) {
   bindRepairPromptButtons(drawer);
   bindLessonSedimentationButtons(drawer);
   drawer.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
+  drawer.querySelectorAll("[data-task-complete]").forEach((button) => button.addEventListener("click", () => completeTaskFromDashboard(button.dataset.taskComplete)));
 }
 
 function bindCopyTaskNameButtons(root) {
