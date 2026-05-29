@@ -11,6 +11,7 @@ const suites: string[] = [
   "tests/type-boundary-guards.mjs",
   "tests/no-ts-nocheck-gate.mjs",
   "tests/import-graph-gate.mjs",
+  "tests/impact-classifier.mjs",
   "tests/snapshot-matrix-tooling.mjs",
   "tests/shared-type-islands.mjs",
   "tests/runtime-emit-contract.mjs",
