@@ -242,6 +242,12 @@ const confirmationIndex = fs.readFileSync(path.join(taskDir, "INDEX.md"), "utf8"
 assert(confirmationIndex.includes("| Confirmation ID |"), "INDEX Human Review fields should include strict confirmation fields");
 assert(confirmationIndex.includes("| Audit Status | committed |"), "INDEX Human Review fields should include audit status");
 assert(!fs.readFileSync(reviewPath, "utf8").includes("## Human Review Confirmation"), "review-confirm should not write Human Review Confirmation to review.md");
+const confirmedReadyStatus = expectJson(["status", "--json", target]);
+const confirmedReadyTask = confirmedReadyStatus.tasks.find((task) => task.id === taskId);
+assert(confirmedReadyTask.reviewStatus === "confirmed", "confirmed review should stay visible as confirmed status");
+assert(confirmedReadyTask.lifecycleState === "confirmed-finalization-pending", "confirmed review without lesson debt should be ready for closeout, not in_review");
+assert(confirmedReadyTask.taskQueues.includes("confirmed-finalization-pending"), "confirmed review without lesson debt should enter the closeout-ready queue");
+assert(!confirmedReadyTask.taskQueues.includes("review"), "confirmed review should not stay in the Review queue");
 
 const lessonTask = expectJson(["new-task", "queue-lesson", "--title", "Queue Lesson", "--locale", "en-US", "--long-running", target]);
 const lessonDir = taskDirectory(lessonTask);
@@ -363,6 +369,58 @@ const lessonConfirm = run(["review-confirm", lessonTask.task.id, "--reviewer", "
 assert(lessonConfirm.status !== 0, "review-confirm should reject tasks that are only in Lessons queue");
 assert(lessonConfirm.stderr.includes("Review queue"), "Lessons queue confirmation failure should mention Review queue gate");
 
+const confirmedLessonRouting = expectJson(["new-task", "queue-confirmed-lesson-routing", "--title", "Queue Confirmed Lesson Routing", "--locale", "en-US", "--long-running", target]);
+const confirmedLessonRoutingDir = taskDirectory(confirmedLessonRouting);
+expectJson(["task-start", "queue-confirmed-lesson-routing", "--message", "implementation started", target]);
+expectJson(["task-phase", "queue-confirmed-lesson-routing", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", target]);
+writeLessonRoutingCandidate(confirmedLessonRoutingDir, {
+  taskStatus: "needs-promotion",
+  rowStatus: "needs-promotion",
+  promotionState: "queued",
+  closeoutToken: "pending",
+});
+commitFixtureBaseline(target, "before confirmed lesson routing review");
+expectJson(["task-review", "queue-confirmed-lesson-routing", "--message", "ready except lesson promotion", "--evidence", "command:TARGET:npm-test:passed", target]);
+fs.appendFileSync(path.join(confirmedLessonRoutingDir, "walkthrough.md"), "\n## Evidence\n\nEvidence reviewed.\n");
+sanitizeTemplateFixtureMaterials(confirmedLessonRoutingDir);
+writeMigratedReviewConfirmation(confirmedLessonRoutingDir, confirmedLessonRouting.task.id, `${todayLocal}-queue-confirmed-lesson-routing`);
+const confirmedLessonRoutingStatus = expectJson(["status", "--json", target]);
+const confirmedLessonRoutingTask = confirmedLessonRoutingStatus.tasks.find((task) => task.id === confirmedLessonRouting.task.id);
+assert(confirmedLessonRoutingTask.reviewStatus === "confirmed", "migrated audit should mark the routing fixture as human-confirmed");
+assert(confirmedLessonRoutingTask.lifecycleState === "lesson-finalization-pending", "confirmed review with accepted lesson debt should wait for Lesson sedimentation");
+assert(confirmedLessonRoutingTask.taskQueues.includes("lessons"), "confirmed review with accepted lesson debt should remain in Lessons queue");
+assert(!confirmedLessonRoutingTask.taskQueues.includes("confirmed-finalization-pending"), "confirmed review with lesson debt should not be directly closeout-ready");
+
+writeLessonRoutingCandidate(confirmedLessonRoutingDir, {
+  taskStatus: "promoted",
+  rowStatus: "promoted",
+  promotionState: "promoted",
+  closeoutToken: "promoted:LC-CONFIRMED-ROUTING",
+});
+const promotedLessonRoutingStatus = expectJson(["status", "--json", target]);
+const promotedLessonRoutingTask = promotedLessonRoutingStatus.tasks.find((task) => task.id === confirmedLessonRouting.task.id);
+assert(promotedLessonRoutingTask.lifecycleState === "confirmed-finalization-pending", "promoted lessons should make confirmed tasks closeout-ready");
+assert(!promotedLessonRoutingTask.taskQueues.includes("lessons"), "promoted lessons should leave the Lessons queue");
+assert(promotedLessonRoutingTask.taskQueues.includes("confirmed-finalization-pending"), "promoted lessons should enter the closeout-ready queue");
+
+writeLessonRoutingCandidate(confirmedLessonRoutingDir, {
+  taskStatus: "rejected",
+  rowStatus: "rejected",
+  promotionState: "not-promoted",
+  closeoutToken: "rejected:LC-CONFIRMED-ROUTING",
+});
+const rejectedLessonRoutingStatus = expectJson(["status", "--json", target]);
+const rejectedLessonRoutingTask = rejectedLessonRoutingStatus.tasks.find((task) => task.id === confirmedLessonRouting.task.id);
+assert(rejectedLessonRoutingTask.lifecycleState === "confirmed-finalization-pending", "rejected lessons should make confirmed tasks closeout-ready");
+assert(!rejectedLessonRoutingTask.taskQueues.includes("lessons"), "rejected lessons should leave the Lessons queue");
+assert(rejectedLessonRoutingTask.taskQueues.includes("confirmed-finalization-pending"), "rejected lessons should enter the closeout-ready queue");
+
+fs.appendFileSync(path.join(confirmedLessonRoutingDir, "walkthrough.md"), "\nCloseout Status: closed\n");
+const closedLessonRoutingStatus = expectJson(["status", "--json", target]);
+const closedLessonRoutingTask = closedLessonRoutingStatus.tasks.find((task) => task.id === confirmedLessonRouting.task.id);
+assert(closedLessonRoutingTask.lifecycleState === "closed", "task-complete closeout should mark confirmed tasks closed");
+assert(closedLessonRoutingTask.taskQueues.includes("finalized"), "closed confirmed tasks should enter the finalized queue");
+
 const superseded = expectJson(["new-task", "queue-superseded", "--title", "Queue Superseded", "--locale", "en-US", target]);
 const supersededDir = taskDirectory(superseded);
 fs.appendFileSync(
@@ -470,6 +528,94 @@ function replaceHumanConfirmationSection(content: string, replacement: string): 
 
 function taskDirectory(result: HarnessTestLooseJson): string {
   return path.join(target, result.task.path.replace(/^TARGET:/, ""));
+}
+
+function writeMigratedReviewConfirmation(taskDir: string, taskId: string, confirmText: string): void {
+  const indexPath = path.join(taskDir, "INDEX.md");
+  const indexContent = fs.readFileSync(indexPath, "utf8");
+  const confirmationRows = [
+    ["Human Review Status", "confirmed"],
+    ["Confirmation ID", "HRC-20260523000200"],
+    ["Confirmed At", "2026-05-23T00:02:00+08:00"],
+    ["Reviewer", "Human Reviewer"],
+    ["Reviewer Email", "reviewer@example.test"],
+    ["Task Key", taskId],
+    ["Confirm Text", confirmText],
+    ["Evidence Checked", "command:TARGET:npm-test:passed"],
+    ["Review Commit SHA", "0000000000000000000000000000000000000000"],
+    ["Audit Source", "migrated-legacy-review"],
+    ["Audit Status", "committed"],
+  ];
+  let updated = indexContent;
+  for (const [field, value] of confirmationRows) {
+    const rowPattern = new RegExp(`^\\| ${escapeRegExp(field)} \\|[^\\n]*\\|$`, "m");
+    if (rowPattern.test(updated)) {
+      updated = updated.replace(rowPattern, `| ${field} | ${value} |`);
+    } else {
+      updated = `${updated.trimEnd()}\n| ${field} | ${value} |\n`;
+    }
+  }
+  fs.writeFileSync(indexPath, updated.endsWith("\n") ? updated : `${updated}\n`);
+}
+
+function writeLessonRoutingCandidate(
+  taskDir: string,
+  {
+    taskStatus,
+    rowStatus,
+    promotionState,
+    closeoutToken,
+  }: {
+    taskStatus: string;
+    rowStatus: string;
+    promotionState: string;
+    closeoutToken: string;
+  },
+): void {
+  const detailDir = path.join(taskDir, "lessons");
+  fs.mkdirSync(detailDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(detailDir, "LC-CONFIRMED-ROUTING.md"),
+    [
+      "# LC-CONFIRMED-ROUTING - Confirmed review routing",
+      "",
+      "## Problem / Trigger",
+      "",
+      "Human-confirmed tasks must not remain in the Review lane after the review decision is final.",
+      "",
+      "## Correct Rule",
+      "",
+      "Lesson work blocks closeout only while the accepted candidate is still awaiting promotion or follow-up routing.",
+      "",
+    ].join("\n"),
+  );
+  fs.writeFileSync(
+    path.join(taskDir, "lesson_candidates.md"),
+    [
+      "# Queue Confirmed Lesson Routing - Lesson Candidates",
+      "",
+      "## Candidate Status",
+      "",
+      "| Field | Value |",
+      "| --- | --- |",
+      "| Schema version | lesson-candidate-v1 |",
+      `| Task-level status | ${taskStatus} |`,
+      "| Review decision | approved-for-sedimentation |",
+      `| Promotion state | ${promotionState} |`,
+      `| Closeout token | ${closeoutToken} |`,
+      "",
+      "## Candidates",
+      "",
+      "| ID | Row Status | Title | Scope | Module Key | Detail Artifact | Boundary Reason | Why It Might Matter | Review Decision | Promotion Target | Conflict Check | Required Standard Update | Follow-up Task |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+      `| LC-CONFIRMED-ROUTING | ${rowStatus} | Confirmed review routing | global | n/a | lessons/LC-CONFIRMED-ROUTING.md | Lifecycle model affects every queue surface | Prevents confirmed tasks from staying in review forever | approved | lifecycle standard | no matching lesson found | task-state-machine docs | ${rowStatus === "needs-promotion" ? "pending" : "n/a"} |`,
+      "",
+    ].join("\n"),
+  );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function commitFixtureBaseline(targetRoot: string, message: string): void {

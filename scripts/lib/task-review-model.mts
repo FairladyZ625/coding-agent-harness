@@ -304,9 +304,13 @@ export function requiresReviewMaterials({ state = "unknown", lifecycleState = "u
   return (
     state === "review" ||
     state === "done" ||
-    ["in_review", "review-blocked", "closing", "closed-review-pending"].includes(lifecycleState) ||
+    ["in_review", "review-blocked", "closing", "closed-review-pending", "confirmed-finalization-pending", "lesson-finalization-pending"].includes(lifecycleState) ||
     closeoutStatus === "closed"
   );
+}
+
+export function hasPendingLessonWork(lessonCandidates: LessonCandidates | null | undefined): boolean {
+  return lessonCandidates?.status === "needs-promotion" || lessonCandidates?.promotionState === "queued" || (lessonCandidates?.openCount ?? 0) > 0;
 }
 
 export function deriveTaskQueues({
@@ -397,7 +401,7 @@ export function deriveTaskQueues({
       message: "Agent review was submitted, but closeout materials are not ready for human confirmation.",
     });
   }
-  const hasLessonWork = lessonCandidates?.status === "needs-promotion" || lessonCandidates?.promotionState === "queued" || (lessonCandidates?.openCount ?? 0) > 0;
+  const hasLessonWork = hasPendingLessonWork(lessonCandidates);
   const taskQueues: string[] = [];
   if (tombstone.deletionState !== "active") {
     taskQueues.push("soft-deleted-superseded");
@@ -409,11 +413,18 @@ export function deriveTaskQueues({
     }
     if (hasLessonWork) taskQueues.push("lessons");
     if (budget === "simple" && state === "done" && closeoutStatus === "closed") taskQueues.push("finalized");
-    if (reviewStatus === "confirmed") taskQueues.push(closeoutStatus === "closed" ? "finalized" : "confirmed");
+    if (reviewStatus === "confirmed") {
+      if (closeoutStatus === "closed") taskQueues.push("finalized");
+      else {
+        taskQueues.push("confirmed");
+        if (!hasLessonWork) taskQueues.push("confirmed-finalization-pending");
+      }
+    }
   }
-  if (taskQueues.length === 0) taskQueues.push("active");
+  const normalizedTaskQueues = [...new Set(taskQueues)];
+  if (normalizedTaskQueues.length === 0) normalizedTaskQueues.push("active");
   return {
-    taskQueues,
+    taskQueues: normalizedTaskQueues,
     queueReasons,
     repairPrompt: renderRepairPrompt({ id, title, taskDir, target, reasons: queueReasons }),
   };
@@ -491,11 +502,12 @@ export function isBlockingReviewRisk(risk: Partial<ReviewRisk> | null | undefine
   return /^P[0-2]$/i.test(risk?.severity || "") && Boolean(risk?.open || risk?.blocksRelease);
 }
 
-export function deriveLifecycleState({ state = "unknown", reviewStatus = "missing", closeoutStatus = "missing", budget = "standard" }: { state?: string; reviewStatus?: string; closeoutStatus?: string; budget?: TaskBudget } = {}): string {
+export function deriveLifecycleState({ state = "unknown", reviewStatus = "missing", closeoutStatus = "missing", budget = "standard", lessonCandidates = null }: { state?: string; reviewStatus?: string; closeoutStatus?: string; budget?: TaskBudget; lessonCandidates?: LessonCandidates | null } = {}): string {
   if (reviewStatus === "blocked-open-findings") return "review-blocked";
   if (budget === "simple" && closeoutStatus === "closed") return "closed";
   if (closeoutStatus === "closed" && reviewStatus !== "confirmed") return "closed-review-pending";
   if (closeoutStatus === "closed") return "closed";
+  if (reviewStatus === "confirmed") return hasPendingLessonWork(lessonCandidates) ? "lesson-finalization-pending" : "confirmed-finalization-pending";
   if (state === "blocked") return "blocked";
   if (state === "done") return "closing";
   if (state === "review") return "in_review";

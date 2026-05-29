@@ -224,6 +224,9 @@ function reviewQueueCard(task, tab) {
   const reasons = task.queueReasons || [];
   const canCopyRepairPrompt = tab?.repair && String(task.repairPrompt || "").trim();
   const lessonActions = tab?.id === "lessons" ? lessonCandidatePanel(task, { context: "card", limit: 2 }) : "";
+  const closeoutAction = taskReadyForCloseout(task)
+    ? `<button data-task-complete="${escapeAttr(task.id)}" ${canUseWorkbenchAction("task-complete") ? "" : "disabled"}>${t("completeTaskCloseout")}</button><span class="inline-result" data-task-complete-result="${escapeAttr(task.id)}"></span>`
+    : "";
   const displayId = task.shortId || taskFolderName(task) || task.id;
   const canBulkConfirm = tab?.id === "review" && taskCanBeHumanConfirmed(task);
   const bulkSelected = state.reviewBulkSelection?.[task.id] === true;
@@ -253,6 +256,7 @@ function reviewQueueCard(task, tab) {
       <a href="#/review/${encodeURIComponent(task.id)}">${t("openReviewWorkspace")}</a>
       <a href="#/tasks/${encodeURIComponent(task.id)}">${t("fullView")}</a>
       <button data-open-drawer="${escapeAttr(task.id)}">${t("viewDetails")}</button>
+      ${closeoutAction}
       ${tab?.repair ? `<button data-copy-repair-prompt="${escapeAttr(task.id)}" data-repair-prompt="${escapeAttr(task.repairPrompt || "")}" ${canCopyRepairPrompt ? "" : "disabled"}>${t("copyRepairPrompt")}</button>` : ""}
     </div>
   </article>`;
