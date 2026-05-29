@@ -2,9 +2,9 @@
 .section-head {
   display: flex;
   justify-content: space-between;
-  gap: 18px;
+  gap: var(--dashboard-panel-gap);
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: var(--dashboard-panel-gap);
   min-width: 0;
 }
 

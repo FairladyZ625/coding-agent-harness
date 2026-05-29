@@ -2,8 +2,8 @@
 .tasks-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 24px;
-  margin-top: 16px;
+  gap: var(--dashboard-page-gap);
+  margin-top: 10px;
 }
 
 @media (min-width: 1024px) {
@@ -22,11 +22,11 @@
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 20px;
+  padding: var(--dashboard-card-padding);
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--dashboard-panel-gap);
   transition: box-shadow 0.25s;
 }
 
@@ -249,14 +249,14 @@
 .task-stats-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 16px 20px;
+  padding: 12px 16px;
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: var(--shadow);
-  margin-bottom: 24px;
+  margin-bottom: var(--dashboard-page-gap);
   backdrop-filter: blur(10px);
 }
 
@@ -265,7 +265,7 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 8px 16px;
+  padding: 7px 14px;
   border-radius: 8px;
   background: var(--paper-2);
   min-width: 64px;
@@ -278,7 +278,7 @@
 }
 
 .stat-chip .stat-value {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 800;
   color: var(--stat-color, var(--ink));
   line-height: 1;
@@ -341,7 +341,7 @@
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--line);
-  margin-top: 16px;
+  margin-top: var(--dashboard-panel-gap);
 }
 
 /* Table Header for Task List */
@@ -466,8 +466,8 @@
 .task-card-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
-  margin-top: 16px;
+  gap: var(--dashboard-panel-gap);
+  margin-top: var(--dashboard-panel-gap);
 }
 
 @media (min-width: 640px) {
