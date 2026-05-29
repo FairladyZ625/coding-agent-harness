@@ -51,3 +51,5 @@ assert(helpText.includes("~/.coding-agent-harness/presets/<preset-id>/"), "help 
 assert(helpText.includes("bundled package"), "help should document bundled preset fallback");
 assert(helpText.includes("preset list --json"), "help should point agents to preset discovery command");
 assert(helpText.includes("preset seed"), "help should document bundled preset seeding");
+assert(helpText.includes("preset action <id> <action>"), "help should document preset action runner command");
+assert(helpText.includes("--allow-scripts"), "help should document explicit trust for script actions");

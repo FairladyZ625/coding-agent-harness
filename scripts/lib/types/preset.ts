@@ -12,6 +12,7 @@ export type PresetInstallOptions = PresetOptions & {
   force?: boolean;
   scope?: "project" | "user" | string;
   dryRun?: boolean;
+  allowScripts?: boolean;
 };
 
 export type PresetInputDeclaration = {
@@ -55,6 +56,16 @@ export type PresetEntrypoint = {
   audit: boolean;
 };
 
+export type PresetAction = {
+  type: string;
+  command: string;
+  taskRequired: boolean;
+  inputs: Record<string, PresetInputDeclaration>;
+  writes: string[];
+  reads: string[];
+  audit: boolean;
+};
+
 export type PresetWriteScope = {
   name: string;
   path: string;
@@ -85,6 +96,7 @@ export type PresetPackage = {
     requiredReads: string[];
   };
   entrypoints: Record<string, PresetEntrypoint>;
+  actions: Record<string, PresetAction>;
   workbench: Record<string, unknown>;
   evidence: {
     bundleDir?: string;
@@ -181,5 +193,6 @@ export type PresetContext = {
 export type PresetScopeResolution = {
   writeScopes: string[];
   entrypoints: Record<string, string[]>;
+  actions?: Record<string, string[]>;
   reads: Record<string, string[]>;
 };

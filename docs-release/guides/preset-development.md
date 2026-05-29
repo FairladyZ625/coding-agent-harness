@@ -113,6 +113,43 @@ writeScopes:
     access: write
 ```
 
+## Task Actions
+
+Use `actions` when a preset needs task-level commands after task creation, such
+as closing a workflow stage or generating a preset-owned artifact. Actions run
+through the namespaced CLI entrypoint:
+
+```bash
+harness preset action custom-review close-stage --task custom-review-task --stage PLAN /path/to/project
+```
+
+Action scripts are trusted local Node.js code, not a sandbox. Non-bundled
+script actions require explicit trust when installed:
+
+```bash
+harness preset install ./custom-review --project --allow-scripts /path/to/project
+```
+
+```yaml
+actions:
+  close-stage:
+    type: script
+    command: scripts/close-stage.mjs
+    taskRequired: true
+    inputs:
+      stage:
+        type: text
+        flag: --stage
+        required: true
+    reads: [{{task.paths.taskPlan}}, {{task.paths.artifacts}}/**]
+    writes: [{{task.paths.artifacts}}/stages/**, {{task.paths.progress}}]
+    audit: true
+```
+
+Action commands must be package-local `.mjs` files. Inputs are schema-only
+(`text`, `flag`, or `json-file`), and writes should use `{{task.paths.*}}`
+tokens so the action stays scoped to the current task.
+
 ## Reference Bundles
 
 Use `resources.references` when a family of tasks shares the same outside context, such as another microservice, API contract, migration packet, reviewer input, or local verification runbook. Harness copies or renders these files into each created task directory, appends `references/INDEX.md` rows, and can add a required-read section to `task_plan.md`.
@@ -245,6 +282,8 @@ For every preset, prove both the manifest and downstream task behavior:
 
 - Presets cannot write outside declared `writeScopes`.
 - Presets do not run arbitrary JavaScript during `new-task`.
+- Preset actions may run trusted `.mjs` scripts, but only through
+  `harness preset action <preset> <action>` and task-local materialization.
 - Reference bundles are task-local snapshots. If the shared upstream context changes later, create a new preset version or a follow-up task rather than silently mutating historical tasks.
 - Script and check entrypoints may exist in bundled packages, but the task creation path is YAML + templates + built-in processors.
 - Use a new built-in processor only when multiple presets need the same capability and the behavior can be tested centrally.

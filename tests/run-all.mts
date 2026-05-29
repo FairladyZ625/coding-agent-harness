@@ -34,6 +34,7 @@ const suites: string[] = [
   "tests/governance-sync.mjs",
   "tests/governance-generated-indexes.mjs",
   "tests/preset-engine.mjs",
+  "tests/preset-action-runner.mjs",
   "tests/release-closeout-preset.mjs",
   "tests/task-lifecycle.mjs",
   "tests/lifecycle-queues.mjs",

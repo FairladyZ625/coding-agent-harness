@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import {
   checkPresetPackage,
   inspectPresetPackage,
@@ -5,6 +7,7 @@ import {
   auditBundledPresetDrift,
   listPresetPackages,
   seedBundledPresets,
+  runPresetAction,
   runPresetEntrypoint,
   uninstallPresetPackage,
 } from "../lib/harness-core.mjs";
@@ -48,9 +51,10 @@ export function runPresetCommand({ args, takeFlag, targetArg }: { args: string[]
       process.exit(report.status === "pass" ? 0 : 1);
     } else if (subcommand === "install") {
       const force = takeFlag("--force");
+      const allowScripts = takeFlag("--allow-scripts");
       const source = args.shift();
       if (!source) throw new Error("Missing preset source");
-      const result = installPresetPackage(source, { force, scope: project ? "project" : "user", targetInput: targetArg() });
+      const result = installPresetPackage(source, { force, allowScripts, scope: project ? "project" : "user", targetInput: targetArg() });
       if (json) console.log(JSON.stringify(result, null, 2));
       else console.log(`Installed preset ${result.id}@${result.version} to ${result.destination}`);
     } else if (subcommand === "seed") {
@@ -84,6 +88,17 @@ export function runPresetCommand({ args, takeFlag, targetArg }: { args: string[]
       const result = runPresetEntrypoint(id, entrypoint, { taskRef, targetInput: targetArg(), json });
       if (json) console.log(JSON.stringify(result, null, 2));
       else console.log(`Preset run ${result.status}: ${result.preset}.${result.entrypoint} (${result.materialized.length} writes)`);
+    } else if (subcommand === "action") {
+      const allowScripts = takeFlag("--allow-scripts");
+      const taskRef = takeOptionFromArgs(args, "--task", "");
+      const id = args.shift();
+      const action = args.shift();
+      if (!id) throw new Error("Missing preset id");
+      if (!action) throw new Error("Missing preset action");
+      const target = takeTrailingActionTarget(args);
+      const result = runPresetAction(id, action, { taskRef, targetInput: target, json, allowScripts, actionArgs: args });
+      if (json) console.log(JSON.stringify(result, null, 2));
+      else console.log(`Preset action ${result.status}: ${result.preset}.${result.action} (${result.materialized.length} writes) [${result.source} ${String(result.manifestSha256 || "").slice(0, 12)}]`);
     } else {
       throw new Error(`Unknown preset subcommand: ${subcommand}`);
     }
@@ -99,6 +114,16 @@ function takeOptionFromArgs(args: string[], name: string, fallback = ""): string
   const value = args[index + 1] || fallback;
   args.splice(index, 2);
   return value;
+}
+
+function takeTrailingActionTarget(args: string[]): string {
+  const candidate = args[args.length - 1] || "";
+  if (!candidate || candidate.startsWith("-")) return ".";
+  if (candidate === "." || candidate.startsWith("~") || candidate.includes("/") || candidate.includes("\\") || fs.existsSync(path.resolve(candidate))) {
+    args.pop();
+    return candidate;
+  }
+  return ".";
 }
 
 function errorMessage(error: unknown): string {

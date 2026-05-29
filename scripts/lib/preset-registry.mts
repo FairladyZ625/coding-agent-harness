@@ -5,9 +5,10 @@ import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
 import zlib from "node:zlib";
-import { builtinPresetRoot, projectPresetRoot, repoRoot, renderHarnessTemplate, toPosix, validateHarnessPathTemplateTokens, userPresetRoot, userPresetRootForHome } from "./core-shared.mjs";
+import { builtinPresetRoot, projectPresetRoot, readJsonSafe, repoRoot, renderHarnessTemplate, toPosix, validateHarnessPathTemplateTokens, userPresetRoot, userPresetRootForHome } from "./core-shared.mjs";
 import type {
   PresetEntrypoint,
+  PresetAction,
   PresetEvidenceFile,
   PresetInputDeclaration,
   PresetInstallOptions,
@@ -24,11 +25,13 @@ import type {
 
 const allowedEntrypoints = new Set(["newTask", "plan", "scaffold", "check"]);
 const allowedEntrypointTypes = new Set(["template", "script", "check"]);
+const allowedActionTypes = new Set(["script"]);
 const allowedEvidenceTypes = new Set(["text", "json", "input-json", "preset-audit", "preset-manifest", "write-scope", "migration-verify", "migration-ledger", "dashboard-hash", "target-git-status", "target-commit", "harness-version", "generated-at"]);
 const allowedNewTaskTemplateKeys = new Set(["taskPlanAppend", "executionStrategyAppend", "visualMapAppend", "findingsSeed", "reviewSeed", "prompt"]);
 const maxPresetArchiveBytes = 25 * 1024 * 1024;
 const maxPresetArchiveUncompressedBytes = 50 * 1024 * 1024;
 const maxPresetArchiveEntries = 500;
+const presetScriptTrustFile = ".harness-preset-trust.json";
 
 export function listPresetPackages({ targetInput = "", home = "" }: PresetOptions = {}) {
   return listPresetPackageLayers({ targetInput, home }).filter((preset) => preset.effective);
@@ -79,13 +82,14 @@ export function inspectPresetPackage(id: string, { targetInput = "", home = "" }
 export function checkPresetPackage(id: string, { targetInput = "", home = "" }: PresetOptions = {}) {
   const localPath = path.resolve(id || "");
   const preset = fs.existsSync(path.join(localPath, "preset.yaml")) ? readPresetPackageFromPath(localPath) : readPresetPackage(id, { targetInput, home });
+  const scriptPolicy = buildPresetScriptPolicy(preset);
   const report = validatePresetPackage(preset);
   return {
     id: preset.id,
     version: preset.version,
     status: report.failures.length === 0 ? "pass" : "fail",
     failures: report.failures,
-    warnings: report.warnings,
+    warnings: [...report.warnings, ...scriptPolicy.warnings],
     manifestPath: preset.manifestRelativePath,
     source: preset.source,
     inputs: preset.inputs,
@@ -94,6 +98,8 @@ export function checkPresetPackage(id: string, { targetInput = "", home = "" }: 
     resources: preset.resources,
     context: preset.context,
     entrypoints: preset.entrypoints,
+    actions: preset.actions,
+    scriptPolicy,
     writeScopes: preset.writeScopes,
   };
 }
@@ -125,7 +131,7 @@ function assertPresetManifestFile(directory: string, manifestPath: string): void
   if (!isInside(realRoot, realPath)) throw new Error(`Preset manifest real path escapes preset package: ${displayManifestPath(manifestPath)}`);
 }
 
-export function installPresetPackage(source: string, { force = false, scope = "user", targetInput = ".", home = "" }: PresetInstallOptions = {}) {
+export function installPresetPackage(source: string, { force = false, scope = "user", targetInput = ".", home = "", allowScripts = false }: PresetInstallOptions = {}) {
   if (!source) throw new Error("Missing preset source");
   const resolvedSource = resolveInstallSource(source);
   try {
@@ -133,6 +139,10 @@ export function installPresetPackage(source: string, { force = false, scope = "u
     const stagedPreset = readPresetPackageFromPath(sourcePath);
     const stagedReport = validatePresetPackage(stagedPreset);
     if (stagedReport.failures.length) throw new Error(`Invalid preset package ${stagedPreset.id}: ${stagedReport.failures.join("; ")}`);
+    const scriptPolicy = buildPresetScriptPolicy(stagedPreset);
+    if (resolvedSource.source !== "builtin" && scriptPolicy.requiresTrustedSource && !allowScripts) {
+      throw new Error(`Preset ${stagedPreset.id} declares script actions and requires explicit trust. Re-run with --allow-scripts if you trust this preset source.`);
+    }
     const id = stagedPreset.id;
     if (!id) throw new Error("Preset manifest missing id");
     const destination = scope === "project" ? projectPresetDestination(id, targetInput) : userPresetDestination(id, { home });
@@ -149,6 +159,9 @@ export function installPresetPackage(source: string, { force = false, scope = "u
       if (tempReport.failures.length) throw new Error(`Invalid preset package ${id}: ${tempReport.failures.join("; ")}`);
       fs.rmSync(destination, { recursive: true, force: true });
       fs.renameSync(tempDestination, destination);
+      if (scriptPolicy.requiresTrustedSource && allowScripts) {
+        writePresetScriptTrustMarker(destination, stagedPreset, scriptPolicy.scriptCommands);
+      }
       const preset = readPresetPackage(id, scope === "project" ? { targetInput, home } : { home });
       return {
         installed: true,
@@ -157,6 +170,10 @@ export function installPresetPackage(source: string, { force = false, scope = "u
         source: preset.source,
         destination: toPosix(destination),
         manifestPath: preset.manifestRelativePath,
+        scriptPolicy: {
+          ...buildPresetScriptPolicy(preset),
+          trusted: presetScriptTrustValid(preset),
+        },
       };
     } catch (error) {
       fs.rmSync(tempDestination, { recursive: true, force: true });
@@ -311,6 +328,33 @@ export function validatePresetPackage(preset: PresetPackage): { failures: string
     }
     for (const readScope of entrypoint.reads || []) failures.push(...validateHarnessPathTemplateTokens(readScope, `${name} read scope`));
   }
+  for (const [name, action] of Object.entries(preset.actions || {})) {
+    if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(name)) failures.push(`unsupported action id: ${name}`);
+    if (!allowedActionTypes.has(action.type)) failures.push(`${name} action has unsupported type: ${action.type || "(missing)"}`);
+    if (action.taskRequired !== true) failures.push(`${name} action must set taskRequired: true`);
+    if (!action.writes.length) failures.push(`${name} action missing write scope manifest`);
+    for (const [inputName, input] of Object.entries(action.inputs || {})) {
+      if (!["text", "flag", "json-file"].includes(input.type)) failures.push(`${name}.${inputName} has unsupported input type: ${input.type || "(missing)"}`);
+      if (!input.flag) failures.push(`${name}.${inputName} input missing CLI flag`);
+      else if (!input.flag.startsWith("--")) failures.push(`${name}.${inputName} input flag must start with --`);
+    }
+    for (const writeScope of action.writes) {
+      failures.push(...validateActionPathTemplateTokens(writeScope, `${name} action write scope`));
+      if (isBroadTaskRootScope(writeScope)) failures.push(`${name} action writes must be task-local; avoid broad task-root scope: ${writeScope}`);
+      if (!usesTaskLocalPath(writeScope)) warnings.push(`${name} action write scope is not task-local: ${writeScope}`);
+    }
+    for (const readScope of action.reads || []) failures.push(...validateActionPathTemplateTokens(readScope, `${name} action read scope`));
+    if (action.type === "script") {
+      const actionPath = path.join(preset.directory, action.command || "");
+      if (!action.command) failures.push(`${name} action missing command`);
+      else if (!action.command.endsWith(".mjs")) failures.push(`${name} action command must be a .mjs file: ${action.command}`);
+      else if (!isInside(preset.directory, actionPath)) failures.push(`${name} action command escapes preset package`);
+      else {
+        validatePresetPackageFile(preset, action.command, `${name} action command`, failures);
+        warnOnRuntimePathLiterals(actionPath, `${name} action command`, warnings);
+      }
+    }
+  }
   for (const scope of preset.writeScopes) failures.push(...validateHarnessPathTemplateTokens(scope.path, `${scope.name || "write scope"} path`));
   for (const [templateKey, templatePath] of Object.entries(preset.newTaskTemplates)) {
     if (!allowedNewTaskTemplateKeys.has(templateKey)) {
@@ -347,6 +391,58 @@ export function buildPresetAudit(preset: PresetPackage, { taskId = "", targetRoo
     targetRoot,
     generatedAt: new Date().toISOString(),
   };
+}
+
+export function buildPresetScriptPolicy(preset: PresetPackage) {
+  const scriptCommands = [
+    ...Object.entries(preset.entrypoints || {})
+      .filter(([, entrypoint]) => entrypoint.type === "script")
+      .map(([name, entrypoint]) => `entrypoint:${name}:${entrypoint.command}`),
+    ...Object.entries(preset.actions || {})
+      .filter(([, action]) => action.type === "script")
+      .map(([name, action]) => `action:${name}:${action.command}`),
+  ];
+  const actionScriptCommands = Object.entries(preset.actions || {})
+    .filter(([, action]) => action.type === "script")
+    .map(([name, action]) => `action:${name}:${action.command}`);
+  const unsupportedCommands = Object.entries(preset.actions || {})
+    .filter(([, action]) => action.type === "script" && !String(action.command || "").endsWith(".mjs"))
+    .map(([name, action]) => `action:${name}:${action.command || "(missing)"}`);
+  const requiresTrustedSource = actionScriptCommands.length > 0 && preset.source !== "builtin";
+  return {
+    hasScripts: scriptCommands.length > 0,
+    scriptCommands,
+    riskLevel: scriptCommands.length > 0 ? "trusted-code" : "none",
+    requiresTrustedSource,
+    unsupportedCommands,
+    warnings: requiresTrustedSource
+      ? ["Script actions execute trusted local Node.js code; use --allow-scripts only for sources you trust."]
+      : [],
+  };
+}
+
+export function presetScriptTrustValid(preset: PresetPackage): boolean {
+  if (preset.source === "builtin") return true;
+  const trustPath = path.join(preset.directory, presetScriptTrustFile);
+  const trust = asRecord(readJsonSafe(trustPath, {}));
+  return (
+    trust.schemaVersion === "preset-script-trust/v1" &&
+    trust.preset === preset.id &&
+    trust.manifestSha256 === preset.manifestSha256 &&
+    trust.trusted === true
+  );
+}
+
+function writePresetScriptTrustMarker(destination: string, preset: PresetPackage, scriptCommands: string[]): void {
+  fs.writeFileSync(path.join(destination, presetScriptTrustFile), `${JSON.stringify({
+    schemaVersion: "preset-script-trust/v1",
+    preset: preset.id,
+    version: preset.version,
+    manifestSha256: preset.manifestSha256,
+    scriptCommands,
+    trusted: true,
+    trustedAt: new Date().toISOString(),
+  }, null, 2)}\n`);
 }
 
 export function renderPresetTemplate(preset: PresetPackage, templatePath: string, values: Record<string, unknown>): string {
@@ -396,6 +492,7 @@ function normalizePresetManifest(manifest: PresetManifest, { id, manifestPath, r
   const directory = path.dirname(manifestPath);
   const manifestRecord = asRecord(manifest);
   const entrypoints = normalizeEntryPoints(asRecord(manifestRecord.entrypoints));
+  const actions = normalizeActions(asRecord(manifestRecord.actions));
   const writeScopes = Object.entries(asRecord(manifestRecord.writeScopes)).map(([name, value]) => {
     const scope = asRecord(value);
     return {
@@ -420,6 +517,7 @@ function normalizePresetManifest(manifest: PresetManifest, { id, manifestPath, r
     resources: normalizeResources(asRecord(manifestRecord.resources)),
     context: normalizeContext(asRecord(manifestRecord.context)),
     entrypoints,
+    actions,
     workbench: asRecord(manifestRecord.workbench),
     evidence: asEvidence(asRecord(manifestRecord.evidence)),
     review: asRecord(manifestRecord.review),
@@ -522,6 +620,23 @@ function normalizeEntryPoints(rawEntryPoints: Record<string, unknown>): Record<s
   return result;
 }
 
+function normalizeActions(rawActions: Record<string, unknown>): Record<string, PresetAction> {
+  const result: Record<string, PresetAction> = {};
+  for (const [name, value] of Object.entries(rawActions || {})) {
+    const action = asRecord(value);
+    result[name] = {
+      type: String(action.type || "").trim(),
+      command: action.command ? String(action.command).trim() : "",
+      taskRequired: asBoolean(action.taskRequired),
+      inputs: normalizeInputs(asRecord(action.inputs)),
+      writes: asArray(action.writes),
+      reads: asArray(action.reads),
+      audit: asBoolean(action.audit),
+    };
+  }
+  return result;
+}
+
 function publicPresetShape(preset: PresetPackage) {
   return {
     id: preset.id,
@@ -531,6 +646,7 @@ function publicPresetShape(preset: PresetPackage) {
     localeSupport: preset.localeSupport,
     task: preset.task,
     entrypoints: preset.entrypoints,
+    actions: preset.actions,
     workbench: preset.workbench,
     evidence: preset.evidence,
     review: preset.review,
@@ -544,6 +660,7 @@ function publicPresetShape(preset: PresetPackage) {
     source: preset.source,
     manifestPath: preset.manifestRelativePath,
     manifestSha256: preset.manifestSha256,
+    scriptPolicy: buildPresetScriptPolicy(preset),
   };
 }
 
@@ -596,6 +713,35 @@ function validateAuditEvidenceFiles(preset: PresetPackage, failures: string[]): 
       seen.add(normalized);
     }
   }
+}
+
+function validateActionPathTemplateTokens(content: string, label: string): string[] {
+  const failures = validateHarnessPathTemplateTokens(content, label);
+  const allowedTaskTokens = new Set([
+    "task.paths.dir",
+    "task.paths.taskPlan",
+    "task.paths.progress",
+    "task.paths.artifacts",
+    "task.paths.artifactsIndex",
+    "task.paths.visualMap",
+  ]);
+  for (const match of String(content || "").matchAll(/\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/g)) {
+    const key = match[1];
+    if (key.startsWith("paths.")) continue;
+    if (key.startsWith("task.") && !allowedTaskTokens.has(key)) failures.push(`${label} uses unknown task token: ${key}`);
+  }
+  return failures;
+}
+
+function isBroadTaskRootScope(scope: string): boolean {
+  const normalized = toPosix(path.normalize(String(scope || "")));
+  return normalized === "{{paths.tasksRoot}}/**" ||
+    normalized === "coding-agent-harness/planning/tasks/**" ||
+    normalized === ["docs", "09-PLANNING", "TASKS", "**"].join("/");
+}
+
+function usesTaskLocalPath(scope: string): boolean {
+  return String(scope || "").includes("{{task.paths.");
 }
 
 function newTaskWriteScopeAllowed(writeScope: string): boolean {
@@ -750,24 +896,25 @@ function presetSearchRoots({ targetInput = "", home = "" }: PresetOptions = {}):
   return roots;
 }
 
-function resolveInstallSource(source: string): { path: string; cleanup: () => void } {
+function resolveInstallSource(source: string): { path: string; source: "local" | "archive" | "builtin"; cleanup: () => void } {
   const localPath = path.resolve(source);
-  if (fs.existsSync(path.join(localPath, "preset.yaml"))) return { path: localPath, cleanup: () => {} };
+  if (fs.existsSync(path.join(localPath, "preset.yaml"))) return { path: localPath, source: "local", cleanup: () => {} };
   if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
     if (!localPath.toLowerCase().endsWith(".zip")) throw new Error(`Preset source file must be a .zip archive: ${toPosix(localPath)}`);
     return resolveZipInstallSource(localPath);
   }
   const builtinPath = path.join(builtinPresetRoot, normalizePresetId(source));
-  if (fs.existsSync(path.join(builtinPath, "preset.yaml"))) return { path: builtinPath, cleanup: () => {} };
+  if (fs.existsSync(path.join(builtinPath, "preset.yaml"))) return { path: builtinPath, source: "builtin", cleanup: () => {} };
   throw new Error(`Preset source not found: ${source}`);
 }
 
-function resolveZipInstallSource(sourcePath: string): { path: string; cleanup: () => void } {
+function resolveZipInstallSource(sourcePath: string): { path: string; source: "archive"; cleanup: () => void } {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-preset-archive-"));
   try {
     extractPresetZip(sourcePath, tempRoot);
     return {
       path: presetRootFromExtractedArchive(tempRoot),
+      source: "archive",
       cleanup: () => fs.rmSync(tempRoot, { recursive: true, force: true }),
     };
   } catch (error) {

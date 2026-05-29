@@ -11,6 +11,7 @@ import {
   normalizeTarget,
   readFileSafe,
   readJsonSafe,
+  renderHarnessTemplate,
   sanitizeDeep,
   toPosix,
   walkFiles,
@@ -20,8 +21,8 @@ import { parseTaskMetadata } from "./task-metadata.mjs";
 import { taskIdForDirectory } from "./task-scanner.mjs";
 import { resolveTaskDirectory } from "./task-lifecycle.mjs";
 import { evaluateTemplateValues, assertPresetWriteScope, resolvePresetScopes } from "./preset-engine.mjs";
-import { buildPresetAudit, readPresetPackage } from "./preset-registry.mjs";
-import type { PresetEntrypoint, PresetPackage, PresetResolvedInputs, PresetTarget } from "./types/preset.js";
+import { buildPresetAudit, buildPresetScriptPolicy, presetScriptTrustValid, readPresetPackage } from "./preset-registry.mjs";
+import type { PresetAction, PresetEntrypoint, PresetInputDeclaration, PresetPackage, PresetResolvedInputs, PresetTarget } from "./types/preset.js";
 
 const materializationSchemaVersion = "preset-materialization/v1";
 const maxMaterializedFileBytes = 10 * 1024 * 1024;
@@ -31,6 +32,11 @@ type PresetRunOptions = {
   taskRef?: string;
   targetInput?: string;
   json?: boolean;
+};
+
+type PresetActionOptions = PresetRunOptions & {
+  actionArgs?: string[];
+  allowScripts?: boolean;
 };
 
 type PresetTaskMetadata = {
@@ -70,6 +76,15 @@ type BackupRecord = {
   destinationPath: string;
   backupPath: string;
   existed: boolean;
+};
+
+type TaskPathContext = {
+  dir: string;
+  taskPlan: string;
+  progress: string;
+  artifacts: string;
+  artifactsIndex: string;
+  visualMap: string;
 };
 
 export function runPresetEntrypoint(presetId: string, entrypointName: string, { taskRef = "", targetInput = ".", json = false }: PresetRunOptions = {}) {
@@ -170,12 +185,210 @@ export function runPresetEntrypoint(presetId: string, entrypointName: string, { 
   }
 }
 
+export function runPresetAction(presetId: string, actionName: string, { taskRef = "", targetInput = ".", json = false, actionArgs = [], allowScripts = false }: PresetActionOptions = {}) {
+  void json;
+  const target = normalizeTarget(targetInput) as PresetTarget;
+  const preset = readPresetPackage(presetId, { targetInput });
+  const action = preset.actions?.[actionName];
+  if (!action) throw new Error(`Preset ${preset.id} does not declare action: ${actionName}`);
+  if (action.type !== "script") throw new Error(`Preset action ${actionName} is not runnable by preset action`);
+  if (action.taskRequired !== true) throw new Error(`Preset action ${preset.id}.${actionName} requires taskRequired: true`);
+  if (!taskRef) throw new Error("preset action requires --task <task-id>");
+  const scriptPolicy = buildPresetScriptPolicy(preset);
+  if (scriptPolicy.requiresTrustedSource && !allowScripts && !presetScriptTrustValid(preset)) {
+    throw new Error(`Preset action ${preset.id}.${actionName} executes trusted local code. Re-run with --allow-scripts if you trust this preset source.`);
+  }
+  const taskDir = resolveTaskDirectory(target, taskRef);
+  const taskPlan = readFileSafe(path.join(taskDir, "task_plan.md"));
+  const metadata = parseTaskMetadata(taskPlan);
+  if (metadata.preset !== preset.id) throw new Error(`Task ${taskRef} was created by preset ${metadata.preset || "none"}, not ${preset.id}`);
+  const taskId = taskIdForDirectory(target, taskDir);
+  const taskPaths = taskPathContext(target, taskDir);
+  const actionInputs = resolveActionInputs(action, actionArgs);
+  const creationInputs = readResolvedInputs(target, metadata);
+  const values = evaluateTemplateValues(preset, creationInputs, { taskId, taskTitle: taskId, moduleKey: "", target });
+  const actionWriteScopes = resolveActionScopes(action.writes, { target, taskPaths, label: `${actionName} action write scope` });
+  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), `harness-preset-${preset.id}-${actionName}-`));
+  const manifestPath = path.join(outputRoot, "materialization-manifest.json");
+  const contextPath = path.join(outputRoot, "preset-action-context.json");
+  let governanceContext: ReturnType<typeof beginGovernanceSync> | null = null;
+  try {
+    governanceContext = beginGovernanceSync(target, {
+      operation: `preset-action ${preset.id}.${actionName}`,
+      allowDirtyWorktree: true,
+      allowedRelativePaths: concreteActionWriteScopes(actionWriteScopes),
+    });
+    const beforeSnapshot = targetSnapshot(target.projectRoot);
+    const context = {
+      schemaVersion: "preset-action-context/v1",
+      preset: { id: preset.id, version: preset.version, source: preset.source, manifestSha256: preset.manifestSha256 },
+      action: { id: actionName, type: action.type },
+      task: {
+        id: taskId,
+        ref: taskRef,
+        dir: taskPaths.dir,
+        taskPlanPath: taskPaths.taskPlan,
+        paths: taskPaths,
+      },
+      targetRoot: target.projectRoot,
+      targetRootPolicy: "read-only; direct target mutation before manifest materialization is a hard failure",
+      outputRoot,
+      materializationManifestPath: manifestPath,
+      paths: harnessPathContext(target),
+      inputs: sanitizeDeep(actionInputs),
+      creationInputs: sanitizeDeep(creationInputs),
+      values: sanitizeDeep(values),
+      audit: buildPresetAudit(preset, {
+        taskId,
+        targetRoot: target.projectRoot,
+        entrypoint: `action:${actionName}`,
+        writeScopes: actionWriteScopes,
+        resolvedInputs: actionInputs,
+      }),
+    };
+    fs.writeFileSync(contextPath, `${JSON.stringify(context, null, 2)}\n`);
+    const commandPath = path.join(preset.directory, action.command || "");
+    const script = spawnSync(process.execPath, [commandPath], {
+      cwd: outputRoot,
+      encoding: "utf8",
+      env: presetActionEnv(contextPath),
+      timeout: 120000,
+      maxBuffer: 128 * 1024,
+    });
+    if (script.error) throw script.error;
+    if (script.status !== 0) {
+      throw new Error(`Preset action ${preset.id}.${actionName} failed with ${script.status}\n${boundedScriptOutput(script.stderr || script.stdout || "")}`.trim());
+    }
+    const afterScriptSnapshot = targetSnapshot(target.projectRoot);
+    assertSnapshotsEqual(beforeSnapshot, afterScriptSnapshot, "Preset script mutated target before materialization");
+    const manifest = readMaterializationManifest(manifestPath);
+    const materialization = validateMaterializationManifest(preset, {
+      type: action.type,
+      command: action.command,
+      templates: {},
+      writes: actionWriteScopes,
+      reads: action.reads,
+      audit: action.audit,
+    }, manifest, { outputRoot, target, entrypointName: actionName });
+    materializeWrites(target.projectRoot, materialization);
+    const commit = commitGovernanceSync(governanceContext, materialization.map((item) => item.destination), {
+      message: `chore(harness): run preset action ${preset.id} ${actionName}`,
+    });
+    return {
+      preset: preset.id,
+      action: actionName,
+      source: preset.source,
+      manifestSha256: preset.manifestSha256,
+      taskId,
+      status: manifest.status || "ok",
+      materialized: materialization.map((item) => ({
+        source: item.source,
+        destination: item.destination,
+        type: item.type,
+        sha256: item.sha256,
+      })),
+      governance: { commit },
+    };
+  } finally {
+    if (governanceContext) releaseGovernanceSync(governanceContext);
+    fs.rmSync(outputRoot, { recursive: true, force: true });
+  }
+}
+
 function readResolvedInputs(target: PresetTarget, metadata: PresetTaskMetadata): PresetResolvedInputs {
   const evidenceBundle = String(metadata.evidenceBundle || "").replace(/^TARGET:/, "").replace(/^\/+/, "");
   if (!evidenceBundle) return {};
   const auditPath = path.join(target.projectRoot, evidenceBundle, "preset-audit.json");
   const audit = asRecord(readJsonSafe(auditPath, {}));
   return asRecord(audit.resolvedInputs);
+}
+
+function resolveActionInputs(action: PresetAction, cliArgs: string[]): Record<string, unknown> {
+  const remaining = [...cliArgs];
+  const inputs: Record<string, unknown> = {};
+  for (const [name, declaration] of Object.entries(action.inputs || {})) {
+    inputs[name] = resolveActionInputValue(name, declaration, remaining);
+  }
+  if (remaining.length > 0) throw new Error(`Unknown action argument: ${remaining[0]}`);
+  return inputs;
+}
+
+function resolveActionInputValue(name: string, declaration: PresetInputDeclaration, remaining: string[]): unknown {
+  const flag = declaration.flag || name;
+  const index = remaining.indexOf(flag);
+  if (declaration.type === "flag") {
+    if (index >= 0) {
+      remaining.splice(index, 1);
+      return true;
+    }
+    return Boolean(declaration.default);
+  }
+  if (index < 0) {
+    if (declaration.required) throw new Error(`Missing required action input ${flag}`);
+    return declaration.default ?? "";
+  }
+  const value = remaining[index + 1] || "";
+  if (!value || value.startsWith("--")) throw new Error(`Missing value for action input ${flag}`);
+  remaining.splice(index, 2);
+  if (String(value).includes("\0")) throw new Error(`Action input ${flag} contains NUL byte`);
+  if (declaration.type === "text") {
+    if (String(value).length > 4096) throw new Error(`Action input ${flag} exceeds text length limit`);
+    return String(value);
+  }
+  if (declaration.type === "json-file") {
+    const filePath = path.resolve(String(value));
+    if (!fs.existsSync(filePath)) throw new Error(`Action input file not found for ${flag}: ${value}`);
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) throw new Error(`Action input file must be a file for ${flag}: ${value}`);
+    if (stat.size > 1024 * 1024) throw new Error(`Action input file exceeds size limit for ${flag}: ${value}`);
+    let readError: unknown = null;
+    const parsed = readJsonSafe(filePath, null, { onError: (error: unknown) => { readError = error; } });
+    if (!isRecord(parsed)) throw new Error(`Invalid action JSON input ${flag}: ${errorMessage(readError)}`);
+    return parsed;
+  }
+  throw new Error(`Unsupported action input type for ${flag}: ${declaration.type}`);
+}
+
+function taskPathContext(target: PresetTarget, taskDir: string): TaskPathContext {
+  const dir = toPosix(path.relative(target.projectRoot, taskDir));
+  return {
+    dir,
+    taskPlan: toPosix(path.join(dir, "task_plan.md")),
+    progress: toPosix(path.join(dir, "progress.md")),
+    artifacts: toPosix(path.join(dir, "artifacts")),
+    artifactsIndex: toPosix(path.join(dir, "artifacts/INDEX.md")),
+    visualMap: toPosix(path.join(dir, "visual_map.md")),
+  };
+}
+
+function resolveActionScopes(scopes: string[], { target, taskPaths, label }: { target: PresetTarget; taskPaths: TaskPathContext; label: string }): string[] {
+  return (scopes || []).map((scope) => {
+    const rendered = renderHarnessTemplate(String(scope || ""), { paths: harnessPathContext(target), task: { paths: taskPaths } }, { strict: true });
+    const normalized = toPosix(path.normalize(rendered));
+    if (!rendered.trim() || path.isAbsolute(rendered) || normalized === "." || normalized === ".." || normalized.startsWith("../") || normalized.includes("/../")) {
+      throw new Error(`${label} escapes target root: ${scope}`);
+    }
+    return normalized;
+  });
+}
+
+function concreteActionWriteScopes(scopes: string[]): string[] {
+  return scopes.filter((scope) => !scope.endsWith("/**"));
+}
+
+function presetActionEnv(contextPath: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { HARNESS_PRESET_CONTEXT: contextPath };
+  for (const key of ["PATH", "TMPDIR", "TEMP", "TMP", "SystemRoot", "ComSpec"]) {
+    if (process.env[key]) env[key] = process.env[key];
+  }
+  return env;
+}
+
+function boundedScriptOutput(output: string): string {
+  const redacted = String(output || "")
+    .replace(/(api[_-]?key|token|secret|password)=\S+/gi, "$1=[redacted]")
+    .replace(/\/Users\/[^/\s]+/g, "/Users/[redacted]");
+  return redacted.length > 4096 ? `${redacted.slice(0, 4096)}\n[output truncated]` : redacted;
 }
 
 function readMaterializationManifest(manifestPath: string): MaterializationManifest {
@@ -202,6 +415,9 @@ function validateMaterializationManifest(preset: PresetPackage, entrypoint: Pres
     if (seenDestinations.has(destination)) throw new Error(`Duplicate materialization destination: ${destination}`);
     seenDestinations.add(destination);
     assertEntrypointWriteScope(preset, entrypoint, destination, target, entrypointName);
+    if (entrypointName && preset.actions?.[entrypointName] && isDefaultTaskGovernanceFile(destination)) {
+      throw new Error(`Preset action ${entrypointName} cannot write task governance file by default: ${destination}`);
+    }
     const sourcePath = path.join(outputRoot, source);
     assertOutputSource(outputRoot, sourcePath, source);
     const stat = fs.lstatSync(sourcePath);
@@ -267,6 +483,10 @@ function matchesScope(scope: string, relativePath: string): boolean {
     return relativePath === prefix || relativePath.startsWith(`${prefix}/`);
   }
   return relativePath === normalizedScope;
+}
+
+function isDefaultTaskGovernanceFile(destination: string): boolean {
+  return /(^|\/)(review|brief|task_plan)\.md$/.test(destination);
 }
 
 function enforcePublicRedaction(manifest: MaterializationManifest, writes: MaterializedWrite[], { outputRoot }: { outputRoot: string }): void {
@@ -348,4 +568,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

@@ -205,6 +205,16 @@ writeScopes:
 - `id` uses lowercase letters, numbers, and hyphens only.
 - Supported `inputs.*.type` values are `text`, `flag`, and `json-file`.
 - `entrypoints.newTask.writes` entries must exactly match declared `writeScopes.*.path` entries.
+- Use `actions` only for task-level post-creation commands exposed through
+  `harness preset action <preset> <action>`.
+- `actions.*.command` must be a package-local `.mjs` file. Non-bundled script
+  actions require explicit `--allow-scripts` trust during install or run.
+- `actions.*.inputs` supports the same schema-only input types as preset
+  inputs: `text`, `flag`, and `json-file`.
+- `actions.*.writes` must be task-local. Prefer `{{task.paths.artifacts}}/**`,
+  `{{task.paths.artifactsIndex}}`, `{{task.paths.progress}}`, and
+  `{{task.paths.visualMap}}`; do not use broad `{{paths.tasksRoot}}/**` for an
+  action.
 - `path` for references must stay under `references/`.
 - `path` for artifacts must stay under `artifacts/`.
 - Do not target `references/INDEX.md`, `artifacts/INDEX.md`, `task_plan.md`, or any canonical task contract file.
