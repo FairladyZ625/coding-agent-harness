@@ -12,6 +12,30 @@ const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf
 assert(pkg.scripts.test === "node run-dist.mjs run-built-tests.mjs", "npm test should use the source-safe built TS-source test runner");
 assert(!fs.existsSync(path.join(repoRoot, "tests/run-all.mjs")), "historical checked-in tests/run-all.mjs shim should be removed after PR-28");
 
+const runAllSource = fs.readFileSync(path.join(repoRoot, "tests/run-all.mts"), "utf8");
+const registeredSuites = new Set(Array.from(runAllSource.matchAll(/"([^"]+\.mjs)"/g)).map((match) => match[1].replace(/\.mjs$/, ".mts")));
+const suiteFiles = walkTestSuites(path.join(repoRoot, "tests"))
+  .map((file) => path.relative(repoRoot, file).split(path.sep).join("/"))
+  .filter((file) => ![
+    "tests/run-all.mts",
+    "tests/run-built.mts",
+    "tests/smoke-dashboard.mts",
+    "tests/helpers/harness-test-utils.mts",
+    "tests/scripts/snapshot-matrix.mts",
+  ].includes(file))
+  .filter((file) => !file.startsWith("tests/fixtures/"));
+const shimReferencedSuites = new Set<string>();
+for (const suite of registeredSuites) {
+  const absolute = path.join(repoRoot, suite);
+  if (!fs.existsSync(absolute)) continue;
+  const source = fs.readFileSync(absolute, "utf8");
+  for (const match of source.matchAll(/import\(["'](\.\/[^"']+\.mjs)["']\)/g)) {
+    shimReferencedSuites.add(path.join(path.dirname(suite), match[1]).split(path.sep).join("/").replace(/\.mjs$/, ".mts"));
+  }
+}
+const missingFromRunAll = suiteFiles.filter((file) => !registeredSuites.has(file) && !shimReferencedSuites.has(file));
+assert(missingFromRunAll.length === 0, `tests/run-all.mts is missing suites: ${missingFromRunAll.join(", ")}`);
+
 const mainHarness = fs.readFileSync(path.join(repoRoot, "tests/test-harness.mts"), "utf8");
 assert(mainHarness.split(/\r?\n/).length <= 350, "tests/test-harness.mts should stay below 350 lines after lifecycle/migration suite extraction");
 assert(fs.existsSync(path.join(repoRoot, "tests/source-package-boundary.mts")), "source/package boundary tests should live in a dedicated suite");
@@ -70,3 +94,16 @@ for (const relativePath of cssManifest) {
 const taskIndexCss = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/css-src/30-task-index.css"), "utf8");
 assert(taskIndexCss.split(/\r?\n/).length <= 760, "dashboard task index CSS should stay below 760 lines by routing review workspace styles out");
 assert(fs.existsSync(path.join(repoRoot, "templates/dashboard/assets/css-src/35-review-workspace.css")), "dashboard review workspace CSS should live outside task index CSS");
+
+function walkTestSuites(root: string): string[] {
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const absolute = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...walkTestSuites(absolute));
+    } else if (entry.isFile() && entry.name.endsWith(".mts")) {
+      files.push(absolute);
+    }
+  }
+  return files.sort();
+}
