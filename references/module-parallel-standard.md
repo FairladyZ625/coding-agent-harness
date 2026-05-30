@@ -90,11 +90,8 @@ coding-agent-harness/planning/modules/<key>/
     │   └── review.md (如需要)
     └── ...
 
-task-local walkthrough.md/
-├── <module-key>/
-│   ├── <PREFIX>-NN-walkthrough.md
-│   └── ...
-└── _shared/               ← 跨模块基础设施 task 的 walkthrough
+每个任务的收口记录保存在该任务目录的 `walkthrough.md`。不再维护集中式
+walkthrough 目录树。
 
 coding-agent-harness/planning/modules/_shared/tasks/
 └── YYYY-MM-DD-<name>/     ← 跨模块/基础设施 task
@@ -264,7 +261,7 @@ HARNESS_REQUIRE_GLOBAL_MODULE_SYNC=1 node dist/check-harness.mjs <repo-path>
 
 - 模块所有步骤完成后，状态改为 `completed`
 - 将模块目录移入 `coding-agent-harness/planning/modules/_archive/<key>/`
-- 对应的 walkthrough 保留在 `walkthrough.md/`（不归档）
+- 对应的收口记录保留在各任务目录的 `walkthrough.md`（不归档）
 
 ### 过期检测
 

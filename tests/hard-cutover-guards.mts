@@ -23,7 +23,7 @@ const allowed = [
   /^dist\/lib\/harness-paths\.mjs$/,
   /^dist\/lib\/core-shared\.mjs$/,
 ];
-const packageForbidden = /docs\/(?:0[1-9]-|1[0-1]-)|docs\/Harness-Ledger\.md|\.harness-capabilities\.json|Closeout SSoT|Closeout-SSoT\.md|coding-agent-harness\/planning\/Module-Registry\.md|(^|[^A-Za-z0-9])(?:03-ARCHITECTURE|04-DEVELOPMENT|05-TEST-QA|06-INTEGRATIONS|09-PLANNING|10-WALKTHROUGH|11-REFERENCE)(?:\/|\b)|coding-agent-harness\/planning\/[^\n`|]*\b(?:TASKS|MODULES)\b|(?:current task walkthrough\.md|AGENTS\.md\s*\+\s*docs\/|source files under docs\/|docs\/ (?:目录|tree|文档树|完整骨架|下的源文件))/;
+const packageForbidden = /\/Users\/[A-Za-z0-9._-]+\/|docs\/(?:0[1-9]-|1[0-1]-)|docs\/Harness-Ledger\.md|\.harness-capabilities\.json|Closeout SSoT|Closeout-SSoT\.md|coding-agent-harness\/planning\/Module-Registry\.md|coding-agent-harness\/governance\/_archive\/|(^|[^A-Za-z0-9])(?:03-ARCHITECTURE|04-DEVELOPMENT|05-TEST-QA|06-INTEGRATIONS|09-PLANNING|10-WALKTHROUGH|11-REFERENCE)(?:\/|\b)|coding-agent-harness\/planning\/[^\n`|]*\b(?:TASKS|MODULES)\b|(?:current task walkthrough\.md|task-local walkthrough\.md\/|AGENTS\.md\s*\+\s*docs\/|source files under docs\/|[├└]── docs\/|docs\/ (?:目录|tree|文档树|完整骨架|下的源文件))/;
 const packageAllow = [
   /^docs-release\/guides\/legacy-migration/,
   /^docs-release\/guides\/migration-playbook/,
@@ -77,6 +77,9 @@ for (const relative of packageFiles()) {
 }
 
 assert(packageOffenders.length === 0, `package-facing surfaces still contain legacy hard-cutover strings:\n${packageOffenders.join("\n")}`);
+
+const skillContent = fs.readFileSync(path.join(repoRoot, "SKILL.md"), "utf8");
+assert(!/\| Closeout Index \| `templates\/walkthrough\/walkthrough-template\.md`/.test(skillContent), "SKILL.md must not describe Closeout Index as a walkthrough template");
 
 console.log("Hard cutover guard tests passed");
 

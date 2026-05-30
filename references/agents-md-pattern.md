@@ -70,23 +70,29 @@ AGENTS.md 只包含两类内容：
 项目根目录/
 ├── AGENTS.md        ← concise canonical charter + routing index
 ├── CLAUDE.md        ← 轻量 shim，指向 AGENTS.md
-└── docs/
-    ├── Harness-Ledger.md
-    └── coding-agent-harness/governance/standards/
-        ├── testing-standard.md
-        ├── execution-workflow-standard.md
-        ├── repo-governance-standard.md
-        ├── ci-cd-standard.md
-        ├── long-running-task-standard.md
-        ├── adversarial-review-standard.md
-        ├── review-routing-standard.md
-        ├── engineering-standard.md
-        ├── frontend-standard.md
-        ├── docs-library-standard.md
-        ├── harness-ledger-standard.md
-        ├── regression-ssot-governance.md
-        ├── walkthrough-standard.md
-        └── ...（按需扩展）
+└── coding-agent-harness/
+    ├── governance/
+    │   ├── generated/
+    │   │   ├── Harness-Ledger.md
+    │   │   └── Closeout-Index.md
+    │   └── standards/
+    │       ├── testing-standard.md
+    │       ├── execution-workflow-standard.md
+    │       ├── repo-governance-standard.md
+    │       ├── ci-cd-standard.md
+    │       ├── long-running-task-standard.md
+    │       ├── adversarial-review-standard.md
+    │       ├── review-routing-standard.md
+    │       ├── engineering-standard.md
+    │       ├── frontend-standard.md
+    │       ├── docs-library-standard.md
+    │       ├── harness-ledger-standard.md
+    │       ├── regression-ssot-governance.md
+    │       ├── walkthrough-standard.md
+    │       └── ...（按需扩展）
+    └── planning/
+        ├── tasks/
+        └── modules/
 ```
 
 ### 行数控制
