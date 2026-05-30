@@ -2,6 +2,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   assert,
   expectJson,
@@ -13,6 +14,16 @@ import {
 type DashboardStatusJson = {
   tasks: Array<{ id?: string; path: string }>;
   checkState: { details: { warnings: string[] } };
+};
+
+type MigrationRunJson = {
+  operation?: string;
+  capabilities: Array<{ name?: string }>;
+  sessionPath: string;
+};
+
+type MigrationVerifyJson = {
+  status?: string;
 };
 
 const legacyPhaseTableTarget = path.join(tmpRoot, "legacy-phase-table");
@@ -97,17 +108,14 @@ assert(fs.existsSync(path.join(conflictTarget, "docs/03-ARCHITECTURE/README.md")
 
 const moduleConflictTarget = path.join(tmpRoot, "structure-migration-module-conflict");
 fs.mkdirSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/TASKS/dup"), { recursive: true });
-fs.mkdirSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/tasks/dup"), { recursive: true });
+fs.mkdirSync(path.join(moduleConflictTarget, "coding-agent-harness/planning/modules/auth/tasks/dup"), { recursive: true });
 fs.writeFileSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/TASKS/dup/task_plan.md"), "# Legacy Dup\n");
-fs.writeFileSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/tasks/dup/task_plan.md"), "# Existing Lowercase Legacy Dup\n");
-const moduleConflictEntries = fs.readdirSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth"));
-if (moduleConflictEntries.includes("TASKS") && moduleConflictEntries.includes("tasks")) {
-  const moduleConflictApply = run(["migrate-structure", "--json", "--apply", moduleConflictTarget]);
-  assert(moduleConflictApply.status !== 0, "migrate-structure should fail before applying when module TASKS normalization would overwrite v2 tasks");
-  assert(!fs.existsSync(path.join(moduleConflictTarget, "coding-agent-harness/harness.yaml")), "module conflict preflight should not leave a partial manifest");
-  assert(fs.existsSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/TASKS/dup/task_plan.md")), "module conflict preflight should not move legacy module TASKS");
-  assert(fs.existsSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/tasks/dup/task_plan.md")), "module conflict preflight should preserve existing lowercase module task");
-}
+fs.writeFileSync(path.join(moduleConflictTarget, "coding-agent-harness/planning/modules/auth/tasks/dup/task_plan.md"), "# Existing V2 Module Dup\n");
+const moduleConflictApply = run(["migrate-structure", "--json", "--apply", moduleConflictTarget]);
+assert(moduleConflictApply.status !== 0, "migrate-structure should fail before applying when module TASKS normalization would overwrite v2 tasks");
+assert(!fs.existsSync(path.join(moduleConflictTarget, "coding-agent-harness/harness.yaml")), "module conflict preflight should not leave a partial manifest");
+assert(fs.existsSync(path.join(moduleConflictTarget, "docs/09-PLANNING/MODULES/auth/TASKS/dup/task_plan.md")), "module conflict preflight should not move legacy module TASKS");
+assert(fs.existsSync(path.join(moduleConflictTarget, "coding-agent-harness/planning/modules/auth/tasks/dup/task_plan.md")), "module conflict preflight should preserve existing v2 module task");
 
 const applied = expectJson(["migrate-structure", "--json", "--apply", migrationTarget]);
 assert(applied.applied === true, "migrate-structure --apply should report applied true");
@@ -151,4 +159,37 @@ assert(dashboardStatus.tasks.some((task) => task.path === "TARGET:coding-agent-h
 assert(dashboardStatus.tasks.some((task) => task.path === "TARGET:coding-agent-harness/planning/modules/auth/tasks/auth-old"), "dashboard should display migrated v2 module task");
 assert(!dashboardStatus.checkState.details.warnings.some((warning) => /legacy check failed/i.test(warning)), "v2 migrated dashboard should not run the legacy checker");
 
+const migrationRunTarget = path.join(tmpRoot, "migration-run-target");
+fs.mkdirSync(migrationRunTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core", migrationRunTarget]);
+git(migrationRunTarget, ["init"]);
+git(migrationRunTarget, ["config", "user.name", "Harness Test"]);
+git(migrationRunTarget, ["config", "user.email", "harness-test@example.invalid"]);
+git(migrationRunTarget, ["add", "."]);
+git(migrationRunTarget, ["commit", "-m", "baseline"]);
+const migrationRunSessionDir = path.join(tmpRoot, "migration-run-session");
+const migrationRun = expectJson<MigrationRunJson>(["migrate-run", "--session-dir", migrationRunSessionDir, "--json", migrationRunTarget]);
+assert(migrationRun.operation === "migrate-run", "migrate-run should emit a migration session");
+assert(migrationRun.capabilities.some((capability) => capability.name === "safe-adoption"), "migrate-run should add safe-adoption capability");
+assert(migrationRun.capabilities.some((capability) => capability.name === "dashboard"), "migrate-run should add dashboard capability");
+assert(fs.existsSync(migrationRun.sessionPath), "migrate-run should write session.json evidence");
+const migrationVerify = expectJson<MigrationVerifyJson>(["migrate-verify", migrationRun.sessionPath, "--json"]);
+assert(migrationVerify.status === "pass", "migrate-verify should accept a real migrate-run session");
+
+const forgedSessionPath = path.join(migrationRunSessionDir, "forged-session.json");
+const forgedSession = JSON.parse(fs.readFileSync(migrationRun.sessionPath, "utf8"));
+forgedSession.checks.strict.status = "pass";
+forgedSession.strictDeferred = null;
+fs.writeFileSync(path.join(migrationRunTarget, "BROKEN.md"), "dirty after session\n");
+fs.writeFileSync(forgedSessionPath, `${JSON.stringify(forgedSession, null, 2)}\n`);
+const forgedVerify = run(["migrate-verify", forgedSessionPath, "--full-cutover", "--json"]);
+assert(forgedVerify.status !== 0, "migrate-verify should reject forged strict-pass evidence");
+assert(`${forgedVerify.stdout}\n${forgedVerify.stderr}`.includes("dirty") || `${forgedVerify.stdout}\n${forgedVerify.stderr}`.includes("full cutover"), "forged strict-pass failure should be explained by current-state validation");
+
 console.log("Migration adoption tests passed");
+
+function git(cwd: string, args: string[]) {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  assert(result.status === 0, `git ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
+  return result;
+}

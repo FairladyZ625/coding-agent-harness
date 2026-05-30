@@ -382,6 +382,7 @@ export function runMigration(targetInput: string, options: MigrationRunOptions =
   const strictStatus = buildStatus(targetInput, { strict: true, strictLegacy: true, allowLegacyTarget: true });
   const finalPlan = buildMigrationPlan(targetInput, { limit: options.limit || 50 });
   const afterGit = inspectGitStatus(target.projectRoot);
+  const finalTarget = normalizeTarget(targetInput) as MigrationTarget;
   const strictDeferred = strictDeferredFromStatus(strictStatus);
   const result = options.planOnly
     ? "plan-only"
@@ -404,7 +405,7 @@ export function runMigration(targetInput: string, options: MigrationRunOptions =
       source: options.locale ? "explicit" : localeProbe.mixedLanguageDetected ? "assumed-from-probe" : "probe",
       probe: localeProbe,
     },
-    capabilities: readCapabilityRegistry(target).capabilities,
+    capabilities: readCapabilityRegistry(finalTarget).capabilities,
     baseline: {
       statusPath: path.join(sessionDir, "baseline-status.json"),
       migratePlanPath: path.join(sessionDir, "migrate-plan.json"),
