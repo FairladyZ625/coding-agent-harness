@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0
+
+- Document the Node.js 24+ runtime baseline as a release-significant change and
+  move the next publish line to `1.1.0` instead of another patch release.
+- Add a `prepublishOnly` release gate that uses the source-safe dist bootstrap
+  to rebuild `dist/` and run the dist observation checker before `npm publish`.
+- Make the source-safe `postinstall.mjs` bootstrap fail with the package-level
+  missing-dist message when installed package contents are incomplete, instead
+  of attempting a source checkout build script that is not shipped.
+
 ## 1.0.8
 
 - Preserve the executable bit for the packaged `dist/harness.mjs` npm bin

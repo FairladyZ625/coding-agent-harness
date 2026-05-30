@@ -11,11 +11,13 @@ const buildOnly = process.argv.includes("--build-only");
 const skipPostinstall = process.env.CODING_AGENT_HARNESS_SKIP_POSTINSTALL === "1";
 
 function runBuild() {
+  if (!fs.existsSync(buildScript)) return false;
   const result = spawnSync(process.execPath, [buildScript, "--quiet"], {
     cwd: root,
     stdio: "inherit",
   });
   if (result.status !== 0) process.exit(result.status ?? 1);
+  return true;
 }
 
 if (!fs.existsSync(distPostinstall)) {

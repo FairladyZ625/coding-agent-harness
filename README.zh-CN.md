@@ -14,6 +14,8 @@
 
 Coding Agent Harness 不是另一个聊天提示词集合。它把 Agent 长程开发需要依赖的事实沉淀到仓库：入口协议、任务计划、执行证据、回归结果、Dashboard 和收口记录。
 
+需要 Node.js 24 或更新版本。
+
 最小闭环是：
 
 - 人提出目标，Agent 先读仓库里的 Harness 协议。

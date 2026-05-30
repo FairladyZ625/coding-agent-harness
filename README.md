@@ -14,6 +14,8 @@ English | [简体中文](README.zh-CN.md) | [日本語](docs-release/intl/ja-JP.
 
 Coding Agent Harness is not another collection of chat prompts. It turns the durable facts that coding agents need into repository files: entry agreements, task plans, execution evidence, regression results, dashboards, and closeout records.
 
+Requires Node.js 24 or newer.
+
 The smallest loop is:
 
 - A human states the goal, and the agent reads the repository Harness first.

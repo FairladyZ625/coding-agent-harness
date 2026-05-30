@@ -90,6 +90,7 @@ const result = JSON.parse(extractLastJsonObject(observation.stdout)) as DistObse
 assert(result.ok === true, "dist observation JSON should report ok");
 assert(result.observations.packageRuntime.bin === "dist/harness.mjs", "package bin must be dist");
 assert(result.observations.packageRuntime.scripts.postinstall === "node postinstall.mjs", "postinstall must use the source-safe bootstrap");
+assert(result.observations.packageRuntime.scripts.prepublishOnly.includes("check-dist-observation.mjs"), "prepublishOnly must run dist observation");
 assert(result.observations.packageRuntime.scripts["observe:dist"].includes("run-dist.mjs"), "observe:dist script must use the dist bootstrap");
 assert(result.observations.inventory.scriptShims === 0, "historical scripts shims should be removed after PR-28");
 assert(result.observations.inventory.testShims === 0, "historical tests shims should be removed after PR-28");

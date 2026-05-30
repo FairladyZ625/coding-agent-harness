@@ -1,6 +1,6 @@
 {
   "name": "coding-agent-harness",
-  "version": "1.0.8",
+  "version": "1.1.0",
   "description": "Document governance kernel for long-running coding agents.",
   "type": "module",
   "keywords": [
@@ -30,6 +30,7 @@
     "check:private": "node run-dist.mjs harness.mjs check --profile private-harness .harness-private",
     "build:runtime": "node scripts/build-dist.mts",
     "prepack": "node scripts/build-dist.mts --quiet",
+    "prepublishOnly": "node run-dist.mjs check-dist-observation.mjs --skip-install-smoke",
     "prepare": "node postinstall.mjs --build-only",
     "typecheck": "npm exec --yes --package typescript@5.9.3 -- tsc -p tsconfig.json",
     "typecheck:guards": "node run-dist.mjs check-type-boundaries.mjs && node run-dist.mjs check-no-ts-nocheck.mjs",

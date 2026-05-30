@@ -81,6 +81,7 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json
 assert(packageJson.bin?.harness === "dist/harness.mjs", "package bin should run the dist harness entrypoint");
 assert(packageJson.scripts?.postinstall === "node postinstall.mjs", "package postinstall should run the source-safe postinstall bootstrap");
 assert(packageJson.scripts?.prepare === "node postinstall.mjs --build-only", "package prepare should build dist for Git/source installs");
+assert(packageJson.scripts?.prepublishOnly?.includes("check-dist-observation.mjs"), "package prepublishOnly should run dist observation before publish");
 assert(packageJson.scripts?.check === "node run-dist.mjs harness.mjs check --profile source-package .", "npm check should run through source-safe dist bootstrap");
 assert(packageJson.files.includes("dist/"), "package allowlist should include generated dist artifacts");
 assert(packageJson.files.includes("postinstall.mjs"), "package allowlist should include postinstall bootstrap");
@@ -103,6 +104,18 @@ const postinstall = spawnSync(process.execPath, [path.join(distRoot, "postinstal
   env: { ...process.env, CODING_AGENT_HARNESS_SKIP_POSTINSTALL: "1" },
 });
 assert(postinstall.status === 0, `dist postinstall should run with skip flag\nSTDOUT:\n${postinstall.stdout}\nSTDERR:\n${postinstall.stderr}`);
+
+const packagedPostinstallFixture = fs.mkdtempSync(path.join(os.tmpdir(), "harness-postinstall-no-dist-"));
+fs.copyFileSync(path.join(repoRoot, "postinstall.mjs"), path.join(packagedPostinstallFixture, "postinstall.mjs"));
+const packagedPostinstall = spawnSync(process.execPath, [path.join(packagedPostinstallFixture, "postinstall.mjs")], {
+  cwd: packagedPostinstallFixture,
+  encoding: "utf8",
+});
+assert(packagedPostinstall.status !== 0, "packaged postinstall without dist should fail cleanly instead of trying unavailable source scripts");
+assert(
+  packagedPostinstall.stderr.includes("missing dist/postinstall.mjs"),
+  `packaged postinstall should explain the missing dist runtime\nSTDOUT:\n${packagedPostinstall.stdout}\nSTDERR:\n${packagedPostinstall.stderr}`,
+);
 
 for (const requiredHistoricalShim of ["scripts/harness.mjs", "scripts/postinstall.mjs", "tests/run-all.mjs"]) {
   assert(!fs.existsSync(path.join(repoRoot, requiredHistoricalShim)), `PR-28 must remove historical shim: ${requiredHistoricalShim}`);

@@ -124,6 +124,7 @@ export function checkDistObservation({
     "dashboard:folder": ["run-dist.mjs", "harness.mjs", "dashboard", "--out-dir"],
     postinstall: ["postinstall.mjs"],
     prepare: ["postinstall.mjs", "--build-only"],
+    prepublishOnly: ["run-dist.mjs", "check-dist-observation.mjs", "--skip-install-smoke"],
     "observe:dist": ["run-dist.mjs", "check-dist-observation.mjs", "--skip-pack", "--skip-install-smoke"],
   };
   for (const [name, tokens] of Object.entries(distRuntimeScripts)) {
