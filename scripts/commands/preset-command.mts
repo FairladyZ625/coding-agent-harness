@@ -80,12 +80,13 @@ export function runPresetCommand({ args, takeFlag, targetArg }: { args: string[]
       if (json) console.log(JSON.stringify(result, null, 2));
       else console.log(`${result.removed ? "Removed" : "Preset not installed"}: ${result.id}`);
     } else if (subcommand === "run") {
+      const allowScripts = takeFlag("--allow-scripts");
       const taskRef = takeOptionFromArgs(args, "--task", "");
       const id = args.shift();
       const entrypoint = args.shift();
       if (!id) throw new Error("Missing preset id");
       if (!entrypoint) throw new Error("Missing preset entrypoint");
-      const result = runPresetEntrypoint(id, entrypoint, { taskRef, targetInput: targetArg(), json });
+      const result = runPresetEntrypoint(id, entrypoint, { taskRef, targetInput: targetArg(), json, allowScripts });
       if (json) console.log(JSON.stringify(result, null, 2));
       else console.log(`Preset run ${result.status}: ${result.preset}.${result.entrypoint} (${result.materialized.length} writes)`);
     } else if (subcommand === "action") {

@@ -33,7 +33,7 @@ type ReleaseTaskAggregate = {
 };
 
 const home = path.join(tmpRoot, "release-closeout-home");
-const env = { ...process.env, HOME: home };
+const env = { ...process.env, HOME: home, HARNESS_PRESET_SECRET: "do-not-leak" };
 const target = path.join(tmpRoot, "release-closeout-target");
 fs.mkdirSync(target);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", target], { env });
@@ -90,20 +90,31 @@ import fs from "node:fs";
 import path from "node:path";
 const context = JSON.parse(fs.readFileSync(process.env.HARNESS_PRESET_CONTEXT, "utf8"));
 fs.mkdirSync(path.join(context.outputRoot, "reports"), { recursive: true });
-fs.writeFileSync(path.join(context.outputRoot, "reports/runner.txt"), \`task=\${context.task.id}\\nnote=\${context.inputs.note}\\n\`);
+fs.writeFileSync(path.join(context.outputRoot, "reports/runner.txt"), \`task=\${context.task.id}\\nnote=\${context.inputs.note}\\nsecret=\${process.env.HARNESS_PRESET_SECRET || "missing"}\\n\`);
 fs.writeFileSync(context.materializationManifestPath, JSON.stringify({
   schemaVersion: "preset-materialization/v1",
   writes: [{ source: "reports/runner.txt", destination: "coding-agent-harness/governance/runner/runner.txt", type: "text" }]
 }, null, 2));
 `,
 );
-expectJson(["preset", "install", runnerPreset, "--project", "--force", "--json", target], { env });
+const runnerInstallWithoutTrust = run(["preset", "install", runnerPreset, "--project", "--force", "--json", target], { env });
+assert(runnerInstallWithoutTrust.status !== 0, "script entrypoint presets should require --allow-scripts during install");
+assert(`${runnerInstallWithoutTrust.stdout}\n${runnerInstallWithoutTrust.stderr}`.includes("--allow-scripts"), "entrypoint trust failure should explain --allow-scripts");
+expectJson(["preset", "install", runnerPreset, "--project", "--force", "--allow-scripts", "--json", target], { env });
 expectJson(["new-task", "runner-owned-task", "--budget", "standard", "--preset", "runner-materialize", "--note", "hello", target], { env });
 const runnerResult = expectJson(["preset", "run", "runner-materialize", "plan", "--task", "runner-owned-task", "--json", target], { env });
 assert(runnerResult.entrypoint === "plan", "generic preset runner should report the executed entrypoint");
 assert(runnerResult.materialized.some((item) => item.destination === "coding-agent-harness/governance/runner/runner.txt"), "generic preset runner should report materialized writes");
 const runnerOutput = fs.readFileSync(path.join(target, "coding-agent-harness/governance/runner/runner.txt"), "utf8");
 assert(runnerOutput.includes("note=hello"), "generic preset runner should pass resolved preset inputs to scripts");
+assert(runnerOutput.includes("secret=missing"), "generic preset runner should not pass arbitrary caller environment variables to scripts");
+
+const installedRunnerScript = path.join(target, ".coding-agent-harness/presets/runner-materialize/scripts/write-manifest.mjs");
+fs.appendFileSync(installedRunnerScript, "\n// tamper after trust\n");
+const tamperedTrustRun = run(["preset", "run", "runner-materialize", "plan", "--task", "runner-owned-task", "--json", target], { env });
+assert(tamperedTrustRun.status !== 0, "script trust should become invalid when trusted script content changes");
+assert(`${tamperedTrustRun.stdout}\n${tamperedTrustRun.stderr}`.includes("--allow-scripts"), "tampered trust failure should explain --allow-scripts");
+expectJson(["preset", "run", "runner-materialize", "plan", "--task", "runner-owned-task", "--allow-scripts", "--json", target], { env });
 
 const escapePreset = path.join(tmpRoot, "runner-escape-preset");
 fs.mkdirSync(path.join(escapePreset, "scripts"), { recursive: true });
@@ -154,9 +165,9 @@ fs.writeFileSync(context.materializationManifestPath, JSON.stringify({
 }, null, 2));
 `,
 );
-expectJson(["preset", "install", escapePreset, "--project", "--force", "--json", target], { env });
+expectJson(["preset", "install", escapePreset, "--project", "--force", "--allow-scripts", "--json", target], { env });
 expectJson(["new-task", "runner-escape-task", "--budget", "standard", "--preset", "runner-escape", target], { env });
-const escapeResult = run(["preset", "run", "runner-escape", "plan", "--task", "runner-escape-task", "--json", target], { env });
+const escapeResult = run(["preset", "run", "runner-escape", "plan", "--task", "runner-escape-task", "--allow-scripts", "--json", target], { env });
 assert(escapeResult.status !== 0, "generic preset runner should reject materialization outside entrypoint write scopes");
 assert(`${escapeResult.stdout}\n${escapeResult.stderr}`.includes("Preset write scope violation"), "out-of-scope materialization should explain the write scope violation");
 assert(!fs.existsSync(path.join(target, "coding-agent-harness/governance/outside/escape.txt")), "out-of-scope materialization should not write target files");
@@ -180,9 +191,9 @@ fs.writeFileSync(context.materializationManifestPath, JSON.stringify({
 }, null, 2));
 `,
 );
-expectJson(["preset", "install", sourceEscapePreset, "--project", "--force", "--json", target], { env });
+expectJson(["preset", "install", sourceEscapePreset, "--project", "--force", "--allow-scripts", "--json", target], { env });
 expectJson(["new-task", "runner-source-escape-task", "--budget", "standard", "--preset", "runner-source-escape", target], { env });
-const sourceEscapeResult = run(["preset", "run", "runner-source-escape", "plan", "--task", "runner-source-escape-task", "--json", target], { env });
+const sourceEscapeResult = run(["preset", "run", "runner-source-escape", "plan", "--task", "runner-source-escape-task", "--allow-scripts", "--json", target], { env });
 assert(sourceEscapeResult.status !== 0, "generic preset runner should reject source paths outside the temp output root");
 assert(`${sourceEscapeResult.stdout}\n${sourceEscapeResult.stderr}`.includes("Manifest source escapes preset output root"), "source escape failure should explain the rejected manifest source");
 
@@ -205,9 +216,9 @@ fs.writeFileSync(path.join(context.targetRoot, "coding-agent-harness/governance/
 fs.writeFileSync(context.materializationManifestPath, JSON.stringify({ schemaVersion: "preset-materialization/v1", writes: [] }, null, 2));
 `,
 );
-expectJson(["preset", "install", directMutationPreset, "--project", "--force", "--json", target], { env });
+expectJson(["preset", "install", directMutationPreset, "--project", "--force", "--allow-scripts", "--json", target], { env });
 expectJson(["new-task", "runner-direct-mutation-task", "--budget", "standard", "--preset", "runner-direct-mutation", target], { env });
-const directMutationResult = run(["preset", "run", "runner-direct-mutation", "plan", "--task", "runner-direct-mutation-task", "--json", target], { env });
+const directMutationResult = run(["preset", "run", "runner-direct-mutation", "plan", "--task", "runner-direct-mutation-task", "--allow-scripts", "--json", target], { env });
 assert(directMutationResult.status !== 0, "generic preset runner should reject scripts that mutate the target outside manifest materialization");
 assert(`${directMutationResult.stdout}\n${directMutationResult.stderr}`.includes("Preset script mutated target before materialization"), "direct target mutation failure should explain the audit failure");
 
@@ -323,7 +334,7 @@ assert(releaseArchivedTask.archiveMetadata?.["review confirmed by"] === "Release
 assert(releaseArchivedTask.archiveMetadata?.["review confirmation id"] === "HRC-20260528101010", "task index should expose the review confirmation id");
 
 expectJson(["new-task", "release-closeout-no-selector", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.4", target], { env });
-const noSelector = run(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-no-selector", "--json", target], { env });
+const noSelector = run(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-no-selector", "--allow-scripts", "--json", target], { env });
 assert(noSelector.status !== 0, "release-closeout scaffold should fail without an explicit task selector");
 assert(`${noSelector.stdout}\n${noSelector.stderr}`.includes("release-closeout requires --task-list or --task-query"), "missing selector failure should explain the required selector");
 
@@ -340,7 +351,7 @@ assert(releaseTaskPlan.includes("Release Version: 1.0.5"), "release closeout tas
 assert(releaseTaskPlan.includes("harness preset run release-closeout plan"), "release closeout task template should direct the generic preset runner workflow");
 assert(!fs.existsSync(path.join(target, "coding-agent-harness/governance/releases/1.0.5/INDEX.md")), "new-task release-closeout should not generate the release package");
 
-const scaffold = expectJson(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-1-0-5", "--json", target], { env });
+const scaffold = expectJson(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-1-0-5", "--allow-scripts", "--json", target], { env });
 assert(scaffold.materialized.length >= 4, "release scaffold should materialize a version package through the generic runner");
 const releaseRoot = path.join(target, "coding-agent-harness/governance/releases/1.0.5");
 const releaseIndex = fs.readFileSync(path.join(releaseRoot, "INDEX.md"), "utf8");
@@ -375,12 +386,12 @@ fs.writeFileSync(ambiguousTaskListPath, JSON.stringify({
   taskIds: [`${todayLocal}-release-ambiguous`],
 }, null, 2));
 expectJson(["new-task", "release-closeout-ambiguous", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.5", "--task-list", ambiguousTaskListPath, target], { env });
-const ambiguousScaffold = run(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-ambiguous", "--json", target], { env });
+const ambiguousScaffold = run(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-ambiguous", "--allow-scripts", "--json", target], { env });
 assert(ambiguousScaffold.status !== 0, "release-closeout should reject ambiguous bare task IDs");
 assert(`${ambiguousScaffold.stdout}\n${ambiguousScaffold.stderr}`.includes("Ambiguous task reference"), "ambiguous task-list failure should explain the selector ambiguity");
 
 expectJson(["new-task", "release-closeout-query", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.6", "--task-query", `date:${todayLocal}..${todayLocal} state:done`, target], { env });
-expectJson(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-query", "--json", target], { env });
+expectJson(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-query", "--allow-scripts", "--json", target], { env });
 const queryReleaseRoot = path.join(target, "coding-agent-harness/governance/releases/1.0.6");
 const queryAggregate = JSON.parse(fs.readFileSync(path.join(queryReleaseRoot, "task-aggregate.json"), "utf8")) as ReleaseTaskAggregate;
 const queryArchivePlan = fs.readFileSync(path.join(queryReleaseRoot, "task-archive-plan.md"), "utf8");
@@ -392,12 +403,12 @@ assert(!queryAggregate.matched.some((task) => task.id.endsWith("release-blocked"
 assert(!queryArchivePlan.split("## Not Eligible")[0].includes("release-blocked"), "task-query archive plan should not emit archive commands for blocked tasks");
 
 expectJson(["new-task", "release-closeout-module-query", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.7", "--task-query", `date:${todayLocal}..${todayLocal} state:done module:life-circle`, target], { env });
-expectJson(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-module-query", "--json", target], { env });
+expectJson(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-module-query", "--allow-scripts", "--json", target], { env });
 const moduleQueryReleaseRoot = path.join(target, "coding-agent-harness/governance/releases/1.0.7");
 const moduleQueryAggregate = JSON.parse(fs.readFileSync(path.join(moduleQueryReleaseRoot, "task-aggregate.json"), "utf8")) as ReleaseTaskAggregate;
 assert(moduleQueryAggregate.matched.length >= 2, "module query should include module-owned selected tasks");
 assert(moduleQueryAggregate.matched.every((task) => task.id.startsWith("MODULES/life-circle/")), "module query should only include tasks from the requested module");
-const check = expectJson(["preset", "run", "release-closeout", "check", "--task", "release-closeout-1-0-5", "--json", target], { env });
+const check = expectJson(["preset", "run", "release-closeout", "check", "--task", "release-closeout-1-0-5", "--allow-scripts", "--json", target], { env });
 assert(check.status === "pass", "release closeout check entrypoint should pass after scaffold materializes the version package");
 
 console.log("Release closeout preset tests passed");
