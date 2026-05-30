@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
 const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRoots = ["scripts", "tests"];
 const importPattern = /\b(import|export)\s+(type\s+)?(?:[^'"]*?\s+from\s+)?["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
-const tsEscapePattern = /@(ts-ignore|ts-expect-error)\b|\bas\s+unknown\s+as\b|\bRecord\s*<\s*string\s*,\s*any\s*>|(?:^|[^A-Za-z0-9_$])(?:as\s+any|:\s*any\b)/;
+const tsEscapePattern = /@(ts-ignore|ts-expect-error|ts-nocheck)\b|\bas\s+unknown\s+as\b|<[^>\n]*\bany\b[^>\n]*>|(?:^|[^A-Za-z0-9_$])(?:as\s+any|:\s*any\b)/;
+const crossLineUnknownCastPattern = /\bas\s+unknown\s+as\b/;
 
 type CheckTypeBoundariesOptions = {
   repoRoot?: string;
@@ -21,7 +22,7 @@ type ParsedImport = {
 };
 
 type TypeBoundaryViolation = {
-  code: string;
+  code: "mjs-imports-ts" | "types-value-import" | "ts-escape-hatch" | "stale-ts-escape-allowlist";
   file: string;
   line?: number;
   specifier?: string;
@@ -41,6 +42,7 @@ export function checkTypeBoundaries({
   const files = collectSourceFiles(repoRoot);
   const violations: TypeBoundaryViolation[] = [];
   const escapeAllowlist = readEscapeAllowlist(escapeAllowlistPath);
+  const observedEscapes = new Set<string>();
 
   for (const file of files) {
     const absolutePath = path.join(repoRoot, file);
@@ -56,9 +58,21 @@ export function checkTypeBoundaries({
             file,
             line: index + 1,
             message: `${file}:${index + 1} uses a TypeScript escape hatch that requires review`,
-          };
+          } satisfies TypeBoundaryViolation;
+          observedEscapes.add(escapeKey(violation));
           if (!isEscapeAllowed(escapeAllowlist, violation)) violations.push(violation);
         }
+      }
+      if (crossLineUnknownCastPattern.test(content) && !lines.some((line) => /\bas\s+unknown\s+as\b/.test(line))) {
+        const line = lineForOffset(content, content.search(crossLineUnknownCastPattern));
+        const violation = {
+          code: "ts-escape-hatch",
+          file,
+          line,
+          message: `${file}:${line} uses a cross-line TypeScript escape hatch that requires review`,
+        } satisfies TypeBoundaryViolation;
+        observedEscapes.add(escapeKey(violation));
+        if (!isEscapeAllowed(escapeAllowlist, violation)) violations.push(violation);
       }
     }
 
@@ -84,6 +98,16 @@ export function checkTypeBoundaries({
         });
       }
     }
+  }
+
+  for (const allowed of escapeAllowlist.values()) {
+    if (observedEscapes.has(allowed.key)) continue;
+    violations.push({
+      code: "stale-ts-escape-allowlist",
+      file: allowed.file,
+      line: allowed.line,
+      message: `${allowed.file}:${allowed.line} is listed in ${path.relative(repoRoot, escapeAllowlistPath)} but no matching TypeScript escape hatch was found`,
+    });
   }
 
   return { ok: violations.length === 0, violations };
@@ -170,20 +194,47 @@ function isTypeOnlyTypeScriptImport(file: string, imported: ParsedImport): boole
   return (file.endsWith(".ts") || file.endsWith(".mts")) && imported.kind === "import" && imported.typeOnly;
 }
 
-function readEscapeAllowlist(allowlistPath: string): Set<string> {
-  if (!allowlistPath || !fs.existsSync(allowlistPath)) return new Set();
+type EscapeAllowlistRecord = {
+  key: string;
+  file: string;
+  line?: number;
+  code: string;
+};
+
+function readEscapeAllowlist(allowlistPath: string): Map<string, EscapeAllowlistRecord> {
+  if (!allowlistPath || !fs.existsSync(allowlistPath)) return new Map();
   const parsed = JSON.parse(fs.readFileSync(allowlistPath, "utf8")) as EscapeAllowlistEntry[] | { escapes?: EscapeAllowlistEntry[] };
   const entries = Array.isArray(parsed) ? parsed : parsed.escapes || [];
-  return new Set(
+  return new Map(
     entries.map((entry) => {
-      if (typeof entry === "string") return entry;
-      return `${entry.file}:${entry.line}:${entry.code || "ts-escape-hatch"}`;
+      if (typeof entry === "string") {
+        return [
+          entry,
+          {
+            key: entry,
+            file: entry.split(":")[0] || entry,
+            line: Number.parseInt(entry.split(":")[1] || "", 10) || undefined,
+            code: entry.split(":")[2] || "ts-escape-hatch",
+          },
+        ];
+      }
+      const key = `${entry.file}:${entry.line}:${entry.code || "ts-escape-hatch"}`;
+      return [key, { key, file: entry.file, line: entry.line, code: entry.code || "ts-escape-hatch" }];
     }),
   );
 }
 
-function isEscapeAllowed(allowlist: Set<string>, violation: TypeBoundaryViolation): boolean {
-  return allowlist.has(`${violation.file}:${violation.line}:${violation.code}`) || allowlist.has(`${violation.file}:${violation.line}`);
+function isEscapeAllowed(allowlist: Map<string, EscapeAllowlistRecord>, violation: TypeBoundaryViolation): boolean {
+  return allowlist.has(escapeKey(violation)) || allowlist.has(`${violation.file}:${violation.line}`);
+}
+
+function escapeKey(violation: TypeBoundaryViolation): string {
+  return `${violation.file}:${violation.line}:${violation.code}`;
+}
+
+function lineForOffset(content: string, offset: number): number {
+  if (offset < 0) return 1;
+  return content.slice(0, offset).split(/\r?\n/).length;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

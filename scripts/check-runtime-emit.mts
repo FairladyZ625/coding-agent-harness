@@ -120,14 +120,22 @@ export function checkRuntimeEmitContract({
 }
 
 function runTypeScriptEmit({ projectRoot, configPath, outDir }: { projectRoot: string; configPath: string; outDir: string }): SpawnSyncReturns<string> {
+  const npmArgs = ["exec", "--yes", "--package", `typescript@${typescriptVersion}`, "--", "tsc", "-p", configPath, "--outDir", outDir, "--noCheck"];
+  const npmCommand = resolveNpmCommand(npmArgs);
   return spawnSync(
-    "npm",
-    ["exec", "--yes", "--package", `typescript@${typescriptVersion}`, "--", "tsc", "-p", configPath, "--outDir", outDir, "--noCheck"],
+    npmCommand.command,
+    npmCommand.args,
     {
       cwd: projectRoot,
       encoding: "utf8",
     },
   );
+}
+
+function resolveNpmCommand(npmArgs: string[]): { command: string; args: string[] } {
+  const npmExecPath = process.env.npm_execpath;
+  if (npmExecPath) return { command: process.execPath, args: [npmExecPath, ...npmArgs] };
+  return { command: process.platform === "win32" ? "npm.cmd" : "npm", args: npmArgs };
 }
 
 function compareDirectories({ expectedDir, actualDir, violations }: { expectedDir: string; actualDir: string; violations: RuntimeEmitViolation[] }): void {

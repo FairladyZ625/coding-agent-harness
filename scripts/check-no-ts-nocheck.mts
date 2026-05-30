@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRoots = ["scripts", "tests"];
-const tsNocheckPattern = /^\s*\/\/\s*@ts-nocheck\b/;
+const tsNocheckPattern = new RegExp(String.raw`^\s*//\s*` + "@ts" + String.raw`-nocheck\b`);
 
 type NoTsNocheckViolation = {
   code: "unlisted-ts-nocheck" | "stale-ts-nocheck-allowlist";
@@ -24,7 +24,7 @@ export function checkNoTsNocheck({
   repoRoot = defaultRepoRoot,
   allowlistPath = path.join(repoRoot, "scripts/ts-nocheck-allowlist.json"),
 }: NoTsNocheckOptions = {}): { ok: boolean; violations: NoTsNocheckViolation[] } {
-  const files = collectMtsFiles(repoRoot);
+  const files = collectTypeScriptFiles(repoRoot);
   const allowlist = readAllowlist(allowlistPath);
   const violations: NoTsNocheckViolation[] = [];
   const observed = new Set<string>();
@@ -40,7 +40,7 @@ export function checkNoTsNocheck({
         code: "unlisted-ts-nocheck",
         file,
         line: lineIndex + 1,
-        message: `${file}:${lineIndex + 1} has @ts-nocheck but is not in scripts/ts-nocheck-allowlist.json`,
+        message: `${file}:${lineIndex + 1} has ${"@ts"}-nocheck but is not in scripts/ts-nocheck-allowlist.json`,
       });
     }
   }
@@ -50,7 +50,7 @@ export function checkNoTsNocheck({
       violations.push({
         code: "stale-ts-nocheck-allowlist",
         file,
-        message: `${file} is listed in scripts/ts-nocheck-allowlist.json but no longer has @ts-nocheck`,
+        message: `${file} is listed in scripts/ts-nocheck-allowlist.json but no longer has ${"@ts"}-nocheck`,
       });
     }
   }
@@ -58,7 +58,7 @@ export function checkNoTsNocheck({
   return { ok: violations.length === 0, violations };
 }
 
-function collectMtsFiles(repoRoot: string): string[] {
+function collectTypeScriptFiles(repoRoot: string): string[] {
   const files: string[] = [];
   for (const root of sourceRoots) {
     const absoluteRoot = path.join(repoRoot, root);
@@ -77,7 +77,7 @@ function walk(current: string, files: string[], repoRoot: string): void {
     for (const entry of fs.readdirSync(current)) walk(path.join(current, entry), files, repoRoot);
     return;
   }
-  if (stat.isFile() && current.endsWith(".mts")) {
+  if (stat.isFile() && /\.(mts|ts)$/.test(current)) {
     files.push(path.relative(repoRoot, current).split(path.sep).join("/"));
   }
 }
@@ -102,5 +102,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error(result.violations.map((violation) => violation.message).join("\n"));
     process.exit(1);
   }
-  console.log("No @ts-nocheck gate passed");
+  console.log(`No ${"@ts"}-nocheck gate passed`);
 }
