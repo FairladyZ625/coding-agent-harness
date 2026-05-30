@@ -27,6 +27,7 @@ const suites: string[] = [
   "tests/dashboard-preset-ui.mjs",
   "tests/dashboard-swimlane-ui.mjs",
   "tests/dashboard-workbench.mjs",
+  "tests/document-contract-kernel.mjs",
   "tests/template-governance.mjs",
   "tests/task-material-template-readiness.mjs",
   "tests/review-confirm-git-gate.mjs",
