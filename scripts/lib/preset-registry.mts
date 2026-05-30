@@ -141,7 +141,7 @@ export function installPresetPackage(source: string, { force = false, scope = "u
     if (stagedReport.failures.length) throw new Error(`Invalid preset package ${stagedPreset.id}: ${stagedReport.failures.join("; ")}`);
     const scriptPolicy = buildPresetScriptPolicy(stagedPreset);
     if (resolvedSource.source !== "builtin" && scriptPolicy.requiresTrustedSource && !allowScripts) {
-      throw new Error(`Preset ${stagedPreset.id} declares script actions and requires explicit trust. Re-run with --allow-scripts if you trust this preset source.`);
+      throw new Error(`Preset ${stagedPreset.id} declares script entrypoints or actions and requires explicit trust. Re-run with --allow-scripts if you trust this preset source.`);
     }
     const id = stagedPreset.id;
     if (!id) throw new Error("Preset manifest missing id");
@@ -384,6 +384,7 @@ export function buildPresetAudit(preset: PresetPackage, { taskId = "", targetRoo
     version: preset.version,
     manifestPath: preset.manifestRelativePath,
     manifestSha256: preset.manifestSha256,
+    scriptSha256s: preset.scriptSha256s,
     entrypoints,
     writeScopes: scopes,
     resolvedInputs,
@@ -402,21 +403,19 @@ export function buildPresetScriptPolicy(preset: PresetPackage) {
       .filter(([, action]) => action.type === "script")
       .map(([name, action]) => `action:${name}:${action.command}`),
   ];
-  const actionScriptCommands = Object.entries(preset.actions || {})
-    .filter(([, action]) => action.type === "script")
-    .map(([name, action]) => `action:${name}:${action.command}`);
   const unsupportedCommands = Object.entries(preset.actions || {})
     .filter(([, action]) => action.type === "script" && !String(action.command || "").endsWith(".mjs"))
     .map(([name, action]) => `action:${name}:${action.command || "(missing)"}`);
-  const requiresTrustedSource = actionScriptCommands.length > 0 && preset.source !== "builtin";
+  const requiresTrustedSource = scriptCommands.length > 0 && preset.source !== "builtin";
   return {
     hasScripts: scriptCommands.length > 0,
     scriptCommands,
+    scriptSha256s: preset.scriptSha256s,
     riskLevel: scriptCommands.length > 0 ? "trusted-code" : "none",
     requiresTrustedSource,
     unsupportedCommands,
     warnings: requiresTrustedSource
-      ? ["Script actions execute trusted local Node.js code; use --allow-scripts only for sources you trust."]
+      ? ["Script entrypoints and actions execute trusted local Node.js code; use --allow-scripts only for sources you trust."]
       : [],
   };
 }
@@ -425,10 +424,12 @@ export function presetScriptTrustValid(preset: PresetPackage): boolean {
   if (preset.source === "builtin") return true;
   const trustPath = path.join(preset.directory, presetScriptTrustFile);
   const trust = asRecord(readJsonSafe(trustPath, {}));
+  const trustedScriptSha256s = asRecord(trust.scriptSha256s);
   return (
     trust.schemaVersion === "preset-script-trust/v1" &&
     trust.preset === preset.id &&
     trust.manifestSha256 === preset.manifestSha256 &&
+    recordsEqual(trustedScriptSha256s, preset.scriptSha256s) &&
     trust.trusted === true
   );
 }
@@ -440,6 +441,7 @@ function writePresetScriptTrustMarker(destination: string, preset: PresetPackage
     version: preset.version,
     manifestSha256: preset.manifestSha256,
     scriptCommands,
+    scriptSha256s: preset.scriptSha256s,
     trusted: true,
     trustedAt: new Date().toISOString(),
   }, null, 2)}\n`);
@@ -532,7 +534,41 @@ function normalizePresetManifest(manifest: PresetManifest, { id, manifestPath, r
     manifestPath,
     manifestRelativePath: displayManifestPath(manifestPath),
     manifestSha256: crypto.createHash("sha256").update(raw).digest("hex"),
+    scriptSha256s: collectPresetScriptSha256s({ directory, entrypoints, actions }),
   };
+}
+
+function collectPresetScriptSha256s({ directory, entrypoints, actions }: { directory: string; entrypoints: Record<string, PresetEntrypoint>; actions: Record<string, PresetAction> }): Record<string, string> {
+  const scripts: Record<string, string> = {};
+  for (const [name, entrypoint] of Object.entries(entrypoints || {})) {
+    if (entrypoint.type !== "script") continue;
+    const command = String(entrypoint.command || "");
+    if (!command) continue;
+    const absolute = path.join(directory, command);
+    if (isInside(directory, absolute) && fs.existsSync(absolute) && fs.lstatSync(absolute).isFile()) {
+      scripts[`entrypoint:${name}:${command}`] = sha256File(absolute);
+    }
+  }
+  for (const [name, action] of Object.entries(actions || {})) {
+    if (action.type !== "script") continue;
+    const command = String(action.command || "");
+    if (!command) continue;
+    const absolute = path.join(directory, command);
+    if (isInside(directory, absolute) && fs.existsSync(absolute) && fs.lstatSync(absolute).isFile()) {
+      scripts[`action:${name}:${command}`] = sha256File(absolute);
+    }
+  }
+  return scripts;
+}
+
+function sha256File(filePath: string): string {
+  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+}
+
+function recordsEqual(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
+  const leftEntries = Object.entries(left).map(([key, value]) => [key, String(value)]).sort(([a], [b]) => a.localeCompare(b));
+  const rightEntries = Object.entries(right).map(([key, value]) => [key, String(value)]).sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify(leftEntries) === JSON.stringify(rightEntries);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

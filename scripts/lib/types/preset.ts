@@ -114,6 +114,7 @@ export type PresetPackage = {
   manifestPath: string;
   manifestRelativePath: string;
   manifestSha256: string;
+  scriptSha256s: Record<string, string>;
   effective?: boolean;
 };
 

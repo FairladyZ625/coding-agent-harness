@@ -32,6 +32,7 @@ type PresetRunOptions = {
   taskRef?: string;
   targetInput?: string;
   json?: boolean;
+  allowScripts?: boolean;
 };
 
 type PresetActionOptions = PresetRunOptions & {
@@ -87,13 +88,17 @@ type TaskPathContext = {
   visualMap: string;
 };
 
-export function runPresetEntrypoint(presetId: string, entrypointName: string, { taskRef = "", targetInput = ".", json = false }: PresetRunOptions = {}) {
+export function runPresetEntrypoint(presetId: string, entrypointName: string, { taskRef = "", targetInput = ".", json = false, allowScripts = false }: PresetRunOptions = {}) {
   void json;
   const target = normalizeTarget(targetInput) as PresetTarget;
   const preset = readPresetPackage(presetId, { targetInput });
   const entrypoint = preset.entrypoints?.[entrypointName];
   if (!entrypoint) throw new Error(`Preset ${preset.id} does not declare entrypoint: ${entrypointName}`);
   if (!["script", "check"].includes(entrypoint.type)) throw new Error(`Preset entrypoint ${entrypointName} is not runnable by preset run`);
+  const scriptPolicy = buildPresetScriptPolicy(preset);
+  if (scriptPolicy.requiresTrustedSource && !allowScripts && !presetScriptTrustValid(preset)) {
+    throw new Error(`Preset entrypoint ${preset.id}.${entrypointName} executes trusted local code. Re-run with --allow-scripts if you trust this preset source.`);
+  }
   if (!taskRef) throw new Error("preset run requires --task <task-id>");
   const taskDir = resolveTaskDirectory(target, taskRef);
   const taskPlan = readFileSafe(path.join(taskDir, "task_plan.md"));
@@ -139,10 +144,7 @@ export function runPresetEntrypoint(presetId: string, entrypointName: string, { 
     const script = spawnSync(process.execPath, [commandPath], {
       cwd: outputRoot,
       encoding: "utf8",
-      env: {
-        ...process.env,
-        HARNESS_PRESET_CONTEXT: contextPath,
-      },
+      env: presetScriptEnv(contextPath),
       timeout: 120000,
       maxBuffer: 10 * 1024 * 1024,
     });
@@ -251,7 +253,7 @@ export function runPresetAction(presetId: string, actionName: string, { taskRef 
     const script = spawnSync(process.execPath, [commandPath], {
       cwd: outputRoot,
       encoding: "utf8",
-      env: presetActionEnv(contextPath),
+      env: presetScriptEnv(contextPath),
       timeout: 120000,
       maxBuffer: 128 * 1024,
     });
@@ -296,7 +298,7 @@ export function runPresetAction(presetId: string, actionName: string, { taskRef 
 }
 
 function readResolvedInputs(target: PresetTarget, metadata: PresetTaskMetadata): PresetResolvedInputs {
-  const evidenceBundle = String(metadata.evidenceBundle || "").replace(/^TARGET:/, "").replace(/^\/+/, "");
+  const evidenceBundle = normalizeTargetRelativePath(metadata.evidenceBundle || "", "Preset evidence bundle");
   if (!evidenceBundle) return {};
   const auditPath = path.join(target.projectRoot, evidenceBundle, "preset-audit.json");
   const audit = asRecord(readJsonSafe(auditPath, {}));
@@ -376,12 +378,22 @@ function concreteActionWriteScopes(scopes: string[]): string[] {
   return scopes.filter((scope) => !scope.endsWith("/**"));
 }
 
-function presetActionEnv(contextPath: string): NodeJS.ProcessEnv {
+function presetScriptEnv(contextPath: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { HARNESS_PRESET_CONTEXT: contextPath };
   for (const key of ["PATH", "TMPDIR", "TEMP", "TMP", "SystemRoot", "ComSpec"]) {
     if (process.env[key]) env[key] = process.env[key];
   }
   return env;
+}
+
+function normalizeTargetRelativePath(value: unknown, label: string): string {
+  const raw = String(value || "").replace(/^TARGET:/, "").replace(/^\/+/, "").trim();
+  if (!raw) return "";
+  const normalized = toPosix(path.normalize(raw));
+  if (path.isAbsolute(raw) || normalized === "." || normalized === ".." || normalized.startsWith("../") || normalized.includes("/../")) {
+    throw new Error(`${label} escapes target root: ${raw}`);
+  }
+  return normalized;
 }
 
 function boundedScriptOutput(output: string): string {
