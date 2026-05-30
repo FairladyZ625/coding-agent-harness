@@ -383,10 +383,10 @@ commitFixtureBaseline(target, "before confirmed lesson routing review");
 expectJson(["task-review", "queue-confirmed-lesson-routing", "--message", "ready except lesson promotion", "--evidence", "command:TARGET:npm-test:passed", target]);
 fs.appendFileSync(path.join(confirmedLessonRoutingDir, "walkthrough.md"), "\n## Evidence\n\nEvidence reviewed.\n");
 sanitizeTemplateFixtureMaterials(confirmedLessonRoutingDir);
-writeMigratedReviewConfirmation(confirmedLessonRoutingDir, confirmedLessonRouting.task.id, `${todayLocal}-queue-confirmed-lesson-routing`);
+  writeNativeReviewConfirmation(target, confirmedLessonRoutingDir, confirmedLessonRouting.task.id, `${todayLocal}-queue-confirmed-lesson-routing`);
 const confirmedLessonRoutingStatus = expectJson(["status", "--json", target]);
 const confirmedLessonRoutingTask = confirmedLessonRoutingStatus.tasks.find((task) => task.id === confirmedLessonRouting.task.id);
-assert(confirmedLessonRoutingTask.reviewStatus === "confirmed", "migrated audit should mark the routing fixture as human-confirmed");
+assert(confirmedLessonRoutingTask.reviewStatus === "confirmed", "git-audited native confirmation should mark the routing fixture as human-confirmed");
 assert(confirmedLessonRoutingTask.lifecycleState === "lesson-finalization-pending", "confirmed review with accepted lesson debt should wait for Lesson sedimentation");
 assert(confirmedLessonRoutingTask.taskQueues.includes("lessons"), "confirmed review with accepted lesson debt should remain in Lessons queue");
 assert(!confirmedLessonRoutingTask.taskQueues.includes("confirmed-finalization-pending"), "confirmed review with lesson debt should not be directly closeout-ready");
@@ -544,6 +544,44 @@ function writeMigratedReviewConfirmation(taskDir: string, taskId: string, confir
     ["Evidence Checked", "command:TARGET:npm-test:passed"],
     ["Review Commit SHA", "0000000000000000000000000000000000000000"],
     ["Audit Source", "migrated-legacy-review"],
+    ["Audit Status", "committed"],
+  ];
+  let updated = indexContent;
+  for (const [field, value] of confirmationRows) {
+    const rowPattern = new RegExp(`^\\| ${escapeRegExp(field)} \\|[^\\n]*\\|$`, "m");
+    if (rowPattern.test(updated)) {
+      updated = updated.replace(rowPattern, `| ${field} | ${value} |`);
+    } else {
+      updated = `${updated.trimEnd()}\n| ${field} | ${value} |\n`;
+    }
+  }
+  fs.writeFileSync(indexPath, updated.endsWith("\n") ? updated : `${updated}\n`);
+}
+
+function writeNativeReviewConfirmation(targetRoot: string, taskDir: string, taskId: string, confirmText: string): void {
+  const indexPath = path.join(taskDir, "INDEX.md");
+  writeReviewConfirmationRows(indexPath, taskId, confirmText, "pending", "native-index");
+  expectFixtureGit(targetRoot, ["add", "--", path.relative(targetRoot, indexPath)]);
+  expectFixtureGit(targetRoot, ["commit", "-m", `chore: confirm review ${taskId.replace(/[^A-Za-z0-9._/-]+/g, "-")}`]);
+  const commitSha = expectFixtureGit(targetRoot, ["rev-parse", "HEAD"]).stdout.trim();
+  writeReviewConfirmationRows(indexPath, taskId, confirmText, commitSha, "native-index");
+  expectFixtureGit(targetRoot, ["add", "--", path.relative(targetRoot, indexPath)]);
+  expectFixtureGit(targetRoot, ["commit", "-m", `chore: record review confirmation audit ${taskId.replace(/[^A-Za-z0-9._/-]+/g, "-")}`]);
+}
+
+function writeReviewConfirmationRows(indexPath: string, taskId: string, confirmText: string, commitSha: string, auditSource: string): void {
+  const indexContent = fs.readFileSync(indexPath, "utf8");
+  const confirmationRows = [
+    ["Human Review Status", "confirmed"],
+    ["Confirmation ID", "HRC-20260523000200"],
+    ["Confirmed At", "2026-05-23T00:02:00+08:00"],
+    ["Reviewer", "Human Reviewer"],
+    ["Reviewer Email", "reviewer@example.test"],
+    ["Task Key", taskId],
+    ["Confirm Text", confirmText],
+    ["Evidence Checked", "command:TARGET:npm-test:passed"],
+    ["Review Commit SHA", commitSha],
+    ["Audit Source", auditSource],
     ["Audit Status", "committed"],
   ];
   let updated = indexContent;

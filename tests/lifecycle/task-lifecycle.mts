@@ -21,6 +21,7 @@ import {
   waitForCondition,
   waitForWorkbench,
 } from "../helpers/harness-test-utils.mjs";
+import { updateTaskLifecycle } from "../../scripts/lib/task-lifecycle.mjs";
 
 const lifecycleTarget = path.join(tmpRoot, "lifecycle-target");
 fs.mkdirSync(lifecycleTarget);
@@ -390,6 +391,13 @@ assert(missingPhase.stderr.includes("Phase not found"), "task-phase unknown phas
 const directComplete = run(["task-complete", "phase-2-lifecycle", "--message", "跳过审查完成", lifecycleTarget]);
 assert(directComplete.status !== 0, "standard task-complete should require review state");
 assert(directComplete.stderr.includes("task-review"), "standard task-complete failure should tell the user to run task-review first");
+let illegalDoneStateRejected = false;
+try {
+  updateTaskLifecycle(lifecycleTarget, "phase-2-lifecycle", { event: "task-log", state: "done", message: "illegal direct done" });
+} catch (error) {
+  illegalDoneStateRejected = String(error instanceof Error ? error.message : error).includes("task-complete");
+}
+assert(illegalDoneStateRejected, "updateTaskLifecycle should reject writing done state through non-task-complete events");
 expectJson(["task-start", "phase-2-lifecycle", "--message", "恢复执行生命周期切片", lifecycleTarget]);
 sanitizeTemplateFixtureMaterials(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle`));
 const lifecycleReview = expectJson(["task-review", "phase-2-lifecycle", "--message", "进入执行审查", lifecycleTarget]);

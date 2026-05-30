@@ -50,7 +50,7 @@ export function run(args: string[], options: TestRunOptions = {}): SpawnSyncRetu
 }
 
 export function humanControlledTestEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
-  const env = { ...process.env, ...overrides };
+  const env: NodeJS.ProcessEnv = { ...process.env, HARNESS_ACTOR: "human", ...overrides };
   for (const key of Object.keys(env)) {
     if (/^(CODEX|CLAUDE_CODE)(_|$)/.test(key)) delete env[key];
   }

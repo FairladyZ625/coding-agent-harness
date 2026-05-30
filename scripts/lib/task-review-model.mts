@@ -454,7 +454,6 @@ export function parseReviewConfirmation(
     const confirmation = reviewConfirmationFromTaskAudit(taskAudit, { taskKey });
     if (
       confirmation?.confirmed &&
-      confirmation.auditSource !== "migrated-legacy-review" &&
       projectRoot &&
       (indexPath || taskDir) &&
       confirmation.commitSha

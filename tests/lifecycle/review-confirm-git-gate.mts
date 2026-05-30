@@ -17,6 +17,7 @@ import {
   tmpRoot,
   todayLocal,
 } from "../helpers/harness-test-utils.mjs";
+import { prepareReviewConfirmGitGate } from "../../scripts/lib/review-confirm-git-gate.mjs";
 
 type RunOptions = Omit<SpawnSyncOptionsWithStringEncoding, "cwd" | "encoding"> & {
   env?: NodeJS.ProcessEnv;
@@ -124,6 +125,17 @@ function readIndex(fixture: ReviewFixture): string {
   const output = `${result.stdout}\n${result.stderr}`;
   assert(output.includes("Human review confirmation must be performed by a human-controlled runtime"), "agent-runtime refusal should identify the human-only gate");
   assert(!readIndex(fixture).includes("| Human Review Status | confirmed |"), "agent-runtime refusal should not write confirmed audit metadata");
+}
+
+{
+  const fixture = prepareReviewTarget("git-gate-allowlist-refusal");
+  let rejected = false;
+  try {
+    prepareReviewConfirmGitGate(fixture.target, [path.join(fixture.target, "docs/legacy-review.md")]);
+  } catch (error) {
+    rejected = String(error instanceof Error ? error.message : error).includes("allowlist");
+  }
+  assert(rejected, "review-confirm git gate should only allow task INDEX.md writes");
 }
 
 {

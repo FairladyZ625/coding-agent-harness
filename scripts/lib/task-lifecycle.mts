@@ -407,6 +407,7 @@ export function updateTaskLifecycle(targetInput: string, taskId: string, { event
   const registry = readCapabilityRegistry(target);
   const normalizedState = state ? String(state).toLowerCase().replaceAll("-", "_") : "";
   if (normalizedState && !allowedTaskStates.has(normalizedState)) throw new Error(`Invalid task state: ${state}`);
+  assertLifecycleEventStateConsistency(normalizedEvent, normalizedState);
   const currentTask = findTaskByDirectory(target, taskDir);
   const canonicalTaskId = taskIdForDirectory(target, taskDir);
   const budget = parseTaskBudget(readFileSafe(path.join(taskDir, "task_plan.md")));
@@ -477,6 +478,16 @@ export function updateTaskLifecycle(targetInput: string, taskId: string, { event
     };
   } finally {
     releaseGovernanceSync(governanceContext);
+  }
+}
+
+function assertLifecycleEventStateConsistency(event: LifecycleGateEvent, state: string): void {
+  if (!state) return;
+  if (state === "done" && event !== "task-complete") {
+    throw new Error(`State done must be written through task-complete, not ${event}.`);
+  }
+  if (state === "review" && event !== "task-review") {
+    throw new Error(`State review must be written through task-review, not ${event}.`);
   }
 }
 export function confirmTaskReview(targetInput: string, taskId: string, { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "", deferCommit = false }: ReviewConfirmOptions = {}) {

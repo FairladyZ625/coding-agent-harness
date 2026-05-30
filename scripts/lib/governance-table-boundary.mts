@@ -5,8 +5,6 @@ import path from "node:path";
 import { readFileSafe, toPosix } from "./core-shared.mjs";
 import { getCell, parseAllMarkdownTables } from "./markdown-utils.mjs";
 
-const newRuleCutoff = "2026-05-24";
-
 type HarnessTarget = {
   projectRoot: string;
   harness: {
@@ -62,8 +60,7 @@ export function validateGovernanceTableBoundaries(target: HarnessTarget): { fail
             `allowed=${spec.allowed}`,
             `route=${finding.route}`,
           ].join(": ");
-          if (isLegacyRow(rowUpdatedDate(row))) warnings.push(`${message}: legacy-report-only`);
-          else failures.push(message);
+          failures.push(message);
         }
       }
     }
@@ -166,16 +163,6 @@ function governanceRowKey(row: GovernanceTableRow): string {
 
 function rowText(row: GovernanceTableRow): string {
   return Object.values(row.cells || {}).join(" ");
-}
-
-function rowUpdatedDate(row: GovernanceTableRow): string {
-  const value = getCell(row.cells || {}, ["Updated", "Date", "日期", "Last Verified", "最近验证"], "");
-  const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
-  return match ? match[0] : "";
-}
-
-function isLegacyRow(updated: string): boolean | "" {
-  return updated && updated < newRuleCutoff;
 }
 
 function isPlaceholderRow(row: GovernanceTableRow): boolean {

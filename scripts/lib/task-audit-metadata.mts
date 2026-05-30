@@ -268,9 +268,8 @@ export function reviewConfirmationFromTaskAudit(audit: unknown, { taskKey = "" }
   const commitSha = fields.get("review commit sha") || "";
   const auditStatus = fields.get("audit status") || "";
   const auditSource = fields.get("audit source") || "";
-  const migratedLegacy = auditSource === "migrated-legacy-review";
-  const confirmTextMismatch = Boolean(!migratedLegacy && taskKey && isConcreteAuditField(confirmText) && !taskKeysMatch(confirmText, taskKey));
-  const commitShaInvalid = Boolean(!migratedLegacy && isConcreteAuditField(commitSha) && !/^[0-9a-f]{7,40}$/i.test(commitSha));
+  const confirmTextMismatch = Boolean(taskKey && isConcreteAuditField(confirmText) && !taskKeysMatch(confirmText, taskKey));
+  const commitShaInvalid = Boolean(isConcreteAuditField(commitSha) && !/^[0-9a-f]{7,40}$/i.test(commitSha));
   const auditStatusInvalid = Boolean(isConcreteAuditField(auditStatus) && auditStatus.trim().toLowerCase() !== "committed");
   const invalidFields = [
     ...(confirmTextMismatch ? ["Confirm Text match"] : []),
@@ -295,7 +294,7 @@ export function reviewConfirmationFromTaskAudit(audit: unknown, { taskKey = "" }
     auditStatusInvalid,
     auditSource,
     migratedFrom: fields.get("migrated from") || "",
-    gitAudit: migratedLegacy ? { valid: true, migrated: true } : null,
+    gitAudit: null,
     gitAuditInvalid: false,
   };
 }

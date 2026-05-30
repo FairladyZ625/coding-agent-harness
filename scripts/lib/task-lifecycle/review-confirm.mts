@@ -64,8 +64,12 @@ type AuditFields = Record<string, string>;
 const agentRuntimeEnvPatterns = [
   /^CODEX(?:_|$)/,
   /^CLAUDE_CODE(?:_|$)/,
+  /^CLAUDECODE(?:_|$)/,
   /^CURSOR_AGENT(?:_|$)/,
+  /^CURSOR_TRACE_ID$/,
+  /^AI_AGENT(?:_|$)/,
   /^AIDER(?:_|$)/,
+  /^CI$/,
 ];
 
 export function confirmTaskReview(
@@ -176,7 +180,7 @@ export function finalizeDeferredTaskReviewConfirmation(
 
 function assertHumanControlledRuntime() {
   const actor = String(process.env.HARNESS_ACTOR || "").trim().toLowerCase();
-  if (actor && actor !== "human") {
+  if (actor !== "human") {
     throw new Error(`Human review confirmation must be performed by a human-controlled runtime; HARNESS_ACTOR is ${actor}.`);
   }
   const detected = Object.keys(process.env)

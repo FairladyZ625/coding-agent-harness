@@ -61,8 +61,8 @@ export function rebuildGovernanceIndexes(targetInput: string, { dryRun = false, 
       surface: surface.surface,
       destination: surface.relative,
       action: isArchiveOnlySurface(surface)
-        ? apply ? "archive-legacy-governance-table" : "would-archive-legacy-governance-table"
-        : apply ? "rebuild-governance-index" : "would-rebuild-governance-index",
+        ? effectiveApply ? "archive-legacy-governance-table" : "would-archive-legacy-governance-table"
+        : effectiveApply ? "rebuild-governance-index" : "would-rebuild-governance-index",
       generatedRows: surface.rows.length,
       archive: archive ? `${archiveDir}/${surface.relative}` : "",
     }));

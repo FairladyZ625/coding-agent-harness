@@ -2,6 +2,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   assert,
   expectJson,
@@ -37,6 +38,11 @@ const env = { ...process.env, HOME: home, HARNESS_PRESET_SECRET: "do-not-leak" }
 const target = path.join(tmpRoot, "release-closeout-target");
 fs.mkdirSync(target);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", target], { env });
+git(target, ["init"]);
+git(target, ["config", "user.name", "Harness Test"]);
+git(target, ["config", "user.email", "harness-test@example.invalid"]);
+git(target, ["add", "."]);
+git(target, ["commit", "-m", "baseline"]);
 
 const inspected = expectJson(["preset", "inspect", "release-closeout", "--json", target], { env });
 assert(inspected.entrypoints.plan?.type === "script", "release-closeout should declare a plan script entrypoint");
@@ -226,6 +232,7 @@ function writeTaskFixture(slug: string, { title, state = "done", tombstone = "",
   const taskPathPrefix = moduleKey
     ? `coding-agent-harness/planning/modules/${moduleKey}/tasks/${slug}`
     : `coding-agent-harness/planning/tasks/${slug}`;
+  const canonicalTaskId = moduleKey ? `MODULES/${moduleKey}/${slug}` : `TASKS/${slug}`;
   const taskDir = path.join(target, taskPathPrefix);
   fs.mkdirSync(taskDir, { recursive: true });
   fs.writeFileSync(path.join(taskDir, "task_plan.md"), `# ${title || slug}
@@ -260,8 +267,8 @@ ${tombstone}
 | Reviewer Email | ${confirmedReview ? "release-reviewer@example.invalid" : "n/a"} |
 | Confirm Text | ${confirmedReview ? slug : "n/a"} |
 | Evidence Checked | ${confirmedReview ? "TARGET:" + taskPathPrefix + "/review.md" : "n/a"} |
-| Review Commit SHA | ${confirmedReview ? "1234567890abcdef1234567890abcdef12345678" : "n/a"} |
-| Audit Source | ${confirmedReview ? "migrated-legacy-review" : "native-index"} |
+| Review Commit SHA | ${confirmedReview ? "pending" : "n/a"} |
+| Audit Source | native-index |
 | Audit Status | ${confirmedReview ? "committed" : "created"} |
 | Exception Reason | n/a |
 | Message | ${confirmedReview ? "Human review confirmed" : "n/a"} |
@@ -270,7 +277,25 @@ ${tombstone}
 | Legacy Extra Fields | {} |
 | Migration Notes | n/a |
 `);
+  if (confirmedReview) writeNativeReviewConfirmation(taskDir, canonicalTaskId, slug);
   return taskDir;
+}
+
+function writeNativeReviewConfirmation(taskDir: string, taskId: string, confirmText: string): void {
+  const indexPath = path.join(taskDir, "INDEX.md");
+  git(target, ["add", "--", path.relative(target, indexPath)]);
+  git(target, ["commit", "-m", `chore: confirm review ${taskId.replace(/[^A-Za-z0-9._/-]+/g, "-")}`]);
+  const commitSha = git(target, ["rev-parse", "HEAD"]).stdout.trim();
+  const content = fs.readFileSync(indexPath, "utf8").replace("| Review Commit SHA | pending |", `| Review Commit SHA | ${commitSha} |`);
+  fs.writeFileSync(indexPath, content);
+  git(target, ["add", "--", path.relative(target, indexPath)]);
+  git(target, ["commit", "-m", `chore: record review confirmation audit ${taskId.replace(/[^A-Za-z0-9._/-]+/g, "-")}`]);
+}
+
+function git(cwd: string, args: string[]) {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  assert(result.status === 0, `git ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
+  return result;
 }
 
 writeTaskFixture(`${todayLocal}-release-done-path`, {
@@ -306,6 +331,8 @@ writeTaskFixture(`${todayLocal}-release-ambiguous`, {
 for (let index = 0; index < 105; index += 1) {
   writeTaskFixture(`${todayLocal}-bulk-done-${String(index).padStart(3, "0")}`, { title: `Bulk done ${index}`, state: "done" });
 }
+git(target, ["add", "."]);
+git(target, ["commit", "-m", "add release closeout fixtures"]);
 
 const taskIndex = expectJson(["task-index", "--json", target], { env });
 const genericArchivedTask = taskIndex.tasks.find((task) => task.id.endsWith("release-done-path"));

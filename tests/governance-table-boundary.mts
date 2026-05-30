@@ -74,8 +74,7 @@ assert(check.stderr.includes("HL-BAD-001"), "Harness Ledger execution log row sh
 assert(check.stderr.includes("HL-BAD-REGRESSION-EVIDENCE"), "Harness Ledger Regression Evidence overload should be reported as a failure");
 assert(check.stderr.includes("HL-BAD-REVIEW-EVIDENCE"), "Harness Ledger Review Evidence overload should be reported as a failure");
 assert(!check.stderr.includes("PF-OK-001"), "allowed summary row should not be reported as a failure");
-assert(check.stdout.includes("HL-LEGACY-001"), "legacy overloaded row should be reported as a warning");
-assert(!check.stderr.includes("HL-LEGACY-001"), "legacy overloaded row should not fail the check");
+assert(check.stderr.includes("HL-LEGACY-001"), "self-declared legacy overloaded row should fail instead of being downgraded by its Updated date");
 
 const dashboardDir = path.join(tmpRoot, "governance-table-boundary-dashboard");
 const dashboard = run(["dashboard", "--out-dir", dashboardDir, target]);
@@ -84,7 +83,7 @@ const adoption = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/adopti
 const entropyWarnings = adoption.warnings.filter((warning) => warning.type === "governance-table-entropy");
 assert(entropyWarnings.length >= 3, "dashboard adoption data should expose governance table entropy warnings");
 assert(entropyWarnings.every((warning) => warning.phase === "global-table-boundary"), "entropy warnings should use a stable dashboard phase");
-assert(entropyWarnings.some((warning) => warning.id.includes("HL-LEGACY-001") && warning.status === "legacy-report-only"), "legacy overload should be visible but report-only in dashboard data");
+assert(entropyWarnings.some((warning) => warning.id.includes("HL-LEGACY-001") && warning.status === "open"), "self-declared legacy overload should remain open in dashboard data");
 assert(entropyWarnings.some((warning) => warning.id.includes("PF-BAD-001") && warning.status === "open"), "new violations should be visible as open dashboard warnings");
 
 console.log("Governance table boundary tests passed");

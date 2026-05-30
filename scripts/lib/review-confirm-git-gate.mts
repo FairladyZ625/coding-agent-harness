@@ -174,10 +174,7 @@ function requireGitRoot(root: string): string {
 function assertAllowedPaths(paths: string[]): void {
   const disallowed = paths.filter((relativePath) => {
     if (!relativePath || relativePath.startsWith("../") || path.isAbsolute(relativePath)) return true;
-    if (relativePath === "AGENTS.md" || relativePath === "CLAUDE.md") return true;
-    if (relativePath === "docs" || relativePath.startsWith("docs/")) return false;
-    if (relativePath === ".harness-private" || relativePath.startsWith(".harness-private/")) return true;
-    return false;
+    return !/(^|\/)coding-agent-harness\/planning\/(?:tasks|modules)\/.+\/INDEX\.md$/.test(relativePath);
   });
   if (disallowed.length > 0) {
     throw new ReviewConfirmGitGateError("Review confirmation write allowlist contains forbidden paths.", {
