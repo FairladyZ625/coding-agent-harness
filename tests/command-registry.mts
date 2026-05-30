@@ -25,4 +25,5 @@ for (const expected of [
 }
 
 assert(help.includes("<target>/.coding-agent-harness/presets/<preset-id>/"), "generated help should keep preset discovery notes");
+assert(help.includes("Human review confirmation is available only through local Dashboard workbench."), "generated help should keep human review confirmation note");
 assert(!help.includes("harness review-confirm"), "generated help must not expose review-confirm");

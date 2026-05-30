@@ -19,6 +19,18 @@ assert(positionalSubcommandHelp.status === 0, `new-task help should exit 0\nSTDO
 assert(positionalSubcommandHelp.stdout.includes("Usage:"), "new-task help should print usage");
 assert(!fs.existsSync(path.join(target, "docs")), "new-task help must not create target docs");
 
+const unknownFlagHelp = run(["not-a-command", "--help"], { cwd: target });
+assert(unknownFlagHelp.status === 0, `unknown command --help should exit 0\nSTDOUT:\n${unknownFlagHelp.stdout}\nSTDERR:\n${unknownFlagHelp.stderr}`);
+assert(unknownFlagHelp.stdout.includes("Usage:"), "unknown command --help should print usage");
+
+const unknownPositionalHelp = run(["not-a-command", "help"], { cwd: target });
+assert(unknownPositionalHelp.status === 0, `unknown command help should exit 0\nSTDOUT:\n${unknownPositionalHelp.stdout}\nSTDERR:\n${unknownPositionalHelp.stderr}`);
+assert(unknownPositionalHelp.stdout.includes("Usage:"), "unknown command help should print usage");
+
+const plainUnknownCommand = run(["not-a-command"], { cwd: target });
+assert(plainUnknownCommand.status === 2, `plain unknown command should exit 2\nSTDOUT:\n${plainUnknownCommand.stdout}\nSTDERR:\n${plainUnknownCommand.stderr}`);
+assert(plainUnknownCommand.stdout.includes("Usage:"), "plain unknown command should print usage");
+
 const noSideEffectCommands = [
   ["init", "--help"],
   ["add-capability", "--help"],
@@ -52,4 +64,5 @@ assert(helpText.includes("preset list --json"), "help should point agents to pre
 assert(helpText.includes("preset seed"), "help should document bundled preset seeding");
 assert(helpText.includes("preset action <id> <action>"), "help should document preset action runner command");
 assert(helpText.includes("--allow-scripts"), "help should document explicit trust for script actions");
+assert(helpText.includes("Human review confirmation is available only through local Dashboard workbench."), "help should document human review confirmation boundary");
 assert(!helpText.includes("harness review-confirm"), "help must not expose review-confirm as a CLI command");

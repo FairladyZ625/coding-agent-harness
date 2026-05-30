@@ -40,6 +40,8 @@ export type ArgReaders = Pick<CommandContext, "takeFlag" | "takeOption" | "targe
 const HELP_NOTES = `If init runs in an interactive terminal and --locale is omitted, it asks for a
 language. Non-interactive init defaults to en-US.
 
+Human review confirmation is available only through local Dashboard workbench.
+
 Preset discovery:
   Project presets live in <target>/.coding-agent-harness/presets/<preset-id>/.
   User presets live in ~/.coding-agent-harness/presets/<preset-id>/.
@@ -74,6 +76,7 @@ export function dispatchCommand(registry: readonly CommandDefinition[], argv: re
   const resolved = resolveCommand(registry, argv);
   if (!resolved) {
     console.log(generateCommandHelp(registry));
+    if (isUnresolvedCommandHelpRequest(argv)) return;
     process.exit(2);
   }
 
@@ -241,6 +244,10 @@ function isTopLevelHelpRequest(argv: readonly string[]): boolean {
 
 function isCommandHelpRequest(raw: readonly string[]): boolean {
   return raw[0] === "help" || raw.includes("--help") || raw.includes("-h");
+}
+
+function isUnresolvedCommandHelpRequest(argv: readonly string[]): boolean {
+  return argv[1] === "help" || argv.includes("--help") || argv.includes("-h");
 }
 
 function buildUsage(command: CommandDefinition): string {
