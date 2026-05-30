@@ -2,7 +2,7 @@
 
 > 对比基准：
 > - **Taskr**: [xerrors/taskr-skill](https://github.com/xerrors/taskr-skill)（SKILL.md + protocol.ts + CLI + Board）
-> - **Coding Agent Harness**: 本仓库 `/Users/lizeyu/Projects/coding-agent-harness`（SKILL.md + 12 references + 30+ templates）
+> - **Coding Agent Harness**: 本仓库根目录（SKILL.md + references/ + 30+ templates）
 >
 > 分析日期：2026-05-21
 > 分析人：小宁（Codex Main）
@@ -558,10 +558,10 @@ Footer 格式：`Taskr: <task-id>`（注意不是旧的 `[taskr:<id>]` subject-l
 
 ```
 Before（当前）:
-  SKILL.md → 12 references → 30+ templates → agent 手动读写 md
+  SKILL.md → references/ → 30+ templates → agent 手动读写 md
 
 After（吸收后）:
-  SKILL.md → 12 references（更新） → 30+ templates（更新，带 frontmatter）
+  SKILL.md → references/（更新） → 30+ templates（更新，带 frontmatter）
     → scripts/validate-tasks.sh ← 新增
     → scripts/harness-doctor.sh ← 新增
     → scripts/reconcile-commits.sh ← 新增

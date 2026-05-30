@@ -22,7 +22,7 @@ coding-agent-harness/governance/
 ├── lessons/                     ← promoted lesson 详情文档
 │   ├── L-2026-05-07-001-xxx.md
 │   └── ...
-└── _archive/                    ← 已合入或废弃的历史详情归档
+└── archive/                     ← 已合入或废弃的历史详情归档
 
 coding-agent-harness/planning/tasks/<task-id>/
 ├── lesson_candidates.md          ← 候选索引和人工路由状态
@@ -146,7 +146,7 @@ pending governance integration -> approved -> merged
 
 ## 归档机制
 
-当 `coding-agent-harness/governance/lessons/` 中已合入或废弃的详情文档过多时，可以把 `merged`、`rejected`、`superseded` 的文档移入 `coding-agent-harness/governance/_archive/`。不要归档仍被 Closeout Index 或 Harness Ledger 当前行引用的文档，除非同步更新引用。
+当 `coding-agent-harness/governance/lessons/` 中已合入或废弃的详情文档过多时，可以把 `merged`、`rejected`、`superseded` 的文档移入 `coding-agent-harness/governance/archive/`。不要归档仍被 Closeout Index 或 Harness Ledger 当前行引用的文档，除非同步更新引用。
 
 ## 人的审批工作流
 

@@ -98,8 +98,8 @@ SSoT（Single Source of Truth，单一事实源）保存当前事实。任务生
 | Regression SSoT | active gates | gate 废弃或长期不再运行 | `coding-agent-harness/governance/regression/_archive/` |
 | Cadence Ledger | active cadence checks | cadence 废弃或合并到其他 gate | `coding-agent-harness/governance/regression/_archive/` |
 | Closeout Index | 当前 closeout 索引 | closed/superseded 超过保留窗口 | `coding-agent-harness/governance/archive/legacy-walkthrough/` |
-| Lesson detail docs | pending / approved / superseded 详情文档 | merged/rejected 超过 20 条 | `coding-agent-harness/governance/_archive/` |
-| Harness Ledger | 当前生成索引 | 重新生成前 archive 旧快照 | `coding-agent-harness/governance/_archive/` 或迁移会话 archive |
+| Lesson detail docs | pending / approved / superseded 详情文档 | merged/rejected 超过 20 条 | `coding-agent-harness/governance/archive/` |
+| Harness Ledger | 当前生成索引 | 重新生成前 archive 旧快照 | `coding-agent-harness/governance/archive/` 或迁移会话 archive |
 
 归档不改变 ID，不删除证据文件；Active 文件必须留下 archive index 或指向归档文件。
 

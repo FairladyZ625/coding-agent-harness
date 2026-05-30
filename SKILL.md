@@ -253,7 +253,7 @@ harness bootstrap 完成后，项目中至少应存在以下文件：
 - [ ] `coding-agent-harness/governance/standards/walkthrough-template.md`
 - [ ] `coding-agent-harness/governance/generated/Closeout-Index.md`
 - [ ] `coding-agent-harness/governance/lessons/`（空目录 + .gitkeep）
-- [ ] `coding-agent-harness/governance/_archive/`（空目录 + .gitkeep）
+- [ ] `coding-agent-harness/governance/archive/`（空目录 + .gitkeep）
 - [ ] `coding-agent-harness/governance/generated/Harness-Ledger.md`
 - [ ] `coding-agent-harness/governance/standards/external-source-intake-standard.md`
 - [ ] `coding-agent-harness/governance/standards/harness-ledger-standard.md`
@@ -340,7 +340,7 @@ harness 搭建完成后，每个 feature 从想法到代码的标准流程：
 | Long-Running Task Contract | `templates/planning/long-running-task-contract.md` | 长程任务授权、review loop 和停止条件 |
 | Module Session Prompt | `templates/planning/module_session_prompt.md` | 模块并行开发会话冷启动 |
 | Walkthrough | `templates/walkthrough/walkthrough-template.md` | 任务收口记录 |
-| Closeout Index | `templates/walkthrough/walkthrough-template.md` | closed task 索引和收口证据 |
+| Closeout Index | `governance rebuild` generated output | `governance/generated/Closeout-Index.md` 由 task closeout metadata 重建，无独立模板 |
 | Testing Standard | `templates/reference/testing-standard.md` | 测试、冒烟和回归规范 |
 | Execution Workflow | `templates/reference/execution-workflow-standard.md` | 执行、提交、PR 和证据记录 |
 | Delivery Operating Model Standard | `templates/reference/delivery-operating-model-standard.md` | 交付组织模型选择 |
