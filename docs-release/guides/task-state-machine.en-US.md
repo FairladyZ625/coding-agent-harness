@@ -91,7 +91,7 @@ flowchart TB
 
 | Condition | `lifecycleState` | Meaning |
 | --- | --- | --- |
-| Tombstone, superseded-by, archive, or abandoned marker exists | `soft-deleted-superseded` | Hidden by default, but preserved for audit and replacement tracing. |
+| Tombstone, superseded-by, or archive marker exists | `soft-deleted-superseded` | Hidden by default, but preserved for audit, reason, and replacement tracing; abandoned, duplicate, and requirement-change semantics live in `Reason`. |
 | Open P0-P2 finding, invalid transition, audit failure, or failed human-review gate | `blocked` | Cannot enter human confirmation until the blocker is fixed or waived. |
 | Standard / complex task is missing required files, sections, evidence, lesson decision, or review submission | `missing-materials` | Needs agent repair; not part of the human review queue. |
 | `task-review` was submitted, materials are ready, and `INDEX.md` does not show human confirmation | `review-submitted` | Truly waiting for human review. |
@@ -143,7 +143,7 @@ flowchart TD
 | Blocked | Blocking finding, state conflict, Git audit failure, completion gate failure, or human waiver required. | agent + human | Fixed, closed, or explicitly waived. |
 | Lessons | Lesson candidate needs decision, task-local retention, rejection, dry-run promotion, or a sedimentation task. | human + agent | Decision is complete, or a traceable sedimentation task exists. |
 | Confirmed / Finalized | Human-confirmed, or finalized and ready for read-only tracing. | coordinator | Closeout, ledger, and lesson routing are complete; then read-only. |
-| Soft-deleted / Superseded | Task was soft-deleted, replaced, merged, archived, or abandoned. | coordinator | Read-only tracing; reopen only when needed. |
+| Soft-deleted / Superseded | Task was soft-deleted, replaced, merged, or archived; abandoned / duplicate / requirement-change semantics are tombstone reasons. | coordinator | Read-only tracing; reopen only when needed. |
 
 The Review queue only waits for human confirmation. Missing materials, blockers, lesson sedimentation, confirmed-but-not-finalized work, and historical superseded tasks must not masquerade as Review queue items.
 

@@ -547,6 +547,7 @@ assert(taskIndex.scannerVersion, "task-index should record scanner version");
 assert(taskIndex.sourceFileHashes[taskId], "task-index should hash source task files");
 assert(indexedReady.queues.includes("confirmed"), "task-index should include normalized queues");
 assert(taskIndex.tasks.find((task) => task.taskKey === superseded.task.id).deletionState === "superseded", "task-index should include tombstone state");
+assert(taskIndex.tasks.find((task) => task.taskKey === superseded.task.id).deleteReason === "merged-duplicate-scope", "task-index should expose tombstone reason for low-entropy disposition semantics");
 assert(!taskIndex.tasks.some((task) => task.id.includes("/artifacts/") || task.id.includes("/references/")), "task-index must not treat nested artifact/reference task_plan.md files as tasks");
 
 const nestedPlanCarrier = expectJson(["new-task", "queue-nested-plan-carrier", "--title", "Queue Nested Plan Carrier", "--locale", "en-US", target]);

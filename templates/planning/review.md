@@ -82,7 +82,7 @@ Do not keep sample findings. If there are no material findings, leave only the h
 | Blocked | yes / no | Open blocking finding, invalid state transition, failed audit, or human waiver needed. | Blocker is fixed, closed, or explicitly waived. |
 | Lessons | yes / no | Lesson candidate needs rejection, task-local retention, dry-run promotion, or a sedimentation task. | Human decides candidate routing; promotion remains a separate maintenance task unless explicitly approved. |
 | Confirmed / Finalized | yes / no | Human confirmation exists; closeout or governance work may still be pending. | Closeout, ledger, and lesson routing are complete. |
-| Soft-deleted / Superseded | yes / no | Task has tombstone, superseded-by, archive, duplicate, or abandoned status. | Reopen or keep as read-only audit history. |
+| Soft-deleted / Superseded | yes / no | Task has tombstone, superseded-by, or archive state; duplicate or abandoned semantics are recorded as `Reason`. | Reopen or keep as read-only audit history. |
 
 ## Final Confidence Basis
 

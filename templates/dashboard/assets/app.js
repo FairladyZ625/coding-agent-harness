@@ -2058,6 +2058,7 @@ function reviewQueueCard(task, tab) {
       <span>${t("materialsReady")}: ${task.materialsReady === true ? t("yes") : t("no")}</span>
     </div>
     <p class="subtle">${escapeHtml(firstUsefulLine(task.summary || task.briefText || ""))}</p>
+    ${tombstoneSummary(task)}
     ${reasons.length ? `<div class="review-reasons">${reasons.slice(0, 4).map(reviewReason).join("")}</div>` : ""}
     ${lessonActions}
     <div class="review-queue-actions">
@@ -2068,6 +2069,18 @@ function reviewQueueCard(task, tab) {
       ${tab?.repair ? `<button data-copy-repair-prompt="${escapeAttr(task.id)}" data-repair-prompt="${escapeAttr(task.repairPrompt || "")}" ${canCopyRepairPrompt ? "" : "disabled"}>${t("copyRepairPrompt")}</button>` : ""}
     </div>
   </article>`;
+}
+
+function tombstoneSummary(task) {
+  const deletionState = String(task?.deletionState || "active");
+  if (deletionState === "active") return "";
+  const reason = String(task?.deleteReason || "").trim();
+  const supersededBy = String(task?.supersededBy || "").trim();
+  return `<div class="review-tombstone-summary">
+    <span>${tag(deletionState)}</span>
+    ${reason ? `<span>${t("reason")}: ${escapeHtml(reason)}</span>` : ""}
+    ${supersededBy ? `<a href="#/tasks/${encodeURIComponent(supersededBy)}">${escapeHtml(supersededBy)}</a>` : ""}
+  </div>`;
 }
 
 function lessonCandidatePanel(task, { context = "detail", limit = 0 } = {}) {

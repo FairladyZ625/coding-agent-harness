@@ -127,6 +127,11 @@ for (const relativeFile of lifecycleContractFiles()) {
     assert(!pattern.test(content), `${relativeFile} still instructs agents to manually maintain Feature SSoT lifecycle tables: ${pattern}`);
   }
 }
+for (const relativeFile of lowEntropyTombstoneContractFiles()) {
+  const content = fs.readFileSync(path.join(repoRoot, relativeFile), "utf8");
+  assert(!/\babandoned\s+(?:marker|state|status)\b/i.test(content), `${relativeFile} must treat abandoned as a tombstone reason, not a durable state or marker`);
+  assert(!/废弃状态/.test(content), `${relativeFile} must treat 废弃 as a tombstone reason, not a durable state`);
+}
 
 const staleRuntimePathOffenders = [];
 for (const relativeFile of pathTokenGovernedFiles()) {
@@ -197,6 +202,16 @@ function lifecycleContractFiles(): string[] {
     "references/ssot-governance.md",
     "docs-release/guides/migration-playbook.md",
     "docs-release/guides/migration-playbook.en-US.md",
+  ];
+}
+
+function lowEntropyTombstoneContractFiles(): string[] {
+  return [
+    "docs-release/guides/task-state-machine.md",
+    "docs-release/guides/task-state-machine.en-US.md",
+    "templates/planning/review.md",
+    "templates-zh-CN/planning/review.md",
+    "templates/dashboard/assets/i18n.js",
   ];
 }
 

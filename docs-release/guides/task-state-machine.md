@@ -91,7 +91,7 @@ flowchart TB
 
 | 条件 | `lifecycleState` | 含义 |
 | --- | --- | --- |
-| 有 tombstone、superseded-by、archive 或 abandoned 标记 | `soft-deleted-superseded` | 默认隐藏，但保留审计和替代链。 |
+| 有 tombstone、superseded-by 或 archive 标记 | `soft-deleted-superseded` | 默认隐藏，但保留审计、原因和替代链；废弃、重复、需求变更写入 `Reason`。 |
 | 有 open P0-P2 finding、非法状态转换、审计失败或人审门禁失败 | `blocked` | 不能进入人工确认，必须先修 blocker 或记录 waiver。 |
 | 标准/复杂任务缺必需文件、章节、证据、lesson decision 或 review submission | `missing-materials` | 需要 Agent 补材料，不属于人审队列。 |
 | 已执行 `task-review`，材料齐全，且 `INDEX.md` 尚未显示人工确认 | `review-submitted` | 真正等待人审。 |

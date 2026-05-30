@@ -208,6 +208,8 @@ assert(dashboardApp.includes("function archiveBucket("), "dashboard missing arch
 assert(dashboardApp.includes("archiveMetadata?.[\"archived by\"]"), "dashboard archive view should expose accountable archive actor");
 assert(dashboardApp.includes("archiveMetadata?.[\"review confirmed by\"]"), "dashboard archive view should expose human review confirmation actor");
 assert(dashboardApp.includes("archiveMetadata?.[\"release package\"]"), "dashboard archive view should expose release package metadata");
+assert(dashboardApp.includes("function tombstoneSummary"), "dashboard review queues should expose tombstone reason without adding disposition states");
+assert(dashboardApp.includes("review-tombstone-summary"), "dashboard review cards should render tombstone reason and replacement links");
 assert(dashboardApp.includes("taskGroupsPerPage"), "dashboard missing global task group paging");
 assert(dashboardApp.includes("taskStatsBar"), "dashboard missing task stats bar");
 assert(dashboardApp.includes("task-row-card"), "dashboard missing upgraded task row card");

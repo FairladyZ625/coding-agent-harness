@@ -27,6 +27,7 @@ type TaskIndexTask = {
   completion?: number;
   currentPath?: string;
   deletionState?: string;
+  deleteReason?: string;
   evidenceBundle?: string;
   executionStrategyPath?: string;
   findingsPath?: string;
@@ -129,6 +130,7 @@ export function buildTaskIndex(targetInput: string | undefined) {
       supersedes: task.supersedes || [],
       supersededBy: task.supersededBy || "",
       deletionState: task.deletionState || "active",
+      deleteReason: task.deleteReason || "",
       archiveMetadata: task.archiveMetadata || {},
       hiddenByDefault: task.hiddenByDefault === true,
       repairPrompt: task.repairPrompt || "",
