@@ -13,6 +13,7 @@ import {
   updateTaskPhase,
   updateTaskLifecycle,
 } from "../lib/harness-core.mjs";
+import { takeRepeatedOptionsFromArgs } from "../lib/command-registry.mjs";
 
 type FlagReader = (name: string, fallback?: boolean) => boolean;
 type OptionReader = (name: string, fallback?: string) => string;
@@ -82,9 +83,9 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       owner: takeOption("--module-owner", "coordinator"),
       currentStep: takeOption("--module-current-step", ""),
       locale,
-      scope: takeRepeatedOptions(args, "--module-scope"),
-      shared: takeRepeatedOptions(args, "--module-shared"),
-      dependsOn: takeRepeatedOptions(args, "--module-depends-on"),
+      scope: takeRepeatedOptionsFromArgs(args, "--module-scope"),
+      shared: takeRepeatedOptionsFromArgs(args, "--module-shared"),
+      dependsOn: takeRepeatedOptionsFromArgs(args, "--module-depends-on"),
     };
     const budget = takeOption("--budget", "standard");
     const preset = takeOption("--preset", "");
@@ -418,21 +419,6 @@ function takeRepeatedKeyValueOptions(args: string[], flag: string): Record<strin
     fields[key] = value;
   }
   return fields;
-}
-
-function takeRepeatedOptions(args: string[], flag: string): string[] {
-  const values: string[] = [];
-  for (let index = 0; index < args.length;) {
-    if (args[index] !== flag) {
-      index += 1;
-      continue;
-    }
-    const value = args[index + 1] || "";
-    args.splice(index, 2);
-    if (!value) throw new Error(`${flag} requires a value`);
-    values.push(value);
-  }
-  return values;
 }
 
 function readArrayProperty(value: unknown, key: string): unknown[] {

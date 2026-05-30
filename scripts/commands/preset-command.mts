@@ -11,6 +11,7 @@ import {
   runPresetEntrypoint,
   uninstallPresetPackage,
 } from "../lib/harness-core.mjs";
+import { takeOptionFromArgs } from "../lib/command-registry.mjs";
 
 type FlagReader = (name: string, fallback?: boolean) => boolean;
 type TargetReader = () => string;
@@ -111,14 +112,6 @@ export function runPresetCommand({ args, takeFlag, targetArg }: { args: string[]
     console.error(errorMessage(error));
     process.exit(1);
   }
-}
-
-function takeOptionFromArgs(args: string[], name: string, fallback = ""): string {
-  const index = args.indexOf(name);
-  if (index < 0) return fallback;
-  const value = args[index + 1] || fallback;
-  args.splice(index, 2);
-  return value;
 }
 
 function takeTrailingActionTarget(args: string[]): string {

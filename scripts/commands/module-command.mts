@@ -5,6 +5,7 @@ import {
   prepareModuleUnregister,
   readHarnessModules,
 } from "../lib/harness-core.mjs";
+import { takeRepeatedOptionsFromArgs } from "../lib/command-registry.mjs";
 import { beginGovernanceSync, commitGovernanceSync, governanceRelativePaths, releaseGovernanceSync } from "../lib/governance-sync.mjs";
 
 type FlagReader = (name: string, fallback?: boolean) => boolean;
@@ -60,9 +61,9 @@ export function runModuleCommand({ args, takeFlag, takeOption, targetArg }: Comm
       owner: takeOption("--owner", "coordinator"),
       currentStep: takeOption("--current-step", ""),
       locale: takeOption("--locale", ""),
-      scope: takeRepeatedOptions(args, "--scope"),
-      shared: takeRepeatedOptions(args, "--shared"),
-      dependsOn: takeRepeatedOptions(args, "--depends-on"),
+      scope: takeRepeatedOptionsFromArgs(args, "--scope"),
+      shared: takeRepeatedOptionsFromArgs(args, "--shared"),
+      dependsOn: takeRepeatedOptionsFromArgs(args, "--depends-on"),
     };
     const target = normalizeTarget(targetArg());
     const planned = prepareModuleRegistration(target, moduleKey, input, { dryRun: true });
@@ -149,21 +150,6 @@ export function runModuleCommand({ args, takeFlag, takeOption, targetArg }: Comm
 
   console.error(`Unknown module subcommand: ${subcommand}`);
   process.exit(2);
-}
-
-function takeRepeatedOptions(args: string[], flag: string): string[] {
-  const values: string[] = [];
-  for (let index = 0; index < args.length;) {
-    if (args[index] !== flag) {
-      index += 1;
-      continue;
-    }
-    const value = args[index + 1] || "";
-    args.splice(index, 2);
-    if (!value) throw new Error(`${flag} requires a value`);
-    values.push(value);
-  }
-  return values;
 }
 
 function errorMessage(error: unknown): string {
