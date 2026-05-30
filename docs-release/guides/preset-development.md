@@ -31,6 +31,21 @@ Use `harness preset audit --json` or `harness preset audit --project --json <tar
 to compare installed preset manifest hashes with bundled presets before deciding
 whether to re-seed with `--force`.
 
+## Task Provenance Drift
+
+Preset audit hashes on a task are creation-time provenance. After a task is
+created, the task directory is an independent document record, so later changes
+to the currently discovered preset do not invalidate historical tasks by
+default. Target checks report manifest, version, and resource drift as
+`preset-drift-warning` messages so maintainers can see that a task came from an
+older preset shape without treating that history as a release-blocking failure.
+
+Current preset execution remains stricter. `harness preset check`,
+`harness preset install`, `harness new-task --preset`, and
+`harness preset action` still validate the current preset package and require an
+explicit current-preset opt-in for sensitive reruns when a task's stored audit
+no longer matches the preset being executed.
+
 ## Dashboard Management
 
 The Dashboard exposes a Presets view for the target project. Static dashboards

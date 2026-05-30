@@ -550,6 +550,7 @@ expectJson(["preset", "install", contextShadowSource, "--force", "--json"], { en
 const shadowedPresetCheck = run(["check", "--profile", "target-project", target], { env });
 assert(shadowedPresetCheck.status === 0, "target check should warn, not fail, when the currently discovered preset version/resources no longer match the task audit");
 assert(`${shadowedPresetCheck.stdout}\n${shadowedPresetCheck.stderr}`.includes("preset-drift-warning") && `${shadowedPresetCheck.stdout}\n${shadowedPresetCheck.stderr}`.includes("preset manifest hash mismatch"), "manifest mismatch warning should name the preset audit hash drift");
+assert(`${shadowedPresetCheck.stdout}\n${shadowedPresetCheck.stderr}`.includes("creation-time preset provenance drift"), "manifest mismatch warning should explain that historical task audits are creation-time provenance");
 assert(`${shadowedPresetCheck.stdout}\n${shadowedPresetCheck.stderr}`.includes("preset version drift"), "preset version drift should be warning-only for existing tasks");
 assert(`${shadowedPresetCheck.stdout}\n${shadowedPresetCheck.stderr}`.includes("preset resource missing"), "current preset resource drift should be warning-only for existing tasks");
 expectJson(["preset", "install", contextSource, "--force", "--json"], { env });

@@ -43,5 +43,5 @@ function presetNeedsEvidenceBundle(presetPackage: PresetPackage): boolean {
 }
 
 function toPresetDriftWarning(issue: string): string {
-  return `preset-drift-warning: ${issue}`;
+  return `preset-drift-warning: creation-time preset provenance drift; ${issue}`;
 }
