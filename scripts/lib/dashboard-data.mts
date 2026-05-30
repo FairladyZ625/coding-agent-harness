@@ -37,10 +37,10 @@ import {
 } from "./harness-paths.mjs";
 import { buildStatusData } from "./status-builder.mjs";
 import {
-  listTaskPlanPaths,
   parseTaskState,
   isActiveTaskState,
-} from "./task-scanner.mjs";
+  createScannerTaskRepository,
+} from "./task-repository.mjs";
 import { writeDashboardDirectory, writeDashboardFile } from "./dashboard-writer.mjs";
 import { listPresetPackageLayers } from "./preset-registry.mjs";
 import { validateGovernanceTableBoundaries } from "./governance-table-boundary.mjs";
@@ -58,7 +58,6 @@ type DashboardOptions = {
   recoverGeneratedDashboard?: boolean;
   replaceExistingDashboardOutput?: boolean;
   skipLegacyCheck?: boolean;
-  taskPlanPaths?: string[];
   tasks?: DashboardTaskRef[];
   workbenchRuntime?: boolean;
 } & Record<string, unknown>;
@@ -183,17 +182,20 @@ function collectDashboardDocumentPaths(target: DashboardTarget, options: Dashboa
       selected.add(file);
     }
   }
-  const tasksByPlanPath = new Map((options.tasks || []).map((task) => [
-    path.join(target.projectRoot, String(task.taskPlanPath || "").replace(/^TARGET:/, "")),
+  const tasks = options.tasks || createScannerTaskRepository(target).list();
+  const tasksByPlanPath = new Map(tasks.map((task) => [
+    targetAbsolutePath(target, String(task.taskPlanPath || "")),
     task,
   ]));
-  for (const taskPlanPath of options.taskPlanPaths || listTaskPlanPaths(target)) {
+  for (const listedTask of tasks) {
+    const taskPlanPath = targetAbsolutePath(target, String(listedTask.taskPlanPath || ""));
+    if (!taskPlanPath || !fs.existsSync(taskPlanPath)) continue;
     const taskDir = path.dirname(taskPlanPath);
     const progress = readFileSafe(path.join(taskDir, "progress.md"));
     const state = parseTaskState(progress);
     const active = isActiveTaskState(state);
-    const task = tasksByPlanPath.get(taskPlanPath);
-    const historicalClosed = !active && task?.closeoutStatus === "closed";
+    const taskRef = tasksByPlanPath.get(taskPlanPath);
+    const historicalClosed = !active && taskRef?.closeoutStatus === "closed";
     const documentNames = historicalClosed
       ? ["brief.md", "walkthrough.md"]
       : ["brief.md", "task_plan.md", "execution_strategy.md", visualMapFile, legacyVisualRoadmapFile, lessonCandidatesFile, longRunningTaskContractFile, "progress.md", "review.md", "findings.md", "walkthrough.md"];
@@ -205,7 +207,7 @@ function collectDashboardDocumentPaths(target: DashboardTarget, options: Dashboa
           partial.set(file, {
             partial: true,
             partialReason: "historical-closed",
-            taskId: task?.id || path.basename(taskDir),
+            taskId: taskRef?.id || path.basename(taskDir),
           });
         }
       }
@@ -398,6 +400,13 @@ function moduleKeyFromPlanSource(source: string, target: DashboardTarget | null)
   if (match) return match[1];
   const legacyMatch = source.match(/(?:MODULES|modules)\/([^/]+)\/module_plan\.md$/);
   return legacyMatch ? legacyMatch[1] : "";
+}
+
+function targetAbsolutePath(target: DashboardTarget, targetPath: string): string {
+  const withoutPrefix = String(targetPath || "").replace(/^TARGET:/, "");
+  if (!withoutPrefix) return "";
+  if (path.isAbsolute(withoutPrefix)) return withoutPrefix;
+  return path.join(target.projectRoot, withoutPrefix.replace(/^\/+/, ""));
 }
 
 function moduleDocumentPaths(target: DashboardTarget | null, moduleKey: string) {
@@ -724,7 +733,7 @@ function warningAction(message: string): string {
 
 export function buildDashboardBundle(targetInput: string, options: DashboardOptions = {}): DashboardBundle {
   const target = normalizeTarget(targetInput) as DashboardTarget;
-  const taskPlanPaths = listTaskPlanPaths(target);
+  const tasks = createScannerTaskRepository(target).list();
   const capabilityState = validateCapabilities(target);
   const gitState = summarizeGitState(target);
   const declaredCapabilities = new Set(capabilityState.registry.capabilities.map((capability) => capability.name));
@@ -736,12 +745,12 @@ export function buildDashboardBundle(targetInput: string, options: DashboardOpti
     ...options,
     capabilityState,
     gitState,
-    taskPlanPaths,
+    tasks,
     legacy,
     failures: [...capabilityState.failures, ...governanceBoundaries.failures],
     warnings: [...capabilityState.warnings, ...legacyWarnings, ...governanceBoundaries.warnings, ...gitState.warnings],
   });
-  const documents = { documents: collectMarkdownDocuments(target, { taskPlanPaths, tasks: status.tasks as DashboardTaskRef[] }) };
+  const documents = { documents: collectMarkdownDocuments(target, { tasks: status.tasks as DashboardTaskRef[] }) };
   const tables = collectTables(documents.documents);
   const graph = collectGraph(status, tables, target);
   const modules = collectDashboardModules(status, target);

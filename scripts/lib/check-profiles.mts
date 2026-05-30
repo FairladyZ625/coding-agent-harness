@@ -26,7 +26,8 @@ import {
 import { validateCapabilities } from "./capability-registry.mjs";
 import { readPresetPackage } from "./preset-registry.mjs";
 import { validateRegularTaskPresetContract } from "./task-preset-contract-drift.mjs";
-import { collectTasks, listTaskPlanPaths, parseTaskBudget, readVisualMapContractFile, parsePhases } from "./task-scanner.mjs";
+import { parseTaskBudget } from "./task-metadata.mjs";
+import { createScannerTaskRepository, parsePhases, readVisualMapContractFile, taskPlanPathFromRecord } from "./task-repository.mjs";
 import { normalizeReviewBoolean, reviewFindingColumns } from "./task-review-model.mjs";
 import { allowedPhaseActors, allowedPhaseKinds } from "./phase-kind.mjs";
 import { validateTaskCompletionConsistency } from "./task-completion-consistency.mjs";
@@ -157,10 +158,12 @@ export function validateReviewSchema(target: CheckTarget, { strict = true }: { s
   return { failures, warnings };
 }
 
-export function validateVisualMaps(target: CheckTarget, { taskPlanPaths }: { taskPlanPaths?: string[] } = {}): ValidationResult {
+export function validateVisualMaps(target: CheckTarget, { tasks }: { tasks?: ScannedTask[] } = {}): ValidationResult {
   const failures: string[] = [];
   const warnings: string[] = [];
-  for (const taskPlanPath of taskPlanPaths || listTaskPlanPaths(target)) {
+  const taskRecords = tasks || createScannerTaskRepository(target).list();
+  for (const task of taskRecords) {
+    const taskPlanPath = taskPlanPathFromRecord(target, task);
     const taskDir = path.dirname(taskPlanPath);
     const visualMapPath = path.join(taskDir, visualMapFile);
     const legacyPath = path.join(taskDir, legacyVisualRoadmapFile);
@@ -212,7 +215,7 @@ export function validateTaskPresetContracts(target: CheckTarget, { tasks }: { ta
     "migration-full-cutover",
     "migration-deferred",
   ]);
-  for (const task of tasks || collectTasks(target)) {
+  for (const task of tasks || createScannerTaskRepository(target).list()) {
     if (!task.taskPreset || task.taskPreset === "none") continue;
     let presetPackage: PresetPackage | null = null;
     try {
@@ -342,12 +345,11 @@ export function buildStatus(targetInput: string | undefined, options: BuildStatu
   const shouldRunLegacy = target.harness?.version !== 2 && !options.skipLegacyCheck && (capabilityState.registry.mode === legacyCompatMode || safeAdoptionMode);
   const legacy = shouldRunLegacy ? runCompatibilityCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
   const contractStrict = Boolean(options.strict) || (capabilityState.registry.mode !== legacyCompatMode && !safeAdoptionMode);
-  const taskPlanPaths = listTaskPlanPaths(target);
   const closeoutContent = target.harness?.version === 2 ? "" : readFileSafe(path.join(target.projectRoot, legacyPath(legacyCloseoutFile)));
-  const tasks = collectTasks(target, { requireGeneratedScaffoldProvenance: contractStrict, taskPlanPaths, closeoutContent });
+  const tasks = createScannerTaskRepository(target, { requireGeneratedScaffoldProvenance: contractStrict, closeoutContent }).list();
   const reviews = validateReviewSchema(target, { strict: contractStrict });
-  const visualMaps = validateVisualMaps(target, { taskPlanPaths });
-  const planContracts = validatePlanContracts(target, { strict: contractStrict, taskPlanPaths });
+  const visualMaps = validateVisualMaps(target, { tasks });
+  const planContracts = validatePlanContracts(target, { strict: contractStrict, tasks });
   const presetContracts = validateTaskPresetContracts(target, { tasks });
   const contextDocs = validateContextDocs(target, { strict: contractStrict });
   const governanceBoundaries = validateGovernanceTableBoundaries(target);

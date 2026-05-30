@@ -1,5 +1,5 @@
 import type { normalizeTarget } from "../core-shared.mjs";
-import type { collectTasks } from "../task-scanner.mjs";
+import type { TaskRecord } from "../task-repository.mjs";
 
 export type CheckHarnessPaths = {
   version: number;
@@ -46,4 +46,4 @@ export type PresetPackage = {
   context?: Record<string, unknown>;
 };
 
-export type ScannedTask = ReturnType<typeof collectTasks>[number];
+export type ScannedTask = TaskRecord;

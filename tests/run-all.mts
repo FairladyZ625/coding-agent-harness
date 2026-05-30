@@ -21,6 +21,7 @@ const suites: string[] = [
   "tests/helpers/test-helper-types.mjs",
   "tests/source-package-boundary.mjs",
   "tests/architecture-health.mjs",
+  "tests/task-repository.mjs",
   "tests/command-registry.mjs",
   "tests/cli-help.mjs",
   "tests/dashboard-generation.mjs",

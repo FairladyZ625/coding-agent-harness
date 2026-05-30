@@ -11,7 +11,7 @@ import { createAggregateLessonSedimentationTask, createLessonSedimentationTask }
 import { normalizeTarget } from "./core-shared.mjs";
 import { beginGovernanceSync, commitGovernanceSync, releaseGovernanceSync } from "./governance-sync.mjs";
 import { dashboardWatchRoots } from "./harness-paths.mjs";
-import { collectTasks } from "./task-scanner.mjs";
+import { createScannerTaskRepository } from "./task-repository.mjs";
 import { writeDashboardFolder } from "./dashboard-data.mjs";
 import {
   checkPresetPackage,
@@ -23,6 +23,7 @@ import {
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import type { CheckTarget, ScannedTask } from "./types/check-profiles.js";
+import type { TaskRepository } from "./task-repository.mjs";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "connection": "close" };
 
@@ -84,6 +85,7 @@ type JsonPayload = Record<string, unknown>;
 export async function serveDashboardWorkbench(outDir: string, targetInput: string, { host = "127.0.0.1", port = 0, localeOverride = "", autoRefresh = false, open = false, label = "dashboard workbench", recoverGeneratedDashboard = false, replaceExistingDashboardOutput = false }: WorkbenchOptions = {}) {
   if (host !== "127.0.0.1") throw new Error("dashboard workbench only supports --host 127.0.0.1");
   const target = normalizeTarget(targetInput) as WorkbenchTarget;
+  const taskRepository = createScannerTaskRepository(target);
   const outputDir = path.resolve(outDir);
   const csrfToken = crypto.randomBytes(24).toString("hex");
   const options = localeOverride ? { localeOverride } : {};
@@ -117,7 +119,7 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
         assertTrustedWorkbenchRequest(request, { origin, csrfToken });
         const body = await readJsonBody(request);
         const taskId = String(body.taskId || "");
-        const task = collectTasks(target).find((item) => item.id === taskId);
+        const task = findWorkbenchTask(taskRepository, taskId);
         if (!task) {
           writeJson(response, 404, { error: "Task not found" });
           return;
@@ -145,7 +147,7 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
         assertTrustedWorkbenchRequest(request, { origin, csrfToken });
         const body = await readJsonBody(request);
         const taskId = String(body.taskId || "");
-        const task = collectTasks(target).find((item) => item.id === taskId);
+        const task = findWorkbenchTask(taskRepository, taskId);
         if (!task) {
           writeJson(response, 404, { error: "Task not found" });
           return;
@@ -180,7 +182,7 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
         }
         const results: WorkbenchBatchResult[] = [];
         for (const taskId of taskIds) {
-          const task = collectTasks(target).find((item) => item.id === taskId);
+          const task = findWorkbenchTask(taskRepository, taskId);
           if (!task) {
             results.push({ taskId, ok: false, status: 404, error: "Task not found" });
             continue;
@@ -235,7 +237,7 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
         const body = await readJsonBody(request);
         const taskId = String(body.taskId || "");
         const candidateId = String(body.candidateId || "");
-        const task = collectTasks(target).find((item) => item.id === taskId);
+        const task = findWorkbenchTask(taskRepository, taskId);
         if (!task) {
           writeJson(response, 404, { error: "Task not found" });
           return;
@@ -436,6 +438,14 @@ function normalizeBulkLessonSelections(rawSelections: unknown): BulkLessonSelect
     result.push({ taskId, candidateId });
   }
   return result;
+}
+
+function findWorkbenchTask(repository: TaskRepository, taskId: string): ScannedTask | undefined {
+  try {
+    return repository.get({ id: taskId }) as ScannedTask;
+  } catch {
+    return undefined;
+  }
 }
 
 function isTaskInReviewQueue(task: ScannedTask | undefined): boolean {

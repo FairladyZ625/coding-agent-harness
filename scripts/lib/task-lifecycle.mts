@@ -5,7 +5,8 @@ import { visualMapFile, legacyVisualRoadmapFile, allowedTaskStates, allowedTaskB
 import { readCapabilityRegistry } from "./capability-registry.mjs";
 import { readPresetPackage } from "./preset-registry.mjs";
 import { renderPresetResourceIndex } from "./preset-engine.mjs";
-import { collectTasks, listTaskPlanPaths, parseTaskBudget, taskIdForDirectory } from "./task-scanner.mjs";
+import { parseTaskBudget } from "./task-metadata.mjs";
+import { createScannerTaskRepository } from "./task-repository.mjs";
 import { getColumn, firstColumn, updateMarkdownTableRow } from "./markdown-utils.mjs";
 import { validateLifecycleTransition, validateReviewEntryGate } from "./task-lifecycle/review-gates.mjs";
 import { advanceLifecyclePhase, autoRecordNoLessonCandidateDecision } from "./task-lifecycle/phase-sync.mjs";
@@ -19,7 +20,7 @@ import { planCreateTaskChanges, refreshPresetCommandAudit, resolveImplicitCreate
 import { beginGovernanceSync, commitGovernanceSync, governanceRelativePaths, releaseGovernanceSync, syncModuleStepGovernance, syncTaskGovernance } from "./governance-sync.mjs";
 import { normalizeHarnessModuleKey, prepareModuleRegistration, prepareModuleStepRegistrationUpdate, readHarnessModules, registeredHarnessModule } from "./module-registry.mjs";
 import { assertLifecyclePresetWriteScope, buildLifecyclePresetContext, evaluatePresetValues, renderLifecyclePresetTaskTemplate, resolveLifecyclePresetInputs } from "./task-lifecycle/preset-interop.mjs";
-import { taskRefPath } from "./harness-paths.mjs";
+import { taskIdFromDirectory } from "./harness-paths.mjs";
 import type { TaskBudget } from "./types/task-scanner.js";
 import type { CreateTaskOptions, DeferredReviewConfirmOptions, LifecycleChange, LifecycleTarget, LifecycleTask, LifecycleUpdateOptions, ListLifecycleTasksOptions, ModuleStepOptions, PhaseUpdateOptions, PresetContext, PresetInputs, PresetPackage, ReviewConfirmOptions, TaskIdentity } from "./types/task-lifecycle.js";
 
@@ -53,57 +54,19 @@ function taskRoot(target: LifecycleTarget, taskId: string, { moduleKey = "" }: {
 }
 
 export function resolveTaskDirectory(target: LifecycleTarget, taskRef: string): string {
-  const raw = String(taskRef || "")
-    .replace(/^coding-agent-harness\/planning\//, "")
-    .replace(/^planning\//, "")
-    .replace(new RegExp(`^${legacyPlanningPrefix()}\\/`), "")
-    .replace(/^\/+/, "");
-  if (!raw) throw new Error("Missing task id");
-  const direct = directTaskRefPath(target, raw);
-  if (direct && fs.existsSync(path.join(direct, "task_plan.md"))) return direct;
-  const normalized = normalizeTaskId(raw);
-  const candidates = listTaskPlanPaths(target)
-    .map((taskPlanPath) => path.dirname(taskPlanPath))
-    .filter((taskDir) => {
-      const id = taskIdForDirectory(target, taskDir);
-      const dirName = path.basename(taskDir);
-      return id === raw || id.endsWith(`/${raw}`) || dirName === normalized;
-    });
-  if (candidates.length === 1) return candidates[0];
-  if (candidates.length > 1) {
-    const options = candidates.map((taskDir) => `- ${taskIdForDirectory(target, taskDir)}`).join("\n");
-    throw new Error(`Ambiguous task reference: ${taskRef}\n${options}`);
-  }
-  // Try bare slug resolution: match normalized slug against dated directories
-  if (!datePrefix.test(normalized)) {
-    const datedCandidates = listTaskPlanPaths(target)
-      .map((taskPlanPath) => path.dirname(taskPlanPath))
-      .filter((taskDir) => {
-        const dirName = path.basename(taskDir);
-        return datePrefix.test(dirName) && dirName.replace(datePrefix, "") === normalized;
-      });
-    if (datedCandidates.length === 1) return datedCandidates[0];
-    if (datedCandidates.length > 1) {
-      const options = datedCandidates.map((taskDir) => `- ${taskIdForDirectory(target, taskDir)}`).join("\n");
-      throw new Error(`Ambiguous task reference: ${taskRef}\n${options}`);
-    }
-  }
-  const legacy = taskRoot(target, normalized);
-  if (fs.existsSync(path.join(legacy, "task_plan.md"))) return legacy;
-  throw new Error(`Task not found: ${taskRef}`);
+  return createScannerTaskRepository(target).resolve({ id: taskRef }).directory;
 }
 
-function directTaskRefPath(target: LifecycleTarget, raw: string): string {
-  return taskRefPath(target.harness, raw);
-}
-
-function legacyPlanningPrefix(): string {
-  return "docs\\/09-PLANNING";
+function taskIdForDirectory(target: LifecycleTarget, taskDir: string): string {
+  return taskIdFromDirectory(target.harness, taskDir);
 }
 
 function findTaskByDirectory(target: LifecycleTarget, taskDir: string): LifecycleTask | undefined {
-  const id = taskIdForDirectory(target, taskDir);
-  return collectTasks(target).find((task) => task.id === id);
+  try {
+    return createScannerTaskRepository(target).get({ path: taskDir }) as LifecycleTask;
+  } catch {
+    return undefined;
+  }
 }
 
 function stateLabel(state: string, locale: string): string {
@@ -584,34 +547,17 @@ export function updateModuleStep(targetInput: string, moduleKey: string, stepId:
 
 export function listLifecycleTasks(targetInput: string, { state = "", moduleKey = "", queue = "", preset = "", review = "", lesson = "", search = "", missingMaterials = false, includeArchived = false }: ListLifecycleTasksOptions = {}) {
   const target = asLifecycleTarget(normalizeTarget(targetInput));
-  let tasks = collectTasks(target);
-  if (!includeArchived) tasks = tasks.filter((task) => task.deletionState === "active" && task.hiddenByDefault !== true);
-  if (state) tasks = tasks.filter((task) => task.state === String(state).toLowerCase().replaceAll("-", "_"));
-  if (moduleKey) tasks = tasks.filter((task) => task.module === normalizeHarnessModuleKey(moduleKey));
-  if (queue) {
-    const normalizedQueue = queryToken(queue);
-    tasks = tasks.filter((task) => (task.taskQueues || []).map(queryToken).includes(normalizedQueue));
-  }
-  if (preset) tasks = tasks.filter((task) => queryToken(task.taskPreset || "none") === queryToken(preset));
-  if (review) tasks = tasks.filter((task) => queryToken(task.reviewStatus || "") === queryToken(review));
-  if (lesson) {
-    const needle = queryToken(lesson);
-    tasks = tasks.filter((task) => [task.lessonCandidateStatus, task.lessonCandidateReviewDecision, task.lessonCandidatePromotionState].some((value) => queryToken(value) === needle));
-  }
-  if (missingMaterials) tasks = tasks.filter((task) => !task.materialsReady);
-  if (search) {
-    const needle = String(search).toLowerCase();
-    tasks = tasks.filter((task) => [
-      task.id,
-      task.taskKey,
-      task.shortId,
-      task.title,
-      task.currentPath,
-      task.taskPlanPath,
-      task.module,
-      task.inferredModule,
-    ].some((value) => String(value || "").toLowerCase().includes(needle)));
-  }
+  const tasks = createScannerTaskRepository(target).list({
+    includeArchived,
+    state,
+    module: moduleKey ? normalizeHarnessModuleKey(moduleKey) : "",
+    queue,
+    preset,
+    review,
+    lesson,
+    missingMaterials,
+    search,
+  }) as LifecycleTask[];
   let modules: Array<Record<string, unknown>> = [];
   try {
     const registry = readHarnessModules(target);
@@ -620,8 +566,4 @@ export function listLifecycleTasks(targetInput: string, { state = "", moduleKey 
     modules = [];
   }
   return { tasks, modules };
-}
-
-function queryToken(value: unknown): string {
-  return String(value || "").trim().toLowerCase().replaceAll("_", "-");
 }

@@ -8,11 +8,8 @@ import {
   toPosix,
   visualMapFile,
 } from "./core-shared.mjs";
-import {
-  listTaskPlanPaths,
-  parseTaskBudget,
-  parseTaskContractInfo,
-} from "./task-scanner.mjs";
+import { parseTaskBudget, parseTaskContractInfo } from "./task-metadata.mjs";
+import { createScannerTaskRepository, taskPlanPathFromRecord } from "./task-repository.mjs";
 import { parseTaskAuditMetadata } from "./task-audit-metadata.mjs";
 
 type HarnessTarget = {
@@ -21,7 +18,7 @@ type HarnessTarget = {
 
 type ValidatePlanContractsOptions = {
   strict?: boolean;
-  taskPlanPaths?: string[];
+  tasks?: Array<{ path?: string; taskPlanPath?: string }>;
 };
 
 type PlanContractValidationResult = {
@@ -35,7 +32,7 @@ type RequiredTaskFilesOptions = {
 
 export function validatePlanContracts(
   target: HarnessTarget,
-  { strict = true, taskPlanPaths }: ValidatePlanContractsOptions = {},
+  { strict = true, tasks }: ValidatePlanContractsOptions = {},
 ): PlanContractValidationResult {
   const failures: string[] = [];
   const warnings: string[] = [];
@@ -43,7 +40,9 @@ export function validatePlanContracts(
     if (strict) failures.push(message);
     else warnings.push(`adoption-needed: ${message}`);
   };
-  for (const taskPlanPath of taskPlanPaths || listTaskPlanPaths(target)) {
+  const taskRecords = tasks || createScannerTaskRepository(target).list();
+  for (const task of taskRecords) {
+    const taskPlanPath = taskPlanPathFromRecord(target, task);
     const taskDir = path.dirname(taskPlanPath);
     const relativeDir = toPosix(path.relative(target.projectRoot, taskDir));
     const taskPlanContent = readFileSafe(taskPlanPath);

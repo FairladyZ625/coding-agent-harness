@@ -2,7 +2,7 @@ import path from "node:path";
 import { normalizeTarget, toPosix } from "./core-shared.mjs";
 import { capabilityDefinitions, readCapabilityRegistry } from "./capability-registry.mjs";
 import { summarizeGitState } from "./git-status-summary.mjs";
-import { collectTasks, taskCutoverCounters } from "./task-scanner.mjs";
+import { createScannerTaskRepository, taskCutoverCounters } from "./task-repository.mjs";
 import { readHarnessModules } from "./module-registry.mjs";
 
 type HarnessTarget = {
@@ -96,15 +96,8 @@ type BuildStatusOptions = {
   legacy?: unknown;
   tasks?: StatusTask[];
   requireGeneratedScaffoldProvenance?: boolean;
-  taskPlanPaths?: string[];
   closeoutContent?: string;
   generatedAt?: string;
-};
-
-type CollectTasksOptions = {
-  requireGeneratedScaffoldProvenance?: boolean;
-  taskPlanPaths?: string[];
-  closeoutContent?: string;
 };
 
 type CutoverCounters = {
@@ -115,7 +108,6 @@ type CutoverCounters = {
   missingCanonicalVisualMapCount: number;
 };
 
-const collectTasksForStatus = collectTasks as (target: HarnessTarget, options?: CollectTasksOptions) => StatusTask[];
 const taskCutoverCountersForStatus = taskCutoverCounters as (tasks: StatusTask[]) => CutoverCounters;
 
 export function buildStatusData(targetInput: HarnessTarget | string | undefined, options: BuildStatusOptions = {}) {
@@ -128,11 +120,10 @@ export function buildStatusData(targetInput: HarnessTarget | string | undefined,
   const failures = [...(options.failures || [])];
   const warnings = [...(options.warnings || [])];
   const legacy = options.legacy || { status: "skipped", code: 0, stdout: "", stderr: "" };
-  const tasks = options.tasks || collectTasksForStatus(target, {
+  const tasks = options.tasks || createScannerTaskRepository(target, {
     requireGeneratedScaffoldProvenance: options.requireGeneratedScaffoldProvenance === true,
-    taskPlanPaths: options.taskPlanPaths,
     closeoutContent: options.closeoutContent,
-  });
+  }).list() as StatusTask[];
   const modules = harnessModulesForStatus(target);
   const briefReady = tasks.filter((task) => task.briefSource === "standalone").length;
   const briefMissing = tasks.length - briefReady;
