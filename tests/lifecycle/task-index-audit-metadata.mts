@@ -34,9 +34,6 @@ type MigrationPlanResponse = {
 type MigrationApplyResponse = {
   result?: string;
 };
-type ReviewConfirmPayload = {
-  audit: { commitSha: string; auditCommitSha: string };
-};
 type ConfirmedTask = HarnessTask & {
   taskDir: string;
 };
@@ -110,15 +107,17 @@ const confirmPayload = confirmTaskReview(auditTarget, confirmTask.shortId, {
   reviewer: "Human Reviewer",
   message: "index audit confirmed",
   confirmText: confirmTask.shortId,
-}) as unknown as ReviewConfirmPayload;
+});
+const reviewCommitSha = String(confirmPayload.audit.commitSha || "");
+const auditCommitSha = String(confirmPayload.audit.auditCommitSha || "");
 const confirmedIndex = read(confirmTask.taskDir, "INDEX.md");
 assert(confirmedIndex.includes("| Human Review Status | confirmed |"), "review-confirm should mark INDEX human review status confirmed");
-assert(confirmedIndex.includes(`| Review Commit SHA | ${confirmPayload.audit.commitSha} |`), "review-confirm should write the first confirmation commit SHA to INDEX");
+assert(confirmedIndex.includes(`| Review Commit SHA | ${reviewCommitSha} |`), "review-confirm should write the first confirmation commit SHA to INDEX");
 assert(confirmedIndex.includes("| Audit Status | committed |"), "review-confirm should mark INDEX audit status committed");
 assert(confirmedIndex.includes("| Confirm Text |"), "review-confirm should write confirmation text to INDEX");
 assert(read(confirmTask.taskDir, "review.md") === beforeConfirmReview, "review-confirm should not mutate review.md");
 assert(read(confirmTask.taskDir, "progress.md") === beforeConfirmProgress, "review-confirm should not mutate progress.md");
-for (const sha of [confirmPayload.audit.commitSha, confirmPayload.audit.auditCommitSha]) {
+for (const sha of [reviewCommitSha, auditCommitSha]) {
   const files = expectGit(auditTarget, ["show", "--name-only", "--format=", sha]).stdout.trim().split(/\r?\n/).filter(Boolean);
   assert(files.length === 1 && files[0] === `coding-agent-harness/planning/tasks/${confirmTask.shortId}/INDEX.md`, `review-confirm commit ${sha} should change only task INDEX.md, got ${files.join(", ")}`);
 }
