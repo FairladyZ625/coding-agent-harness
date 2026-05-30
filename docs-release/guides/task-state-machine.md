@@ -28,12 +28,12 @@ stateDiagram-v2
   review_submitted --> missing_materials: returned for materials
   missing_materials --> in_progress: repair materials
   review_submitted --> blocked: blocking finding
-  review_submitted --> human_confirmed: review-confirm
+  review_submitted --> human_confirmed: Dashboard workbench confirmation
   human_confirmed --> finalized: task-complete + closeout
   finalized --> [*]
 ```
 
-`task-review` 表示 Agent 提交审查材料包，不表示人工批准。`review-confirm` 才表示人工确认门禁，并把审计字段写入 `INDEX.md`。`task-complete` / closeout 也不是 review confirmation 的替代品。
+`task-review` 表示 Agent 提交审查材料包，不表示人工批准。Dashboard workbench 人工确认才表示人工确认门禁，并把审计字段写入 `INDEX.md`。`task-complete` / closeout 也不是 review confirmation 的替代品。
 
 ## 阶段类型地图
 
@@ -43,12 +43,12 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | `init` | 范围、上下文、预算和执行策略。 | 否 | `harness task-start <task-id>` |
 | `execution` | 实现、文档和验证切片。 | 是 | `harness task-phase <task-id> <phase-id> --state done --completion 100 --evidence present` |
-| `gate` | Agent 提交审查、人工确认、lesson routing、walkthrough 和 closeout。 | 否 | `harness task-review`、`harness review-confirm` 或 `harness task-complete` |
+| `gate` | Agent 提交审查、人工确认、lesson routing、walkthrough 和 closeout。 | 否 | `harness task-review`、Dashboard workbench 人工确认，或 `harness task-complete` |
 
 旧阶段表没有 `Kind` 也继续有效，默认按 `execution` 处理。
 Dashboard 实现完成度只计算非 skipped 的 `execution` 阶段。
 Gate 阶段用于解释下一步生命周期动作和责任人，不会让已完成的实现看起来未完成。
-Agent 只能执行 `Actor: agent` 的 `Exit Command`。`Actor: human` 的 gate，尤其是 `review-confirm`，必须由人工明确执行。
+Agent 只能执行 `Actor: agent` 的 `Exit Command`。`Actor: human` 的 gate，尤其是 Dashboard workbench 人工确认，必须由人工明确执行。
 
 ## 派生状态
 
@@ -111,7 +111,7 @@ flowchart TB
 | `blocked-open-findings` | 有 open P0-P2 finding，或 finding 阻塞发布 / 确认。 |
 | `confirmed` | `INDEX.md` Task Audit Metadata 包含 `Human Review Status: confirmed` 和已提交审计字段。 |
 
-Agent 自查、subagent 审查和 coordinator 审查都只能让任务接近 `submitted`。只有 `review-confirm` 或 Workbench 的明确人工确认动作会把确认审计字段写入 `INDEX.md`。
+Agent 自查、subagent 审查和 coordinator 审查都只能让任务接近 `submitted`。只有 Workbench 的明确人工确认动作会把确认审计字段写入 `INDEX.md`。
 
 ## 生命周期队列
 
@@ -202,7 +202,7 @@ sequenceDiagram
 
 严格规则：Agent 可以准备 review evidence，也可以提交审查；但任务只有在任务 `INDEX.md` 包含已提交的确认审计字段后，才算人工确认。确认动作必须通过 gated auto-commit：Git 状态不干净、提交身份缺失、hook/preflight 失败，或待写文件超出当前任务 `INDEX.md` 白名单时，CLI 和 Workbench 都会拒绝并返回恢复建议。
 
-CLI-owned 机械写入和 agent-owned 手工切片是两条边界。`new-task`、`task-*`、`task-phase`、`module-step`、`review-confirm`、`lesson-sediment` 和 `lesson-promote --apply` 会在干净 Git root 中加锁、限制写入范围并自动提交。Agent 手工编辑代码、模板或任务文档时仍要在验证后主动提交；无法提交时必须记录 no-commit reason、owner 和下一步，不能把 unrelated dirty changes 混入任务提交。
+CLI-owned 机械写入、Workbench 人工确认和 agent-owned 手工切片是三条边界。`new-task`、`task-*`、`task-phase`、`module-step`、`lesson-sediment` 和 `lesson-promote --apply` 会在干净 Git root 中加锁、限制写入范围并自动提交；人工确认只通过本地 Workbench 执行。Agent 手工编辑代码、模板或任务文档时仍要在验证后主动提交；无法提交时必须记录 no-commit reason、owner 和下一步，不能把 unrelated dirty changes 混入任务提交。
 
 ## Lesson 沉淀
 

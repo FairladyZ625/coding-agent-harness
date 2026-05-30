@@ -1,5 +1,4 @@
 import {
-  confirmTaskReview,
   createTask,
   readPresetPackage,
   buildTaskIndex,
@@ -141,25 +140,6 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       console.log(JSON.stringify(updateTaskLifecycle(targetArg(), taskId, { ...lifecycle, message, evidence }), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
-      process.exit(1);
-    }
-    return;
-  }
-
-  if (command === "review-confirm") {
-    const reviewer = takeOption("--reviewer", "Human Reviewer");
-    const message = takeOption("--message", "");
-    const evidence = takeOption("--evidence", "");
-    const confirmText = takeOption("--confirm", "");
-    const taskId = args.shift();
-    if (!taskId) {
-      console.error("Missing task id");
-      process.exit(2);
-    }
-    try {
-      console.log(JSON.stringify(confirmTaskReview(targetArg(), taskId, { reviewer, message, evidence, confirmText }), null, 2));
-    } catch (error) {
-      console.error(formatTaskCommandError(error));
       process.exit(1);
     }
     return;

@@ -108,6 +108,24 @@ assert(statsHtml.includes("planned"), "task stats should expose planned tasks so
 assert(statsHtml.includes("not started"), "task stats should expose not_started tasks so displayed buckets add up");
 assert(statsHtml.includes("unknown"), "task stats should expose unknown tasks so displayed buckets add up");
 
+const bulkErrorSandbox = createSandbox();
+vm.runInContext(`
+  __result = dashboardActionErrorDetail({
+    ok: false,
+    confirmed: 0,
+    failed: 3,
+    results: [
+      { ok: false, error: "Human review confirmation must be performed by a human-controlled runtime." },
+      { ok: false, error: "Human review confirmation must be performed by a human-controlled runtime." },
+      { ok: false, error: "Human review confirmation must be performed by a human-controlled runtime." },
+    ],
+  }, "fallback");
+`, bulkErrorSandbox);
+assert(typeof bulkErrorSandbox.__result === "string", "bulk action error detail should render text");
+assert(!bulkErrorSandbox.__result.includes("[object Object]"), "bulk action error detail must not stringify payload objects");
+assert(bulkErrorSandbox.__result.includes("3 failed"), "bulk action error detail should include failed count");
+assert(bulkErrorSandbox.__result.includes("human-controlled runtime"), "bulk action error detail should expose per-task failure reason");
+
 function fakeInput(value: string): FakeInput {
   return {
     value,

@@ -67,7 +67,11 @@ writeZipFromDirectory(archivePresetSource, archivePresetZip, { rootName: "archiv
 
 const workbench = spawn(node, [cli, "dashboard", "--workbench", "--out-dir", outDir, "--host", "127.0.0.1", "--port", "0", target], {
   cwd: repoRoot,
-  env: humanControlledTestEnv({ HOME: home }),
+  env: {
+    ...humanControlledTestEnv({ HOME: home }),
+    CODEX_THREAD_ID: "agent-hosted-workbench",
+    CLAUDE_CODE_SSE_PORT: "12345",
+  },
   stdio: ["ignore", "pipe", "pipe"],
 });
 const runtime = await waitForWorkbench(workbench);

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import type { SpawnSyncReturns } from "node:child_process";
+import { confirmTaskReview } from "../../scripts/lib/task-lifecycle.mjs";
 import type { HarnessTestLooseJson, HarnessTestLoosePhase } from "../helpers/harness-test-types.js";
 import {
   acceptNoLessonCandidate,
@@ -25,6 +26,25 @@ import { updateTaskLifecycle } from "../../scripts/lib/task-lifecycle.mjs";
 
 const lifecycleTarget = path.join(tmpRoot, "lifecycle-target");
 fs.mkdirSync(lifecycleTarget);
+
+function runReviewConfirm(target: string, taskId: string, confirmText: string, message = "review confirmed"): SpawnSyncReturns<string> {
+  try {
+    const payload = confirmTaskReview(target, taskId, {
+      reviewer: "Human Reviewer",
+      message,
+      confirmText,
+    });
+    return { status: 0, stdout: `${JSON.stringify(payload)}\n`, stderr: "" } as SpawnSyncReturns<string>;
+  } catch (error) {
+    return { status: 1, stdout: "", stderr: `${error instanceof Error ? error.message : String(error || "unknown error")}\n` } as SpawnSyncReturns<string>;
+  }
+}
+
+function expectReviewConfirmJson(target: string, taskId: string, confirmText: string, message = "review confirmed"): HarnessTestLooseJson {
+  const result = runReviewConfirm(target, taskId, confirmText, message);
+  assert(result.status === 0, `review confirmation failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
+  return JSON.parse(result.stdout) as HarnessTestLooseJson;
+}
 expectJson(["init", "--locale", "zh-CN", "--capabilities", "core,dashboard", lifecycleTarget]);
 const automaticTaskDryRun = expectJson(["new-task", "--title", "Automatic ID Collision Guard", "--dry-run", lifecycleTarget]);
 assert(automaticTaskDryRun.task?.shortId?.startsWith(`${todayLocal}-automatic-id-collision-guard-`), "title-only new-task should derive a semantic automatic id");
@@ -420,7 +440,7 @@ fs.writeFileSync(
 const blockedComplete = run(["task-complete", "phase-2-lifecycle", "--message", "带阻塞审查项完成", lifecycleTarget]);
 assert(blockedComplete.status !== 0, "task-complete should reject open blocking review findings");
 assert(blockedComplete.stderr.includes("Open blocking review findings"), "task-complete blocked review failure should explain open findings");
-const blockedConfirm = run(["review-confirm", `TASKS/${todayLocal}-phase-2-lifecycle`, "--reviewer", "Human Reviewer", "--confirm", `${todayLocal}-phase-2-lifecycle`, lifecycleTarget]);
+const blockedConfirm = runReviewConfirm(lifecycleTarget, `TASKS/${todayLocal}-phase-2-lifecycle`, `${todayLocal}-phase-2-lifecycle`);
 assert(blockedConfirm.status !== 0, "review-confirm should reject tasks with open blocking review findings");
 assert(blockedConfirm.stderr.includes("Open blocking review findings"), "review-confirm blocked failure should explain open findings");
 fs.writeFileSync(
@@ -429,11 +449,11 @@ fs.writeFileSync(
 );
 const unconfirmedComplete = run(["task-complete", "phase-2-lifecycle", "--message", "未确认审查完成", lifecycleTarget]);
 assert(unconfirmedComplete.status !== 0, "task-complete should require human review confirmation");
-assert(unconfirmedComplete.stderr.includes("review-confirm"), "unconfirmed review failure should tell the user to run review-confirm");
+assert(unconfirmedComplete.stderr.includes("Dashboard workbench"), "unconfirmed review failure should route the user to Dashboard workbench");
 const lifecycleWalkthrough = path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle/walkthrough.md`);
 const lifecycleWalkthroughContent = fs.readFileSync(lifecycleWalkthrough, "utf8");
 fs.rmSync(lifecycleWalkthrough);
-const missingWalkthroughConfirm = run(["review-confirm", `TASKS/${todayLocal}-phase-2-lifecycle`, "--reviewer", "Human Reviewer", "--message", "walkthrough reviewed", "--confirm", `${todayLocal}-phase-2-lifecycle`, lifecycleTarget]);
+const missingWalkthroughConfirm = runReviewConfirm(lifecycleTarget, `TASKS/${todayLocal}-phase-2-lifecycle`, `${todayLocal}-phase-2-lifecycle`, "walkthrough reviewed");
 assert(missingWalkthroughConfirm.status !== 0, "review-confirm should require a walkthrough before human confirmation");
 assert(missingWalkthroughConfirm.stderr.includes("walkthrough"), "missing walkthrough confirmation failure should explain the walkthrough requirement");
 fs.writeFileSync(lifecycleWalkthrough, `${lifecycleWalkthroughContent.trimEnd()}\n\n## Summary\n\nHuman-readable walkthrough for review before completion.\n`);
@@ -446,7 +466,7 @@ assert(preCompleteTask?.reviewStatus === "agent-reviewed", "status should classi
 const reviewTemplateTask = preCompleteStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-review-template-placeholder`);
 assert(reviewTemplateTask?.reviewStatus === "required", "review template placeholder Verdict: yes / no should not count as a completed review");
 commitFixtureBaseline(lifecycleTarget, "before phase lifecycle review confirmation");
-const preCompleteConfirm = expectJson(["review-confirm", `TASKS/${todayLocal}-phase-2-lifecycle`, "--reviewer", "Human Reviewer", "--message", "walkthrough reviewed", "--confirm", `${todayLocal}-phase-2-lifecycle`, lifecycleTarget]);
+const preCompleteConfirm = expectReviewConfirmJson(lifecycleTarget, `TASKS/${todayLocal}-phase-2-lifecycle`, `${todayLocal}-phase-2-lifecycle`, "walkthrough reviewed");
 assert(preCompleteConfirm.task?.reviewStatus === "confirmed", "review-confirm should confirm review before task-complete");
 const lifecycleComplete = expectJson(["task-complete", "phase-2-lifecycle", "--message", "生命周期闭环完成", lifecycleTarget]);
 assert(lifecycleComplete.task?.state === "done", "task-complete should report done state");
@@ -505,7 +525,7 @@ Visual Map Contract: v1.0
 | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- |
 | INIT-01 | init | none | done | 100 | Scope ready | task_plan.md | harness task-start TASK | agent | present | none | coordinator |
 | EXEC-01 | execution | INIT-01 | done | 100 | Implementation done | diff | harness task-phase TASK EXEC-01 --state done --completion 100 --evidence present | agent | present | none | coordinator |
-| GATE-01 | gate | EXEC-01 | planned | 0 | Human review pending | review.md | harness review-confirm TASK --confirm TASK | human | missing | agent must not confirm | human |
+| GATE-01 | gate | EXEC-01 | planned | 0 | Human review pending | review.md | Open local Dashboard workbench and confirm TASK | human | missing | agent must not confirm | human |
 `,
 );
 fs.writeFileSync(path.join(phaseKindDir, "progress.md"), "# Progress\n\n## Status\n\ndone\n");
@@ -627,7 +647,7 @@ fs.writeFileSync(moduleWalkthrough, `${fs.readFileSync(moduleWalkthrough, "utf8"
 acceptNoLessonCandidate(moduleTaskDir);
 sanitizeTemplateFixtureMaterials(moduleTaskDir);
 commitFixtureBaseline(lifecycleTarget, "before module lifecycle review confirmation");
-const moduleConfirm = expectJson(["review-confirm", `MODULES/auth/${todayLocal}-module-lifecycle`, "--reviewer", "Human Reviewer", "--confirm", `${todayLocal}-module-lifecycle`, lifecycleTarget]);
+const moduleConfirm = expectReviewConfirmJson(lifecycleTarget, `MODULES/auth/${todayLocal}-module-lifecycle`, `${todayLocal}-module-lifecycle`);
 assert(moduleConfirm.task?.id === `MODULES/auth/${todayLocal}-module-lifecycle`, "review-confirm should accept full module task ids");
 const workbenchReviewTask = expectJson(["new-task", "workbench-review", "--title", "Workbench review gate", "--locale", "zh-CN", lifecycleTarget]);
 assert(workbenchReviewTask.task?.id === `TASKS/${todayLocal}-workbench-review`, "new-task should create workbench review gate fixture");

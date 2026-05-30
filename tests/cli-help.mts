@@ -28,7 +28,6 @@ const noSideEffectCommands = [
   ["task-start", "--help"],
   ["task-log", "--help"],
   ["task-complete", "--help"],
-  ["review-confirm", "--help"],
   ["lesson-promote", "--help"],
   ["install-user", "--help"],
 ];
@@ -53,3 +52,4 @@ assert(helpText.includes("preset list --json"), "help should point agents to pre
 assert(helpText.includes("preset seed"), "help should document bundled preset seeding");
 assert(helpText.includes("preset action <id> <action>"), "help should document preset action runner command");
 assert(helpText.includes("--allow-scripts"), "help should document explicit trust for script actions");
+assert(!helpText.includes("harness review-confirm"), "help must not expose review-confirm as a CLI command");

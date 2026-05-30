@@ -19,7 +19,7 @@ For example:
 - Why is state stored in Markdown files instead of a database?
 - Why are there three check profiles instead of one?
 - What's the difference between `governance-sync` and `governance rebuild`, and why are they separate?
-- Why must `review-confirm` be a manual operation — why can't it be automated?
+- Why must human confirmation go through the local Workbench instead of a regular CLI command?
 
 The answers to these questions are scattered across design decisions, historical evolution,
 and operating standards. These docs bring them together so you can understand the system's

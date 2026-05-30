@@ -23,7 +23,7 @@ flowchart TD
 
   Entry -->|"dashboard\ndev"| DashCmd["dist/commands/dashboard-command.mjs\nDashboard generation + dynamic serving"]
   Entry -->|"migrate-plan\nmigrate-run\nmigrate-verify"| MigCmd["dist/commands/migration-command.mjs\nMigration three-phase commands"]
-  Entry -->|"new-task / task-start\ntask-phase / task-review\ntask-complete / review-confirm\ntask-tombstone"| TaskCmd["dist/commands/task-command.mjs\nTask lifecycle commands"]
+  Entry -->|"new-task / task-start\ntask-phase / task-review\ntask-complete / task-tombstone"| TaskCmd["dist/commands/task-command.mjs\nTask lifecycle commands"]
   Entry -->|"preset catalog\npreset install\npreset uninstall"| PresetCmd["dist/commands/preset-command.mjs\nPreset management commands"]
   Entry -->|"check / status / init\ngovernance / lesson-promote\n..."| Core["dist/lib/harness-core.mjs\n(called directly)"]
 ```
@@ -181,7 +181,7 @@ flowchart TD
   TaskLifecycle["task-lifecycle.mjs\nLifecycle command implementations\nnew-task / task-start / task-phase\ntask-review / task-complete"]
 
   TaskLifecycle --> ReviewGates["task-lifecycle/review-gates.mjs\nGate validation logic\n(checks before entering review)"]
-  TaskLifecycle --> ReviewConfirm["task-lifecycle/review-confirm.mjs\nHuman confirmation execution\n(review-confirm command)"]
+  TaskLifecycle --> ReviewConfirm["task-lifecycle/review-confirm.mjs\nHuman confirmation execution\n(Workbench internal write entry)"]
   TaskLifecycle --> TextUtils["task-lifecycle/text-utils.mjs\nText append utilities\n(appending content to Markdown files)"]
   TaskLifecycle --> GovSync["governance-sync.mjs\nSync ledger on state changes"]
   TaskLifecycle --> MigPreset["task-migration-preset.mjs\nMigration Preset context injection"]
@@ -189,9 +189,9 @@ flowchart TD
   ReviewConfirm --> GitGate["review-confirm-git-gate.mjs\nGit atomic commit gate\n(writes human confirmation block + commit)"]
 ```
 
-`review-confirm` is the most special command in the entire lifecycle layer — it's the only
-operation that requires a Git atomic commit, and the only one that cannot be automatically
-executed by an Agent (see design decisions in [01-system-overview.md](01-system-overview.md)).
+Human confirmation is the most special write operation in the lifecycle layer: it is triggered
+only through the local Workbench and requires Git atomic commit behavior
+(see design decisions in [01-system-overview.md](01-system-overview.md)).
 
 ---
 

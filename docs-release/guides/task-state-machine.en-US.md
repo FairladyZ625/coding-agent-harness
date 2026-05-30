@@ -28,12 +28,12 @@ stateDiagram-v2
   review_submitted --> missing_materials: returned for materials
   missing_materials --> in_progress: repair materials
   review_submitted --> blocked: blocking finding
-  review_submitted --> human_confirmed: review-confirm
+  review_submitted --> human_confirmed: Dashboard workbench confirmation
   human_confirmed --> finalized: task-complete + closeout
   finalized --> [*]
 ```
 
-`task-review` means the agent submitted a review packet. It does not mean human approval. `review-confirm` is the human confirmation gate and writes its audit fields to `INDEX.md`. `task-complete` / closeout is not a substitute for review confirmation.
+`task-review` means the agent submitted a review packet. It does not mean human approval. Dashboard workbench human confirmation is the human confirmation gate and writes its audit fields to `INDEX.md`. `task-complete` / closeout is not a substitute for review confirmation.
 
 ## Phase Kind Map
 
@@ -43,12 +43,12 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | `init` | Scope, context, budget, and execution strategy. | no | `harness task-start <task-id>` |
 | `execution` | Implementation, documentation, and verification slices. | yes | `harness task-phase <task-id> <phase-id> --state done --completion 100 --evidence present` |
-| `gate` | Agent review submission, human confirmation, lesson routing, walkthrough, and closeout. | no | `harness task-review`, `harness review-confirm`, or `harness task-complete` |
+| `gate` | Agent review submission, human confirmation, lesson routing, walkthrough, and closeout. | no | `harness task-review`, Dashboard workbench human confirmation, or `harness task-complete` |
 
 Older phase tables without `Kind` remain valid and are treated as `execution`.
 The Dashboard implementation score uses non-skipped `execution` phases only.
 Gate phases explain the next lifecycle action and owner; they do not make a finished implementation look incomplete.
-Agents may run `Exit Command` values with `Actor: agent`. `Actor: human` gates, especially `review-confirm`, require explicit human action.
+Agents may run `Exit Command` values with `Actor: agent`. `Actor: human` gates, especially Dashboard workbench human confirmation, require explicit human action.
 
 ## Derived State
 
@@ -111,7 +111,7 @@ flowchart TB
 | `blocked-open-findings` | There is an open P0-P2 finding or a finding that blocks release / confirmation. |
 | `confirmed` | `INDEX.md` Task Audit Metadata has `Human Review Status: confirmed` and committed audit fields. |
 
-Agent self-review, subagent review, and coordinator review can only move a task toward `submitted`. Only `review-confirm` or an explicit Dashboard Workbench human confirmation writes the confirmation audit fields in `INDEX.md`.
+Agent self-review, subagent review, and coordinator review can only move a task toward `submitted`. Only an explicit Dashboard Workbench human confirmation writes the confirmation audit fields in `INDEX.md`.
 
 ## Lifecycle Queues
 
@@ -195,7 +195,7 @@ sequenceDiagram
 
 Strict rule: an agent can prepare review evidence and submit the task for review, but the task is not human-confirmed until the task `INDEX.md` contains committed confirmation audit fields. Confirmation must use gated auto-commit: the CLI and Workbench reject dirty Git state, missing commit identity, hook/preflight failure, or writes outside the current task `INDEX.md` allowlist, and return recovery guidance.
 
-CLI-owned mechanical writes and agent-owned manual slices have different boundaries. `new-task`, `task-*`, `task-phase`, `module-step`, `review-confirm`, `lesson-sediment`, and `lesson-promote --apply` acquire a lock, restrict writes to an allowlist, and auto-commit in a clean Git root. When an agent manually edits code, templates, or task docs, it still needs to proactively commit after verification; if it cannot commit, it must record the no-commit reason, owner, and next step, and must not mix unrelated dirty changes into the task commit.
+CLI-owned mechanical writes, Workbench human confirmation, and agent-owned manual slices have different boundaries. `new-task`, `task-*`, `task-phase`, `module-step`, `lesson-sediment`, and `lesson-promote --apply` acquire a lock, restrict writes to an allowlist, and auto-commit in a clean Git root; human confirmation runs only through the local Workbench. When an agent manually edits code, templates, or task docs, it still needs to proactively commit after verification; if it cannot commit, it must record the no-commit reason, owner, and next step, and must not mix unrelated dirty changes into the task commit.
 
 ## Lesson Sedimentation
 

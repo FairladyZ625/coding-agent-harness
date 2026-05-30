@@ -30,14 +30,14 @@ flowchart TD
 
   NS -->|"harness task-start"| IP
   IP -->|"harness task-review"| R
-  R -->|"harness review-confirm\n（人工操作）"| D
+  R -->|"Dashboard workbench\n人工确认"| D
   IP -->|"harness task-phase --blocked"| BL
   BL -->|"harness task-start"| IP
   R -->|"打回重做"| IP
 ```
 
-**关键点**：`review-confirm` 是整个系统里**唯一不能被 Agent 自动执行**的命令。
-它需要真实的人类操作，并会写入带有 Git `user.name` / `user.email` 的可审计确认块。
+**关键点**：人工确认不作为普通 CLI 命令暴露。它只能通过本地 Dashboard workbench 的写接口触发，
+并会写入带有 Git `user.name` / `user.email` 的可审计确认块。
 
 ---
 
@@ -53,7 +53,7 @@ Budget 是任务的复杂度等级，直接决定审查门禁有多严：
 | 需要关闭所有 blocking findings | ✗ | ✓ | ✓ |
 | 需要 Walkthrough 链接 | ✗ | ✓ | ✓ |
 | 需要 Lesson 决策完成 | ✗ | ✓ | ✓ |
-| 需要人工 review-confirm | ✗ | ✓ | ✓ |
+| 需要 Dashboard 人工确认 | ✗ | ✓ | ✓ |
 
 `simple` 任务可以直接从 `in_progress` 跳到 `done`，没有任何门禁。
 `standard` 和 `complex` 的门禁完全相同——区别在于 `complex` 任务通常需要 subagent 授权和对抗审查。
@@ -87,16 +87,16 @@ flowchart TD
 
 ---
 
-## Level 3 — review-confirm 的门禁细节
+## Level 3 — Dashboard 人工确认的门禁细节
 
-当人类执行 `harness review-confirm` 时，系统在**执行确认之前**做五项检查：
+当人类在本地 Dashboard workbench 点击确认时，系统在**执行确认之前**做四项检查：
 
 ```mermaid
 flowchart TD
-  Trigger["harness review-confirm task-123"]
+  Trigger["POST /api/tasks/review-complete\n(local Dashboard workbench)"]
 
-  Trigger --> A1{"运行环境是 human-controlled?\n未检测到 CODEX/CLAUDE_CODE 等 agent runtime"}
-  A1 -->|"否"| EA["❌ 拒绝\nAgent 不能代办人工确认"]
+  Trigger --> A1{"Host / Origin / CSRF\n匹配本地 workbench?"}
+  A1 -->|"否"| EA["❌ 拒绝\n不是 workbench 请求"]
   A1 -->|"是"| C1{"确认文本与任务 ID 匹配?"}
   C1 -->|"否"| E1["❌ 拒绝\n确认文本不对"]
   C1 -->|"是"| C2{"无阻塞性审查发现?\n（P0/P1/P2 open findings）"}
@@ -110,9 +110,8 @@ flowchart TD
   Commit1 --> Commit2["Git 提交 #2\nchore: record review confirmation audit task-123"]
 ```
 
-Agent runtime 检测是防误操作护栏，不是密码学身份认证。如果 Agent 和人共享同一个
-系统用户并能篡改环境变量、文件和 Git 提交，CLI 无法独立证明真实操作者身份；更强隔离
-需要外部 human approval service、OS keychain/passkey 或不同系统用户边界。
+普通 CLI 不暴露人工确认命令；Agent 可以提交审查材料，但不能通过 CLI 直接写人工确认。
+Dashboard workbench 仍只绑定 `127.0.0.1`，并要求同源和 CSRF token。
 
 **两次提交策略**：第一次提交 `INDEX.md` 中的确认字段，第二次提交最终审计元数据。
 这样即使第二次提交失败，第一次提交也已经锁定了确认记录。
@@ -281,7 +280,7 @@ Tombstone 块追加到 `task_plan.md` 末尾（不替换原内容），保留历
 （Ledger、Closeout Index、其他任务的 `Supersedes` 字段都可能指向被删任务）。
 Tombstone 标记让 Soft-deleted / Superseded 队列可以只读追溯"为什么这个任务不在活跃队列里"。
 
-### 为什么 review-confirm 需要两次 Git 提交
+### 为什么 Dashboard 人工确认需要两次 Git 提交
 
 两次提交让 audit commit 的 SHA 成为不可篡改的时间戳。
 第一次提交确认本身，第二次提交包含第一个 commit SHA 的审计记录。
@@ -298,13 +297,13 @@ Git 自身的锁（`.git/index.lock`）只保护 index 操作，
 ### 为什么 simple budget 跳过所有门禁
 
 simple 任务对应 trivial 级别的改动（文档修正、配置调整），
-强制经过 `task-review → review-confirm → task-complete` 三步会让 overhead 超过任务本身的价值。
+强制经过 `task-review → Dashboard 人工确认 → task-complete` 三步会让 overhead 超过任务本身的价值。
 这是有意的快速路径，不是遗漏。
 
 ### Lesson 系统的设计意图
 
 Lesson 系统把任务执行中发现的可复用经验从"聊天里提到过"变成
 "可追踪、可审查、可沉淀到标准文档"的治理对象。
-Lesson candidate 决策必须在 `review-confirm` 之前完成，
-因为 `review-confirm` 是责任转移点——人工确认后，任务进入 finalization，
+Lesson candidate 决策必须在 Dashboard 人工确认之前完成，
+因为人工确认是责任转移点——确认后，任务进入 finalization，
 此时再要求 Agent 补 lesson 决策会造成责任归属混乱。

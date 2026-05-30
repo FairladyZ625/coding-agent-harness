@@ -27,7 +27,7 @@ flowchart LR
 | INIT-01 | init | none | planned | 0 | Approved task plan and execution strategy | `task_plan.md`, `execution_strategy.md` | `harness task-start {{TASK_ID}}` | agent | missing | none | coordinator |
 | EXEC-01 | execution | INIT-01 | planned | 0 | Scoped implementation, document update, and verification evidence | diff, commands, worker handoff, or artifact path | `harness task-phase {{TASK_ID}} EXEC-01 --state done --completion 100 --evidence present` | agent | missing | [risk] | [owner] |
 | GATE-01 | gate | EXEC-01 | planned | 0 | Agent Review Submission | `review.md`, progress update, lesson routing | `harness task-review {{TASK_ID}} --message "<summary>"` | agent | missing | [risk] | coordinator |
-| GATE-02 | gate | GATE-01 | planned | 0 | Human Review Confirmation | review packet and human confirmation | `harness review-confirm {{TASK_ID}} --confirm {{TASK_ID}}` | human | missing | agent must not perform human confirmation | human |
+| GATE-02 | gate | GATE-01 | planned | 0 | Human Review Confirmation | review packet and human confirmation | Open local Dashboard workbench and confirm `{{TASK_ID}}` | human | missing | agent must not perform human confirmation | human |
 
 Allowed Kind: init, execution, gate.
 Allowed Actor: agent, human, coordinator.

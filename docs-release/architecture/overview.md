@@ -118,7 +118,7 @@ flowchart LR
   CLI --> Status["status / check<br/>derive health and failures"]
   CLI --> Dashboard["dashboard / dev<br/>render human-readable state"]
   CLI --> Migration["migrate-plan / migrate-run / migrate-verify<br/>legacy project adoption"]
-  CLI --> Task["new-task / task-* / review-confirm<br/>task lifecycle operations"]
+  CLI --> Task["new-task / task-*<br/>task lifecycle operations"]
   CLI --> UserSkill["install-user / doctor-user<br/>local skill setup"]
 
   Status --> Scanner["task scanner + check profiles"]
@@ -168,7 +168,7 @@ stateDiagram-v2
   active --> in_review: task-review
   in_review --> review_blocked: open P0-P2 finding
   review_blocked --> in_review: finding closed or routed
-  in_review --> closing: review-confirm + task-complete
+  in_review --> closing: Workbench confirmation + task-complete
   closing --> closed: closeout evidence linked
   closed --> [*]
 ```

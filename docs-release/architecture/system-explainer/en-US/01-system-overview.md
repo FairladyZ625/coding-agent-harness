@@ -64,7 +64,7 @@ flowchart LR
   A -->|"scaffold + validate"| B
   B -->|"read"| C
   C -->|"generate"| D
-  D -->|"review-confirm"| B
+  D -->|"workbench confirmation"| B
 ```
 
 - **Package**: What you `npm install` — contains the CLI, templates, standards docs, and Preset packages
@@ -73,7 +73,7 @@ flowchart LR
 - **Human**: Views the Dashboard in a browser, performs review confirmation in the Workbench
 
 Note the direction of this loop: **Package writes to Target Repo, Runtime reads from Target Repo,
-Human writes back to Target Repo via review-confirm**.
+Human writes back to Target Repo through Workbench confirmation**.
 The whole system is a read-write loop centered on Markdown files, with no hidden state.
 
 ---
@@ -189,10 +189,10 @@ dependency, authentication, and latency, breaking Agents' autonomous execution c
 An npm package lets any environment that can run Node.js use it directly, with no account
 or network required. `package.json` `dependencies` is empty — zero runtime dependencies.
 
-### Why review-confirm must be a manual operation
+### Why human confirmation must stay in Workbench
 
-`review-confirm` is the **only operation in the entire system that cannot be automatically
-executed by an Agent**.
+Human confirmation is the **only operation in the system that is not exposed to Agents
+as a regular CLI command**.
 
 The reason:
 
@@ -201,7 +201,7 @@ The reason:
 This boundary wasn't there from the start. Initially the Dashboard workbench review action
 had no Agent/Human distinction. Later, through competitive analysis (Taskr competitive intake),
 "Agent auto-confirming review" was identified as a P0 risk, which led to introducing the
-Git commit gate: `review-confirm` writes human confirmation audit fields with Git
+Workbench write endpoint and Git commit gate: Dashboard workbench writes human confirmation audit fields with Git
 `user.name` / `user.email` to the task `INDEX.md`, and makes two atomic Git commits:
 the first commits the confirmation fields, and the second commits the final audit
 record containing the first commit's SHA.
@@ -215,7 +215,7 @@ recalculated on every run and never written back to Markdown files. Three reason
 1. **Avoid fact drift**: If derived state were also written to files, there would be two sources
    of truth, and either one going stale would cause false reports
 2. **Prevent gate bypass**: If Agents could directly modify derived fields, they could bypass
-   the review-confirm gate
+   the human confirmation gate
 3. **Governance rules as code**: The scanner's derivation rules are themselves a machine-readable
    expression of governance rules — recalculating on every run is equivalent to re-executing
    the governance check every time

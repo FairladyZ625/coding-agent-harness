@@ -197,12 +197,12 @@ flowchart LR
     DC["harness dev"]
     DC --> HTTP["Local HTTP server\nlocalhost:PORT"]
     DC --> Watch["File watching\nPolling mode, checks every 1 second\nRegenerates after 250ms delay on change"]
-    HTTP --> Browser["Live browser view\nSupports review-confirm and other write operations"]
+    HTTP --> Browser["Live browser view\nSupports human confirmation and other write operations"]
   end
 ```
 
 **Key boundary**: The static Dashboard is read-only and cannot trigger any write operations.
-Only `harness dev` (Workbench mode) can execute write operations like `review-confirm`
+Only `harness dev` (Workbench mode) can execute write operations like human confirmation
 and `task-start`.
 
 ### Dashboard HTML generation
@@ -266,7 +266,7 @@ a complete security validation chain.
 
 `harness dashboard` generates a static read-only snapshot (suitable for CI, migration
 reports, offline evidence). `harness dev` starts a local dynamic Workbench server with
-file watching, auto-refresh, and review-confirm write operations. The boundary is:
+file watching, auto-refresh, and human-confirmation write operations. The boundary is:
 **static snapshots can be shared; the dynamic Workbench is local-only**.
 
 ### Why file watching uses polling instead of fs.watch

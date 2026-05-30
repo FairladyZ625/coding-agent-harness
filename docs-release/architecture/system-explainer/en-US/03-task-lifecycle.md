@@ -30,14 +30,14 @@ flowchart TD
 
   NS -->|"harness task-start"| IP
   IP -->|"harness task-review"| R
-  R -->|"harness review-confirm\n(manual operation)"| D
+  R -->|"Dashboard workbench\nhuman confirmation"| D
   IP -->|"harness task-phase --blocked"| BL
   BL -->|"harness task-start"| IP
   R -->|"sent back for rework"| IP
 ```
 
-**Key point**: `review-confirm` is the **only command in the entire system that cannot be
-automatically executed by an Agent**. It requires a real human operation and writes an
+**Key point**: human confirmation is not exposed as a regular CLI command. It can only
+be triggered through the local Dashboard workbench write endpoint, and it writes an
 auditable confirmation block with Git `user.name` / `user.email`.
 
 ---
@@ -54,7 +54,7 @@ Budget is the task's complexity level, and it directly determines how strict the
 | Requires all blocking findings closed | ✗ | ✓ | ✓ |
 | Requires Walkthrough link | ✗ | ✓ | ✓ |
 | Requires Lesson decision complete | ✗ | ✓ | ✓ |
-| Requires human review-confirm | ✗ | ✓ | ✓ |
+| Requires Dashboard human confirmation | ✗ | ✓ | ✓ |
 
 `simple` tasks can jump directly from `in_progress` to `done` with no gates.
 `standard` and `complex` have identical gates — the difference is that `complex` tasks
@@ -89,17 +89,17 @@ After entering review state, the Agent needs to write `review.md` and fill in th
 
 ---
 
-## Level 3 — Gate details for review-confirm
+## Level 3 — Gate details for Dashboard human confirmation
 
-When a human runs `harness review-confirm`, the system performs five checks
+When a human clicks confirm in the local Dashboard workbench, the system performs four checks
 **before executing the confirmation**:
 
 ```mermaid
 flowchart TD
-  Trigger["harness review-confirm task-123"]
+  Trigger["POST /api/tasks/review-complete\n(local Dashboard workbench)"]
 
-  Trigger --> A1{"Runtime is human-controlled?\nNo CODEX/CLAUDE_CODE agent runtime detected"}
-  A1 -->|"no"| EA["❌ Rejected\nAgents cannot perform human confirmation"]
+  Trigger --> A1{"Host / Origin / CSRF\nmatch local workbench?"}
+  A1 -->|"no"| EA["❌ Rejected\nNot a workbench request"]
   A1 -->|"yes"| C1{"Confirmation text matches task ID?"}
   C1 -->|"no"| E1["❌ Rejected\nWrong confirmation text"]
   C1 -->|"yes"| C2{"No blocking review findings?\n(P0/P1/P2 open findings)"}
@@ -295,7 +295,7 @@ orphan references (the Ledger, Closeout Index, and other tasks' `Supersedes` fie
 all point to the deleted task). Tombstone markers let the Soft-deleted / Superseded queue
 provide read-only traceability for "why isn't this task in the active queue".
 
-### Why review-confirm requires two Git commits
+### Why Dashboard human confirmation requires two Git commits
 
 Two commits make the audit commit's SHA an immutable timestamp. The first commit covers
 the confirmation itself; the second commit contains an audit record with the first commit's
@@ -314,7 +314,7 @@ sync operation", not a single git command.
 ### Why simple budget skips all gates
 
 Simple tasks correspond to trivial changes (doc corrections, config adjustments). Forcing
-them through `task-review → review-confirm → task-complete` would make the overhead exceed
+them through `task-review → Dashboard human confirmation → task-complete` would make the overhead exceed
 the value of the task itself. This is an intentional fast path, not an oversight.
 
 ### The design intent of the Lesson system
@@ -322,6 +322,6 @@ the value of the task itself. This is an intentional fast path, not an oversight
 The Lesson system transforms reusable knowledge discovered during task execution from
 "mentioned in chat" into a governance object that is "trackable, reviewable, and
 sedimentable into standard docs". Lesson candidate decisions must be completed before
-`review-confirm`, because `review-confirm` is the responsibility transfer point — once
+Dashboard human confirmation, because human confirmation is the responsibility transfer point — once
 human confirmation is done, the task enters finalization, and requiring the Agent to
 add lesson decisions at that point would create accountability confusion.
