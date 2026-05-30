@@ -6,12 +6,13 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
-import { confirmTaskReview, finalizeDeferredTaskReviewConfirmation, updateTaskLifecycle } from "./task-lifecycle.mjs";
-import { createAggregateLessonSedimentationTask, createLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
+import { finalizeDeferredTaskReviewConfirmation } from "./task-lifecycle.mjs";
+import { createAggregateLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
 import { normalizeTarget } from "./core-shared.mjs";
 import { beginGovernanceSync, commitGovernanceSync, releaseGovernanceSync } from "./governance-sync.mjs";
 import { dashboardWatchRoots } from "./harness-paths.mjs";
 import { createScannerTaskRepository } from "./task-repository.mjs";
+import { createTaskOperations, taskOperationFailurePayload } from "./task-operations.mjs";
 import { writeDashboardFolder } from "./dashboard-data.mjs";
 import {
   checkPresetPackage,
@@ -22,8 +23,8 @@ import {
 } from "./preset-registry.mjs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
-import type { CheckTarget, ScannedTask } from "./types/check-profiles.js";
-import type { TaskRepository } from "./task-repository.mjs";
+import type { CheckTarget } from "./types/check-profiles.js";
+import type { TaskRecord, TaskRepository } from "./task-repository.mjs";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "connection": "close" };
 
@@ -86,6 +87,7 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
   if (host !== "127.0.0.1") throw new Error("dashboard workbench only supports --host 127.0.0.1");
   const target = normalizeTarget(targetInput) as WorkbenchTarget;
   const taskRepository = createScannerTaskRepository(target);
+  const taskOperations = createTaskOperations(target.projectRoot, { repository: taskRepository });
   const outputDir = path.resolve(outDir);
   const csrfToken = crypto.randomBytes(24).toString("hex");
   const options = localeOverride ? { localeOverride } : {};
@@ -119,27 +121,19 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
         assertTrustedWorkbenchRequest(request, { origin, csrfToken });
         const body = await readJsonBody(request);
         const taskId = String(body.taskId || "");
-        const task = findWorkbenchTask(taskRepository, taskId);
-        if (!task) {
-          writeJson(response, 404, { error: "Task not found" });
-          return;
-        }
-        if (!isTaskInReviewQueue(task)) {
-          writeJson(response, 409, reviewQueueRejectionPayload(task));
-          return;
-        }
-        if (task.reviewStatus === "confirmed") {
-          writeJson(response, 409, { error: "Review is already confirmed." });
-          return;
-        }
-        const result = confirmTaskReview(target.projectRoot, taskId, {
+        const result = taskOperations.confirmReview({
+          taskId,
           reviewer: body.reviewer || "Human Reviewer",
           message: body.message || "confirmed from dashboard workbench",
           evidence: body.evidence || "",
           confirmText: body.confirmText || "",
         });
+        if (!result.success) {
+          writeJson(response, result.status, taskOperationFailurePayload(result));
+          return;
+        }
         regenerate();
-        writeJson(response, 200, result);
+        writeJson(response, 200, result.data as JsonPayload);
         return;
       }
 
@@ -147,27 +141,17 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
         assertTrustedWorkbenchRequest(request, { origin, csrfToken });
         const body = await readJsonBody(request);
         const taskId = String(body.taskId || "");
-        const task = findWorkbenchTask(taskRepository, taskId);
-        if (!task) {
-          writeJson(response, 404, { error: "Task not found" });
-          return;
-        }
-        if (taskHasPendingLessonWork(task)) {
-          writeJson(response, 409, closeoutRejectionPayload(task, "Lesson candidate promotion or sedimentation work must be resolved before closeout."));
-          return;
-        }
-        if (!taskReadyForCloseout(task)) {
-          writeJson(response, 409, closeoutRejectionPayload(task));
-          return;
-        }
-        const result = updateTaskLifecycle(target.projectRoot, taskId, {
-          event: "task-complete",
-          state: "done",
+        const result = taskOperations.complete({
+          taskId,
           message: body.message || "closed from dashboard workbench",
           evidence: body.evidence || "",
         });
+        if (!result.success) {
+          writeJson(response, result.status, taskOperationFailurePayload(result));
+          return;
+        }
         regenerate();
-        writeJson(response, 200, result);
+        writeJson(response, 200, result.data as JsonPayload);
         return;
       }
 
@@ -183,31 +167,20 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
         const results: WorkbenchBatchResult[] = [];
         for (const taskId of taskIds) {
           const task = findWorkbenchTask(taskRepository, taskId);
-          if (!task) {
-            results.push({ taskId, ok: false, status: 404, error: "Task not found" });
+          const result = taskOperations.confirmReview({
+            taskId,
+            reviewer: body.reviewer || "Human Reviewer",
+            message: body.message || "bulk confirmed from dashboard workbench",
+            evidence: body.evidence || "",
+            confirmText: task?.shortId || task?.id || taskId,
+            deferCommit: true,
+          });
+          if (!result.success) {
+            results.push({ taskId, ok: false, status: result.status, ...taskOperationFailurePayload(result) });
             continue;
           }
-          if (!isTaskInReviewQueue(task)) {
-            const payload = reviewQueueRejectionPayload(task);
-            results.push({ taskId, ok: false, status: 409, ...payload });
-            continue;
-          }
-          if (task.reviewStatus === "confirmed") {
-            results.push({ taskId, ok: false, status: 409, error: "Review is already confirmed." });
-            continue;
-          }
-          try {
-            const result = confirmTaskReview(target.projectRoot, taskId, {
-              reviewer: body.reviewer || "Human Reviewer",
-              message: body.message || "bulk confirmed from dashboard workbench",
-              evidence: body.evidence || "",
-              confirmText: task.shortId || task.id,
-              deferCommit: true,
-            });
-            results.push({ taskId, ok: true, status: 200, audit: result.audit, task: { id: result.task?.id || taskId } });
-          } catch (error) {
-            results.push({ taskId, ok: false, status: errorStatus(error), ...errorPayload(error) });
-          }
+          const payload = result.data as { audit?: WorkbenchBatchResult["audit"]; task?: { id?: string } };
+          results.push({ taskId, ok: true, status: 200, audit: payload.audit, task: { id: payload.task?.id || taskId } });
         }
         const confirmed = results.filter((result) => result.ok).length;
         const failed = results.length - confirmed;
@@ -237,20 +210,21 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
         const body = await readJsonBody(request);
         const taskId = String(body.taskId || "");
         const candidateId = String(body.candidateId || "");
-        const task = findWorkbenchTask(taskRepository, taskId);
-        if (!task) {
-          writeJson(response, 404, { error: "Task not found" });
-          return;
-        }
         if (!candidateId) {
           writeJson(response, 400, { error: "Missing lesson candidate id" });
           return;
         }
-        const result = createLessonSedimentationTask(target.projectRoot, taskId, candidateId, {
+        const result = taskOperations.lessonSediment({
+          taskId,
+          candidateId,
           title: body.title || "",
         });
+        if (!result.success) {
+          writeJson(response, result.status, taskOperationFailurePayload(result));
+          return;
+        }
         regenerate();
-        writeJson(response, 200, result);
+        writeJson(response, 200, result.data as JsonPayload);
         return;
       }
 
@@ -440,58 +414,12 @@ function normalizeBulkLessonSelections(rawSelections: unknown): BulkLessonSelect
   return result;
 }
 
-function findWorkbenchTask(repository: TaskRepository, taskId: string): ScannedTask | undefined {
+function findWorkbenchTask(repository: TaskRepository, taskId: string): TaskRecord | undefined {
   try {
-    return repository.get({ id: taskId }) as ScannedTask;
+    return repository.get({ id: taskId });
   } catch {
     return undefined;
   }
-}
-
-function isTaskInReviewQueue(task: ScannedTask | undefined): boolean {
-  return task?.reviewQueueState === "ready-to-confirm" && Array.isArray(task?.taskQueues) && task.taskQueues.includes("review");
-}
-
-function taskHasPendingLessonWork(task: ScannedTask | undefined): boolean {
-  const queues = Array.isArray(task?.taskQueues) ? task.taskQueues : [];
-  const candidateRows = Array.isArray(task?.lessonCandidateRows) ? task.lessonCandidateRows : [];
-  return queues.includes("lessons") ||
-    task?.lessonCandidateStatus === "needs-promotion" ||
-    task?.lessonCandidatePromotionState === "queued" ||
-    candidateRows.some((candidate) => ["ready-for-review", "needs-promotion"].includes(String(candidate?.status || "")));
-}
-
-function taskReadyForCloseout(task: ScannedTask | undefined): boolean {
-  if (!task) return false;
-  if (task.reviewStatus !== "confirmed") return false;
-  if (task.closeoutStatus === "closed") return false;
-  if (taskHasPendingLessonWork(task)) return false;
-  return ["no-candidate-accepted", "promoted", "rejected"].includes(String(task.lessonCandidateStatus || ""));
-}
-
-function reviewQueueRejectionPayload(task: ScannedTask): JsonPayload {
-  return {
-    error: "Review completion is only available for tasks in the review queue.",
-    reviewQueueState: task?.reviewQueueState || "unknown",
-    taskQueues: Array.isArray(task?.taskQueues) ? task.taskQueues : [],
-    queueReasons: Array.isArray(task?.queueReasons) ? task.queueReasons : [],
-    repairPrompt: task?.repairPrompt || "",
-    reviewStatus: task?.reviewStatus || "unknown",
-    taskId: task?.id || "",
-  };
-}
-
-function closeoutRejectionPayload(task: ScannedTask, error = "Task closeout is only available after human review is confirmed and Lesson routing is complete."): JsonPayload {
-  return {
-    error,
-    closeoutStatus: task?.closeoutStatus || "unknown",
-    lifecycleState: task?.lifecycleState || "unknown",
-    reviewStatus: task?.reviewStatus || "unknown",
-    taskQueues: Array.isArray(task?.taskQueues) ? task.taskQueues : [],
-    lessonCandidateStatus: task?.lessonCandidateStatus || "unknown",
-    lessonCandidatePromotionState: task?.lessonCandidatePromotionState || "unknown",
-    taskId: task?.id || "",
-  };
 }
 
 function startPollingWatch(roots: string | string[], regenerate: () => void): ReturnType<typeof setInterval> {

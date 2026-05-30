@@ -1,19 +1,13 @@
 import {
-  createTask,
   readPresetPackage,
   buildTaskIndex,
-  createLessonSedimentationTask,
-  archiveTask,
-  deleteTask,
   listLifecycleTasks,
   promoteLessonCandidate,
-  reopenTask,
-  supersedeTask,
   updateModuleStep,
   updateTaskPhase,
-  updateTaskLifecycle,
 } from "../lib/harness-core.mjs";
 import { takeRepeatedOptionsFromArgs } from "../lib/command-registry.mjs";
+import { createTaskOperations, unwrapTaskOperation } from "../lib/task-operations.mjs";
 
 type FlagReader = (name: string, fallback?: boolean) => boolean;
 type OptionReader = (name: string, fallback?: string) => string;
@@ -94,7 +88,7 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
     try {
       const parsed = parseNewTaskArgs(args, { preset, fromSession });
       const createOptions = { title, locale, dryRun, moduleKey, budget, longRunning, preset, fromSession, presetArgs: parsed.presetArgs, automaticTaskId: parsed.automaticTaskId, registerModule, moduleRegistration };
-      console.log(JSON.stringify(invokeCreateTask(parsed.target, parsed.taskId, createOptions), null, 2));
+      console.log(JSON.stringify(unwrapTaskOperation(createTaskOperations(parsed.target).create({ taskId: parsed.taskId, ...createOptions })), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
@@ -138,7 +132,16 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
     };
     const lifecycle = lifecycleByCommand[command];
     try {
-      console.log(JSON.stringify(updateTaskLifecycle(targetArg(), taskId, { ...lifecycle, message, evidence }), null, 2));
+      const operations = createTaskOperations(targetArg());
+      const result =
+        command === "task-start"
+          ? operations.start({ taskId, message, evidence })
+          : command === "task-review"
+            ? operations.review({ taskId, message, evidence })
+            : command === "task-complete"
+              ? operations.complete({ taskId, message, evidence })
+              : operations.updateLifecycle({ taskId, ...lifecycle, message, evidence });
+      console.log(JSON.stringify(unwrapTaskOperation(result), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
@@ -174,7 +177,7 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       process.exit(2);
     }
     try {
-      console.log(JSON.stringify(createLessonSedimentationTask(targetArg(), taskId, candidateId, { dryRun, title }), null, 2));
+      console.log(JSON.stringify(unwrapTaskOperation(createTaskOperations(targetArg()).lessonSediment({ taskId, candidateId, dryRun, title })), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
@@ -224,7 +227,7 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       process.exit(2);
     }
     try {
-      console.log(JSON.stringify(supersedeTask(targetArg(), taskId, { by, reason, deletedBy, confirm, allowOpenFindings }), null, 2));
+      console.log(JSON.stringify(unwrapTaskOperation(createTaskOperations(targetArg()).supersede({ taskId, by, reason, deletedBy, confirm, allowOpenFindings })), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
@@ -250,11 +253,11 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       if (command === "task-delete" && soft && hard) throw new Error("task-delete accepts only one of --soft or --hard");
       const result =
         command === "task-delete"
-          ? deleteTask(targetArg(), taskId, { hard, reason, deletedBy, confirm, allowOpenFindings })
+          ? createTaskOperations(targetArg()).delete({ taskId, hard, reason, deletedBy, confirm, allowOpenFindings })
           : command === "task-archive"
-            ? archiveTask(targetArg(), taskId, { reason, archivedBy, archiveFields })
-            : reopenTask(targetArg(), taskId, { reason });
-      console.log(JSON.stringify(result, null, 2));
+            ? createTaskOperations(targetArg()).archive({ taskId, reason, archivedBy, archiveFields })
+            : createTaskOperations(targetArg()).reopen({ taskId, reason });
+      console.log(JSON.stringify(unwrapTaskOperation(result), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
@@ -294,10 +297,6 @@ function parseNewTaskArgs(args: string[], { preset = "", fromSession = "" }: New
     automaticTaskId: !resolved.taskId,
     presetArgs: parsed.presetArgs,
   };
-}
-
-function invokeCreateTask(target: string, taskId: string, options: CreateTaskCliOptions): unknown {
-  return Reflect.apply(createTask, undefined, [target, taskId, options]);
 }
 
 function readPresetPackageForNewTask(preset: string, values: string[]): PresetPackageForArgs {
