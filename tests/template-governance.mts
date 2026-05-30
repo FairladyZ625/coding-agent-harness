@@ -95,6 +95,23 @@ for (const relativeFile of chineseOutcomeFirstBriefTemplates()) {
   assert(content.includes("## 交付物"), `${relativeFile} should identify visible deliverables`);
   assert(content.indexOf("## 一句话结果") < content.indexOf("## 交付物"), `${relativeFile} should put outcome before deliverables`);
 }
+const englishModuleRegistryTemplate = fs.readFileSync(path.join(repoRoot, "templates/ssot/Module-Registry.md"), "utf8");
+const chineseModuleRegistryTemplate = fs.readFileSync(path.join(repoRoot, "templates-zh-CN/ssot/Module-Registry.md"), "utf8");
+assert(englishModuleRegistryTemplate.includes("Generated from `harness.yaml` `modules.items`"), "English Module Registry template should be a generated view stub");
+assert(chineseModuleRegistryTemplate.includes("由 `harness.yaml` `modules.items` 生成"), "Chinese Module Registry template should mirror the generated view stub");
+assert(chineseModuleRegistryTemplate.includes("不要直接编辑此视图"), "Chinese Module Registry template should warn against direct edits");
+assert(!chineseModuleRegistryTemplate.includes("共享范围 / 锁"), "Chinese Module Registry template should not keep the retired hand-maintained registry sections");
+const chinesePlanningIndex = fs.readFileSync(path.join(repoRoot, "templates-zh-CN/planning/INDEX.md"), "utf8");
+assert(chinesePlanningIndex.includes("`walkthrough.md` | 任务本地 closeout 摘要"), "Chinese planning index should list walkthrough.md in core contract files");
+assertTemplateHeadingParity({
+  englishPath: "templates/planning/optional/slices/_slice-template/brief.md",
+  chinesePath: "templates-zh-CN/planning/optional/slices/_slice-template/brief.md",
+  expectedCount: 10,
+});
+const chineseSliceBrief = fs.readFileSync(path.join(repoRoot, "templates-zh-CN/planning/optional/slices/_slice-template/brief.md"), "utf8");
+assert(!chineseSliceBrief.includes("## 输入"), "Chinese slice brief should not keep extra Inputs section absent from English template");
+assert(!chineseSliceBrief.includes("## 关闭条件"), "Chinese slice brief should not keep extra close conditions section absent from English template");
+assert(chineseSliceBrief.includes("| 证据 | 命令 / 路径 | 必需 |"), "Chinese slice brief should mirror the Required Evidence table structure");
 for (const relativeFile of chineseNonDashboardTemplateFiles) {
   const content = fs.readFileSync(path.join(repoRoot, "templates-zh-CN", relativeFile), "utf8");
   assert(!brokenMechanicalTemplatePattern.test(content), `Chinese template contains mechanical placeholder text: ${relativeFile}`);
@@ -153,6 +170,17 @@ function relativeFiles(root: string): string[] {
 
 function toPosix(value: string): string {
   return value.split(path.sep).join("/");
+}
+
+function assertTemplateHeadingParity({ englishPath, chinesePath, expectedCount }: { englishPath: string; chinesePath: string; expectedCount: number }): void {
+  const englishHeadings = markdownH2Headings(fs.readFileSync(path.join(repoRoot, englishPath), "utf8"));
+  const chineseHeadings = markdownH2Headings(fs.readFileSync(path.join(repoRoot, chinesePath), "utf8"));
+  assert(englishHeadings.length === expectedCount, `${englishPath} should have ${expectedCount} H2 sections`);
+  assert(chineseHeadings.length === expectedCount, `${chinesePath} should have ${expectedCount} H2 sections`);
+}
+
+function markdownH2Headings(content: string): string[] {
+  return content.split(/\r?\n/).filter((line) => /^##\s+/.test(line));
 }
 
 function lifecycleContractFiles(): string[] {

@@ -19,15 +19,11 @@
 
 写明人应该先看哪些切片证据、改动文件或交接说明。
 
-## 切片 ID
-
-SL-001
-
-## 所属阶段（Parent Phase）
+## 身份
 
 | 父阶段 ID | 依赖 | 状态 | 负责人 / 交接 |
 | --- | --- | --- | --- |
-| PH-01 | none | planned | coordinator |
+| PH-01 | none | planned | [owner] |
 
 ## 目标
 
@@ -45,16 +41,12 @@ SL-001
 - [ ] 必需证据已经登记。
 - [ ] 共享更新或残余风险已经交给 coordinator。
 
-## 输入（Inputs）
-
-- [引用 `references/INDEX.md`、`artifacts/INDEX.md`、任务计划或上游切片 ID]
-
 ## 必需证据
 
-- [ ] [该切片关闭前必须提供的命令、diff、截图、review 或报告]
+| 证据 | 命令 / 路径 | 必需 |
+| --- | --- | --- |
+| [check] | [command or path] | yes |
 
-## 关闭条件
+## 交接要求
 
-- [ ] 范围内工作完成。
-- [ ] 必需证据已登记到 `evidence.md`。
-- [ ] 如需审查，`review.md` 无 open blocking finding。
+切片 owner 必须报告变更文件、已运行检查、残余风险，以及需要 coordinator 处理的共享更新。

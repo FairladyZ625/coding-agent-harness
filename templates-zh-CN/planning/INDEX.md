@@ -49,6 +49,7 @@ Task Contract: harness-task/v1
 | `task_plan.md` | 当前任务目标、范围、所选预算、验收标准和执行决策。 |
 | `visual_map.md` | 阶段图、证据状态、下一步生命周期命令和支持性图表。 |
 | `progress.md` | 执行日志、验证证据、决策和交接记录。 |
+| `walkthrough.md` | 任务本地 closeout 摘要、验证、审查处置、残余风险和链接。 |
 
 ## 标准任务文件
 
