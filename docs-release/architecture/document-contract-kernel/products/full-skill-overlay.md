@@ -27,4 +27,3 @@ When a Full Skill edit changes the semantics of AGENTS, context, task package,
 progress evidence, review, walkthrough, regression, or lessons, classify it as a
 Kernel change and update the shared contract plus the Lite overlay in the same
 task.
-

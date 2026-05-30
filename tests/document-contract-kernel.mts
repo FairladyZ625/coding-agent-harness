@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -59,12 +60,44 @@ const forbiddenSurfaces = readRequired("docs-release/architecture/document-contr
   .map((line) => line.trim())
   .filter((line) => line && !line.startsWith("#"));
 assert(forbiddenSurfaces.length >= 10, "Lite forbidden-surface list should be substantial");
+assert(
+  forbiddenSurfaces.some((line) => line.includes("npx") && line.includes("coding-agent-harness")),
+  "Lite forbidden-surface list should block npx coding-agent-harness variants",
+);
+assert(
+  forbiddenSurfaces.some((line) => /generated.*governance|generated.*indexes/.test(line)),
+  "Lite forbidden-surface list should block generated governance and generated indexes",
+);
 
 const checkResult = spawnSync(process.execPath, [checkerPath, "--repo-root", repoRoot], {
   cwd: repoRoot,
   encoding: "utf8",
 });
 assert(checkResult.status === 0, `Lite forbidden-surface check failed\nSTDOUT:\n${checkResult.stdout}\nSTDERR:\n${checkResult.stderr}`);
+
+const negativeRepoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lite-forbidden-negative-"));
+const negativeProductDir = path.join(negativeRepoRoot, "docs-release/architecture/document-contract-kernel/products");
+fs.mkdirSync(negativeProductDir, { recursive: true });
+fs.copyFileSync(forbiddenSurfacesPath, path.join(negativeProductDir, "lite-forbidden-surfaces.txt"));
+fs.writeFileSync(
+  path.join(negativeProductDir, "lite-skill-overlay.md"),
+  [
+    "# Lite Negative Fixture",
+    "",
+    "This Lite source must not suggest npx coding-agent-harness.",
+    "It must not rely on generated governance files.",
+    "It must not ask agents to inspect generated indexes.",
+    "",
+  ].join("\n"),
+);
+const negativeResult = spawnSync(process.execPath, [checkerPath, "--repo-root", negativeRepoRoot], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert(negativeResult.status !== 0, "Lite forbidden-surface check should fail for npx and generated governance/indexes fixtures");
+assert(negativeResult.stderr.includes("npx coding-agent-harness"), "negative fixture should report npx coding-agent-harness");
+assert(negativeResult.stderr.includes("generated governance"), "negative fixture should report generated governance");
+assert(negativeResult.stderr.includes("generated indexes"), "negative fixture should report generated indexes");
 
 const skill = readRequired("SKILL.md");
 assert(skill.includes("Document Contract Kernel"), "Full SKILL.md should point to the Document Contract Kernel");

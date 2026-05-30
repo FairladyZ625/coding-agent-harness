@@ -148,4 +148,3 @@ skills/coding-agent-harness-lite/SKILL.md
 
 The Lite target is not created in Phase 0.5. This phase establishes the public
 contract and drift guard that a later Lite implementation must use.
-

@@ -24,7 +24,7 @@ reviews project files directly.
 
 - Keep all state human-readable and hand-maintainable.
 - Do not require a project manifest.
-- Do not assume generated governance files.
+- Do not require machine-produced project state.
 - Treat missing review or visual material as adoption-needed if the project
   later moves to the larger product.
 - Keep upgrade notes short and link back to the compatibility matrix version.
@@ -35,4 +35,3 @@ If the project later needs the larger Full Coding Agent Harness product, keep th
 Lite documents as migration input. The shared document semantics are preserved so
 an agent can map Lite task packages and context into the Full structure during an
 explicit migration task.
-
