@@ -37,6 +37,8 @@ type SwimlaneModel = {
 type RenderedSwimlane = {
   html: string;
   model: SwimlaneModel;
+  moduleCounts?: Record<string, number>;
+  fallbackModuleCounts?: Record<string, number>;
   enLabel: string;
   zhLabel: string;
   enHeatmapLabel: string;
@@ -121,6 +123,7 @@ function renderTasks(mutator: string): RenderedSwimlane {
             fixtureTask({ id: "TASKS/2026-05-28-core-evidence-3", shortId: "2026-05-28-core-evidence-3", title: "Core evidence 3", module: "core", state: "in_progress", visualMapStatus: "missing" }),
             fixtureTask({ id: "TASKS/2026-05-28-core-evidence-4", shortId: "2026-05-28-core-evidence-4", title: "Core evidence 4", module: "core", state: "in_progress", visualMapStatus: "missing" }),
             fixtureTask({ id: "TASKS/2026-05-28-review", shortId: "2026-05-28-review", title: "Confirm review", module: "governance", state: "review", reviewStatus: "agent-reviewed", reviewQueueState: "ready-to-confirm", taskQueues: ["review"] }),
+            fixtureTask({ id: "TASKS/2026-05-28-confirmed-closeout", shortId: "2026-05-28-confirmed-closeout", title: "Confirmed closeout", module: "governance", state: "review", reviewStatus: "confirmed", reviewQueueState: "not-in-queue", closeoutStatus: "missing" }),
             fixtureTask({ id: "TASKS/2026-05-28-blocked", shortId: "2026-05-28-blocked", title: "Blocked follow-up", module: "dashboard", state: "blocked", reviewStatus: "blocked-open-findings", visualMapStatus: "missing", briefSource: "missing", queueReasons: ["Open P1 finding"] }),
             fixtureTask({ id: "TASKS/2026-05-28-root-base", shortId: "2026-05-28-root-base", title: "Root base task", module: "", inferredModule: "base", state: "planned", completion: 0 }),
             fixtureTask({ id: "TASKS/2026-05-28-done", shortId: "2026-05-28-done", title: "Historical task", module: "archive", state: "done", completion: 100, closeoutStatus: "closed" }),
@@ -187,7 +190,8 @@ assert(rendered.html.includes('data-swimlane-row="base"'), "swimlane should expo
 assert(rendered.html.includes('data-swimlane-row="qa"'), "swimlane should include registered YAML modules even when they have no active swimlane tasks");
 assert(rendered.html.includes('data-swimlane-row="qa" data-swimlane-row-total="0"'), "registered modules with no active swimlane tasks should render a zero-total heatmap row");
 assert(rendered.html.includes('data-swimlane-row-total="6"'), "swimlane should render row totals");
-assert(rendered.html.includes('data-swimlane-stage-total="review" data-total="2"'), "swimlane should render stage totals in headers");
+assert(rendered.html.includes('data-swimlane-stage-total="review" data-total="2"'), "swimlane should render review stage totals in headers");
+assert(rendered.html.includes('data-swimlane-stage-total="closeout" data-total="1"'), "swimlane should render confirmed closeout stage totals in headers");
 assert(rendered.html.includes('data-swimlane-stage="evidence" data-count="4"'), "swimlane heatmap cells should expose module-stage counts");
 assert(rendered.html.includes("heat-2"), "swimlane heatmap should classify 4-7 tasks into the middle heat band");
 assert(rendered.html.includes('data-swimlane-expand="cell"'), "heatmap cells should be expandable controls");
@@ -203,6 +207,7 @@ assert(rendered.model.lanes.some((lane) => lane.key === "core"), "swimlane model
 assert(rendered.model.lanes.some((lane) => lane.key === "base"), "swimlane model should group project-root tasks into base");
 assert(rendered.model.stages.some((stage) => stage.key === "review"), "swimlane model should include a review stage");
 assert(rendered.model.cards.some((card) => card.stage === "blocked" && card.lane === "dashboard"), "blocked tasks should project into a blocked swimlane stage");
+assert(rendered.model.cards.some((card) => card.title === "Confirmed closeout" && card.stage === "closeout"), "confirmed tasks with missing closeout should project into closeout before review");
 assert(!rendered.model.cards.some((card) => card.title === "Historical task"), "swimlane model should exclude closed historical work");
 assert(css.includes(".task-swimlane"), "dashboard CSS should style the swimlane surface");
 assert(css.includes(".swimlane-heatmap"), "dashboard CSS should style the heatmap surface");
@@ -212,6 +217,47 @@ assert(css.includes(".swimlane-pager"), "dashboard CSS should style swimlane pag
 assert(css.includes("@media (max-width: 760px)"), "swimlane CSS should include a narrow-screen adaptation");
 assert(css.includes("--dashboard-page-gap: 8px;"), "dashboard page gap should use the denser 8px rhythm");
 assert(css.includes("--dashboard-panel-gap: 8px;"), "dashboard panel gap should use the denser 8px rhythm");
+
+const moduleMetrics = renderTasks(`
+  const riskyTask = {
+    ...bundle.status.tasks[0],
+    id: "TASKS/2026-05-30-risky",
+    state: "in_progress",
+    module: "core",
+    reviewStatus: "missing",
+    visualMapStatus: "present",
+    materialIssues: ["missing review evidence"],
+    queueReasons: ["Needs owner decision"],
+  };
+  const unreachableActiveTask = {
+    ...bundle.status.tasks[0],
+    id: "TASKS/2026-05-30-active",
+    state: "active",
+    module: "core",
+    reviewStatus: "missing",
+    visualMapStatus: "present",
+    queueReasons: [],
+  };
+  bundle.status.tasks = [riskyTask, unreachableActiveTask];
+  __result = {
+    html: "",
+    model: taskSwimlaneModel([]),
+    moduleCounts: moduleCountsForTasks(bundle.status.tasks),
+    fallbackModuleCounts: modulesWithTaskFallback().find((module) => module.key === "core").counts,
+    enLabel: window.HarnessI18n.en.layoutSwimlane,
+    zhLabel: window.HarnessI18n.zh.layoutSwimlane,
+    enHeatmapLabel: window.HarnessI18n.en.swimlaneHeatmapLabel,
+    zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
+    enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
+    zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
+    enBaseLabel: window.HarnessI18n.en.baseModule,
+    zhBaseLabel: window.HarnessI18n.zh.baseModule,
+  };
+`);
+assert(moduleMetrics.moduleCounts?.risk === 1, "moduleCountsForTasks should count materialIssues/queueReasons as risk");
+assert(moduleMetrics.fallbackModuleCounts?.risk === 1, "UI module fallback risk counts should match server dashboard risk semantics");
+assert(moduleMetrics.moduleCounts?.active === 1, "moduleCountsForTasks should not count unreachable active state as active work");
+assert(moduleMetrics.fallbackModuleCounts?.active === 1, "UI module fallback active counts should align with moduleCountsForTasks");
 
 const pagedDrilldown = renderTasks(`
   for (let index = 1; index <= 12; index += 1) {

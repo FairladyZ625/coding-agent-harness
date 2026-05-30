@@ -1604,7 +1604,7 @@ function moduleCountsForTasks(tasks) {
     active: tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state)).length,
     review: tasks.filter((task) => task.state === "review").length,
     blocked: tasks.filter((task) => task.state === "blocked").length,
-    risk: tasks.filter((task) => task.state === "blocked" || String(task.reviewStatus || "").includes("blocked") || String(task.visualMapStatus || "") === "missing").length,
+    risk: tasks.filter(uiDashboardTaskHasRisk).length,
   };
 }
 
@@ -1667,16 +1667,25 @@ function accumulateUiModuleTask(module, task) {
   const stateValue = String(task.state || "unknown");
   if (!module.tasks.some((item) => item.id === task.id)) module.tasks.push(task);
   module.counts.total = (module.counts.total || 0) + 1;
-  if (["active", "in_progress", "review", "blocked", "planned", "not_started"].includes(stateValue)) {
+  if (["in_progress", "review", "blocked", "planned", "not_started"].includes(stateValue)) {
     module.counts.active = (module.counts.active || 0) + 1;
   }
   if (stateValue !== "active") module.counts[stateValue] = (module.counts[stateValue] || 0) + 1;
-  if (stateValue === "blocked" || String(task.reviewStatus || "").includes("blocked") || String(task.visualMapStatus || "") === "missing") {
+  if (uiDashboardTaskHasRisk(task)) {
     module.counts.risk = (module.counts.risk || 0) + 1;
   }
   if (task.briefSource && task.briefSource !== "standalone") {
     module.counts.missingDocs = (module.counts.missingDocs || 0) + 1;
   }
+}
+
+function uiDashboardTaskHasRisk(task) {
+  if (task.state === "blocked") return true;
+  if (String(task.reviewStatus || "").includes("blocked")) return true;
+  if (Array.isArray(task.materialIssues) && task.materialIssues.length > 0) return true;
+  if (Array.isArray(task.queueReasons) && task.queueReasons.length > 0) return true;
+  if (String(task.visualMapStatus || "") === "missing") return true;
+  return false;
 }
 
 function moduleRunStrip(modules, unclassified) {
