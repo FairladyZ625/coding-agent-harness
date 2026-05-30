@@ -25,8 +25,7 @@ import {
 } from "./markdown-utils.mjs";
 import { validateCapabilities } from "./capability-registry.mjs";
 import { readPresetPackage } from "./preset-registry.mjs";
-import { validateTaskPresetAuditSnapshot } from "./preset-audit-contracts.mjs";
-import { validatePresetResourcesForTask } from "./preset-resource-contracts.mjs";
+import { validateRegularTaskPresetContract } from "./task-preset-contract-drift.mjs";
 import { collectTasks, listTaskPlanPaths, parseTaskBudget, readVisualMapContractFile, parsePhases } from "./task-scanner.mjs";
 import { normalizeReviewBoolean, reviewFindingColumns } from "./task-review-model.mjs";
 import { allowedPhaseActors, allowedPhaseKinds } from "./phase-kind.mjs";
@@ -206,7 +205,7 @@ export function validateVisualMaps(target: CheckTarget, { taskPlanPaths }: { tas
 }
 
 export function validateTaskPresetContracts(target: CheckTarget, { tasks }: { tasks?: ScannedTask[] } = {}): ValidationResult {
-  const failures: string[] = [];
+  const failures: string[] = [], warnings: string[] = [];
   const allowedMigrationLevels = new Set([
     "migration-baseline",
     "migration-current-cutover",
@@ -222,30 +221,17 @@ export function validateTaskPresetContracts(target: CheckTarget, { tasks }: { ta
       failures.push(`${task.path} unsupported Task Preset: ${task.taskPreset} (${errorMessage(error)})`);
       continue;
     }
-    if (presetPackage?.task?.kind && task.taskKind !== presetPackage.task.kind) {
-      failures.push(`${task.path} ${task.taskPreset} preset Task Kind mismatch: expected ${presetPackage.task.kind}, got ${task.taskKind || "(missing)"}`);
-    }
-    if (String(task.presetVersion || "") !== String(presetPackage.version)) {
-      failures.push(`${task.path} ${task.taskPreset} preset missing Preset Version ${presetPackage.version}`);
-    }
-    if (task.taskPreset !== "lesson-sedimentation" && (presetPackage.evidence?.bundleDir || presetPackage.audit?.evidenceFiles?.length || Object.keys(presetPackage.evidence?.files || {}).length)) {
-      if (!task.evidenceBundle) failures.push(`${task.path} ${task.taskPreset} preset missing Evidence Bundle`);
-      else if (!fs.existsSync(path.join(target.projectRoot, String(task.evidenceBundle).replace(/^TARGET:/, "").replace(/^\/+/, "")))) {
-        failures.push(`${task.path} ${task.taskPreset} preset Evidence Bundle missing: ${task.evidenceBundle}`);
-      }
-    }
     if (task.taskPreset !== "lesson-sedimentation") {
-      failures.push(...validateTaskPresetAuditSnapshot(target, task, presetPackage));
+      const regularPreset = validateRegularTaskPresetContract(target, task, presetPackage);
+      failures.push(...regularPreset.failures);
+      warnings.push(...regularPreset.warnings);
     }
-    failures.push(...validatePresetResourcesForTask(target, task, presetPackage));
     if (task.taskPreset === "lesson-sedimentation") {
       if (!["standard", "complex"].includes(task.budget)) failures.push(`${task.path} lesson-sedimentation preset requires Selected budget: standard or complex`);
       if (!task.taskPlanPath) failures.push(`${task.path} lesson-sedimentation preset missing task plan`);
       continue;
     }
-    if (task.taskPreset !== "legacy-migration") {
-      continue;
-    }
+    if (task.taskPreset !== "legacy-migration") continue;
     if (task.budget !== "complex") failures.push(`${task.path} legacy-migration preset requires Selected budget: complex`);
     if (!allowedMigrationLevels.has(task.migrationTargetLevel)) {
       failures.push(`${task.path} legacy-migration preset invalid Migration Target Level: ${task.migrationTargetLevel || "(missing)"}`);
@@ -281,7 +267,7 @@ export function validateTaskPresetContracts(target: CheckTarget, { tasks }: { ta
       }
     }
   }
-  return { failures, warnings: [] };
+  return { failures, warnings };
 }
 
 export function validateContextDocs(target: CheckTarget, { strict = true }: { strict?: boolean } = {}): ValidationResult {

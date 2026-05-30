@@ -134,6 +134,8 @@ export const reviewFindingColumns = {
 };
 
 export function normalizeReviewBoolean(value: unknown): string {
+  if (value === true) return "yes";
+  if (value === false) return "no";
   const raw = String(value || "").trim().toLowerCase();
   if (/^(yes|true|open|是|开放)$/.test(raw)) return "yes";
   if (/^(no|false|closed|fixed|done|否|关闭|已关闭|已修复)$/.test(raw)) return "no";
@@ -186,7 +188,10 @@ export function parseTaskTombstone(taskPlanContent: unknown): TaskTombstone {
     };
   }
   const state = normalizeMetadataValue(fields.get("state") || fields.get("状态") || "soft-deleted", "soft-deleted");
-  const deletionState = ["soft-deleted", "superseded", "archived"].includes(state) ? state : "soft-deleted";
+  if (!["soft-deleted", "superseded", "archived"].includes(state)) {
+    throw new Error(`Invalid tombstone state: ${state}`);
+  }
+  const deletionState = state;
   return {
     deletionState,
     supersededBy: fields.get("superseded by") || fields.get("替代任务") || "",

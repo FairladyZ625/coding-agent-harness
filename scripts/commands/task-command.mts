@@ -4,10 +4,10 @@ import {
   buildTaskIndex,
   createLessonSedimentationTask,
   archiveTask,
+  deleteTask,
   listLifecycleTasks,
   promoteLessonCandidate,
   reopenTask,
-  softDeleteTask,
   supersedeTask,
   updateModuleStep,
   updateTaskPhase,
@@ -214,13 +214,16 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
   if (command === "task-supersede") {
     const by = takeOption("--by", "");
     const reason = takeOption("--reason", "");
+    const deletedBy = takeOption("--deleted-by", "");
+    const confirm = takeOption("--confirm", "");
+    const allowOpenFindings = takeFlag("--allow-open-findings");
     const taskId = args.shift();
     if (!taskId) {
       console.error("Missing task id");
       process.exit(2);
     }
     try {
-      console.log(JSON.stringify(supersedeTask(targetArg(), taskId, { by, reason }), null, 2));
+      console.log(JSON.stringify(supersedeTask(targetArg(), taskId, { by, reason, deletedBy, confirm, allowOpenFindings }), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
@@ -230,7 +233,11 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
 
   if (["task-delete", "task-archive", "task-reopen"].includes(command)) {
     const soft = takeFlag("--soft");
+    const hard = takeFlag("--hard");
     const reason = takeOption("--reason", "");
+    const deletedBy = command === "task-delete" ? takeOption("--deleted-by", "") : "";
+    const confirm = command === "task-delete" ? takeOption("--confirm", "") : "";
+    const allowOpenFindings = command === "task-delete" ? takeFlag("--allow-open-findings") : false;
     const archivedBy = command === "task-archive" ? takeOption("--archived-by", "") : "";
     const archiveFields = command === "task-archive" ? takeRepeatedKeyValueOptions(args, "--archive-field") : {};
     const taskId = args.shift();
@@ -239,10 +246,10 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       process.exit(2);
     }
     try {
-      if (command === "task-delete" && !soft) throw new Error("task-delete only supports --soft; hard delete is intentionally disabled.");
+      if (command === "task-delete" && soft && hard) throw new Error("task-delete accepts only one of --soft or --hard");
       const result =
         command === "task-delete"
-          ? softDeleteTask(targetArg(), taskId, { reason })
+          ? deleteTask(targetArg(), taskId, { hard, reason, deletedBy, confirm, allowOpenFindings })
           : command === "task-archive"
             ? archiveTask(targetArg(), taskId, { reason, archivedBy, archiveFields })
             : reopenTask(targetArg(), taskId, { reason });

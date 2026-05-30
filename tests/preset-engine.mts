@@ -510,12 +510,12 @@ assert(`${missingRequiredReadPath.stdout}\n${missingRequiredReadPath.stderr}`.in
 fs.writeFileSync(generatedTaskPlanPath, generatedTaskPlanContent);
 
 const contextShadowSource = path.join(tmpRoot, "context-bundle-shadow-preset");
-fs.mkdirSync(contextShadowSource, { recursive: true });
+fs.mkdirSync(path.join(contextShadowSource, "resources"), { recursive: true });
 fs.writeFileSync(
   path.join(contextShadowSource, "preset.yaml"),
   `id: context-bundle
-version: 1
-purpose: Shadowed context bundle without the original resources
+version: 2
+purpose: Shadowed context bundle with evolved resources
 compatibleBudgets: [complex]
 task:
   kind: service-integration
@@ -527,16 +527,52 @@ entrypoints:
 audit:
   manifestRequired: true
   evidenceFiles: [preset-audit.json]
+resources:
+  references:
+    evolvedRunbook:
+      path: references/evolved-runbook.md
+      source: resources/evolved-runbook.md
+      index:
+        id: REF-NEW
+        type: runbook
+        summary: Evolved preset resource added after older tasks existed.
+        usedBy: current preset only
+context:
+  requiredReads: [REF-NEW]
 writeScopes:
   taskDocs:
     path: coding-agent-harness/planning/tasks/**
     access: write
-`,
+	`,
 );
+fs.writeFileSync(path.join(contextShadowSource, "resources/evolved-runbook.md"), "# Evolved Runbook\n\nNewer preset resource.\n");
 expectJson(["preset", "install", contextShadowSource, "--force", "--json"], { env });
 const shadowedPresetCheck = run(["check", "--profile", "target-project", target], { env });
-assert(shadowedPresetCheck.status !== 0, "target check should fail when the currently discovered preset manifest no longer matches the task audit");
-assert(`${shadowedPresetCheck.stdout}\n${shadowedPresetCheck.stderr}`.includes("preset manifest hash mismatch"), "manifest mismatch failure should name the preset audit hash drift");
+assert(shadowedPresetCheck.status === 0, "target check should warn, not fail, when the currently discovered preset version/resources no longer match the task audit");
+assert(`${shadowedPresetCheck.stdout}\n${shadowedPresetCheck.stderr}`.includes("preset-drift-warning") && `${shadowedPresetCheck.stdout}\n${shadowedPresetCheck.stderr}`.includes("preset manifest hash mismatch"), "manifest mismatch warning should name the preset audit hash drift");
+assert(`${shadowedPresetCheck.stdout}\n${shadowedPresetCheck.stderr}`.includes("preset version drift"), "preset version drift should be warning-only for existing tasks");
+assert(`${shadowedPresetCheck.stdout}\n${shadowedPresetCheck.stderr}`.includes("preset resource missing"), "current preset resource drift should be warning-only for existing tasks");
+expectJson(["preset", "install", contextSource, "--force", "--json"], { env });
+expectPass(["check", "--profile", "target-project", target], { env });
+const contextResourceOnlySource = path.join(tmpRoot, "context-bundle-resource-only-preset");
+fs.mkdirSync(path.join(contextResourceOnlySource, "resources"), { recursive: true });
+fs.writeFileSync(
+  path.join(contextResourceOnlySource, "preset.yaml"),
+  fs.readFileSync(path.join(contextSource, "preset.yaml"), "utf8")
+    .replace("purpose: Test preset-provided references and artifacts", "purpose: Test resource-only drift")
+    .replace("requiredReads: [REF-001, REF-002]", "requiredReads: [REF-001, REF-NEW]")
+    .replace("serviceRunbook:", "evolvedRunbook:\n      path: references/evolved-runbook.md\n      source: resources/evolved-runbook.md\n      index:\n        id: REF-NEW\n        type: runbook\n        summary: Evolved preset resource added after older tasks existed.\n        usedBy: current preset only\n    serviceRunbook:"),
+);
+fs.writeFileSync(path.join(contextResourceOnlySource, "resources/evolved-runbook.md"), "# Evolved Runbook\n\nNewer preset resource.\n");
+fs.cpSync(path.join(contextSource, "templates"), path.join(contextResourceOnlySource, "templates"), { recursive: true });
+fs.cpSync(path.join(contextSource, "resources/service-runbook.md"), path.join(contextResourceOnlySource, "resources/service-runbook.md"));
+fs.mkdirSync(path.join(contextResourceOnlySource, "resources/artifacts"), { recursive: true });
+fs.cpSync(path.join(contextSource, "resources/artifacts/input-packet.md"), path.join(contextResourceOnlySource, "resources/artifacts/input-packet.md"));
+expectJson(["preset", "install", contextResourceOnlySource, "--force", "--json"], { env });
+const resourceOnlyDriftCheck = run(["check", "--profile", "target-project", target], { env });
+assert(resourceOnlyDriftCheck.status === 0, "same-version resource drift should warn, not fail, when the preset manifest no longer matches older task audits");
+assert(`${resourceOnlyDriftCheck.stdout}\n${resourceOnlyDriftCheck.stderr}`.includes("preset manifest hash mismatch"), "same-version resource drift should still explain the manifest drift signal");
+assert(`${resourceOnlyDriftCheck.stdout}\n${resourceOnlyDriftCheck.stderr}`.includes("context-bundle preset resource missing"), "same-version resource drift should include resource warnings for older task audits");
 expectJson(["preset", "install", contextSource, "--force", "--json"], { env });
 expectPass(["check", "--profile", "target-project", target], { env });
 

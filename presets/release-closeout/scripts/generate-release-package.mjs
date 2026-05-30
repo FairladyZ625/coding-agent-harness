@@ -4,6 +4,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 const context = JSON.parse(fs.readFileSync(process.env.HARNESS_PRESET_CONTEXT, "utf8"));
+const harnessCore = await import(context.runtime?.coreModule || new URL("../../../dist/harness-core.mjs", import.meta.url).href);
+const {
+  normalizeTarget,
+  collectTasks: collectCoreTasks,
+  archiveBlockReason: sharedArchiveBlockReason,
+} = harnessCore;
+
 const release = safeRelease(context.inputs.release);
 if (!release) {
   console.error("release-closeout requires inputs.release");
@@ -18,7 +25,9 @@ if (!paths.tasksRoot || !paths.governanceRoot) {
 const releaseRoot = path.join(context.outputRoot, "release");
 fs.mkdirSync(releaseRoot, { recursive: true });
 
-const allTasks = collectTasks(taskRootsFromContext(context.targetRoot, paths))
+const target = normalizeTarget(context.targetRoot);
+const allTasks = collectCoreTasks(target)
+  .map(releaseTaskFromCore)
   .filter((task) => task.id !== context.task.id && task.shortId !== context.task.id && task.preset !== "release-closeout")
   .sort((a, b) => a.id.localeCompare(b.id));
 let selection;
@@ -267,17 +276,20 @@ function taskSummary(task) {
 }
 
 function archiveBlockReason(task) {
-  if (task.state === "blocked" || task.queue === "blocked") return "blocked tasks cannot be archived";
-  if (task.hasOpenBlockingFindings) return "tasks with open blocking review findings cannot be archived";
-  if (task.materialsIncomplete) return "tasks with incomplete closeout materials cannot be archived";
-  if (task.state !== "done") return `state:${task.state || "unknown"}`;
-  if (task.deletionState === "superseded") return "superseded tasks cannot be archived";
-  if (!task.reviewConfirmation?.confirmed) return "Human review confirmation is required before task archive";
-  if (!isConcreteAuditField(task.reviewConfirmation.reviewer)) return "Human review confirmation is missing Reviewer";
-  if (!isConcreteAuditField(task.reviewConfirmation.confirmationId)) return "Human review confirmation is missing Confirmation ID";
-  if (!isConcreteAuditField(task.reviewConfirmation.confirmedAt)) return "Human review confirmation is missing Confirmed At";
-  if (!isConcreteAuditField(task.reviewConfirmation.commitSha)) return "Human review confirmation is missing Review Commit SHA";
-  return "";
+  return sharedArchiveBlockReason(task, { archivedBy: task.reviewConfirmation?.reviewer || "" });
+}
+
+function releaseTaskFromCore(task) {
+  const shortId = task.shortId || task.id.split("/").at(-1) || "";
+  return {
+    ...task,
+    preset: task.taskPreset || "none",
+    date: shortId.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || "",
+    queue: (task.taskQueues || []).includes("blocked") ? "blocked" : "active",
+    hasOpenBlockingFindings: (task.risks || []).some((risk) => String(risk.open) !== "no" && (String(risk.blocksRelease) === "yes" || ["P0", "P1", "P2"].includes(String(risk.severity)))),
+    materialsIncomplete: task.materialsReady === false,
+    evidenceSnippet: "",
+  };
 }
 
 function archiveCommand(task, release, releasePackageRef) {

@@ -22,7 +22,7 @@ import { taskIdForDirectory } from "./task-scanner.mjs";
 import { resolveTaskDirectory } from "./task-lifecycle.mjs";
 import { evaluateTemplateValues, assertPresetWriteScope, resolvePresetScopes } from "./preset-engine.mjs";
 import { buildPresetAudit, buildPresetScriptPolicy, presetScriptTrustValid, readPresetPackage } from "./preset-registry.mjs";
-import type { PresetAction, PresetEntrypoint, PresetInputDeclaration, PresetPackage, PresetResolvedInputs, PresetTarget } from "./types/preset.js";
+import type { PresetAction, PresetEntrypoint, PresetInputDeclaration, PresetPackage, PresetTarget } from "./types/preset.js";
 
 const materializationSchemaVersion = "preset-materialization/v1";
 const maxMaterializedFileBytes = 10 * 1024 * 1024;
@@ -33,6 +33,8 @@ type PresetRunOptions = {
   targetInput?: string;
   json?: boolean;
   allowScripts?: boolean;
+  useCurrentPreset?: boolean;
+  reason?: string;
 };
 
 type PresetActionOptions = PresetRunOptions & {
@@ -88,7 +90,7 @@ type TaskPathContext = {
   visualMap: string;
 };
 
-export function runPresetEntrypoint(presetId: string, entrypointName: string, { taskRef = "", targetInput = ".", json = false, allowScripts = false }: PresetRunOptions = {}) {
+export function runPresetEntrypoint(presetId: string, entrypointName: string, { taskRef = "", targetInput = ".", json = false, allowScripts = false, useCurrentPreset = false, reason = "" }: PresetRunOptions = {}) {
   void json;
   const target = normalizeTarget(targetInput) as PresetTarget;
   const preset = readPresetPackage(presetId, { targetInput });
@@ -105,7 +107,9 @@ export function runPresetEntrypoint(presetId: string, entrypointName: string, { 
   const metadata = parseTaskMetadata(taskPlan);
   if (metadata.preset !== preset.id) throw new Error(`Task ${taskRef} was created by preset ${metadata.preset || "none"}, not ${preset.id}`);
   const taskId = taskIdForDirectory(target, taskDir);
-  const resolvedInputs = readResolvedInputs(target, metadata);
+  const audit = readPresetAudit(target, metadata);
+  const presetDrift = assessPresetDrift(audit, preset, { useCurrentPreset, reason });
+  const resolvedInputs = asRecord(audit.resolvedInputs);
   const values = evaluateTemplateValues(preset, resolvedInputs, { taskId, taskTitle: taskId, moduleKey: "", target });
   const resolvedScopes = resolvePresetScopes(preset, target);
   const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), `harness-preset-${preset.id}-${entrypointName}-`));
@@ -125,6 +129,9 @@ export function runPresetEntrypoint(presetId: string, entrypointName: string, { 
       },
       targetRoot: target.projectRoot,
       targetRootPolicy: "read-only; direct target mutation before manifest materialization is a hard failure",
+      runtime: {
+        coreModule: new URL("./harness-core.mjs", import.meta.url).href,
+      },
       outputRoot,
       materializationManifestPath: manifestPath,
       paths: harnessPathContext(target),
@@ -178,6 +185,7 @@ export function runPresetEntrypoint(presetId: string, entrypointName: string, { 
           sha256: item.sha256,
         })),
         governance: { commit },
+        presetDrift,
       };
     } finally {
       releaseGovernanceSync(governanceContext);
@@ -187,7 +195,7 @@ export function runPresetEntrypoint(presetId: string, entrypointName: string, { 
   }
 }
 
-export function runPresetAction(presetId: string, actionName: string, { taskRef = "", targetInput = ".", json = false, actionArgs = [], allowScripts = false }: PresetActionOptions = {}) {
+export function runPresetAction(presetId: string, actionName: string, { taskRef = "", targetInput = ".", json = false, actionArgs = [], allowScripts = false, useCurrentPreset = false, reason = "" }: PresetActionOptions = {}) {
   void json;
   const target = normalizeTarget(targetInput) as PresetTarget;
   const preset = readPresetPackage(presetId, { targetInput });
@@ -207,7 +215,9 @@ export function runPresetAction(presetId: string, actionName: string, { taskRef 
   const taskId = taskIdForDirectory(target, taskDir);
   const taskPaths = taskPathContext(target, taskDir);
   const actionInputs = resolveActionInputs(action, actionArgs);
-  const creationInputs = readResolvedInputs(target, metadata);
+  const audit = readPresetAudit(target, metadata);
+  const presetDrift = assessPresetDrift(audit, preset, { useCurrentPreset, reason });
+  const creationInputs = asRecord(audit.resolvedInputs);
   const values = evaluateTemplateValues(preset, creationInputs, { taskId, taskTitle: taskId, moduleKey: "", target });
   const actionWriteScopes = resolveActionScopes(action.writes, { target, taskPaths, label: `${actionName} action write scope` });
   const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), `harness-preset-${preset.id}-${actionName}-`));
@@ -247,6 +257,7 @@ export function runPresetAction(presetId: string, actionName: string, { taskRef 
         writeScopes: actionWriteScopes,
         resolvedInputs: actionInputs,
       }),
+      presetDrift,
     };
     fs.writeFileSync(contextPath, `${JSON.stringify(context, null, 2)}\n`);
     const commandPath = path.join(preset.directory, action.command || "");
@@ -290,6 +301,7 @@ export function runPresetAction(presetId: string, actionName: string, { taskRef 
         sha256: item.sha256,
       })),
       governance: { commit },
+      presetDrift,
     };
   } finally {
     if (governanceContext) releaseGovernanceSync(governanceContext);
@@ -297,12 +309,25 @@ export function runPresetAction(presetId: string, actionName: string, { taskRef 
   }
 }
 
-function readResolvedInputs(target: PresetTarget, metadata: PresetTaskMetadata): PresetResolvedInputs {
+function readPresetAudit(target: PresetTarget, metadata: PresetTaskMetadata): Record<string, unknown> {
   const evidenceBundle = normalizeTargetRelativePath(metadata.evidenceBundle || "", "Preset evidence bundle");
   if (!evidenceBundle) return {};
   const auditPath = path.join(target.projectRoot, evidenceBundle, "preset-audit.json");
   const audit = asRecord(readJsonSafe(auditPath, {}));
-  return asRecord(audit.resolvedInputs);
+  return audit;
+}
+
+function assessPresetDrift(audit: Record<string, unknown>, preset: PresetPackage, { useCurrentPreset = false, reason = "" }: { useCurrentPreset?: boolean; reason?: string } = {}) {
+  const recorded = String(audit.manifestSha256 || "");
+  const current = String(preset.manifestSha256 || "");
+  if (!recorded || !current || recorded === current) {
+    return { detected: false, accepted: false, recordedManifestSha256: recorded, currentManifestSha256: current, reason: "" };
+  }
+  const normalizedReason = String(reason || "").trim();
+  if (!useCurrentPreset || !normalizedReason) {
+    throw new Error(`Preset manifest hash drift detected for ${preset.id}: recorded ${recorded}, current ${current}. Re-run with --use-current-preset --reason <why-current-semantics-are-intended>, or create a new task with the current preset.`);
+  }
+  return { detected: true, accepted: true, recordedManifestSha256: recorded, currentManifestSha256: current, reason: normalizedReason };
 }
 
 function resolveActionInputs(action: PresetAction, cliArgs: string[]): Record<string, unknown> {

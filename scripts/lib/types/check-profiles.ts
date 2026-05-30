@@ -42,6 +42,8 @@ export type PresetPackage = {
   audit?: {
     evidenceFiles?: string[];
   };
+  resources?: Record<string, unknown>;
+  context?: Record<string, unknown>;
 };
 
 export type ScannedTask = ReturnType<typeof collectTasks>[number];

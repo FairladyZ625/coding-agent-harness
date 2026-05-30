@@ -63,6 +63,7 @@ import {
   taskIdFromDirectory,
   taskLocalWalkthrough,
 } from "./harness-paths.mjs";
+import { isExcludedTaskPlanPath } from "./task-discovery-contract.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import type {
   BriefQuality,
@@ -201,8 +202,7 @@ export function listTaskPlanPaths(target: TaskScannerTarget): string[] {
   return taskRoots
     .flatMap((root) => walkFiles(root))
     .filter((file) => file.endsWith("task_plan.md"))
-    .filter((file) => !file.includes(`${path.sep}_task-template${path.sep}`))
-    .filter((file) => !file.includes(`${path.sep}_optional-structures${path.sep}`))
+    .filter((file) => !isExcludedTaskPlanPath(file, harnessPaths))
     .filter((file) => !isArchivedHarnessPath(file));
 }
 

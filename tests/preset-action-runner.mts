@@ -28,6 +28,8 @@ type PresetInstallResult = {
 type PresetActionResult = {
   action?: string;
   status?: string;
+  manifestSha256?: string;
+  presetDrift?: { accepted?: boolean };
   materialized?: Array<{ destination?: string }>;
 };
 
@@ -147,7 +149,7 @@ assert(installTrusted.scriptPolicy?.trusted === true, "trusted install should re
 
 const payloadPath = path.join(tmpRoot, "action-payload.json");
 fs.writeFileSync(payloadPath, JSON.stringify({ ok: true }, null, 2));
-expectJson(["new-task", "action-owned-task", "--budget", "standard", "--preset", "action-runner", target], { env });
+const actionOwnedTask = expectJson(["new-task", "action-owned-task", "--budget", "standard", "--preset", "action-runner", target], { env });
 
 const actionResult = expectJson<PresetActionResult>([
   "preset",
@@ -177,6 +179,17 @@ assert(stageContent.includes("done=true"), "action script should receive schema-
 assert(stageContent.includes("payload=yes"), "action script should receive parsed json-file input");
 assert(stageContent.includes("secret=missing"), "action runner should not pass arbitrary caller environment variables to scripts");
 assert(stageContent.includes("hasAbsolutePaths=no"), "action context should not include the broad absolutePaths map");
+
+const actionAuditPath = path.join(target, actionOwnedTask.task.evidenceBundle.replace(/^TARGET:/, ""), "preset-audit.json");
+const actionAudit = JSON.parse(fs.readFileSync(actionAuditPath, "utf8"));
+actionAudit.manifestSha256 = "0".repeat(64);
+fs.writeFileSync(actionAuditPath, `${JSON.stringify(actionAudit, null, 2)}\n`);
+const driftAction = run(["preset", "action", "action-runner", "close-stage", "--task", "action-owned-task", "--stage", "PLAN", "--summary", "drift blocked", "--json", target], { env });
+assert(driftAction.status !== 0, "preset action should block recorded/current manifest hash drift by default");
+assert(`${driftAction.stdout}\n${driftAction.stderr}`.includes("--use-current-preset"), "preset action drift failure should explain explicit current preset opt-in");
+const acceptedDriftAction = expectJson<PresetActionResult>(["preset", "action", "action-runner", "close-stage", "--task", "action-owned-task", "--stage", "PLAN", "--summary", "drift accepted", "--use-current-preset", "--reason", "fixture accepts current action semantics", "--json", target], { env });
+assert(acceptedDriftAction.presetDrift?.accepted === true, "explicit current preset opt-in should be recorded in preset action output");
+fs.writeFileSync(actionAuditPath, `${JSON.stringify({ ...actionAudit, manifestSha256: actionResult.manifestSha256 || actionAudit.manifestSha256 }, null, 2)}\n`);
 
 const missingInput = run(["preset", "action", "action-runner", "close-stage", "--task", "action-owned-task", "--summary", "missing stage", "--json", target], { env });
 assert(missingInput.status !== 0, "action runner should reject missing required action inputs");

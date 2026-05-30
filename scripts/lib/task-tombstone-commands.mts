@@ -7,9 +7,13 @@ import {
   toPosix,
   datePrefix,
 } from "./core-shared.mjs";
-import { isConcreteAuditField } from "./task-audit-metadata.mjs";
 import { removeHeadingSectionOutsideFences } from "./markdown-utils.mjs";
 import { collectTasks } from "./task-scanner.mjs";
+import { resolveTaskDirectory } from "./task-lifecycle.mjs";
+import { taskIdFromDirectory } from "./harness-paths.mjs";
+import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
+import { assessArchiveEligibility, normalizeArchiveActor } from "./task-archive-eligibility.mjs";
+import { normalizeReviewBoolean } from "./task-review-model.mjs";
 import {
   beginGovernanceSync,
   commitGovernanceSync,
@@ -17,10 +21,14 @@ import {
 } from "./governance-sync.mjs";
 
 type TombstoneTarget = ReturnType<typeof normalizeTarget>;
+type ResolvedTombstoneTarget = TombstoneTarget & { harness: ResolvedHarnessPaths };
 type TombstoneTask = ReturnType<typeof collectTasks>[number];
 type GovernanceContext = ReturnType<typeof beginGovernanceSync>;
 type TombstoneOptions = {
   reason?: string;
+  deletedBy?: string;
+  confirm?: string;
+  allowOpenFindings?: boolean;
 };
 type SupersedeOptions = TombstoneOptions & {
   by?: string;
@@ -31,18 +39,19 @@ type ArchiveOptions = TombstoneOptions & {
 };
 type TombstoneFields = Record<string, unknown>;
 
-export function supersedeTask(targetInput: string, oldRef: string, { by = "", reason = "" }: SupersedeOptions = {}) {
+export function supersedeTask(targetInput: string, oldRef: string, { by = "", reason = "", deletedBy = "", confirm = "", allowOpenFindings = false }: SupersedeOptions = {}) {
   if (!by) throw new Error("task-supersede requires --by <new-task-id>");
   const target = normalizeTarget(targetInput);
   const oldTask = resolveTask(target, oldRef);
   const newTask = resolveTask(target, by);
+  assertSoftDeleteEligible(oldTask, { reason, deletedBy, confirm, allowOpenFindings, action: "task-supersede" });
   const governanceContext = beginGovernanceSync(target, { operation: `task-supersede ${oldTask.id}` });
   try {
     writeTombstone(target, oldTask, {
       State: "superseded",
       "Superseded By": newTask.id,
       Reason: reason || "superseded",
-      Operator: "coordinator",
+      Operator: normalizeTombstoneActor(deletedBy) || "coordinator",
       Timestamp: nowTimestamp(),
       "Reopen Eligible": "yes",
       "Archive Eligible": "no",
@@ -58,19 +67,43 @@ export function supersedeTask(targetInput: string, oldRef: string, { by = "", re
   }
 }
 
-export function softDeleteTask(targetInput: string, taskRef: string, { reason = "" }: TombstoneOptions = {}) {
+export function softDeleteTask(targetInput: string, taskRef: string, options: TombstoneOptions = {}) {
+  return deleteTask(targetInput, taskRef, { ...options, hard: false });
+}
+
+export function deleteTask(targetInput: string, taskRef: string, { hard = false, reason = "", deletedBy = "", confirm = "", allowOpenFindings = false }: TombstoneOptions & { hard?: boolean } = {}) {
   const target = normalizeTarget(targetInput);
   const task = resolveTask(target, taskRef);
-  return writeDeletionState(target, task, "soft-deleted", reason || "soft-delete", "task-delete --soft");
+  if (!hard) {
+    assertSoftDeleteEligible(task, { reason, deletedBy, confirm, allowOpenFindings, action: "task-delete" });
+    return writeDeletionState(target, task, "soft-deleted", reason || "soft-delete", "task-delete --soft", {
+      Operator: normalizeTombstoneActor(deletedBy) || "coordinator",
+    });
+  }
+  assertHardDeleteEligible(target, task, { reason, deletedBy, confirm });
+  const taskDir = path.join(target.projectRoot, task.path.replace(/^TARGET:/, ""));
+  const allowedPaths = collectTaskDirectoryFiles(taskDir).map((file) => toPosix(path.relative(target.projectRoot, file)));
+  const governanceContext = beginGovernanceSync(target, { operation: `task-delete --hard ${task.id}` });
+  try {
+    fs.rmSync(taskDir, { recursive: true, force: true });
+    const commit = commitGovernanceSync(governanceContext, allowedPaths, {
+      message: `chore(harness): hard delete task ${task.id}`,
+    });
+    return { taskId: task.id, deletionState: "hard-deleted", reason, governance: { commit } };
+  } finally {
+    releaseGovernanceSync(governanceContext);
+  }
 }
 
 export function archiveTask(targetInput: string, taskRef: string, { reason = "", archivedBy = "", archiveFields = {} }: ArchiveOptions = {}) {
   const target = normalizeTarget(targetInput);
   const task = resolveTask(target, taskRef);
   const archiveAudit = assertArchiveEligible(task, { archivedBy });
+  const normalizedArchiveFields = normalizeArchiveFields(archiveFields);
+  assertNoReservedArchiveFields(normalizedArchiveFields);
   return writeDeletionState(target, task, "archived", reason || "archive", "task-archive", {
+    ...normalizedArchiveFields,
     ...archiveAudit,
-    ...archiveFields,
   });
 }
 
@@ -126,55 +159,18 @@ function contextFor(_target: TombstoneTarget, context: GovernanceContext): Gover
 
 function resolveTask(target: TombstoneTarget, ref: string): TombstoneTask {
   const normalized = String(ref || "").trim();
-  const matches = collectTasks(target).filter((task) => {
-    const bare = datePrefix.test(task.shortId) ? task.shortId.replace(datePrefix, "") : task.shortId;
-    return task.id === normalized || task.shortId === normalized || task.id.endsWith(`/${normalized}`) || bare === normalized;
-  });
-  if (matches.length === 1) return matches[0];
-  if (matches.length > 1) throw new Error(`Ambiguous task reference: ${ref}`);
+  const resolvedTarget = target as ResolvedTombstoneTarget;
+  const taskDir = resolveTaskDirectory(resolvedTarget, normalized);
+  const taskId = taskIdFromDirectory(resolvedTarget.harness, taskDir);
+  const task = collectTasks(target).find((candidate) => candidate.id === taskId);
+  if (task) return task;
   throw new Error(`Task not found: ${ref}`);
 }
 
 function assertArchiveEligible(task: TombstoneTask, { archivedBy = "" }: { archivedBy?: string } = {}): Record<string, string> {
-  if (task.state === "blocked" || (task.taskQueues || []).includes("blocked")) {
-    throw new Error("blocked tasks cannot be archived without an explicit human waiver");
-  }
-  const blockingRisks = (task.risks || []).filter((risk) => String(risk.open) !== "no" && (String(risk.blocksRelease) === "yes" || ["P0", "P1", "P2"].includes(String(risk.severity))));
-  if (blockingRisks.length) throw new Error("tasks with open blocking review findings cannot be archived without an explicit human waiver");
-  if (task.materialsReady === false && task.reviewStatus !== "confirmed") {
-    throw new Error("tasks with incomplete closeout materials cannot be archived without an explicit human waiver");
-  }
-  const confirmation = (task.reviewConfirmation || {}) as Record<string, unknown>;
-  if (confirmation.confirmed !== true) {
-    throw new Error("Human review confirmation is required before task archive");
-  }
-  const missingConfirmationFields: string[] = [];
-  if (!isConcreteAuditField(confirmation.confirmationId)) missingConfirmationFields.push("Confirmation ID");
-  if (!isConcreteAuditField(confirmation.confirmedAt)) missingConfirmationFields.push("Confirmed At");
-  if (!isConcreteAuditField(confirmation.reviewer)) missingConfirmationFields.push("Reviewer");
-  if (!isConcreteAuditField(confirmation.commitSha)) missingConfirmationFields.push("Review Commit SHA");
-  if (missingConfirmationFields.length) {
-    throw new Error(`Human review confirmation is not traceable; missing ${missingConfirmationFields.join(", ")}`);
-  }
-  const actor = normalizeArchiveActor(archivedBy);
-  if (!actor) {
-    throw new Error("task archive requires --archived-by <name-or-email> for accountability");
-  }
-  return {
-    "Archived By": actor,
-    "Archived At": nowTimestamp(),
-    "Review Confirmed By": String(confirmation.reviewer || ""),
-    "Review Confirmed At": String(confirmation.confirmedAt || ""),
-    "Review Confirmation ID": String(confirmation.confirmationId || ""),
-    "Review Commit SHA": String(confirmation.commitSha || ""),
-  };
-}
-
-function normalizeArchiveActor(value: unknown): string {
-  const actor = String(value || "").replace(/\r?\n/g, " ").trim();
-  if (!actor) return "";
-  if (/^(coordinator|agent|unknown|n\/a|na|none|pending|todo|tbd)$/i.test(actor)) return "";
-  return actor;
+  const result = assessArchiveEligibility(task, { archivedBy, now: nowTimestamp() });
+  if (!result.eligible) throw new Error(result.reason);
+  return result.auditFields;
 }
 
 function writeTombstone(target: TombstoneTarget, task: TombstoneTask, fields: TombstoneFields): void {
@@ -182,6 +178,91 @@ function writeTombstone(target: TombstoneTarget, task: TombstoneTask, fields: To
   const content = removeHeadingSectionOutsideFences(readFileSafe(taskPlanPath), /^##\s*(?:Task Tombstone|任务墓碑)\s*$/i);
   const block = ["", "## Task Tombstone", "", "| Field | Value |", "| --- | --- |", ...Object.entries(fields).map(([key, value]) => `| ${key} | ${escapeCell(value)} |`), ""].join("\n");
   fs.writeFileSync(taskPlanPath, `${content.trimEnd()}\n${block}`);
+}
+
+function assertSoftDeleteEligible(task: TombstoneTask, { reason = "", deletedBy = "", confirm = "", allowOpenFindings = false, action = "task-delete" }: TombstoneOptions & { action?: string } = {}): void {
+  const risky = isRiskyMutationTask(task);
+  const hasOpenFindings = !isDraftState(task.state) && hasOpenBlockingFindings(task);
+  if (!risky && !hasOpenFindings) return;
+  const missing: string[] = [];
+  if (!String(reason || "").trim()) missing.push("--reason");
+  if (!normalizeTombstoneActor(deletedBy)) missing.push("--deleted-by");
+  if (String(confirm || "").trim() !== task.id) missing.push(`--confirm ${task.id}`);
+  if (hasOpenFindings && !allowOpenFindings) missing.push("--allow-open-findings");
+  if (missing.length) {
+    throw new Error(`${action} would hide a risky task; required: ${missing.join(", ")}`);
+  }
+}
+
+export function assertHardDeleteEligible(target: TombstoneTarget, task: TombstoneTask, { reason = "", deletedBy = "", confirm = "" }: TombstoneOptions = {}): void {
+  const missing: string[] = [];
+  if (!String(reason || "").trim()) missing.push("--reason");
+  if (!normalizeTombstoneActor(deletedBy)) missing.push("--deleted-by");
+  if (String(confirm || "").trim() !== task.id) missing.push(`--confirm ${task.id}`);
+  if (missing.length) throw new Error(`task-delete --hard requires accountable safe draft confirmation: ${missing.join(", ")}`);
+  const blockers: string[] = [];
+  if (!isDraftState(task.state)) blockers.push(`state:${task.state}`);
+  if (task.deletionState !== "active") blockers.push(`deletionState:${task.deletionState}`);
+  if (isRiskyMutationTask(task)) blockers.push("task has lifecycle, review, evidence, or closeout history");
+  if (!isDraftState(task.state) && hasOpenBlockingFindings(task)) blockers.push("task has open blocking findings");
+  const taskDir = path.join(target.projectRoot, task.path.replace(/^TARGET:/, ""));
+  const disallowedFiles = collectTaskDirectoryFiles(taskDir).filter((file) => !isSafeDraftFile(taskDir, file));
+  if (disallowedFiles.length) blockers.push(`non-scaffold files: ${disallowedFiles.map((file) => toPosix(path.relative(taskDir, file))).join(", ")}`);
+  if (blockers.length) throw new Error(`task-delete --hard only supports safe draft tasks; ${blockers.join("; ")}`);
+}
+
+function isRiskyMutationTask(task: TombstoneTask): boolean {
+  return !isDraftState(task.state) ||
+    Boolean(task.reviewSubmitted) ||
+    task.reviewStatus === "confirmed" ||
+    Boolean(task.reviewConfirmation?.confirmed) ||
+    task.materialsReady === true && !isDraftState(task.state) ||
+    (task.evidence || []).length > 0 ||
+    (task.taskQueues || []).some((queue) => ["blocked", "review", "confirmed", "finalized", "lessons"].includes(queue));
+}
+
+function isDraftState(state: unknown): boolean {
+  const normalized = String(state || "").trim().toLowerCase().replaceAll("-", "_").replace(/\s+/g, "_");
+  return ["planned", "not_started"].includes(normalized);
+}
+
+function hasOpenBlockingFindings(task: TombstoneTask): boolean {
+  return (task.risks || []).some((risk) => normalizeReviewBoolean(risk.open) !== "no" && (normalizeReviewBoolean(risk.blocksRelease) === "yes" || ["P0", "P1", "P2"].includes(String(risk.severity))));
+}
+
+function normalizeTombstoneActor(value: unknown): string {
+  return normalizeArchiveActor(value);
+}
+
+function collectTaskDirectoryFiles(taskDir: string): string[] {
+  if (!fs.existsSync(taskDir)) return [];
+  const files: string[] = [];
+  const visit = (dir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) visit(full);
+      else if (entry.isFile()) files.push(full);
+    }
+  };
+  visit(taskDir);
+  return files.sort();
+}
+
+function isSafeDraftFile(taskDir: string, file: string): boolean {
+  const relative = toPosix(path.relative(taskDir, file));
+  return [
+    "INDEX.md",
+    "brief.md",
+    "execution_strategy.md",
+    "findings.md",
+    "lesson_candidates.md",
+    "progress.md",
+    "review.md",
+    "task_plan.md",
+    "visual_map.md",
+    "walkthrough.md",
+    "long-running-task-contract.md",
+  ].includes(relative) || /^artifacts\/INDEX\.md$/.test(relative) || /^references\/INDEX\.md$/.test(relative);
 }
 
 function appendSupersedes(target: TombstoneTarget, task: TombstoneTask, oldId: string): void {
@@ -217,4 +298,23 @@ function normalizeArchiveFields(fields: TombstoneFields): Record<string, string>
     normalized[key] = String(rawValue || "").replace(/\r?\n/g, " ").trim();
   }
   return normalized;
+}
+
+function assertNoReservedArchiveFields(fields: Record<string, string>): void {
+  const reserved = new Set([
+    "state",
+    "reason",
+    "operator",
+    "timestamp",
+    "reopen eligible",
+    "archive eligible",
+    "archived by",
+    "archived at",
+    "review confirmed by",
+    "review confirmed at",
+    "review confirmation id",
+    "review commit sha",
+  ]);
+  const blocked = Object.keys(fields).filter((key) => reserved.has(key.toLowerCase()));
+  if (blocked.length) throw new Error(`Reserved archive field cannot be overridden: ${blocked.join(", ")}`);
 }

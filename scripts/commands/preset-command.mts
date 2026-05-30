@@ -82,22 +82,26 @@ export function runPresetCommand({ args, takeFlag, targetArg }: { args: string[]
     } else if (subcommand === "run") {
       const allowScripts = takeFlag("--allow-scripts");
       const taskRef = takeOptionFromArgs(args, "--task", "");
+      const useCurrentPreset = takeFlag("--use-current-preset");
+      const reason = takeOptionFromArgs(args, "--reason", "");
       const id = args.shift();
       const entrypoint = args.shift();
       if (!id) throw new Error("Missing preset id");
       if (!entrypoint) throw new Error("Missing preset entrypoint");
-      const result = runPresetEntrypoint(id, entrypoint, { taskRef, targetInput: targetArg(), json, allowScripts });
+      const result = runPresetEntrypoint(id, entrypoint, { taskRef, targetInput: targetArg(), json, allowScripts, useCurrentPreset, reason });
       if (json) console.log(JSON.stringify(result, null, 2));
       else console.log(`Preset run ${result.status}: ${result.preset}.${result.entrypoint} (${result.materialized.length} writes)`);
     } else if (subcommand === "action") {
       const allowScripts = takeFlag("--allow-scripts");
+      const useCurrentPreset = takeFlag("--use-current-preset");
+      const reason = takeOptionFromArgs(args, "--reason", "");
       const taskRef = takeOptionFromArgs(args, "--task", "");
       const id = args.shift();
       const action = args.shift();
       if (!id) throw new Error("Missing preset id");
       if (!action) throw new Error("Missing preset action");
       const target = takeTrailingActionTarget(args);
-      const result = runPresetAction(id, action, { taskRef, targetInput: target, json, allowScripts, actionArgs: args });
+      const result = runPresetAction(id, action, { taskRef, targetInput: target, json, allowScripts, useCurrentPreset, reason, actionArgs: args });
       if (json) console.log(JSON.stringify(result, null, 2));
       else console.log(`Preset action ${result.status}: ${result.preset}.${result.action} (${result.materialized.length} writes) [${result.source} ${String(result.manifestSha256 || "").slice(0, 12)}]`);
     } else {

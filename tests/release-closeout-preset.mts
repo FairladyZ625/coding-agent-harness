@@ -18,6 +18,7 @@ type ReleaseFixtureOptions = {
   localPath?: string;
   confirmedReview?: boolean;
   moduleKey?: string;
+  taskPathPrefix?: string;
 };
 
 type ReleaseTaskIndexTask = {
@@ -107,7 +108,7 @@ const runnerInstallWithoutTrust = run(["preset", "install", runnerPreset, "--pro
 assert(runnerInstallWithoutTrust.status !== 0, "script entrypoint presets should require --allow-scripts during install");
 assert(`${runnerInstallWithoutTrust.stdout}\n${runnerInstallWithoutTrust.stderr}`.includes("--allow-scripts"), "entrypoint trust failure should explain --allow-scripts");
 expectJson(["preset", "install", runnerPreset, "--project", "--force", "--allow-scripts", "--json", target], { env });
-expectJson(["new-task", "runner-owned-task", "--budget", "standard", "--preset", "runner-materialize", "--note", "hello", target], { env });
+const runnerOwnedTask = expectJson(["new-task", "runner-owned-task", "--budget", "standard", "--preset", "runner-materialize", "--note", "hello", target], { env });
 const runnerResult = expectJson(["preset", "run", "runner-materialize", "plan", "--task", "runner-owned-task", "--json", target], { env });
 assert(runnerResult.entrypoint === "plan", "generic preset runner should report the executed entrypoint");
 assert(runnerResult.materialized.some((item) => item.destination === "coding-agent-harness/governance/runner/runner.txt"), "generic preset runner should report materialized writes");
@@ -121,6 +122,16 @@ const tamperedTrustRun = run(["preset", "run", "runner-materialize", "plan", "--
 assert(tamperedTrustRun.status !== 0, "script trust should become invalid when trusted script content changes");
 assert(`${tamperedTrustRun.stdout}\n${tamperedTrustRun.stderr}`.includes("--allow-scripts"), "tampered trust failure should explain --allow-scripts");
 expectJson(["preset", "run", "runner-materialize", "plan", "--task", "runner-owned-task", "--allow-scripts", "--json", target], { env });
+
+const runnerAuditPath = path.join(target, runnerOwnedTask.task.evidenceBundle.replace(/^TARGET:/, ""), "preset-audit.json");
+const runnerAudit = JSON.parse(fs.readFileSync(runnerAuditPath, "utf8"));
+runnerAudit.manifestSha256 = "0".repeat(64);
+fs.writeFileSync(runnerAuditPath, `${JSON.stringify(runnerAudit, null, 2)}\n`);
+const driftRun = run(["preset", "run", "runner-materialize", "plan", "--task", "runner-owned-task", "--allow-scripts", "--json", target], { env });
+assert(driftRun.status !== 0, "preset run should block recorded/current manifest hash drift by default");
+assert(`${driftRun.stdout}\n${driftRun.stderr}`.includes("--use-current-preset"), "preset drift failure should explain explicit current preset opt-in");
+const acceptedDriftRun = expectJson(["preset", "run", "runner-materialize", "plan", "--task", "runner-owned-task", "--allow-scripts", "--use-current-preset", "--reason", "fixture accepts current preset semantics", "--json", target], { env });
+assert((acceptedDriftRun.presetDrift as { accepted?: boolean } | undefined)?.accepted === true, "explicit current preset opt-in should be recorded in preset run output");
 
 const escapePreset = path.join(tmpRoot, "runner-escape-preset");
 fs.mkdirSync(path.join(escapePreset, "scripts"), { recursive: true });
@@ -228,10 +239,10 @@ const directMutationResult = run(["preset", "run", "runner-direct-mutation", "pl
 assert(directMutationResult.status !== 0, "generic preset runner should reject scripts that mutate the target outside manifest materialization");
 assert(`${directMutationResult.stdout}\n${directMutationResult.stderr}`.includes("Preset script mutated target before materialization"), "direct target mutation failure should explain the audit failure");
 
-function writeTaskFixture(slug: string, { title, state = "done", tombstone = "", localPath = "", confirmedReview = false, moduleKey }: ReleaseFixtureOptions = {}): string {
-  const taskPathPrefix = moduleKey
+function writeTaskFixture(slug: string, { title, state = "done", tombstone = "", localPath = "", confirmedReview = false, moduleKey, taskPathPrefix: explicitTaskPathPrefix = "" }: ReleaseFixtureOptions = {}): string {
+  const taskPathPrefix = explicitTaskPathPrefix || (moduleKey
     ? `coding-agent-harness/planning/modules/${moduleKey}/tasks/${slug}`
-    : `coding-agent-harness/planning/tasks/${slug}`;
+    : `coding-agent-harness/planning/tasks/${slug}`);
   const canonicalTaskId = moduleKey ? `MODULES/${moduleKey}/${slug}` : `TASKS/${slug}`;
   const taskDir = path.join(target, taskPathPrefix);
   fs.mkdirSync(taskDir, { recursive: true });
@@ -315,10 +326,37 @@ writeTaskFixture(`${todayLocal}-release-done-path`, {
 });
 writeTaskFixture(`${todayLocal}-release-unconfirmed`, { title: "Done task without human review confirmation", state: "done" });
 writeTaskFixture(`${todayLocal}-release-blocked`, { title: "Blocked task must stay active", state: "blocked" });
+const nestedArtifactTaskDir = writeTaskFixture(`${todayLocal}-release-nested-artifact-carrier`, {
+  title: "Release nested artifact carrier",
+  state: "done",
+  confirmedReview: true,
+});
+const nestedArtifactPlan = path.join(nestedArtifactTaskDir, "artifacts/copied-task", `${todayLocal}-release-nested-artifact`, "task_plan.md");
+fs.mkdirSync(path.dirname(nestedArtifactPlan), { recursive: true });
+fs.writeFileSync(path.join(path.dirname(nestedArtifactPlan), "task_plan.md"), "# Nested Artifact Task\n\nTask Contract: harness-task/v1\n\n## Selected Budget\n\nSelected budget: simple\n");
+fs.writeFileSync(path.join(path.dirname(nestedArtifactPlan), "progress.md"), "# Nested Artifact Task - Progress\n\n## Current Status\n\ndone\n");
 writeTaskFixture(`${todayLocal}-release-module-done`, {
   title: "Module done task with review confirmation",
   state: "done",
   moduleKey: "life-circle",
+  confirmedReview: true,
+});
+writeTaskFixture(`${todayLocal}-release-external-done`, {
+  title: "External done task with review confirmation",
+  state: "done",
+  taskPathPrefix: `coding-agent-harness/planning/external/references/vendor/tasks/${todayLocal}-release-external-done`,
+  confirmedReview: true,
+});
+writeTaskFixture(`${todayLocal}-release-template-ignored`, {
+  title: "Template task must be ignored",
+  state: "done",
+  taskPathPrefix: `coding-agent-harness/planning/modules/life-circle/_task-template/${todayLocal}-release-template-ignored`,
+  confirmedReview: true,
+});
+writeTaskFixture(`${todayLocal}-release-optional-ignored`, {
+  title: "Optional structure task must be ignored",
+  state: "done",
+  taskPathPrefix: `coding-agent-harness/planning/modules/life-circle/_optional-structures/${todayLocal}-release-optional-ignored`,
   confirmedReview: true,
 });
 writeTaskFixture(`${todayLocal}-release-ambiguous`, { title: "Root ambiguous done task", state: "done", confirmedReview: true });
@@ -350,6 +388,10 @@ const missingArchivedBy = run(["task-archive", "release-done-path", "--reason", 
 assert(missingArchivedBy.status !== 0, "task-archive should reject confirmed tasks without an archived-by identity");
 assert(`${missingArchivedBy.stdout}\n${missingArchivedBy.stderr}`.includes("task archive requires --archived-by"), "missing archived-by failure should explain the accountability gate");
 
+const reservedArchiveField = run(["task-archive", "release-done-path", "--reason", "release closeout", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "Archived By=Fake Reviewer", target], { env });
+assert(reservedArchiveField.status !== 0, "task-archive should reject archive-field attempts to override accountability fields");
+assert(`${reservedArchiveField.stdout}\n${reservedArchiveField.stderr}`.includes("Reserved archive field"), "reserved archive field failure should explain the audit field boundary");
+
 expectJson(["task-archive", "release-done-path", "--reason", "release closeout", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "retention bucket=release:1.0.5", "--archive-field", "release package=coding-agent-harness/governance/releases/1.0.5/INDEX.md", target], { env });
 const taskIndexWithArchiveFields = expectJson(["task-index", "--json", target], { env });
 const releaseArchivedTask = taskIndexWithArchiveFields.tasks.find((task) => task.id.endsWith("release-done-path"));
@@ -363,7 +405,7 @@ assert(releaseArchivedTask.archiveMetadata?.["review confirmation id"] === "HRC-
 expectJson(["new-task", "release-closeout-no-selector", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.4", target], { env });
 const noSelector = run(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-no-selector", "--allow-scripts", "--json", target], { env });
 assert(noSelector.status !== 0, "release-closeout scaffold should fail without an explicit task selector");
-assert(`${noSelector.stdout}\n${noSelector.stderr}`.includes("release-closeout requires --task-list or --task-query"), "missing selector failure should explain the required selector");
+assert(`${noSelector.stdout}\n${noSelector.stderr}`.includes("release-closeout requires --task-list or --task-query"), `missing selector failure should explain the required selector\nSTDOUT:\n${noSelector.stdout}\nSTDERR:\n${noSelector.stderr}`);
 
 const taskListPath = path.join(tmpRoot, "release-closeout-task-list.json");
 fs.writeFileSync(taskListPath, JSON.stringify({
@@ -426,6 +468,10 @@ assert(queryAggregate.selector?.type === "task-query", "task-query release aggre
 assert(queryAggregate.summary.totalTasks >= 109 && queryAggregate.summary.doneTasks >= 109, "task-query release aggregation should handle large selected task sets");
 assert(queryAggregate.matched.every((task) => task.state === "done"), "task-query state filter should only match done tasks");
 assert(queryAggregate.matched.some((task) => task.id === `MODULES/life-circle/${todayLocal}-release-module-done`), "task-query date/state selector should include module tasks");
+assert(queryAggregate.matched.some((task) => task.id.includes("release-external-done")), "task-query date/state selector should include external-root tasks, including groups named references");
+assert(!queryAggregate.matched.some((task) => task.id.includes("/artifacts/")), "release-closeout selector must not treat nested artifact task_plan.md files as tasks");
+assert(!queryAggregate.matched.some((task) => task.id.includes("release-template-ignored")), "release-closeout selector must not include task template fixtures");
+assert(!queryAggregate.matched.some((task) => task.id.includes("release-optional-ignored")), "release-closeout selector must not include optional-structure fixtures");
 assert(!queryAggregate.matched.some((task) => task.id.endsWith("release-blocked")), "task-query state filter should exclude blocked tasks");
 assert(!queryArchivePlan.split("## Not Eligible")[0].includes("release-blocked"), "task-query archive plan should not emit archive commands for blocked tasks");
 

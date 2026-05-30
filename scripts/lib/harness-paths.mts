@@ -135,7 +135,7 @@ export function resolveHarnessPaths(targetInput: HarnessTargetInput = "."): Reso
             planningRoot: resolved.planningRoot,
             tasksRoot: resolved.tasksRoot,
             modulesRoot: resolved.modulesRoot,
-            taskRoots: [resolved.tasksRoot, resolved.modulesRoot],
+            taskRoots: [resolved.tasksRoot, resolved.modulesRoot, resolved.externalRoot].filter(Boolean),
             externalRoot: resolved.externalRoot,
             governanceRoot: resolved.governanceRoot,
             generatedRoot: resolved.generatedRoot,

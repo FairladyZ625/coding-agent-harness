@@ -458,14 +458,38 @@ assert(supersededTask.taskQueues.includes("soft-deleted-superseded"), "supersede
 commitFixtureBaseline(target, "before queue delete fixture");
 
 const deleteFixture = expectJson(["new-task", "queue-delete", "--title", "Queue Delete", "--locale", "en-US", target]);
-const hardDelete = run(["task-delete", "queue-delete", "--reason", "wrong duplicate", target]);
-assert(hardDelete.status !== 0, "task-delete should reject hard delete without --soft");
-expectJson(["task-delete", "queue-delete", "--soft", "--reason", "wrong duplicate", target]);
+expectJson(["task-delete", "queue-delete", "--reason", "wrong duplicate", target]);
 let deleteStatus = expectJson(["status", "--json", target]);
-assert(deleteStatus.tasks.find((task) => task.id === deleteFixture.task.id).deletionState === "soft-deleted", "task-delete --soft should write soft-delete tombstone");
+assert(deleteStatus.tasks.find((task) => task.id === deleteFixture.task.id).deletionState === "soft-deleted", "task-delete should default to soft-delete tombstone");
 expectJson(["task-reopen", "queue-delete", "--reason", "restore fixture", target]);
 deleteStatus = expectJson(["status", "--json", target]);
 assert(deleteStatus.tasks.find((task) => task.id === deleteFixture.task.id).deletionState === "active", "task-reopen should remove tombstone");
+
+const riskyDelete = expectJson(["new-task", "queue-risky-delete", "--title", "Queue Risky Delete", "--locale", "en-US", target]);
+expectJson(["task-start", "queue-risky-delete", "--message", "implementation started", target]);
+const riskyDeleteWithoutAudit = run(["task-delete", "queue-risky-delete", "--reason", "duplicate", target]);
+assert(riskyDeleteWithoutAudit.status !== 0, "soft deleting an in-progress task should require accountable confirmation");
+assert(`${riskyDeleteWithoutAudit.stdout}\n${riskyDeleteWithoutAudit.stderr}`.includes("--confirm"), "risky soft delete failure should mention canonical confirmation");
+expectJson(["task-delete", "queue-risky-delete", "--reason", "duplicate", "--deleted-by", "Task Owner <owner@example.invalid>", "--confirm", riskyDelete.task.id, target]);
+deleteStatus = expectJson(["status", "--json", target]);
+assert(deleteStatus.tasks.find((task) => task.id === riskyDelete.task.id).deletionState === "soft-deleted", "confirmed risky soft delete should write tombstone");
+
+const hardDraft = expectJson(["new-task", "queue-hard-draft", "--title", "Queue Hard Draft", "--locale", "en-US", target]);
+const hardDraftDir = taskDirectory(hardDraft);
+expectJson(["task-delete", "queue-hard-draft", "--hard", "--confirm", hardDraft.task.id, "--reason", "created by mistake", "--deleted-by", "Task Owner <owner@example.invalid>", target]);
+assert(!fs.existsSync(hardDraftDir), "hard delete should physically remove a safe draft task directory");
+const unknownHardDraft = expectJson(["new-task", "queue-hard-unknown", "--title", "Queue Hard Unknown", "--locale", "en-US", target]);
+const unknownHardDraftDir = taskDirectory(unknownHardDraft);
+fs.writeFileSync(path.join(unknownHardDraftDir, "progress.md"), "# Queue Hard Unknown - Progress\n\n## Current Status\n\nunknown\n");
+commitFixtureBaseline(target, "before unknown hard delete fixture");
+const unknownHardDelete = run(["task-delete", "queue-hard-unknown", "--hard", "--confirm", unknownHardDraft.task.id, "--reason", "unknown migrated state", "--deleted-by", "Task Owner <owner@example.invalid>", target]);
+assert(unknownHardDelete.status !== 0, "hard delete should reject unknown-state tasks even when their files look scaffold-only");
+assert(`${unknownHardDelete.stdout}\n${unknownHardDelete.stderr}`.includes("state:unknown"), "unknown hard delete failure should name the unknown state");
+fs.writeFileSync(path.join(unknownHardDraftDir, "progress.md"), "# Queue Hard Unknown - Progress\n\n## Current Status\n\nplanned\n");
+commitFixtureBaseline(target, "restore unknown hard delete fixture");
+const unsafeHardDelete = run(["task-delete", riskyDelete.task.id, "--hard", "--confirm", riskyDelete.task.id, "--reason", "try hard delete", "--deleted-by", "Task Owner <owner@example.invalid>", target]);
+assert(unsafeHardDelete.status !== 0, "hard delete should reject tasks that already have lifecycle or tombstone history");
+assert(`${unsafeHardDelete.stdout}\n${unsafeHardDelete.stderr}`.includes("safe draft"), "unsafe hard delete failure should explain the safe draft boundary");
 
 const oldSupersede = expectJson(["new-task", "queue-old", "--title", "Queue Old", "--locale", "en-US", target]);
 const newSupersede = expectJson(["new-task", "queue-new", "--title", "Queue New", "--locale", "en-US", target]);
@@ -473,6 +497,15 @@ expectJson(["task-supersede", "queue-old", "--by", "queue-new", "--reason", "mer
 const commandSupersedeStatus = expectJson(["status", "--json", target]);
 assert(commandSupersedeStatus.tasks.find((task) => task.id === oldSupersede.task.id).supersededBy === newSupersede.task.id, "task-supersede should record supersededBy");
 assert(commandSupersedeStatus.tasks.find((task) => task.id === newSupersede.task.id).supersedes.includes(oldSupersede.task.id), "task-supersede should expose reverse supersedes edge on replacement task");
+const riskyOldSupersede = expectJson(["new-task", "queue-risky-old", "--title", "Queue Risky Old", "--locale", "en-US", target]);
+const riskyNewSupersede = expectJson(["new-task", "queue-risky-new", "--title", "Queue Risky New", "--locale", "en-US", target]);
+expectJson(["task-start", "queue-risky-old", "--message", "implementation started", target]);
+const riskySupersedeWithoutAudit = run(["task-supersede", "queue-risky-old", "--by", "queue-risky-new", "--reason", "merged duplicate", target]);
+assert(riskySupersedeWithoutAudit.status !== 0, "superseding an in-progress task should require accountable confirmation");
+expectJson(["task-supersede", "queue-risky-old", "--by", "queue-risky-new", "--reason", "merged duplicate", "--deleted-by", "Task Owner <owner@example.invalid>", "--confirm", riskyOldSupersede.task.id, target]);
+const riskyOldPlan = fs.readFileSync(path.join(taskDirectory(riskyOldSupersede), "task_plan.md"), "utf8");
+assert(riskyOldPlan.includes("| Operator | Task Owner <owner@example.invalid> |"), "confirmed risky supersede should record the accountable operator");
+assert(expectJson(["status", "--json", target]).tasks.find((task) => task.id === riskyNewSupersede.task.id).supersedes.includes(riskyOldSupersede.task.id), "confirmed risky supersede should preserve the reverse supersedes edge");
 
 const tombstoneExample = expectJson(["new-task", "queue-tombstone-example", "--title", "Queue Tombstone Example", "--locale", "en-US", target]);
 const tombstoneExampleDir = taskDirectory(tombstoneExample);
@@ -514,6 +547,46 @@ assert(taskIndex.scannerVersion, "task-index should record scanner version");
 assert(taskIndex.sourceFileHashes[taskId], "task-index should hash source task files");
 assert(indexedReady.queues.includes("confirmed"), "task-index should include normalized queues");
 assert(taskIndex.tasks.find((task) => task.taskKey === superseded.task.id).deletionState === "superseded", "task-index should include tombstone state");
+assert(!taskIndex.tasks.some((task) => task.id.includes("/artifacts/") || task.id.includes("/references/")), "task-index must not treat nested artifact/reference task_plan.md files as tasks");
+
+const nestedPlanCarrier = expectJson(["new-task", "queue-nested-plan-carrier", "--title", "Queue Nested Plan Carrier", "--locale", "en-US", target]);
+const nestedPlanCarrierDir = taskDirectory(nestedPlanCarrier);
+for (const nestedRelative of [
+  "artifacts/copied-task/task_plan.md",
+  "references/copied-task/task_plan.md",
+]) {
+  const nestedPath = path.join(nestedPlanCarrierDir, nestedRelative);
+  fs.mkdirSync(path.dirname(nestedPath), { recursive: true });
+  fs.writeFileSync(nestedPath, "# Nested copied task\n\nTask Contract: harness-task/v1\n");
+}
+const generatedNestedPlan = path.join(target, "coding-agent-harness/governance/generated/copied-task/task_plan.md");
+fs.mkdirSync(path.dirname(generatedNestedPlan), { recursive: true });
+fs.writeFileSync(generatedNestedPlan, "# Generated copied task\n\nTask Contract: harness-task/v1\n");
+const nestedPlanIndex = expectJson(["task-index", "--json", target]);
+assert(!nestedPlanIndex.tasks.some((task) => task.id.includes("copied-task")), "scanner should exclude nested artifacts, references, and generated task_plan.md files");
+
+const invalidTombstone = expectJson(["new-task", "queue-invalid-tombstone", "--title", "Queue Invalid Tombstone", "--locale", "en-US", target]);
+const invalidTombstoneDir = taskDirectory(invalidTombstone);
+fs.appendFileSync(
+  path.join(invalidTombstoneDir, "task_plan.md"),
+  [
+    "",
+    "## Task Tombstone",
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    "| State | archive |",
+    "| Reason | typo fixture |",
+    "",
+  ].join("\n"),
+);
+const invalidTombstoneIndex = run(["task-index", "--json", target]);
+assert(invalidTombstoneIndex.status !== 0, "unknown tombstone state should fail structurally instead of hiding the task");
+assert(`${invalidTombstoneIndex.stdout}\n${invalidTombstoneIndex.stderr}`.includes("Invalid tombstone state"), "unknown tombstone failure should identify the invalid state");
+fs.writeFileSync(
+  path.join(invalidTombstoneDir, "task_plan.md"),
+  fs.readFileSync(path.join(invalidTombstoneDir, "task_plan.md"), "utf8").replace(/\n## Task Tombstone\n[\s\S]*$/, "\n"),
+);
 
 expectPass(["check", "--profile", "target-project", target]);
 
