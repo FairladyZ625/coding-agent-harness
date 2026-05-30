@@ -31,9 +31,11 @@ function writeFixture(root: string, relativePath: string, content: string): void
 
 const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-no-ts-nocheck-"));
 const allowlistPath = path.join(fixtureRoot, "ts-nocheck-allowlist.json");
+const tsNoCheck = "// @ts" + "-nocheck\n";
 
-writeFixture(fixtureRoot, "scripts/allowed.mts", "// @ts-nocheck\nexport const allowed = true;\n");
-writeFixture(fixtureRoot, "tests/new-unreviewed.mts", "// @ts-nocheck\nexport const blocked = true;\n");
+writeFixture(fixtureRoot, "scripts/allowed.mts", `${tsNoCheck}export const allowed = true;\n`);
+writeFixture(fixtureRoot, "tests/new-unreviewed.mts", `${tsNoCheck}export const blocked = true;\n`);
+writeFixture(fixtureRoot, "scripts/new-unreviewed.ts", `${tsNoCheck}export const blocked = true;\n`);
 writeFixture(fixtureRoot, "scripts/clean.mts", "export const clean = true;\n");
 
 fs.writeFileSync(
@@ -48,10 +50,14 @@ fs.writeFileSync(
 );
 
 const failed = checkNoTsNocheck({ repoRoot: fixtureRoot, allowlistPath });
-assert(failed.ok === false, "unreviewed @ts-nocheck file should fail the gate");
+assert(failed.ok === false, `unreviewed ${"@ts"}-nocheck file should fail the gate`);
 assert(
   failed.violations.some((violation) => violation.file === "tests/new-unreviewed.mts" && violation.code === "unlisted-ts-nocheck"),
-  "gate should report the unlisted @ts-nocheck file",
+  `gate should report the unlisted ${"@ts"}-nocheck file`,
+);
+assert(
+  failed.violations.some((violation) => violation.file === "scripts/new-unreviewed.ts" && violation.code === "unlisted-ts-nocheck"),
+  `gate should report unlisted ${"@ts"}-nocheck in .ts files`,
 );
 assert(
   !failed.violations.some((violation) => violation.file === "scripts/allowed.mts"),
@@ -62,7 +68,7 @@ fs.writeFileSync(
   allowlistPath,
   JSON.stringify(
     {
-      files: ["scripts/allowed.mts", "tests/new-unreviewed.mts"],
+      files: ["scripts/allowed.mts", "tests/new-unreviewed.mts", "scripts/new-unreviewed.ts"],
     },
     null,
     2,
@@ -70,6 +76,6 @@ fs.writeFileSync(
 );
 
 const passed = checkNoTsNocheck({ repoRoot: fixtureRoot, allowlistPath });
-assert(passed.ok === true, `fully reviewed @ts-nocheck baseline should pass:\n${passed.violations.map((violation) => violation.message).join("\n")}`);
+assert(passed.ok === true, `fully reviewed ${"@ts"}-nocheck baseline should pass:\n${passed.violations.map((violation) => violation.message).join("\n")}`);
 
 console.log("No ts-nocheck gate tests passed");

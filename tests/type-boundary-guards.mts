@@ -23,6 +23,13 @@ function writeFixture(root: string, relativePath: string, content: string): void
 }
 
 const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "harness-type-boundary-"));
+const tsNoCheck = "// @ts" + "-nocheck\n";
+const genericAny = [
+  "Array",
+  "<",
+  "any",
+  ">",
+].join("");
 
 const tsRuntimeImport = 'import "./runtime-target' + '.ts";\n';
 const mtsRuntimeImport = 'import "./runtime-target' + '.mts";\n';
@@ -37,6 +44,9 @@ writeFixture(fixtureRoot, "scripts/value-consumer.ts", 'import { Protocol } from
 writeFixture(fixtureRoot, "scripts/mts-type-consumer.mts", 'import type { Protocol } from "./lib/types/protocol.js";\nconst value: Protocol = { id: "ok" };\n');
 writeFixture(fixtureRoot, "scripts/mts-value-consumer.mts", 'import { Protocol } from "./lib/types/protocol.js";\nconsole.log(Protocol);\n');
 writeFixture(fixtureRoot, "scripts/mts-escape.mts", "const value = input as " + "any;\n");
+writeFixture(fixtureRoot, "scripts/ts-nocheck.ts", `${tsNoCheck}export const unchecked = true;\n`);
+writeFixture(fixtureRoot, "scripts/generic-any.ts", `const values: ${genericAny} = [];\n`);
+writeFixture(fixtureRoot, "scripts/cross-line-cast.ts", "const value = input as\n  unknown " + "as\n  string;\n");
 
 const failed = checkTypeBoundaries({ repoRoot: fixtureRoot });
 assert(failed.ok === false, "invalid type boundary fixture should fail");
@@ -59,6 +69,18 @@ assert(
 assert(
   failed.violations.some((violation) => violation.code === "ts-escape-hatch" && violation.file === "scripts/mts-escape.mts"),
   "guard should report .mts TypeScript escape hatches",
+);
+assert(
+  failed.violations.some((violation) => violation.code === "ts-escape-hatch" && violation.file === "scripts/ts-nocheck.ts"),
+  `guard should report ${"@ts"}-nocheck as a TypeScript escape hatch`,
+);
+assert(
+  failed.violations.some((violation) => violation.code === "ts-escape-hatch" && violation.file === "scripts/generic-any.ts"),
+  "guard should report generic " + "any escape hatches",
+);
+assert(
+  failed.violations.some((violation) => violation.code === "ts-escape-hatch" && violation.file === "scripts/cross-line-cast.ts"),
+  "guard should report cross-line as unknown " + "as escape hatches",
 );
 assert(
   !failed.violations.some((violation) => violation.file === "scripts/type-consumer.ts"),
@@ -85,6 +107,24 @@ fs.writeFileSync(
           code: "ts-escape-hatch",
           reason: "test fixture reviewed baseline",
         },
+        {
+          file: "scripts/ts-nocheck.ts",
+          line: 1,
+          code: "ts-escape-hatch",
+          reason: "test fixture reviewed baseline",
+        },
+        {
+          file: "scripts/generic-any.ts",
+          line: 1,
+          code: "ts-escape-hatch",
+          reason: "test fixture reviewed baseline",
+        },
+        {
+          file: "scripts/cross-line-cast.ts",
+          line: 1,
+          code: "ts-escape-hatch",
+          reason: "test fixture reviewed baseline",
+        },
       ],
     },
     null,
@@ -94,5 +134,36 @@ fs.writeFileSync(
 
 const passed = checkTypeBoundaries({ repoRoot: fixtureRoot, escapeAllowlistPath });
 assert(passed.ok === true, `valid type boundary fixture should pass:\n${passed.violations.map((violation) => violation.message).join("\n")}`);
+
+fs.writeFileSync(
+  escapeAllowlistPath,
+  JSON.stringify(
+    {
+      escapes: [
+        {
+          file: "scripts/mts-escape.mts",
+          line: 1,
+          code: "ts-escape-hatch",
+          reason: "test fixture reviewed baseline",
+        },
+        {
+          file: "scripts/removed-escape.ts",
+          line: 1,
+          code: "ts-escape-hatch",
+          reason: "test fixture reviewed baseline",
+        },
+      ],
+    },
+    null,
+    2,
+  ),
+);
+
+const stale = checkTypeBoundaries({ repoRoot: fixtureRoot, escapeAllowlistPath });
+assert(stale.ok === false, "stale TypeScript escape allowlist entries should fail the gate");
+assert(
+  stale.violations.some((violation) => violation.code === "stale-ts-escape-allowlist" && violation.file === "scripts/removed-escape.ts"),
+  "guard should report stale TypeScript escape allowlist entries",
+);
 
 console.log("Type boundary guard tests passed");

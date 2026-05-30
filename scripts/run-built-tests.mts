@@ -12,9 +12,11 @@ const typescriptVersion = "5.9.3";
 const options = parseArgs(process.argv.slice(2));
 
 fs.rmSync(outDir, { recursive: true, force: true });
+const npmArgs = ["exec", "--yes", "--package", `typescript@${typescriptVersion}`, "--", "tsc", "-p", "tsconfig.tests.json", "--outDir", outDir, "--noCheck"];
+const npmCommand = resolveNpmCommand(npmArgs);
 const emit = spawnSync(
-  "npm",
-  ["exec", "--yes", "--package", `typescript@${typescriptVersion}`, "--", "tsc", "-p", "tsconfig.tests.json", "--outDir", outDir, "--noCheck"],
+  npmCommand.command,
+  npmCommand.args,
   {
     cwd: repoRoot,
     encoding: "utf8",
@@ -66,6 +68,12 @@ function requireValue(argv: string[], index: number, option: string): string {
   const value = argv[index + 1];
   if (!value) throw new Error(`${option} requires a value`);
   return value;
+}
+
+function resolveNpmCommand(npmArgs: string[]): { command: string; args: string[] } {
+  const npmExecPath = process.env.npm_execpath;
+  if (npmExecPath) return { command: process.execPath, args: [npmExecPath, ...npmArgs] };
+  return { command: process.platform === "win32" ? "npm.cmd" : "npm", args: npmArgs };
 }
 
 function linkPackageResources() {
