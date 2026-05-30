@@ -31,6 +31,16 @@ description: >
 - **严肃项目用顶级模型。** 便宜模型的返工成本远高于差价。
 - **强制流程优于口头约定。** 每个步骤都应该是 agent 可自主执行的。
 
+## Product Contract
+
+Full Harness 与后续 Lite Skill 的共享任务语义由 Document Contract Kernel
+约束，公开源位于 `docs-release/architecture/document-contract-kernel/README.md`。
+凡是改变 AGENTS、context、task package、progress、walkthrough、review、
+regression 或 lessons 基础语义的改动，必须按该 contract 同步 Full/Lite
+overlay 与 compatibility matrix；Full-only 的 CLI、Dashboard、Preset、
+generated ledger、Module Registry、lifecycle command、runtime requirement
+不得泄漏进 Lite source。
+
 ---
 
 ## 主执行 SOP

@@ -56,6 +56,7 @@ Not every document is written for the same reader.
 ### Architecture / 架构
 
 - `architecture/overview.md` / `architecture/overview.zh-CN.md` — public architecture overview, including the CLI, dashboard, task lifecycle, migration rails, review gate, and release package surface. 公开架构总览，覆盖 CLI、Dashboard、任务生命周期、迁移轨道、审查门禁和发布包表面。
+- `architecture/document-contract-kernel/README.md` — shared Document Contract Kernel for Full/Lite Skill semantics, compatibility matrix, change classification, Lite forbidden surfaces, and Lite to Full upgrade mapping.
 
 ### Methodology / 方法论
 

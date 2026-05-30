@@ -1,0 +1,26 @@
+# Lines are regex patterns matched case-insensitively against Lite product source.
+# The guard scans Lite source and generated Lite Skill files, not this list.
+literal:npm install
+regex:\bnpx\s+(?:--yes\s+)?coding-agent-harness\b
+regex:\bharness\s+init\b
+regex:\bharness\s+dev\b
+regex:\bharness\s+check\b
+regex:\bharness\s+(?:new-task|task-start|task-log|task-block|task-review|review-confirm|task-complete|lesson-promote|task-list)\b
+literal:harness.yaml
+literal:Dashboard
+literal:Workbench
+literal:Preset
+literal:preset-creator
+regex:generated\s+ledger
+regex:generated\s+governance
+regex:generated\s+indexes?
+literal:Closeout-Index
+literal:Module-Registry
+literal:Module Registry
+regex:lifecycle\s+CLI\s+commands?
+regex:CLI\s+(?:checks?|commands?|operation|automation)
+literal:Node.js version requirement
+regex:node\s+version\s+requirement
+regex:\bTaskRepository\b
+regex:\bTaskOperations\b
+regex:\bHarnessTransaction\b
