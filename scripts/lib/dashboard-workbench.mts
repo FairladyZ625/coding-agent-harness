@@ -6,10 +6,9 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
-import { finalizeDeferredTaskReviewConfirmation } from "./task-lifecycle.mjs";
+import { commitWorkbenchBatch, finalizeWorkbenchReviewConfirmation } from "../application/workbench/review-confirmation.mjs";
 import { createAggregateLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
 import { normalizeTarget } from "./core-shared.mjs";
-import { beginGovernanceSync, commitGovernanceSync, releaseGovernanceSync } from "./governance-sync.mjs";
 import { dashboardWatchRoots } from "./harness-paths.mjs";
 import { createScannerTaskRepository } from "./task-repository.mjs";
 import { createTaskOperations, taskOperationFailurePayload } from "./task-operations.mjs";
@@ -188,7 +187,7 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
           const allowedPaths = uniqueValues(results.filter((result) => result.ok).flatMap((result) => result.audit?.allowedPaths || []));
           const confirmCommit = commitWorkbenchBatch(target, allowedPaths, { operation: "review-complete-bulk", message: "chore: confirm selected reviews" });
           for (const result of results.filter((item) => item.ok)) {
-            finalizeDeferredTaskReviewConfirmation(target.projectRoot, result.taskId, { commitSha: confirmCommit.commitSha });
+            finalizeWorkbenchReviewConfirmation(target, result.taskId, { commitSha: confirmCommit.commitSha });
           }
           const auditCommit = commitWorkbenchBatch(target, allowedPaths, { operation: "review-complete-bulk-audit", message: "chore: record selected review confirmation audit" });
           for (const result of results.filter((item) => item.ok)) {
@@ -370,21 +369,6 @@ function normalizePresetScope(value: unknown): "project" | "user" {
 
 function isDashboardDataRequest(urlPath: string): boolean {
   return urlPath === "/assets/dashboard-data.js" || urlPath.startsWith("/data/");
-}
-
-function commitWorkbenchBatch(target: WorkbenchTarget, allowedPaths: string[], { operation, message }: { operation: string; message: string }) {
-  const paths = uniqueValues(allowedPaths || []);
-  const context = beginGovernanceSync(target, {
-    operation,
-    allowDirtyWorktree: true,
-    allowedRelativePaths: paths,
-    allowDirtyWriteScope: true,
-  });
-  try {
-    return commitGovernanceSync(context, paths, { message });
-  } finally {
-    releaseGovernanceSync(context);
-  }
 }
 
 function uniqueValues(values: string[]): string[] {

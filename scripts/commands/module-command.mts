@@ -6,7 +6,7 @@ import {
   readHarnessModules,
 } from "../lib/harness-core.mjs";
 import { takeRepeatedOptionsFromArgs } from "../lib/command-registry.mjs";
-import { beginGovernanceSync, commitGovernanceSync, governanceRelativePaths, releaseGovernanceSync } from "../lib/governance-sync.mjs";
+import { runModuleGovernanceTransaction } from "../application/module/module-governance.mjs";
 
 type FlagReader = (name: string, fallback?: boolean) => boolean;
 type OptionReader = (name: string, fallback?: string) => string;
@@ -67,21 +67,17 @@ export function runModuleCommand({ args, takeFlag, takeOption, targetArg }: Comm
     };
     const target = normalizeTarget(targetArg());
     const planned = prepareModuleRegistration(target, moduleKey, input, { dryRun: true });
-    const context = beginGovernanceSync(target, {
-      operation: `module register ${moduleKey}`,
-      dryRun,
-      allowDirtyWorktree: true,
-      allowedRelativePaths: governanceRelativePaths(planned.changes),
-    });
     try {
-      const result = prepareModuleRegistration(target, moduleKey, input, { dryRun });
-      const commit = commitGovernanceSync(context, governanceRelativePaths(result.changes), { message: `chore(harness): register module ${result.moduleKey}` });
-      console.log(JSON.stringify({ ...result, governance: { commit } }, null, 2));
+      const result = runModuleGovernanceTransaction(target, planned.changes, {
+        operation: `module register ${moduleKey}`,
+        dryRun,
+        message: `chore(harness): register module ${moduleKey}`,
+        run: () => prepareModuleRegistration(target, moduleKey, input, { dryRun }),
+      });
+      console.log(JSON.stringify(result, null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
-    } finally {
-      releaseGovernanceSync(context);
     }
     return;
   }
@@ -95,21 +91,17 @@ export function runModuleCommand({ args, takeFlag, takeOption, targetArg }: Comm
     }
     const target = normalizeTarget(targetArg());
     const planned = prepareModuleUnregister(target, moduleKey, { dryRun: true });
-    const context = beginGovernanceSync(target, {
-      operation: `module unregister ${moduleKey}`,
-      dryRun,
-      allowDirtyWorktree: true,
-      allowedRelativePaths: governanceRelativePaths(planned.changes),
-    });
     try {
-      const result = prepareModuleUnregister(target, moduleKey, { dryRun });
-      const commit = commitGovernanceSync(context, governanceRelativePaths(result.changes), { message: `chore(harness): unregister module ${result.moduleKey}` });
-      console.log(JSON.stringify({ ...result, governance: { commit } }, null, 2));
+      const result = runModuleGovernanceTransaction(target, planned.changes, {
+        operation: `module unregister ${moduleKey}`,
+        dryRun,
+        message: `chore(harness): unregister module ${moduleKey}`,
+        run: () => prepareModuleUnregister(target, moduleKey, { dryRun }),
+      });
+      console.log(JSON.stringify(result, null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
-    } finally {
-      releaseGovernanceSync(context);
     }
     return;
   }
@@ -127,23 +119,22 @@ export function runModuleCommand({ args, takeFlag, takeOption, targetArg }: Comm
     const modules = readHarnessModules(target);
     const keys = all ? Object.keys(modules.items || {}).sort() : [moduleKey || ""];
     const plannedChanges = keys.flatMap((key) => prepareModuleScaffold(target, key, { dryRun: true, locale }).changes);
-    const context = beginGovernanceSync(target, {
-      operation: all ? "module scaffold --all" : `module scaffold ${moduleKey}`,
-      dryRun,
-      allowDirtyWorktree: true,
-      allowedRelativePaths: governanceRelativePaths(plannedChanges),
-      allowDirtyWriteScope: true,
-    });
     try {
-      const results = keys.map((key) => prepareModuleScaffold(target, key, { dryRun, locale }));
-      const changes = results.flatMap((result) => result.changes);
-      const commit = commitGovernanceSync(context, governanceRelativePaths(changes), { message: all ? "chore(harness): scaffold registered modules" : `chore(harness): scaffold module ${moduleKey}` });
-      console.log(JSON.stringify({ modules: results, changes, governance: { commit } }, null, 2));
+      const result = runModuleGovernanceTransaction(target, plannedChanges, {
+        operation: all ? "module scaffold --all" : `module scaffold ${moduleKey}`,
+        dryRun,
+        message: all ? "chore(harness): scaffold registered modules" : `chore(harness): scaffold module ${moduleKey}`,
+        allowDirtyWriteScope: true,
+        run: () => {
+          const modules = keys.map((key) => prepareModuleScaffold(target, key, { dryRun, locale }));
+          const changes = modules.flatMap((item) => item.changes);
+          return { modules, changes };
+        },
+      });
+      console.log(JSON.stringify(result, null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
-    } finally {
-      releaseGovernanceSync(context);
     }
     return;
   }

@@ -55,6 +55,7 @@ type ImportGraph = {
     cycleNodes: number;
     runtimeMjsToTsEdges: number;
     typesValueImports: number;
+    architectureBoundaryViolations: number;
     binReachableFiles: number;
     harnessCoreBarrelTargets: number;
   };
@@ -63,6 +64,7 @@ type ImportGraph = {
   cycles: string[][];
   runtimeMjsToTsEdges: ImportGraphViolation[];
   typesValueImports: ImportGraphViolation[];
+  architectureBoundaryViolations: ImportGraphViolation[];
 };
 
 type ImportGraphOptions = {
@@ -158,6 +160,7 @@ export function buildImportGraph({ repoRoot = defaultRepoRoot }: ImportGraphOpti
   const cycles = findCycles(nodesByPath);
   const cycleNodeSet = new Set(cycles.flat());
   assignLayers(nodesByPath, cycleNodeSet);
+  const architectureBoundaryViolations = findArchitectureBoundaryViolations(nodesByPath);
 
   const nodes = [...nodesByPath.values()].sort((left, right) => left.path.localeCompare(right.path));
   const localEdgeCount = nodes.reduce((count, node) => count + node.imports.filter((imported) => imported.target).length, 0);
@@ -177,6 +180,7 @@ export function buildImportGraph({ repoRoot = defaultRepoRoot }: ImportGraphOpti
       cycleNodes: cycleNodeSet.size,
       runtimeMjsToTsEdges: runtimeMjsToTsEdges.length,
       typesValueImports: typesValueImports.length,
+      architectureBoundaryViolations: architectureBoundaryViolations.length,
       binReachableFiles: nodes.filter((node) => node.reachableFromBin).length,
       harnessCoreBarrelTargets: barrelTargets.length,
     },
@@ -185,6 +189,7 @@ export function buildImportGraph({ repoRoot = defaultRepoRoot }: ImportGraphOpti
     cycles,
     runtimeMjsToTsEdges,
     typesValueImports,
+    architectureBoundaryViolations,
   };
 }
 
@@ -207,6 +212,9 @@ export function checkImportGraph({ repoRoot = defaultRepoRoot, expectNodes, expe
   }
   for (const edge of graph.typesValueImports) {
     violations.push({ ...edge, code: "types-value-import" });
+  }
+  for (const edge of graph.architectureBoundaryViolations) {
+    violations.push(edge);
   }
 
   const barrels = graph.nodes.filter((node) => node.path === "scripts/lib/harness-core.mts" || node.path === "scripts/lib/harness-core.mjs");
@@ -464,6 +472,89 @@ function markBarrelReachable(nodesByPath: Map<string, ImportGraphNode>, barrelPa
   }
 }
 
+function findArchitectureBoundaryViolations(nodesByPath: Map<string, ImportGraphNode>): ImportGraphViolation[] {
+  const violations: ImportGraphViolation[] = [];
+  for (const node of nodesByPath.values()) {
+    for (const edge of node.imports) {
+      if (!edge.target) continue;
+      const code = architectureBoundaryCode(node.path, edge.target);
+      if (!code) continue;
+      violations.push({
+        code,
+        file: node.path,
+        target: edge.target,
+        specifier: edge.specifier,
+        message: architectureBoundaryMessage(code, node.path, edge.target),
+      });
+    }
+  }
+  return violations.sort((left, right) => `${left.file}:${left.code}:${left.target}`.localeCompare(`${right.file}:${right.code}:${right.target}`));
+}
+
+function architectureBoundaryCode(file: string, target: string): string {
+  if (file.startsWith("scripts/infrastructure/kernel/") && !target.startsWith("scripts/infrastructure/kernel/")) {
+    return "kernel-imports-outer-layer";
+  }
+  if (file.startsWith("scripts/domain/") && (target.startsWith("scripts/adapters/") || target.startsWith("scripts/application/"))) {
+    return "domain-imports-outer-layer";
+  }
+  if (file.startsWith("scripts/domain/") && target.startsWith("scripts/infrastructure/") && !target.startsWith("scripts/infrastructure/kernel/")) {
+    return "domain-imports-infrastructure";
+  }
+  if (file.startsWith("scripts/application/") && target.startsWith("scripts/adapters/")) {
+    return "application-imports-adapter";
+  }
+  if (file.startsWith("scripts/adapters/") && isTaskSourceOfTruthInternal(target)) {
+    return "adapter-imports-task-internal";
+  }
+  if (file.startsWith("scripts/commands/") && isTaskSourceOfTruthInternal(target)) {
+    return "command-imports-task-internal";
+  }
+  if (file === "scripts/lib/dashboard-workbench.mts" && isTaskSourceOfTruthInternal(target)) {
+    return "dashboard-workbench-imports-task-internal";
+  }
+  if (file === "scripts/lib/dashboard-data.mts" && isTaskSourceOfTruthInternal(target)) {
+    return "dashboard-data-imports-task-internal";
+  }
+  if (file === "scripts/lib/governance-index-generator.mts" && target === "scripts/lib/task-scanner.mts") {
+    return "generated-governance-imports-task-scanner";
+  }
+  if (isPresetRuntimePath(file) && target === "scripts/lib/governance-sync.mts") {
+    return "preset-runtime-imports-governance-sync";
+  }
+  return "";
+}
+
+function architectureBoundaryMessage(code: string, file: string, target: string): string {
+  if (code === "kernel-imports-outer-layer") return `${file} is infrastructure/kernel and must not import outer layer module ${target}`;
+  if (code === "domain-imports-outer-layer") return `${file} is domain code and must not import outer layer module ${target}`;
+  if (code === "domain-imports-infrastructure") return `${file} is domain code and may only import infrastructure/kernel, not ${target}`;
+  if (code === "application-imports-adapter") return `${file} is application code and must not import adapter module ${target}`;
+  if (code === "adapter-imports-task-internal") return `${file} adapter must go through application/repository boundaries, not task internal ${target}`;
+  if (code === "command-imports-task-internal") return `${file} command adapter must go through application/repository boundaries, not task internal ${target}`;
+  if (code === "dashboard-workbench-imports-task-internal") return `${file} must go through application workbench boundaries, not task internal ${target}`;
+  if (code === "dashboard-data-imports-task-internal") return `${file} must consume Task projection/repository outputs, not task internal ${target}`;
+  if (code === "generated-governance-imports-task-scanner") return `${file} must consume TaskRepository/projection records, not scanner internals ${target}`;
+  if (code === "preset-runtime-imports-governance-sync") return `${file} must use HarnessTransaction/OperationPlan boundaries, not governance-sync directly`;
+  return `${file} violates architecture boundary by importing ${target}`;
+}
+
+function isTaskSourceOfTruthInternal(target: string): boolean {
+  return [
+    "scripts/lib/task-scanner.mts",
+    "scripts/lib/task-lifecycle.mts",
+    "scripts/lib/governance-sync.mts",
+  ].includes(target);
+}
+
+function isPresetRuntimePath(file: string): boolean {
+  return [
+    "scripts/lib/preset-runner.mts",
+    "scripts/lib/preset-engine.mts",
+    "scripts/lib/preset-registry.mts",
+  ].includes(file) || file.startsWith("scripts/domain/preset/");
+}
+
 function findCycles(nodesByPath: Map<string, ImportGraphNode>): string[][] {
   const indexByPath = new Map<string, number>();
   const lowlinkByPath = new Map<string, number>();
@@ -606,6 +697,7 @@ function writeOutput({ graph, args }: { graph: ImportGraph; args: CliArgs }): vo
       `cycles=${graph.summary.cycleNodes}`,
       `mjsToTs=${graph.summary.runtimeMjsToTsEdges}`,
       `typesValueImports=${graph.summary.typesValueImports}`,
+      `architectureBoundaries=${graph.summary.architectureBoundaryViolations}`,
     ].join(", "),
   );
 }
