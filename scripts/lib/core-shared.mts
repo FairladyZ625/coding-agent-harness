@@ -2,7 +2,16 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { localDate, nowTimestamp, todayDate, datePrefix } from "../infrastructure/kernel/date-utils.mjs";
+import { readFileSafe, readJsonSafe, walkFiles } from "../infrastructure/kernel/file-system.mjs";
+import { prefixedPath, toPosix } from "../infrastructure/kernel/path-utils.mjs";
+import { sanitizeDeep, sanitizeText, slug, titleFromMarkdown } from "../infrastructure/kernel/text-utils.mjs";
 import { resolveHarnessPaths } from "./harness-paths.mjs";
+
+export { localDate, nowTimestamp, todayDate, datePrefix } from "../infrastructure/kernel/date-utils.mjs";
+export { readFileSafe, readJsonSafe, walkFiles } from "../infrastructure/kernel/file-system.mjs";
+export { prefixedPath, toPosix } from "../infrastructure/kernel/path-utils.mjs";
+export { sanitizeDeep, sanitizeText, slug, titleFromMarkdown } from "../infrastructure/kernel/text-utils.mjs";
 
 type HarnessTarget = {
   projectRoot: string;
@@ -107,35 +116,12 @@ export function projectPresetRoot(targetInput = "."): string {
   return path.join(normalizeTarget(targetInput).projectRoot, ".coding-agent-harness/presets");
 }
 
-export function toPosix(value: string): string {
-  return value.split(path.sep).join("/");
-}
-
 export function exists(target: HarnessTarget, relativePath: string): boolean {
   return fs.existsSync(path.join(target.projectRoot, relativePath));
 }
 
 export function existsInDocs(target: HarnessTarget, relativePath: string): boolean {
   return fs.existsSync(path.join(target.docsRoot, relativePath));
-}
-
-export function readFileSafe(filePath: string): string {
-  try {
-    return fs.readFileSync(filePath, "utf8");
-  } catch {
-    return "";
-  }
-}
-
-export function readJsonSafe(filePath: string, fallback: null, options?: { onError?: (error: unknown) => void }): unknown | null;
-export function readJsonSafe<TValue>(filePath: string, fallback: TValue, options?: { onError?: (error: unknown) => void }): TValue;
-export function readJsonSafe(filePath: string, fallback: unknown = null, { onError }: { onError?: (error: unknown) => void } = {}): unknown {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, "utf8"));
-  } catch (error) {
-    if (typeof onError === "function") onError(error);
-    return fallback;
-  }
 }
 
 export function readBundledTemplate(source: string): string {
@@ -212,27 +198,6 @@ function getTemplateValue(context: Record<string, unknown>, key: string): unknow
   ), context);
 }
 
-export function walkFiles(root: string, options: { dirFilter?: (entry: string, fullPath: string) => boolean } = {}): string[] {
-  const results: string[] = [];
-  if (!fs.existsSync(root)) return results;
-  const dirFilter = typeof options.dirFilter === "function" ? options.dirFilter : () => true;
-  function walk(dir: string): void {
-    for (const entry of fs.readdirSync(dir)) {
-      const full = path.join(dir, entry);
-      const stat = fs.statSync(full);
-      if (stat.isDirectory()) {
-        if ([".git", "node_modules", "tmp"].includes(entry)) continue;
-        if (!dirFilter(entry, full)) continue;
-        walk(full);
-      } else {
-        results.push(full);
-      }
-    }
-  }
-  walk(root);
-  return results;
-}
-
 export function isArchivedHarnessPath(filePath: string): boolean {
   const normalized = `/${toPosix(filePath)}/`;
   return normalized.includes("/_archive/") || normalized.includes("/governance/archive/");
@@ -256,65 +221,9 @@ export function inferProjectLocale(target: HarnessTarget, fallback = "en-US"): s
   return normalizeLocale(fallback);
 }
 
-export function slug(value: unknown): string {
-  return String(value || "item")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80) || "item";
-}
-
-export function prefixedPath(target: HarnessTarget, filePath: string): string {
-  return `TARGET:${toPosix(path.relative(target.projectRoot, filePath))}`;
-}
-
-export function sanitizeText(value: unknown): string {
-  return String(value ?? "")
-    .replace(/file:\/\/\/[^\s)"'`<>\]]+/g, "LOCAL_FILE_URL_REDACTED")
-    .replaceAll("file://", "LOCAL_FILE_URL_REDACTED")
-    .replace(/\/Users\/[^/\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
-    .replace(/\/Volumes\/[^\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
-    .replace(/\/(?:private\/)?tmp\/[^\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
-    .replace(/\/var\/folders\/[^\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
-    .replace(/\/home\/[^/\s)"'`<>\]]+(?:\/[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED")
-    .replace(/[A-Za-z]:\\[^\s)"'`<>\]]+(?:\\[^\s)"'`<>\]]*)*/g, "LOCAL_PATH_REDACTED");
-}
-
-export function sanitizeDeep(value: unknown): unknown {
-  if (typeof value === "string") return sanitizeText(value);
-  if (Array.isArray(value)) return value.map(sanitizeDeep);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, sanitizeDeep(entry)]));
-  }
-  return value;
-}
-
-export function titleFromMarkdown(content: string, fallback: string): string {
-  const match = content.match(/^#\s+(.+)$/m);
-  return match ? match[1].trim() : fallback;
-}
-
 export function localizedTemplateSource(source: string, locale?: string): string {
   const localeSource = normalizeLocale(locale) === "zh-CN" ? source.replace(/^templates\//, "templates-zh-CN/") : source;
   return fs.existsSync(path.join(repoRoot, localeSource)) ? localeSource : source;
-}
-
-export function todayDate() {
-  return localDate();
-}
-
-export function localDate() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-export const datePrefix = /^\d{4}-\d{2}-\d{2}-/;
-
-export function nowTimestamp() {
-  return new Date().toISOString().replace("T", " ").slice(0, 16);
 }
 
 export function normalizeTaskId(value: unknown): string {

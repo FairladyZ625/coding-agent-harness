@@ -9,8 +9,8 @@ import {
   toPosix,
 } from "./core-shared.mjs";
 import { splitMarkdownRow } from "./markdown-utils.mjs";
-import { collectTasks } from "./task-scanner.mjs";
 import { buildTaskIndex } from "./task-index.mjs";
+import { createScannerTaskRepository } from "./task-repository.mjs";
 import {
   beginGovernanceSync,
   commitGovernanceSync,
@@ -19,13 +19,15 @@ import {
 } from "./governance-sync.mjs";
 import { markdownCell } from "./task-lifecycle/text-utils.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
+import type { TaskLifecycleProjection } from "./task-semantic-projection.mjs";
+import type { TaskRecord } from "./task-repository.mjs";
 
 type GovernanceTarget = ReturnType<typeof normalizeTarget> & {
   projectRoot: string;
   harness: ResolvedHarnessPaths;
 };
 
-type GovernanceTask = ReturnType<typeof collectTasks>[number];
+type GovernanceTask = TaskRecord;
 
 type GovernanceSurface = {
   surface: string;
@@ -52,7 +54,7 @@ export function rebuildGovernanceIndexes(targetInput: string, { dryRun = false, 
   const effectiveApply = Boolean(apply && !dryRun);
   const context = beginGovernanceSync(target, { operation: "governance rebuild", dryRun: !effectiveApply });
   try {
-    const tasks = collectTasks(target)
+    const tasks = createScannerTaskRepository(target).list({ includeArchived: true })
       .filter((task) => task.deletionState !== "deleted")
       .sort((a, b) => String(a.id).localeCompare(String(b.id)));
     const surfaces: RebuildSurface[] = [...governanceSurfaces(target, tasks), ...taskIndexSurfaces(target, tasks), ...moduleGeneratedIndexSurfaces(target, tasks)];
@@ -135,9 +137,9 @@ function taskIndexSurfaces(target: GovernanceTarget, tasks: GovernanceTask[]): G
   const taskIndexRows = tasks.map((task) => [
     task.taskKey || task.id,
     task.title || task.shortId || task.id,
-    task.state,
-    task.lifecycleState,
-    task.reviewStatus,
+    taskLifecycleProjection(task).state,
+    taskLifecycleProjection(task).lifecycleState,
+    taskLifecycleProjection(task).reviewStatus,
     task.closeoutStatus,
     task.walkthroughPath || "pending",
   ]);
@@ -161,9 +163,9 @@ function taskIndexSurfaces(target: GovernanceTarget, tasks: GovernanceTask[]): G
     const closeoutRows = tasks.map((task) => [
       `CO-${taskSlug(task)}`,
       task.taskKey || task.id,
-      task.closeoutStatus || "missing",
+      taskLifecycleProjection(task).closeoutStatus || "missing",
       stripTarget(task.walkthroughPath) || "pending",
-      task.reviewStatus || "pending",
+      taskLifecycleProjection(task).reviewStatus || "pending",
       task.lessonCandidateDecisionComplete ? "checked" : (task.lessonCandidateStatus || "pending"),
       residual(task),
       todayDate(),
@@ -233,10 +235,10 @@ function ledgerRow(task: GovernanceTask): string[] {
     scope,
     moduleKey,
     task.title || task.shortId || task.id,
-    mapLedgerState(task.state),
+    mapLedgerState(taskLifecycleProjection(task).state),
     Array.isArray(task.taskQueues) && task.taskQueues.length ? task.taskQueues.join(",") : "none",
     plan,
-    task.reviewStatus === "confirmed" ? stripTarget(task.reviewPath) : (task.reviewStatus || "pending"),
+    taskLifecycleProjection(task).reviewStatus === "confirmed" ? stripTarget(task.reviewPath) : (taskLifecycleProjection(task).reviewStatus || "pending"),
     task.lessonCandidateDecisionComplete ? "checked" : (task.lessonCandidateStatus || "pending"),
     task.walkthroughPath ? stripTarget(task.walkthroughPath) : (task.closeoutStatus || "pending"),
     residual(task),
@@ -260,6 +262,23 @@ function taskSlug(task: GovernanceTask): string {
 
 function stripTarget(value: unknown): string {
   return String(value || "").replace(/^TARGET:/, "");
+}
+
+function taskLifecycleProjection(task: GovernanceTask): TaskLifecycleProjection {
+  const projection = (task as { taskLifecycleProjection?: TaskLifecycleProjection }).taskLifecycleProjection;
+  if (projection && typeof projection === "object") return projection;
+  return {
+    state: String(task.state || "unknown"),
+    lifecycleState: String(task.lifecycleState || "unknown"),
+    reviewStatus: String(task.reviewStatus || "missing"),
+    reviewQueueState: String(task.reviewQueueState || "not-in-queue"),
+    closeoutStatus: String(task.closeoutStatus || "missing"),
+    taskQueues: Array.isArray(task.taskQueues) ? task.taskQueues : ["active"],
+    materialsReady: task.materialsReady === true,
+    reviewSubmitted: task.reviewSubmitted === true,
+    lessonCandidateDecisionComplete: task.lessonCandidateDecisionComplete === true,
+    deletionState: String(task.deletionState || "active"),
+  };
 }
 
 function mapLedgerState(state: unknown): string {
