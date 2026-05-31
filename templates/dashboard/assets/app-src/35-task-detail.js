@@ -1,3 +1,21 @@
+function taskLifecycleProjection(task) {
+  return task?.taskLifecycleProjection || task?.semanticProjection?.taskLifecycleProjection || {};
+}
+
+function taskReviewProjection(task) {
+  return task?.reviewWorkbenchQueueView || task?.semanticProjection?.reviewWorkbenchQueueView || {};
+}
+
+function taskStateValue(task) {
+  const projection = taskLifecycleProjection(task);
+  return projection.state || task?.state || "unknown";
+}
+
+function taskQueueValues(task) {
+  const projection = taskLifecycleProjection(task);
+  return Array.isArray(projection.taskQueues) ? projection.taskQueues : Array.isArray(task?.taskQueues) ? task.taskQueues : [];
+}
+
 function taskDetail(route) {
   const taskId = route.id;
   const task = (bundle.status?.tasks || []).find((item) => item.id === taskId);
@@ -31,18 +49,20 @@ function taskDetail(route) {
 }
 
 function taskStateSummary(task) {
+  const lifecycle = taskLifecycleProjection(task);
+  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : task.taskQueues || [];
   return `<section class="task-state-summary">
     <div>
       <span>${t("legacyState")}</span>
-      ${tag(task.state)}
+      ${tag(lifecycle.state || task.state)}
     </div>
     <div>
       <span>${t("lifecycleState")}</span>
-      ${tag(task.lifecycleState || "unknown")}
+      ${tag(lifecycle.lifecycleState || task.lifecycleState || "unknown")}
     </div>
     <div>
       <span>${t("reviewStatus")}</span>
-      ${tag(task.reviewStatus || "missing")}
+      ${tag(lifecycle.reviewStatus || task.reviewStatus || "missing")}
     </div>
     <div>
       <span>${t("sedimentationStatus")}</span>
@@ -50,11 +70,11 @@ function taskStateSummary(task) {
     </div>
     <div>
       <span>${t("closeoutStatus")}</span>
-      ${tag(task.closeoutStatus || "missing")}
+      ${tag(lifecycle.closeoutStatus || task.closeoutStatus || "missing")}
     </div>
     <div>
       <span>${t("lifecycleQueues")}</span>
-      ${(task.taskQueues || []).map(tag).join("") || tag("active")}
+      ${queues.map(tag).join("") || tag("active")}
     </div>
     ${taskQueueReasonSummary(task)}
   </section>`;
@@ -166,7 +186,7 @@ function orderedTaskDocuments(task) {
 
 function taskDocumentPriority(task) {
   const stateName = task?.state || "";
-  const lifecycle = task?.lifecycleState || "";
+  const lifecycle = taskLifecycleProjection(task)?.lifecycleState || task?.lifecycleState || "";
   if (stateName === "review" || ["in_review", "review-blocked"].includes(lifecycle)) {
     return ["walkthrough", "lessonCandidates", "review", "findings", "visualMap", "progress", "brief", "taskPlan", "strategy", "longRunningContract", "legacyRoadmap", "references", "artifacts"];
   }
@@ -224,11 +244,12 @@ function openFindings(task) {
 
 function reviewActionPanel(task, { mode = "summary" } = {}) {
   if (!isTaskInReviewQueue(task)) return "";
-  const blocking = task.reviewStatus === "blocked-open-findings" || (task.risks || []).some((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease));
-  const confirmed = task.reviewStatus === "confirmed";
+  const lifecycle = taskLifecycleProjection(task);
+  const reviewView = taskReviewWorkbenchQueueView(task);
+  const blocking = reviewView.blocked === true || (task.risks || []).some((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease));
+  const confirmed = reviewView.confirmed === true || lifecycle.reviewStatus === "confirmed";
   const readyForCloseout = taskReadyForCloseout(task);
   const hasLessonWork = taskHasPendingLessonWork(task);
-  const candidateBlocked = task.budget !== "simple" && !task.lessonCandidateDecisionComplete;
   const candidateStatus = task.lessonCandidateStatus || "missing";
   if (mode !== "workspace") {
     const summaryMessage = confirmed && hasLessonWork ? t("reviewConfirmedLessonPending") : confirmed && readyForCloseout ? t("reviewConfirmedCloseoutReady") : confirmed ? t("reviewAlreadyConfirmed") : t("reviewOpenInWorkspace");
@@ -264,9 +285,12 @@ function reviewActionPanel(task, { mode = "summary" } = {}) {
     </section>`;
   }
   const missingWalkthrough = task.budget !== "simple" && !task.walkthroughPath;
+  const candidateBlocked = task.budget !== "simple" && !task.lessonCandidateDecisionComplete;
+  const projectionOwnsConfirmability = typeof reviewView.humanConfirmable === "boolean";
   const queueBlocked = !taskCanBeHumanConfirmed(task);
-  const disabled = blocking || missingWalkthrough || candidateBlocked || queueBlocked;
-  const message = missingWalkthrough ? t("reviewWalkthroughRequired") : blocking ? t("reviewBlocked") : candidateBlocked ? t("reviewCandidateDecisionRequired") : queueBlocked ? t("reviewQueueRequired") : t("reviewWorkbenchReady");
+  const rawMaterialBlocked = projectionOwnsConfirmability ? false : missingWalkthrough || candidateBlocked;
+  const disabled = blocking || rawMaterialBlocked || queueBlocked;
+  const message = blocking ? t("reviewBlocked") : queueBlocked ? t("reviewQueueRequired") : !projectionOwnsConfirmability && missingWalkthrough ? t("reviewWalkthroughRequired") : !projectionOwnsConfirmability && candidateBlocked ? t("reviewCandidateDecisionRequired") : t("reviewWorkbenchReady");
   return `<section class="side-panel review-actions">
     <h3>${t("reviewActions")}</h3>
     <p>${escapeHtml(message)}</p>
@@ -293,13 +317,16 @@ function isTaskInReviewQueue(task) {
 function taskCanBeHumanConfirmed(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.humanConfirmable === "boolean") return view.humanConfirmable;
-  return task?.reviewQueueState === "ready-to-confirm" && Array.isArray(task?.taskQueues) && task.taskQueues.includes("review");
+  const lifecycle = taskLifecycleProjection(task);
+  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : Array.isArray(task?.taskQueues) ? task.taskQueues : [];
+  return (lifecycle.reviewQueueState || task?.reviewQueueState) === "ready-to-confirm" && queues.includes("review");
 }
 
 function taskHasPendingLessonWork(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.hasPendingLessonWork === "boolean") return view.hasPendingLessonWork;
-  const queues = Array.isArray(task?.taskQueues) ? task.taskQueues : [];
+  const lifecycle = taskLifecycleProjection(task);
+  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : Array.isArray(task?.taskQueues) ? task.taskQueues : [];
   const candidates = Array.isArray(task?.lessonCandidateRows) ? task.lessonCandidateRows : [];
   return queues.includes("lessons")
     || task?.lessonCandidateStatus === "needs-promotion"
@@ -310,7 +337,8 @@ function taskHasPendingLessonWork(task) {
 function taskReadyForCloseout(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.readyForCloseout === "boolean") return view.readyForCloseout;
-  if (!task || task.reviewStatus !== "confirmed" || task.closeoutStatus === "closed") return false;
+  const lifecycle = taskLifecycleProjection(task);
+  if (!task || (lifecycle.reviewStatus || task.reviewStatus) !== "confirmed" || (lifecycle.closeoutStatus || task.closeoutStatus) === "closed") return false;
   if (taskHasPendingLessonWork(task)) return false;
   return ["no-candidate-accepted", "promoted", "rejected"].includes(String(task.lessonCandidateStatus || ""));
 }

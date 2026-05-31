@@ -16,6 +16,7 @@ type DashboardDocument = {
 };
 
 type DashboardBundleSnapshot = {
+  schemaVersion?: string;
   status: {
     tasks: unknown[];
     git: { dirty?: boolean };
@@ -61,6 +62,7 @@ fs.writeFileSync(
   "# Broken Review\n\nThis intentionally lacks required review sections.\n",
 );
 const bundle = buildDashboardBundle(invalidReviewTarget) as DashboardBundleSnapshot;
+assert(bundle.schemaVersion === "dashboard-bundle/v1", "dashboard bundle should expose explicit schema version");
 assert(bundle.status.tasks.length === 1, "dashboard bundle should still include task data");
 assert(bundle.status.checkState.validationMode === "data-only", "dashboard should use status-builder data-only status");
 assert(bundle.status.checkState.failures === 0, "dashboard data collection should not run validator failures");

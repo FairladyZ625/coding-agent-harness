@@ -29,6 +29,10 @@ type DashboardGraph = {
   nodes: Array<{ id: string; type?: string; kind?: unknown }>;
   edges: Array<{ from: string; to: string }>;
 };
+type DashboardGeneratedBundle = {
+  schemaVersion: string;
+  status: DashboardStatus;
+};
 type PresetLayer = {
   id: string;
   key?: string;
@@ -38,7 +42,7 @@ type PresetLayer = {
   purpose?: string;
   compatibleBudgets?: unknown[];
   manifestPath?: string;
-  taskKind?: string;
+  taskKind?: unknown;
   inputCount?: number;
   referenceCount?: number;
   artifactCount?: number;
@@ -156,6 +160,12 @@ assert(folderIndex.includes("rel=\"icon\""), "dashboard index should suppress fa
 const folderApp = fs.readFileSync(path.join(dashboardDir, "assets/app.js"), "utf8");
 assert(folderApp.includes("snapshotNotValidated"), "dashboard data-only UI should label status as snapshot-only");
 const folderStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8")) as DashboardStatus;
+const folderDataScript = fs.readFileSync(path.join(dashboardDir, "assets/dashboard-data.js"), "utf8");
+const folderBundleMatch = folderDataScript.match(/window\.__HARNESS_DASHBOARD__\s*=\s*([\s\S]*);\s*$/);
+assert(folderBundleMatch, "dashboard-data.js should contain a generated dashboard bundle");
+const folderBundle = JSON.parse(folderBundleMatch[1]) as DashboardGeneratedBundle;
+assert(folderBundle.schemaVersion === "dashboard-bundle/v1", "dashboard bundle should expose explicit schemaVersion");
+assert(folderBundle.status.schemaVersion === 2, "dashboard bundle status should preserve schemaVersion 2");
 assert(!folderStatus.tasks[0].module, "dashboard status should keep project-root tasks out of explicit module ownership");
 assert(folderStatus.tasks[0].inferredModule === "base", "dashboard status should expose base for project-root tasks");
 assert(folderStatus.tasks[0].classificationSource === "structure", "dashboard status should mark project-root base classification as structure-derived");
@@ -229,8 +239,13 @@ assert(dashboardApp.includes("data-copy-task-name"), "dashboard missing task nam
 assert(dashboardApp.includes("copyTaskNameSuccess"), "dashboard missing task name copy success feedback");
 assert(dashboardApp.includes("copyTaskNameFailed"), "dashboard missing task name copy failure feedback");
 assert(dashboardApp.includes("review-copy-task-name"), "review workspace missing task name copy control");
+assert(dashboardApp.includes("dashboardBundleSchemaVersion"), "dashboard startup should validate dashboard bundle schema compatibility");
+assert(dashboardApp.includes("bundleSchemaCompatible"), "dashboard startup should expose schema compatibility gating");
+assert(dashboardApp.includes("function taskLifecycleProjection("), "dashboard should use task lifecycle projection helper");
+assert(dashboardApp.includes("function taskLifecycleDisplay("), "dashboard list/module views should render lifecycle through projection");
 assert(dashboardApp.includes("taskCanBeHumanConfirmed("), "dashboard missing canonical human confirmation gate helper");
-assert(dashboardApp.includes("task.taskQueues.includes(\"review\")"), "dashboard human confirmation gate must require canonical Review queue membership");
+assert(dashboardApp.includes("taskReviewWorkbenchQueueView(task)"), "dashboard human confirmation gate should consume review workbench projection");
+assert(dashboardApp.includes("queues.includes(\"review\")"), "dashboard human confirmation fallback must require canonical Review queue membership");
 assert(!dashboardApp.includes("activeTasks().slice(0, 8)"), "dashboard should not hard-cap active briefs at 8 items");
 assert(dashboardApp.includes("fullCutoverEligible"), "dashboard missing full cutover summary field");
 assert(dashboardApp.includes("legacyVisualOnlyCount"), "dashboard missing legacy visual-only summary field");

@@ -1,4 +1,18 @@
-const bundle = window.__HARNESS_DASHBOARD__ || {};
+const dashboardBundleSchemaVersion = "dashboard-bundle/v1";
+const rawBundle = window.__HARNESS_DASHBOARD__ || {};
+const bundleSchemaCompatible = !rawBundle.schemaVersion || rawBundle.schemaVersion === dashboardBundleSchemaVersion;
+const bundle = bundleSchemaCompatible ? rawBundle : {
+  schemaVersion: rawBundle.schemaVersion || "missing",
+  schemaError: `Unsupported dashboard bundle schema: ${rawBundle.schemaVersion || "missing"}`,
+  status: { tasks: [], summary: {}, checkState: { details: { warnings: [], failures: [] } } },
+  tables: { tables: [] },
+  documents: { documents: [] },
+  graph: { nodes: [], edges: [] },
+  modules: [],
+  moduleSummary: {},
+  adoption: { warnings: [], summary: {} },
+  presetCatalog: { presets: [], roots: [], summary: {} },
+};
 const defaultLocale = window.__HARNESS_LOCALE__ || ((navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en");
 let locale = localStorage.getItem("harness.locale") || defaultLocale;
 if (!window.HarnessI18n?.[locale]) locale = "en";
@@ -407,6 +421,15 @@ function stateToColorVar(state) {
   return map[state] || "--muted";
 }
 
+function taskLifecycleDisplay(task) {
+  const projection = taskLifecycleProjection(task);
+  return [
+    projection.lifecycleState || task.lifecycleState,
+    projection.reviewStatus || task.reviewStatus,
+    projection.closeoutStatus || task.closeoutStatus,
+  ].filter(Boolean).map((item) => label(item)).join(" · ");
+}
+
 function taskStatRows(tasks) {
   return [
     { state: "in_progress", label: t("statInProgress"), className: "in-progress" },
@@ -418,7 +441,7 @@ function taskStatRows(tasks) {
     { state: "unknown", label: label("unknown"), className: "unknown" },
   ].map((row) => ({
     ...row,
-    count: tasks.filter((task) => task.state === row.state).length,
+    count: tasks.filter((task) => taskStateValue(task) === row.state).length,
     colorVar: stateToColorVar(row.state),
   })).filter((row) => row.count > 0);
 }
@@ -620,16 +643,17 @@ function taskRow(task) {
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
   const moduleLabel = taskModuleLabel(task);
-  const lifecycle = [task.lifecycleState, task.reviewStatus, task.closeoutStatus].filter(Boolean).map((item) => label(item)).join(" · ");
+  const lifecycle = taskLifecycleDisplay(task);
+  const stateValue = taskStateValue(task);
 
-  return `<article class="task-row-card" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(task.state)})">
+  return `<article class="task-row-card" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(stateValue)})">
     <div class="row-accent-bar"></div>
     <div class="row-main">
       <strong>${escapeHtml(task.title)}</strong>
       <span class="row-meta">${escapeHtml(task.id)} · ${escapeHtml(moduleLabel)}${lifecycle ? ` · ${escapeHtml(lifecycle)}` : ""}</span>
       ${taskCopyButton(task, "row-copy")}
     </div>
-    <div class="row-status">${tag(task.state)}</div>
+    <div class="row-status">${tag(stateValue)}</div>
     <div class="row-progress">
       <div class="mini-progress-track"><div class="mini-progress-fill" style="width:${completion}%"></div></div>
       <span class="row-pct">${completion}%</span>
@@ -711,13 +735,14 @@ function taskGroups(tasks) {
     });
   }
   if (state.taskGroupMode === "state") {
-    return groupBy(tasks, (task) => `state:${task.state || "unknown"}`);
+    return groupBy(tasks, (task) => `state:${taskStateValue(task)}`);
   }
   return groupBy(tasks, (task) => {
-    if (["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state)) return "active";
+    const stateValue = taskStateValue(task);
+    if (["in_progress", "review", "blocked", "planned", "not_started"].includes(stateValue)) return "active";
     if (task.briefSource === "standalone") return "brief-ready";
     const match = task.shortId?.match(/^(\d{4}-\d{2})/);
-    return match ? `legacy:${match[1]}` : task.state || "unknown";
+    return match ? `legacy:${match[1]}` : stateValue || "unknown";
   });
 }
 
@@ -766,19 +791,20 @@ function taskGroup(group, tasks) {
 
 function taskCard(task) {
   const completion = clampCompletion(task.completion);
-  const stateColor = stateToColorVar(task.state);
+  const stateValue = taskStateValue(task);
+  const stateColor = stateToColorVar(stateValue);
   const briefReady = task.briefSource === "standalone" || !!taskDocument(task, "brief.md");
   const mapReady = !!taskDocument(task, "visual_map.md");
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
-  const lifecycle = [task.lifecycleState, task.reviewStatus, task.closeoutStatus].filter(Boolean).map((item) => label(item)).join(" · ");
+  const lifecycle = taskLifecycleDisplay(task);
 
   return `<article class="task-card" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateColor})">
     <div class="card-header">
       <span class="card-id">${escapeHtml(task.id)}</span>
       <div class="card-header-actions">
         ${taskCopyButton(task, "compact")}
-        ${tag(task.state)}
+        ${tag(stateValue)}
       </div>
     </div>
     <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
@@ -819,10 +845,11 @@ function taskGroupLabel(group) {
 function filteredTasks() {
   const query = state.query.trim().toLowerCase();
   return sortTasksByTime(normalCycleTasks().filter((task) => {
-    const stateMatch = state.taskState === "all" || task.state === state.taskState;
+    const stateValue = taskStateValue(task);
+    const stateMatch = state.taskState === "all" || stateValue === state.taskState;
     if (!stateMatch) return false;
     if (!query) return true;
-    return [task.id, task.shortId, task.title, task.module, task.inferredModule, task.classificationSource, task.classificationBucket, task.state].some((value) => String(value || "").toLowerCase().includes(query));
+    return [task.id, task.shortId, task.title, task.module, task.inferredModule, task.classificationSource, task.classificationBucket, stateValue, ...taskQueueValues(task)].some((value) => String(value || "").toLowerCase().includes(query));
   }));
 }
 
@@ -1225,6 +1252,24 @@ if (typeof window !== "undefined" && typeof document !== "undefined" && typeof d
   });
 }
 
+function taskLifecycleProjection(task) {
+  return task?.taskLifecycleProjection || task?.semanticProjection?.taskLifecycleProjection || {};
+}
+
+function taskReviewProjection(task) {
+  return task?.reviewWorkbenchQueueView || task?.semanticProjection?.reviewWorkbenchQueueView || {};
+}
+
+function taskStateValue(task) {
+  const projection = taskLifecycleProjection(task);
+  return projection.state || task?.state || "unknown";
+}
+
+function taskQueueValues(task) {
+  const projection = taskLifecycleProjection(task);
+  return Array.isArray(projection.taskQueues) ? projection.taskQueues : Array.isArray(task?.taskQueues) ? task.taskQueues : [];
+}
+
 function taskDetail(route) {
   const taskId = route.id;
   const task = (bundle.status?.tasks || []).find((item) => item.id === taskId);
@@ -1258,18 +1303,20 @@ function taskDetail(route) {
 }
 
 function taskStateSummary(task) {
+  const lifecycle = taskLifecycleProjection(task);
+  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : task.taskQueues || [];
   return `<section class="task-state-summary">
     <div>
       <span>${t("legacyState")}</span>
-      ${tag(task.state)}
+      ${tag(lifecycle.state || task.state)}
     </div>
     <div>
       <span>${t("lifecycleState")}</span>
-      ${tag(task.lifecycleState || "unknown")}
+      ${tag(lifecycle.lifecycleState || task.lifecycleState || "unknown")}
     </div>
     <div>
       <span>${t("reviewStatus")}</span>
-      ${tag(task.reviewStatus || "missing")}
+      ${tag(lifecycle.reviewStatus || task.reviewStatus || "missing")}
     </div>
     <div>
       <span>${t("sedimentationStatus")}</span>
@@ -1277,11 +1324,11 @@ function taskStateSummary(task) {
     </div>
     <div>
       <span>${t("closeoutStatus")}</span>
-      ${tag(task.closeoutStatus || "missing")}
+      ${tag(lifecycle.closeoutStatus || task.closeoutStatus || "missing")}
     </div>
     <div>
       <span>${t("lifecycleQueues")}</span>
-      ${(task.taskQueues || []).map(tag).join("") || tag("active")}
+      ${queues.map(tag).join("") || tag("active")}
     </div>
     ${taskQueueReasonSummary(task)}
   </section>`;
@@ -1393,7 +1440,7 @@ function orderedTaskDocuments(task) {
 
 function taskDocumentPriority(task) {
   const stateName = task?.state || "";
-  const lifecycle = task?.lifecycleState || "";
+  const lifecycle = taskLifecycleProjection(task)?.lifecycleState || task?.lifecycleState || "";
   if (stateName === "review" || ["in_review", "review-blocked"].includes(lifecycle)) {
     return ["walkthrough", "lessonCandidates", "review", "findings", "visualMap", "progress", "brief", "taskPlan", "strategy", "longRunningContract", "legacyRoadmap", "references", "artifacts"];
   }
@@ -1451,11 +1498,12 @@ function openFindings(task) {
 
 function reviewActionPanel(task, { mode = "summary" } = {}) {
   if (!isTaskInReviewQueue(task)) return "";
-  const blocking = task.reviewStatus === "blocked-open-findings" || (task.risks || []).some((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease));
-  const confirmed = task.reviewStatus === "confirmed";
+  const lifecycle = taskLifecycleProjection(task);
+  const reviewView = taskReviewWorkbenchQueueView(task);
+  const blocking = reviewView.blocked === true || (task.risks || []).some((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease));
+  const confirmed = reviewView.confirmed === true || lifecycle.reviewStatus === "confirmed";
   const readyForCloseout = taskReadyForCloseout(task);
   const hasLessonWork = taskHasPendingLessonWork(task);
-  const candidateBlocked = task.budget !== "simple" && !task.lessonCandidateDecisionComplete;
   const candidateStatus = task.lessonCandidateStatus || "missing";
   if (mode !== "workspace") {
     const summaryMessage = confirmed && hasLessonWork ? t("reviewConfirmedLessonPending") : confirmed && readyForCloseout ? t("reviewConfirmedCloseoutReady") : confirmed ? t("reviewAlreadyConfirmed") : t("reviewOpenInWorkspace");
@@ -1491,9 +1539,12 @@ function reviewActionPanel(task, { mode = "summary" } = {}) {
     </section>`;
   }
   const missingWalkthrough = task.budget !== "simple" && !task.walkthroughPath;
+  const candidateBlocked = task.budget !== "simple" && !task.lessonCandidateDecisionComplete;
+  const projectionOwnsConfirmability = typeof reviewView.humanConfirmable === "boolean";
   const queueBlocked = !taskCanBeHumanConfirmed(task);
-  const disabled = blocking || missingWalkthrough || candidateBlocked || queueBlocked;
-  const message = missingWalkthrough ? t("reviewWalkthroughRequired") : blocking ? t("reviewBlocked") : candidateBlocked ? t("reviewCandidateDecisionRequired") : queueBlocked ? t("reviewQueueRequired") : t("reviewWorkbenchReady");
+  const rawMaterialBlocked = projectionOwnsConfirmability ? false : missingWalkthrough || candidateBlocked;
+  const disabled = blocking || rawMaterialBlocked || queueBlocked;
+  const message = blocking ? t("reviewBlocked") : queueBlocked ? t("reviewQueueRequired") : !projectionOwnsConfirmability && missingWalkthrough ? t("reviewWalkthroughRequired") : !projectionOwnsConfirmability && candidateBlocked ? t("reviewCandidateDecisionRequired") : t("reviewWorkbenchReady");
   return `<section class="side-panel review-actions">
     <h3>${t("reviewActions")}</h3>
     <p>${escapeHtml(message)}</p>
@@ -1520,13 +1571,16 @@ function isTaskInReviewQueue(task) {
 function taskCanBeHumanConfirmed(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.humanConfirmable === "boolean") return view.humanConfirmable;
-  return task?.reviewQueueState === "ready-to-confirm" && Array.isArray(task?.taskQueues) && task.taskQueues.includes("review");
+  const lifecycle = taskLifecycleProjection(task);
+  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : Array.isArray(task?.taskQueues) ? task.taskQueues : [];
+  return (lifecycle.reviewQueueState || task?.reviewQueueState) === "ready-to-confirm" && queues.includes("review");
 }
 
 function taskHasPendingLessonWork(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.hasPendingLessonWork === "boolean") return view.hasPendingLessonWork;
-  const queues = Array.isArray(task?.taskQueues) ? task.taskQueues : [];
+  const lifecycle = taskLifecycleProjection(task);
+  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : Array.isArray(task?.taskQueues) ? task.taskQueues : [];
   const candidates = Array.isArray(task?.lessonCandidateRows) ? task.lessonCandidateRows : [];
   return queues.includes("lessons")
     || task?.lessonCandidateStatus === "needs-promotion"
@@ -1537,7 +1591,8 @@ function taskHasPendingLessonWork(task) {
 function taskReadyForCloseout(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.readyForCloseout === "boolean") return view.readyForCloseout;
-  if (!task || task.reviewStatus !== "confirmed" || task.closeoutStatus === "closed") return false;
+  const lifecycle = taskLifecycleProjection(task);
+  if (!task || (lifecycle.reviewStatus || task.reviewStatus) !== "confirmed" || (lifecycle.closeoutStatus || task.closeoutStatus) === "closed") return false;
   if (taskHasPendingLessonWork(task)) return false;
   return ["no-candidate-accepted", "promoted", "rejected"].includes(String(task.lessonCandidateStatus || ""));
 }
@@ -1628,9 +1683,9 @@ function taskGroupContext(group, tasks) {
 
 function moduleCountsForTasks(tasks) {
   return {
-    active: tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state)).length,
-    review: tasks.filter((task) => task.state === "review").length,
-    blocked: tasks.filter((task) => task.state === "blocked").length,
+    active: tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(taskStateValue(task))).length,
+    review: tasks.filter((task) => taskStateValue(task) === "review").length,
+    blocked: tasks.filter((task) => taskStateValue(task) === "blocked").length,
     risk: tasks.filter(uiDashboardTaskHasRisk).length,
   };
 }
@@ -1691,7 +1746,7 @@ function emptyUiModuleCounts() {
 
 function accumulateUiModuleTask(module, task) {
   if (!module || !task) return;
-  const stateValue = String(task.state || "unknown");
+  const stateValue = taskStateValue(task);
   if (!module.tasks.some((item) => item.id === task.id)) module.tasks.push(task);
   module.counts.total = (module.counts.total || 0) + 1;
   if (["in_progress", "review", "blocked", "planned", "not_started"].includes(stateValue)) {
@@ -1707,7 +1762,10 @@ function accumulateUiModuleTask(module, task) {
 }
 
 function uiDashboardTaskHasRisk(task) {
-  if (task.state === "blocked") return true;
+  const reviewView = taskReviewProjection(task);
+  if (reviewView.blocked === true || reviewView.needsMaterials === true) return true;
+  if (Array.isArray(reviewView.reasonCodes) && reviewView.reasonCodes.length > 0) return true;
+  if (taskStateValue(task) === "blocked") return true;
   if (String(task.reviewStatus || "").includes("blocked")) return true;
   if (Array.isArray(task.materialIssues) && task.materialIssues.length > 0) return true;
   if (Array.isArray(task.queueReasons) && task.queueReasons.length > 0) return true;
@@ -1743,8 +1801,8 @@ function moduleListItem(module, active) {
 
 function moduleDetail(module) {
   const tasks = normalCycleTasks().filter((task) => taskModuleKey(task) === module.key);
-  const activeTasks = tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state));
-  const riskTasks = tasks.filter((task) => task.state === "blocked" || String(task.reviewStatus || "").includes("blocked") || String(task.visualMapStatus || "") === "missing");
+  const activeTasks = tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(taskStateValue(task)));
+  const riskTasks = tasks.filter(uiDashboardTaskHasRisk);
   const brief = findDocument(module.briefPath || `TARGET:coding-agent-harness/planning/modules/${module.key}/brief.md`);
   const plan = findDocument(module.modulePlanPath || "");
   return `<div class="module-detail-stack">
@@ -1807,11 +1865,12 @@ function moduleDocLink(labelText, pathValue, document) {
 }
 
 function moduleTaskRow(task) {
-  const dotClass = /fail|blocked|open/i.test(task.state) ? "state-fail" : /warn|advice|planned|missing|unknown/i.test(task.state) ? "state-warn" : "state-pass";
-  const lifecycle = [task.lifecycleState, task.reviewStatus, task.closeoutStatus].filter(Boolean).map((item) => label(item)).join(" · ");
+  const stateValue = taskStateValue(task);
+  const dotClass = /fail|blocked|open/i.test(stateValue) ? "state-fail" : /warn|advice|planned|missing|unknown/i.test(stateValue) ? "state-warn" : "state-pass";
+  const lifecycle = taskLifecycleDisplay(task);
   return `<a class="module-task-row" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}">
     <div class="module-task-left">
-      <i class="module-task-dot ${dotClass}" title="${escapeAttr(task.state)}"></i>
+      <i class="module-task-dot ${dotClass}" title="${escapeAttr(stateValue)}"></i>
       <span class="module-task-title">${escapeHtml(task.title || task.id)}</span>
       ${lifecycle ? `<small>${escapeHtml(lifecycle)}</small>` : ""}
     </div>
@@ -1965,7 +2024,12 @@ function reviewTaskQueues(task) {
 }
 
 function reviewReasonOptions(tasks) {
-  return [...new Set(tasks.flatMap((task) => (task.queueReasons || []).map((reason) => reason.code || reason.queue || "").filter(Boolean)))].sort();
+  return [...new Set(tasks.flatMap((task) => {
+    const view = taskReviewWorkbenchQueueView(task);
+    const projected = Array.isArray(view.reasonCodes) ? view.reasonCodes : [];
+    const raw = (task.queueReasons || []).map((reason) => reason.code || reason.queue || "");
+    return [...projected, ...raw].filter(Boolean);
+  }))].sort();
 }
 
 function normalizeReviewReasonFilter(reasonOptions) {
@@ -1979,19 +2043,23 @@ function reviewFilteredTasks(tasks) {
   const reasonFilter = state.reviewReasonFilter || "all";
   return [...tasks]
     .filter((task) => {
-      if (reasonFilter !== "all" && !(task.queueReasons || []).some((reason) => (reason.code || reason.queue) === reasonFilter)) return false;
+      const view = taskReviewWorkbenchQueueView(task);
+      const reasonCodes = Array.isArray(view.reasonCodes) ? view.reasonCodes : [];
+      if (reasonFilter !== "all" && !reasonCodes.includes(reasonFilter) && !(task.queueReasons || []).some((reason) => (reason.code || reason.queue) === reasonFilter)) return false;
       if (!query) return true;
+      const lifecycle = taskLifecycleProjection(task);
+      const queues = reviewTaskQueues(task);
       return [
         task.id,
         task.shortId,
         task.title,
         task.module,
         task.inferredModule,
-        task.state,
-        task.lifecycleState,
-        task.reviewStatus,
-        task.closeoutStatus,
-        ...(task.taskQueues || []),
+        lifecycle.state || task.state,
+        lifecycle.lifecycleState || task.lifecycleState,
+        lifecycle.reviewStatus || task.reviewStatus,
+        lifecycle.closeoutStatus || task.closeoutStatus,
+        ...queues,
         ...(task.queueReasons || []).flatMap((reason) => [reason.code, reason.message, reason.sourcePath]),
       ].some((value) => String(value || "").toLowerCase().includes(query));
     })
@@ -2020,6 +2088,8 @@ function reviewPriorityRank(task) {
   const reasonRank = Math.min(...(task.queueReasons || []).map((reason) => severityRank[String(reason.severity || "").toUpperCase()] ?? 8), 8);
   const queueRank = { blocked: 0, "missing-materials": 1, review: 2, lessons: 3, confirmed: 4, finalized: 5, "soft-deleted-superseded": 6 };
   const queues = reviewTaskQueues(task);
+  const view = taskReviewWorkbenchQueueView(task);
+  if (view.primaryQueue && queueRank[view.primaryQueue] !== undefined) return queueRank[view.primaryQueue];
   const taskQueueRank = Math.min(...queues.map((queue) => queueRank[queue] ?? 7), 7);
   return Math.min(reasonRank, taskQueueRank);
 }
@@ -2061,6 +2131,7 @@ function reviewBulkBar(confirmableTasks) {
 function reviewQueueCard(task, tab) {
   const openMaterial = (task.risks || []).filter((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease)).length;
   const reasons = task.queueReasons || [];
+  const lifecycle = taskLifecycleProjection(task);
   const canCopyRepairPrompt = tab?.repair && String(task.repairPrompt || "").trim();
   const lessonActions = tab?.id === "lessons" ? lessonCandidatePanel(task, { context: "card", limit: 2 }) : "";
   const closeoutAction = taskReadyForCloseout(task)
@@ -2076,14 +2147,14 @@ function reviewQueueCard(task, tab) {
   return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(task.state)})">
     <div class="card-header">
       <span class="card-id" title="${escapeAttr(task.id)}">${escapeHtml(displayId)}</span>
-      ${tag(task.reviewStatus || "missing")}
+      ${tag(lifecycle.reviewStatus || task.reviewStatus || "missing")}
       ${reviewTaskQueues(task).map(tag).join("")}
       ${bulkControl}
     </div>
     <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
     <div class="card-meta">
-      <span>${tag(task.lifecycleState || "unknown")}</span>
-      <span>${tag(task.closeoutStatus || "missing")}</span>
+      <span>${tag(lifecycle.lifecycleState || task.lifecycleState || "unknown")}</span>
+      <span>${tag(lifecycle.closeoutStatus || task.closeoutStatus || "missing")}</span>
       <span>${openMaterial} ${t("openFindings")}</span>
       <span>${t("reviewSubmitted")}: ${task.reviewSubmitted === true ? t("yes") : t("no")}</span>
       <span>${t("materialsReady")}: ${task.materialsReady === true ? t("yes") : t("no")}</span>
@@ -2267,6 +2338,7 @@ function reviewWorkspace(route) {
   const candidateDoc = taskDocument(task, "lesson_candidates.md");
   const reviewDoc = taskDocument(task, "review.md");
   const findingsDoc = taskDocument(task, "findings.md");
+  const lifecycle = taskLifecycleProjection(task);
   return `<main class="review-workspace">
     <nav class="crumbs"><a href="#/review">${t("reviewQueue")}</a><span>/</span><span>${escapeHtml(task.id)}</span></nav>
     <section class="detail-hero review-hero">
@@ -2276,8 +2348,8 @@ function reviewWorkspace(route) {
         <p>${escapeHtml(task.path)}</p>
       </div>
       <div class="review-hero-tags">
-        ${tag(task.lifecycleState || "unknown")}
-        ${tag(task.reviewStatus || "missing")}
+        ${tag(lifecycle.lifecycleState || task.lifecycleState || "unknown")}
+        ${tag(lifecycle.reviewStatus || task.reviewStatus || "missing")}
         ${tag(task.lessonCandidateStatus || "missing")}
       </div>
     </section>

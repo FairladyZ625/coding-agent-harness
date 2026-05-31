@@ -1,4 +1,18 @@
-const bundle = window.__HARNESS_DASHBOARD__ || {};
+const dashboardBundleSchemaVersion = "dashboard-bundle/v1";
+const rawBundle = window.__HARNESS_DASHBOARD__ || {};
+const bundleSchemaCompatible = !rawBundle.schemaVersion || rawBundle.schemaVersion === dashboardBundleSchemaVersion;
+const bundle = bundleSchemaCompatible ? rawBundle : {
+  schemaVersion: rawBundle.schemaVersion || "missing",
+  schemaError: `Unsupported dashboard bundle schema: ${rawBundle.schemaVersion || "missing"}`,
+  status: { tasks: [], summary: {}, checkState: { details: { warnings: [], failures: [] } } },
+  tables: { tables: [] },
+  documents: { documents: [] },
+  graph: { nodes: [], edges: [] },
+  modules: [],
+  moduleSummary: {},
+  adoption: { warnings: [], summary: {} },
+  presetCatalog: { presets: [], roots: [], summary: {} },
+};
 const defaultLocale = window.__HARNESS_LOCALE__ || ((navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en");
 let locale = localStorage.getItem("harness.locale") || defaultLocale;
 if (!window.HarnessI18n?.[locale]) locale = "en";

@@ -54,6 +54,7 @@ type SandboxContext = {
     __HARNESS_LOCALE__: string;
     __HARNESS_WORKBENCH__: boolean;
     __HARNESS_DASHBOARD__: {
+      schemaVersion?: string;
       status: {
         project: { name: string };
         summary: Record<string, unknown>;
@@ -111,6 +112,7 @@ function renderTasks(mutator: string): RenderedSwimlane {
       __HARNESS_LOCALE__: "en",
       __HARNESS_WORKBENCH__: false,
       __HARNESS_DASHBOARD__: {
+        schemaVersion: "dashboard-bundle/v1",
         status: {
           project: { name: "Fixture" },
           summary: {},
@@ -238,7 +240,24 @@ const moduleMetrics = renderTasks(`
     visualMapStatus: "present",
     queueReasons: [],
   };
-  bundle.status.tasks = [riskyTask, unreachableActiveTask];
+  const projectionActiveTask = {
+    ...bundle.status.tasks[0],
+    id: "TASKS/2026-05-30-projected-active",
+    state: "done",
+    module: "core",
+    reviewStatus: "missing",
+    visualMapStatus: "present",
+    queueReasons: [],
+    taskLifecycleProjection: {
+      state: "in_progress",
+      lifecycleState: "active",
+      reviewStatus: "missing",
+      reviewQueueState: "not-in-queue",
+      closeoutStatus: "missing",
+      taskQueues: ["active"],
+    },
+  };
+  bundle.status.tasks = [riskyTask, unreachableActiveTask, projectionActiveTask];
   __result = {
     html: "",
     model: taskSwimlaneModel([]),
@@ -256,8 +275,8 @@ const moduleMetrics = renderTasks(`
 `);
 assert(moduleMetrics.moduleCounts?.risk === 1, "moduleCountsForTasks should count materialIssues/queueReasons as risk");
 assert(moduleMetrics.fallbackModuleCounts?.risk === 1, "UI module fallback risk counts should match server dashboard risk semantics");
-assert(moduleMetrics.moduleCounts?.active === 1, "moduleCountsForTasks should not count unreachable active state as active work");
-assert(moduleMetrics.fallbackModuleCounts?.active === 1, "UI module fallback active counts should align with moduleCountsForTasks");
+assert(moduleMetrics.moduleCounts?.active === 2, "moduleCountsForTasks should count projected active state and ignore unreachable raw active state");
+assert(moduleMetrics.fallbackModuleCounts?.active === 2, "UI module fallback active counts should use projection-first module semantics");
 
 const pagedDrilldown = renderTasks(`
   for (let index = 1; index <= 12; index += 1) {

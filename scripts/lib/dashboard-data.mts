@@ -1,4 +1,4 @@
-// Dashboard bundle aggregation stays behavior-first until dashboard domain types are modeled.
+// Dashboard bundle aggregation is an explicit transport contract for the generated UI.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -86,6 +86,7 @@ type DashboardTables = {
 };
 
 type DashboardStatus = ReturnType<typeof buildStatusData>;
+export const dashboardBundleSchemaVersion = "dashboard-bundle/v1";
 type DashboardNode = Record<string, unknown> & {
   id: string;
   type: string;
@@ -97,7 +98,17 @@ type DashboardEdge = {
   to: string;
   type: string;
 };
-type DashboardBundle = Record<string, unknown>;
+export type DashboardBundle = {
+  schemaVersion: typeof dashboardBundleSchemaVersion;
+  status: DashboardStatus;
+  tables: DashboardTables;
+  documents: { documents: DashboardDocument[] };
+  graph: { nodes: DashboardNode[]; edges: DashboardEdge[] };
+  modules: DashboardModuleSummary[];
+  moduleSummary: Record<string, unknown>;
+  adoption: ReturnType<typeof collectAdoption>;
+  presetCatalog: ReturnType<typeof collectPresetCatalog>;
+};
 type DashboardTaskRef = Partial<ScannedTask> & {
   closeoutStatus?: string;
   id?: string;
@@ -495,7 +506,7 @@ function emptyModuleCounts(): Record<string, number> {
 }
 
 function accumulateModuleTask(module: DashboardModuleSummary, task: Record<string, unknown>): void {
-  const state = String(task.state || "unknown");
+  const state = dashboardTaskStateValue(task);
   module.counts.total += 1;
   module.counts[state] = (module.counts[state] || 0) + 1;
   if (["in_progress", "review", "blocked", "planned", "not_started"].includes(state)) module.counts.active += 1;
@@ -511,6 +522,10 @@ function accumulateModuleTask(module: DashboardModuleSummary, task: Record<strin
       reviewStatus: task.reviewStatus,
       closeoutStatus: task.closeoutStatus,
       lifecycleState: task.lifecycleState,
+      taskLifecycleProjection: task.taskLifecycleProjection,
+      dashboardTaskView: task.dashboardTaskView,
+      reviewWorkbenchQueueView: task.reviewWorkbenchQueueView,
+      semanticProjection: task.semanticProjection,
       taskQueues: task.taskQueues,
       queueReasons: task.queueReasons,
       visualMapStatus: task.visualMapStatus,
@@ -530,12 +545,42 @@ function isArchivedDashboardTask(task: Record<string, unknown>): boolean {
 }
 
 function dashboardTaskHasRisk(task: Record<string, unknown>): boolean {
-  if (task.state === "blocked") return true;
+  const reviewView = dashboardTaskReviewWorkbenchQueueView(task);
+  if (reviewView.blocked === true || reviewView.needsMaterials === true) return true;
+  if (Array.isArray(reviewView.reasonCodes) && reviewView.reasonCodes.length > 0) return true;
+  if (dashboardTaskStateValue(task) === "blocked") return true;
   if (String(task.reviewStatus || "").includes("blocked")) return true;
   if (Array.isArray(task.materialIssues) && task.materialIssues.length > 0) return true;
   if (Array.isArray(task.queueReasons) && task.queueReasons.length > 0) return true;
   if (String(task.visualMapStatus || "") === "missing") return true;
   return false;
+}
+
+function dashboardTaskStateValue(task: Record<string, unknown>): string {
+  const lifecycle = dashboardTaskLifecycleProjection(task);
+  return String(lifecycle.state || task.state || "unknown");
+}
+
+function dashboardTaskLifecycleProjection(task: Record<string, unknown>): Record<string, unknown> {
+  const direct = task.taskLifecycleProjection;
+  if (direct && typeof direct === "object") return direct as Record<string, unknown>;
+  const projection = task.semanticProjection;
+  if (projection && typeof projection === "object") {
+    const nested = (projection as Record<string, unknown>).taskLifecycleProjection;
+    if (nested && typeof nested === "object") return nested as Record<string, unknown>;
+  }
+  return {};
+}
+
+function dashboardTaskReviewWorkbenchQueueView(task: Record<string, unknown>): Record<string, unknown> {
+  const direct = task.reviewWorkbenchQueueView;
+  if (direct && typeof direct === "object") return direct as Record<string, unknown>;
+  const projection = task.semanticProjection;
+  if (projection && typeof projection === "object") {
+    const nested = (projection as Record<string, unknown>).reviewWorkbenchQueueView;
+    if (nested && typeof nested === "object") return nested as Record<string, unknown>;
+  }
+  return {};
 }
 
 function dashboardTaskMissingDocs(task: Record<string, unknown>): boolean {
@@ -756,7 +801,17 @@ export function buildDashboardBundle(targetInput: string, options: DashboardOpti
   const modules = collectDashboardModules(status, target);
   const adoption = collectAdoption(status);
   const presetCatalog = collectPresetCatalog(targetInput, target, options);
-  return sanitizeDeep({ status, tables, documents, graph, modules: modules.modules, moduleSummary: modules.summary, adoption, presetCatalog }) as DashboardBundle;
+  return sanitizeDeep({
+    schemaVersion: dashboardBundleSchemaVersion,
+    status,
+    tables,
+    documents,
+    graph,
+    modules: modules.modules,
+    moduleSummary: modules.summary,
+    adoption,
+    presetCatalog,
+  }) as DashboardBundle;
 }
 
 function runDashboardCompatibilityCheck(target: DashboardTarget) {

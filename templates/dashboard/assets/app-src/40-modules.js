@@ -68,9 +68,9 @@ function taskGroupContext(group, tasks) {
 
 function moduleCountsForTasks(tasks) {
   return {
-    active: tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state)).length,
-    review: tasks.filter((task) => task.state === "review").length,
-    blocked: tasks.filter((task) => task.state === "blocked").length,
+    active: tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(taskStateValue(task))).length,
+    review: tasks.filter((task) => taskStateValue(task) === "review").length,
+    blocked: tasks.filter((task) => taskStateValue(task) === "blocked").length,
     risk: tasks.filter(uiDashboardTaskHasRisk).length,
   };
 }
@@ -131,7 +131,7 @@ function emptyUiModuleCounts() {
 
 function accumulateUiModuleTask(module, task) {
   if (!module || !task) return;
-  const stateValue = String(task.state || "unknown");
+  const stateValue = taskStateValue(task);
   if (!module.tasks.some((item) => item.id === task.id)) module.tasks.push(task);
   module.counts.total = (module.counts.total || 0) + 1;
   if (["in_progress", "review", "blocked", "planned", "not_started"].includes(stateValue)) {
@@ -147,7 +147,10 @@ function accumulateUiModuleTask(module, task) {
 }
 
 function uiDashboardTaskHasRisk(task) {
-  if (task.state === "blocked") return true;
+  const reviewView = taskReviewProjection(task);
+  if (reviewView.blocked === true || reviewView.needsMaterials === true) return true;
+  if (Array.isArray(reviewView.reasonCodes) && reviewView.reasonCodes.length > 0) return true;
+  if (taskStateValue(task) === "blocked") return true;
   if (String(task.reviewStatus || "").includes("blocked")) return true;
   if (Array.isArray(task.materialIssues) && task.materialIssues.length > 0) return true;
   if (Array.isArray(task.queueReasons) && task.queueReasons.length > 0) return true;
@@ -183,8 +186,8 @@ function moduleListItem(module, active) {
 
 function moduleDetail(module) {
   const tasks = normalCycleTasks().filter((task) => taskModuleKey(task) === module.key);
-  const activeTasks = tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state));
-  const riskTasks = tasks.filter((task) => task.state === "blocked" || String(task.reviewStatus || "").includes("blocked") || String(task.visualMapStatus || "") === "missing");
+  const activeTasks = tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(taskStateValue(task)));
+  const riskTasks = tasks.filter(uiDashboardTaskHasRisk);
   const brief = findDocument(module.briefPath || `TARGET:coding-agent-harness/planning/modules/${module.key}/brief.md`);
   const plan = findDocument(module.modulePlanPath || "");
   return `<div class="module-detail-stack">
@@ -247,11 +250,12 @@ function moduleDocLink(labelText, pathValue, document) {
 }
 
 function moduleTaskRow(task) {
-  const dotClass = /fail|blocked|open/i.test(task.state) ? "state-fail" : /warn|advice|planned|missing|unknown/i.test(task.state) ? "state-warn" : "state-pass";
-  const lifecycle = [task.lifecycleState, task.reviewStatus, task.closeoutStatus].filter(Boolean).map((item) => label(item)).join(" · ");
+  const stateValue = taskStateValue(task);
+  const dotClass = /fail|blocked|open/i.test(stateValue) ? "state-fail" : /warn|advice|planned|missing|unknown/i.test(stateValue) ? "state-warn" : "state-pass";
+  const lifecycle = taskLifecycleDisplay(task);
   return `<a class="module-task-row" href="#/tasks/${encodeURIComponent(task.id)}" data-open-drawer="${escapeAttr(task.id)}">
     <div class="module-task-left">
-      <i class="module-task-dot ${dotClass}" title="${escapeAttr(task.state)}"></i>
+      <i class="module-task-dot ${dotClass}" title="${escapeAttr(stateValue)}"></i>
       <span class="module-task-title">${escapeHtml(task.title || task.id)}</span>
       ${lifecycle ? `<small>${escapeHtml(lifecycle)}</small>` : ""}
     </div>

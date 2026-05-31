@@ -16,7 +16,7 @@ type DashboardSandbox = {
   localStorage: { getItem: () => string; setItem: () => void };
   setInterval: () => number;
   clearInterval: () => void;
-  __result?: string;
+  __result?: unknown;
 };
 
 type FakeInput = {
@@ -63,6 +63,7 @@ function createSandbox(extra: Record<string, unknown> = {}): DashboardSandbox {
       __HARNESS_LOCALE__: "en",
       __HARNESS_WORKBENCH__: false,
       __HARNESS_DASHBOARD__: {
+        schemaVersion: "dashboard-bundle/v1",
         status: {
           project: { name: "Fixture" },
           summary: {},
@@ -107,6 +108,104 @@ assert(statsHtml.includes(">7</span>"), "task stats total should include all tas
 assert(statsHtml.includes("planned"), "task stats should expose planned tasks so displayed buckets add up");
 assert(statsHtml.includes("not started"), "task stats should expose not_started tasks so displayed buckets add up");
 assert(statsHtml.includes("unknown"), "task stats should expose unknown tasks so displayed buckets add up");
+
+const projectionSandbox = createSandbox();
+vm.runInContext(`
+  bundle.status.tasks = [{
+    id: "TASKS/projection-conflict",
+    shortId: "projection-conflict",
+    title: "Projection conflict",
+    path: "TARGET:coding-agent-harness/planning/tasks/projection-conflict",
+    state: "done",
+    module: "dashboard",
+    inferredModule: "",
+    completion: 100,
+    reviewStatus: "missing",
+    reviewQueueState: "not-in-queue",
+    closeoutStatus: "closed",
+    visualMapStatus: "present",
+    briefSource: "standalone",
+    taskQueues: ["finalized"],
+    queueReasons: [],
+    taskLifecycleProjection: {
+      state: "review",
+      lifecycleState: "in_review",
+      reviewStatus: "agent-reviewed",
+      reviewQueueState: "ready-to-confirm",
+      closeoutStatus: "missing",
+      taskQueues: ["review", "projected-queue"],
+    },
+    reviewWorkbenchQueueView: {
+      queues: ["review", "projected-queue"],
+      primaryQueue: "review",
+      inQueue: true,
+      humanConfirmable: true,
+      blocked: false,
+      confirmed: false,
+      hasPendingLessonWork: false,
+      readyForCloseout: false,
+      reasonCodes: ["projected-queue"],
+    },
+  }];
+  state.taskState = "review";
+  state.query = "projected-queue";
+  __result = JSON.stringify({
+    stats: taskStatRows(normalCycleTasks()).map((row) => [row.state, row.count]),
+    filtered: filteredTasks().map((item) => item.id),
+    row: taskRow(bundle.status.tasks[0]),
+  });
+`, projectionSandbox);
+const projectionResult = JSON.parse(String(projectionSandbox.__result)) as { stats: Array<[string, number]>; filtered: string[]; row: string };
+assert(projectionResult.stats.some(([state, count]) => state === "review" && count === 1), "task stats should count projected review state before raw done state");
+assert(!projectionResult.stats.some(([state]) => state === "done"), "task stats should not count raw done state when projection overrides it");
+assert(projectionResult.filtered.includes("TASKS/projection-conflict"), "task filter/search should match projected state and queues");
+assert(projectionResult.row.includes("agent reviewed"), "task rows should display projected review lifecycle");
+
+const reviewAffordanceSandbox = createSandbox();
+vm.runInContext(`
+  state.runtime = { mode: "workbench", writableActions: ["review-complete", "task-complete"] };
+  const task = {
+    id: "TASKS/review-affordance",
+    shortId: "review-affordance",
+    title: "Review affordance",
+    path: "TARGET:coding-agent-harness/planning/tasks/review-affordance",
+    state: "review",
+    budget: "complex",
+    completion: 80,
+    reviewStatus: "missing",
+    reviewQueueState: "not-in-queue",
+    closeoutStatus: "missing",
+    visualMapStatus: "present",
+    briefSource: "standalone",
+    taskQueues: [],
+    queueReasons: [],
+    lessonCandidateDecisionComplete: false,
+    walkthroughPath: "",
+    taskLifecycleProjection: {
+      state: "review",
+      lifecycleState: "in_review",
+      reviewStatus: "agent-reviewed",
+      reviewQueueState: "ready-to-confirm",
+      closeoutStatus: "missing",
+      taskQueues: ["review"],
+    },
+    reviewWorkbenchQueueView: {
+      queues: ["review"],
+      primaryQueue: "review",
+      inQueue: true,
+      humanConfirmable: true,
+      blocked: false,
+      confirmed: false,
+      hasPendingLessonWork: false,
+      readyForCloseout: false,
+      reasonCodes: [],
+    },
+  };
+  __result = reviewActionPanel(task, { mode: "workspace" });
+`, reviewAffordanceSandbox);
+const reviewAffordanceHtml = String(reviewAffordanceSandbox.__result);
+assert(reviewAffordanceHtml.includes("data-review-complete"), "review action panel should expose review completion for projection-confirmable tasks");
+assert(!reviewAffordanceHtml.includes("disabled"), "review action panel should not let raw material fallback block projection-confirmable tasks");
 
 const bulkErrorSandbox = createSandbox();
 vm.runInContext(`

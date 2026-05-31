@@ -8,6 +8,15 @@ function stateToColorVar(state) {
   return map[state] || "--muted";
 }
 
+function taskLifecycleDisplay(task) {
+  const projection = taskLifecycleProjection(task);
+  return [
+    projection.lifecycleState || task.lifecycleState,
+    projection.reviewStatus || task.reviewStatus,
+    projection.closeoutStatus || task.closeoutStatus,
+  ].filter(Boolean).map((item) => label(item)).join(" · ");
+}
+
 function taskStatRows(tasks) {
   return [
     { state: "in_progress", label: t("statInProgress"), className: "in-progress" },
@@ -19,7 +28,7 @@ function taskStatRows(tasks) {
     { state: "unknown", label: label("unknown"), className: "unknown" },
   ].map((row) => ({
     ...row,
-    count: tasks.filter((task) => task.state === row.state).length,
+    count: tasks.filter((task) => taskStateValue(task) === row.state).length,
     colorVar: stateToColorVar(row.state),
   })).filter((row) => row.count > 0);
 }
@@ -221,16 +230,17 @@ function taskRow(task) {
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
   const moduleLabel = taskModuleLabel(task);
-  const lifecycle = [task.lifecycleState, task.reviewStatus, task.closeoutStatus].filter(Boolean).map((item) => label(item)).join(" · ");
+  const lifecycle = taskLifecycleDisplay(task);
+  const stateValue = taskStateValue(task);
 
-  return `<article class="task-row-card" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(task.state)})">
+  return `<article class="task-row-card" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(stateValue)})">
     <div class="row-accent-bar"></div>
     <div class="row-main">
       <strong>${escapeHtml(task.title)}</strong>
       <span class="row-meta">${escapeHtml(task.id)} · ${escapeHtml(moduleLabel)}${lifecycle ? ` · ${escapeHtml(lifecycle)}` : ""}</span>
       ${taskCopyButton(task, "row-copy")}
     </div>
-    <div class="row-status">${tag(task.state)}</div>
+    <div class="row-status">${tag(stateValue)}</div>
     <div class="row-progress">
       <div class="mini-progress-track"><div class="mini-progress-fill" style="width:${completion}%"></div></div>
       <span class="row-pct">${completion}%</span>
@@ -312,13 +322,14 @@ function taskGroups(tasks) {
     });
   }
   if (state.taskGroupMode === "state") {
-    return groupBy(tasks, (task) => `state:${task.state || "unknown"}`);
+    return groupBy(tasks, (task) => `state:${taskStateValue(task)}`);
   }
   return groupBy(tasks, (task) => {
-    if (["in_progress", "review", "blocked", "planned", "not_started"].includes(task.state)) return "active";
+    const stateValue = taskStateValue(task);
+    if (["in_progress", "review", "blocked", "planned", "not_started"].includes(stateValue)) return "active";
     if (task.briefSource === "standalone") return "brief-ready";
     const match = task.shortId?.match(/^(\d{4}-\d{2})/);
-    return match ? `legacy:${match[1]}` : task.state || "unknown";
+    return match ? `legacy:${match[1]}` : stateValue || "unknown";
   });
 }
 
@@ -367,19 +378,20 @@ function taskGroup(group, tasks) {
 
 function taskCard(task) {
   const completion = clampCompletion(task.completion);
-  const stateColor = stateToColorVar(task.state);
+  const stateValue = taskStateValue(task);
+  const stateColor = stateToColorVar(stateValue);
   const briefReady = task.briefSource === "standalone" || !!taskDocument(task, "brief.md");
   const mapReady = !!taskDocument(task, "visual_map.md");
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
-  const lifecycle = [task.lifecycleState, task.reviewStatus, task.closeoutStatus].filter(Boolean).map((item) => label(item)).join(" · ");
+  const lifecycle = taskLifecycleDisplay(task);
 
   return `<article class="task-card" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateColor})">
     <div class="card-header">
       <span class="card-id">${escapeHtml(task.id)}</span>
       <div class="card-header-actions">
         ${taskCopyButton(task, "compact")}
-        ${tag(task.state)}
+        ${tag(stateValue)}
       </div>
     </div>
     <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
@@ -420,10 +432,11 @@ function taskGroupLabel(group) {
 function filteredTasks() {
   const query = state.query.trim().toLowerCase();
   return sortTasksByTime(normalCycleTasks().filter((task) => {
-    const stateMatch = state.taskState === "all" || task.state === state.taskState;
+    const stateValue = taskStateValue(task);
+    const stateMatch = state.taskState === "all" || stateValue === state.taskState;
     if (!stateMatch) return false;
     if (!query) return true;
-    return [task.id, task.shortId, task.title, task.module, task.inferredModule, task.classificationSource, task.classificationBucket, task.state].some((value) => String(value || "").toLowerCase().includes(query));
+    return [task.id, task.shortId, task.title, task.module, task.inferredModule, task.classificationSource, task.classificationBucket, stateValue, ...taskQueueValues(task)].some((value) => String(value || "").toLowerCase().includes(query));
   }));
 }
 
