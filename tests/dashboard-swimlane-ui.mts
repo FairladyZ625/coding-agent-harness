@@ -126,6 +126,7 @@ function renderTasks(mutator: string): RenderedSwimlane {
             fixtureTask({ id: "TASKS/2026-05-28-core-evidence-4", shortId: "2026-05-28-core-evidence-4", title: "Core evidence 4", module: "core", state: "in_progress", visualMapStatus: "missing" }),
             fixtureTask({ id: "TASKS/2026-05-28-review", shortId: "2026-05-28-review", title: "Confirm review", module: "governance", state: "review", reviewStatus: "agent-reviewed", reviewQueueState: "ready-to-confirm", taskQueues: ["review"] }),
             fixtureTask({ id: "TASKS/2026-05-28-confirmed-closeout", shortId: "2026-05-28-confirmed-closeout", title: "Confirmed closeout", module: "governance", state: "review", reviewStatus: "confirmed", reviewQueueState: "not-in-queue", closeoutStatus: "missing" }),
+            fixtureTask({ id: "TASKS/2026-05-28-agent-reviewed-not-started", shortId: "2026-05-28-agent-reviewed-not-started", title: "Agent reviewed not started", module: "governance", state: "not_started", reviewStatus: "agent-reviewed", reviewQueueState: "not-in-queue", taskQueues: ["active"] }),
             fixtureTask({ id: "TASKS/2026-05-28-blocked", shortId: "2026-05-28-blocked", title: "Blocked follow-up", module: "dashboard", state: "blocked", reviewStatus: "blocked-open-findings", visualMapStatus: "missing", briefSource: "missing", queueReasons: ["Open P1 finding"] }),
             fixtureTask({ id: "TASKS/2026-05-28-root-base", shortId: "2026-05-28-root-base", title: "Root base task", module: "", inferredModule: "base", state: "planned", completion: 0 }),
             fixtureTask({ id: "TASKS/2026-05-28-done", shortId: "2026-05-28-done", title: "Historical task", module: "archive", state: "done", completion: 100, closeoutStatus: "closed" }),
@@ -210,6 +211,8 @@ assert(rendered.model.lanes.some((lane) => lane.key === "base"), "swimlane model
 assert(rendered.model.stages.some((stage) => stage.key === "review"), "swimlane model should include a review stage");
 assert(rendered.model.cards.some((card) => card.stage === "blocked" && card.lane === "dashboard"), "blocked tasks should project into a blocked swimlane stage");
 assert(rendered.model.cards.some((card) => card.title === "Confirmed closeout" && card.stage === "closeout"), "confirmed tasks with missing closeout should project into closeout before review");
+assert(rendered.model.cards.some((card) => card.title === "Agent reviewed not started" && card.stage === "planned"), "agent-reviewed evidence alone must not inflate the review swimlane stage");
+assert(!rendered.model.cards.some((card) => card.title === "Agent reviewed not started" && card.stage === "review"), "agent-reviewed evidence outside the review queue must not appear as current review work");
 assert(!rendered.model.cards.some((card) => card.title === "Historical task"), "swimlane model should exclude closed historical work");
 assert(css.includes(".task-swimlane"), "dashboard CSS should style the swimlane surface");
 assert(css.includes(".swimlane-heatmap"), "dashboard CSS should style the heatmap surface");
@@ -388,5 +391,43 @@ const moduleRenderStability = renderTasks(`
 assert(moduleRenderStability.enLabel === "6", "module view rendering should not mutate structured module active counts");
 assert(moduleRenderStability.zhLabel === "0", "zero-task registered module counts should remain stable after module view rendering");
 assert(moduleRenderStability.html.includes("Quality Assurance"), "module view should retain zero-task registered YAML modules");
+
+const overviewProjection = renderTasks(`
+  bundle.status.tasks = [
+    {
+      ...bundle.status.tasks[0],
+      id: "TASKS/projected-overview-active",
+      shortId: "projected-overview-active",
+      title: "Projected overview active",
+      state: "done",
+      completion: 100,
+      taskLifecycleProjection: {
+        state: "in_progress",
+        lifecycleState: "active",
+        reviewStatus: "missing",
+        reviewQueueState: "not-in-queue",
+        closeoutStatus: "missing",
+        taskQueues: ["active"],
+      },
+    },
+  ];
+  const html = flowPanel() + activeTaskBriefs();
+  __result = {
+    html,
+    model: taskSwimlaneModel(bundle.status.tasks),
+    enLabel: window.HarnessI18n.en.layoutSwimlane,
+    zhLabel: window.HarnessI18n.zh.layoutSwimlane,
+    enHeatmapLabel: window.HarnessI18n.en.swimlaneHeatmapLabel,
+    zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
+    enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
+    zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
+    enBaseLabel: window.HarnessI18n.en.baseModule,
+    zhBaseLabel: window.HarnessI18n.zh.baseModule,
+  };
+`);
+
+assert(overviewProjection.html.includes("Active 1"), "overview flow should count projected active state before raw done state");
+assert(overviewProjection.html.includes("Done 0"), "overview flow should not count raw done state when projection overrides it");
+assert(overviewProjection.html.includes("Projected overview active"), "active briefs should include tasks made active by projection");
 
 console.log("Dashboard swimlane UI tests passed");

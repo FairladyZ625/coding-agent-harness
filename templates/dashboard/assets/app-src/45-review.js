@@ -250,7 +250,7 @@ function reviewQueueCard(task, tab) {
       <input type="checkbox" data-review-bulk-select="${escapeAttr(task.id)}" ${canBulkConfirm ? "" : "disabled"} ${bulkSelected ? "checked" : ""} aria-label="${escapeAttr(t("selectReviewTask"))}">
       <span>${t("select")}</span>
     </label>` : "";
-  return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(task.state)})">
+  return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(lifecycle.state || taskStateValue(task))})">
     <div class="card-header">
       <span class="card-id" title="${escapeAttr(task.id)}">${escapeHtml(displayId)}</span>
       ${tag(lifecycle.reviewStatus || task.reviewStatus || "missing")}

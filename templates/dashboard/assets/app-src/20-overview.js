@@ -69,8 +69,8 @@ function flowPanel() {
   const tasks = normalCycleTasks();
   const total = tasks.length;
   if (total === 0) return "";
-  const active = tasks.filter((task) => isActiveTaskState(task.state)).length;
-  const done = tasks.filter((task) => !isActiveTaskState(task.state) && (task.state === "done" || task.completion === 100)).length;
+  const active = tasks.filter((task) => isActiveTaskState(taskStateValue(task))).length;
+  const done = tasks.filter((task) => !isActiveTaskState(taskStateValue(task)) && (taskStateValue(task) === "done" || task.completion === 100)).length;
   const planned = Math.max(0, total - done - active);
   const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
   return `<section class="flow-panel">
@@ -195,7 +195,10 @@ function activeTaskBriefs() {
 
 function activeTasks() {
   const tasks = normalCycleTasks();
-  const active = tasks.filter((task) => isActiveTaskState(task.state) || ["planned", "not_started"].includes(task.state));
+  const active = tasks.filter((task) => {
+    const stateValue = taskStateValue(task);
+    return isActiveTaskState(stateValue) || ["planned", "not_started"].includes(stateValue);
+  });
   if (active.length > 0) return sortTasksByTime(active);
   return sortTasksByTime(tasks.filter((task) => task.briefSource === "standalone"));
 }
@@ -207,13 +210,14 @@ function isActiveTaskState(state) {
 function taskBriefCard(task, { compact = true } = {}) {
   const doc = taskDocument(task, "brief.md");
   const summaryText = doc ? getBriefSummary(doc.content) : t("missingBriefExplain");
+  const stateValue = taskStateValue(task);
   return `<article class="brief-card ${compact ? "compact" : ""}">
     <div class="card-head">
       <div>
         <a href="#/tasks/${encodeURIComponent(task.id)}">${escapeHtml(task.title)}</a>
         <p>${escapeHtml(task.id)}</p>
       </div>
-      ${tag(task.state)}
+      ${tag(stateValue)}
     </div>
     ${progressBar(task.completion)}
     <div class="brief-content">
