@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { beginGovernanceSync, commitGovernanceSync, inspectGit, releaseGovernanceSync } from "./governance-sync.mjs";
+import crypto from "node:crypto";
+import { beginGovernanceSync, commitGovernanceSync, GovernanceSyncError, inspectGit, releaseGovernanceSync } from "./governance-sync.mjs";
 import { normalizeTarget, toPosix } from "./core-shared.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 
@@ -11,6 +12,8 @@ type HarnessTransactionTarget = {
 };
 
 type GitInspection = ReturnType<typeof inspectGit>;
+type GitStatusEntry = GitInspection["entries"][number];
+type FingerprintedGitStatusEntry = GitStatusEntry & { fingerprint: string };
 type GovernanceCommitSummary = ReturnType<typeof commitGovernanceSync>;
 
 export type FileWrite = {
@@ -151,6 +154,7 @@ export function createGovernanceHarnessTransaction(targetInput: string | Harness
       const writes = writePaths(target, plan.changeSet.writes || []);
       const deletes = deletePaths(target, plan.changeSet.deletes || []);
       try {
+        const initialEntries = fingerprintEntries(target, inspectGit(target.projectRoot).entries);
         context = beginGovernanceSync(target, {
           operation: plan.operation,
           dryRun: plan.dryRun,
@@ -161,9 +165,12 @@ export function createGovernanceHarnessTransaction(targetInput: string | Harness
         applyDeclarativeChanges(target, plan);
         const mutation = plan.changeSet.apply?.({ target, plan }) || {};
         const mutationGeneratedSurfaces = mutation.generatedSurfaces || [];
-        allowedPaths = normalizeAllowedPaths(target, [...allowedPaths, ...(mutation.allowedPaths || []), ...generatedSurfacePaths(mutationGeneratedSurfaces)]);
-        generatedSurfaces = [...new Set([...generatedSurfaces, ...generatedSurfaceNames(mutationGeneratedSurfaces)])].sort();
         const commitOptions = { ...(plan.changeSet.commit || {}), ...(mutation.commit || {}) };
+        const mutationAllowedPaths = normalizeAllowedPaths(target, [...(mutation.allowedPaths || []), ...generatedSurfacePaths(mutationGeneratedSurfaces)]);
+        assertLateAllowedPathsAreSafe(plan, mutationAllowedPaths, commitOptions);
+        allowedPaths = normalizeAllowedPaths(target, [...allowedPaths, ...mutationAllowedPaths]);
+        generatedSurfaces = [...new Set([...generatedSurfaces, ...generatedSurfaceNames(mutationGeneratedSurfaces)])].sort();
+        if (commitOptions.defer === true) assertNoOutOfScopeTransactionChanges(target, allowedPaths, initialEntries);
         const commit = commitOptions.defer === true
           ? { committed: false, reason: "deferred", allowedPaths }
           : commitGovernanceSync(context, allowedPaths, { message: commitOptions.message || "chore(harness): sync governance state" });
@@ -229,7 +236,7 @@ function generatedSurfacePaths(surfaces: Array<string | GeneratedSurface>): stri
 }
 
 function normalizeAllowedPaths(target: HarnessTransactionTarget, rawPaths: string[]): string[] {
-  return [...new Set(rawPaths.filter(Boolean).map((rawPath) => relativeTargetPath(target, rawPath)).filter(Boolean))].sort();
+  return [...new Set(rawPaths.map((rawPath) => relativeTargetPath(target, rawPath)))].sort();
 }
 
 function detectPlanConflicts(git: GitInspection, allowedPaths: string[], commit: TransactionCommitOptions | undefined): string[] {
@@ -272,8 +279,71 @@ function deletePaths(target: HarnessTransactionTarget, deletes: FileDelete[]): s
 
 function relativeTargetPath(target: HarnessTransactionTarget, rawPath: string): string {
   const stripped = String(rawPath || "").replace(/^TARGET:/, "").replace(/^\.\//, "");
-  const relative = path.isAbsolute(stripped) ? path.relative(target.projectRoot, stripped) : stripped;
+  if (!stripped || stripped === ".") throw transactionPathError(target, rawPath);
+  const targetRoot = path.resolve(target.projectRoot);
+  const absolute = path.isAbsolute(stripped) ? path.resolve(stripped) : path.resolve(targetRoot, stripped);
+  const relative = path.relative(targetRoot, absolute);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw transactionPathError(target, rawPath);
   return toPosix(relative);
+}
+
+function assertLateAllowedPathsAreSafe(plan: TransactionPlan, mutationAllowedPaths: string[], commitOptions: Partial<TransactionCommitOptions>): void {
+  if (commitOptions.allowDirtyWorktree !== true && commitOptions.defer !== true) return;
+  const predeclared = new Set(plan.allowedPaths);
+  const late = mutationAllowedPaths.filter((allowedPath) => !predeclared.has(allowedPath));
+  if (late.length === 0) return;
+  throw new GovernanceSyncError("Callback-added transaction paths must be predeclared when dirty worktree or deferred commit mode is enabled.", {
+    code: "transaction-late-paths-require-predeclaration",
+    details: { latePaths: late, predeclaredAllowedPaths: plan.allowedPaths, operation: plan.operation },
+    recovery: ["Add callback-discovered paths to ChangeSet.allowedPaths before planning the transaction."],
+  });
+}
+
+function assertNoOutOfScopeTransactionChanges(target: HarnessTransactionTarget, allowedPaths: string[], initialEntries: FingerprintedGitStatusEntry[]): void {
+  const allowed = new Set(allowedPaths);
+  const initialOutside = new Map(initialEntries.filter((entry) => !allowed.has(entry.path)).map((entry) => [entry.path, entry]));
+  const unexpected: FingerprintedGitStatusEntry[] = [];
+  const changed: Array<{ before: FingerprintedGitStatusEntry; after: FingerprintedGitStatusEntry }> = [];
+  for (const entry of fingerprintEntries(target, inspectGit(target.projectRoot).entries)) {
+    if (allowed.has(entry.path)) continue;
+    const initial = initialOutside.get(entry.path);
+    if (!initial) {
+      unexpected.push(entry);
+    } else if (initial.raw !== entry.raw || initial.fingerprint !== entry.fingerprint) {
+      changed.push({ before: initial, after: entry });
+    }
+  }
+  if (unexpected.length === 0 && changed.length === 0) return;
+  throw new GovernanceSyncError("Transaction produced changes outside the transaction write scope.", {
+    code: "transaction-write-scope-violation",
+    details: { unexpected, changed, allowedPaths },
+    recovery: ["Declare all transaction-owned paths before applying, or remove unintended side effects."],
+  });
+}
+
+function fingerprintEntries(target: HarnessTransactionTarget, entries: GitStatusEntry[]): FingerprintedGitStatusEntry[] {
+  return entries.map((entry) => ({ ...entry, fingerprint: fingerprintEntry(target, entry) }));
+}
+
+function fingerprintEntry(target: HarnessTransactionTarget, entry: GitStatusEntry): string {
+  const absolute = path.join(target.projectRoot, entry.path);
+  try {
+    const stat = fs.lstatSync(absolute);
+    if (stat.isSymbolicLink()) return `symlink:${fs.readlinkSync(absolute)}`;
+    if (stat.isFile()) return `file:${stat.size}:${crypto.createHash("sha256").update(new Uint8Array(fs.readFileSync(absolute))).digest("hex")}`;
+    if (stat.isDirectory()) return "directory";
+    return `${stat.mode}:${stat.size}`;
+  } catch {
+    return "missing";
+  }
+}
+
+function transactionPathError(target: HarnessTransactionTarget, rawPath: string): GovernanceSyncError {
+  return new GovernanceSyncError("Transaction paths must be non-empty and stay inside the transaction target.", {
+    code: "transaction-path-outside-target",
+    details: { path: rawPath, targetRoot: target.projectRoot },
+    recovery: ["Use a path inside the target project root."],
+  });
 }
 
 function releaseGovernanceContext(context: ReturnType<typeof beginGovernanceSync> | null, lockPath: string): TransactionReleaseSummary {

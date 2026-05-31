@@ -108,6 +108,76 @@ assert(failureResult.error?.message === "planned transaction callback failure", 
 assert(failureResult.release.completed === true, "callback failure should release governance sync");
 assert(!fs.existsSync(path.join(target, ".harness/locks/governance-sync.lock")), "callback failure should remove the lock file");
 
+for (const invalidPath of ["", "../transaction-outside.txt", "TARGET:../target-outside.txt", path.join(tmpRoot, "absolute-outside.txt")]) {
+  let rejected = false;
+  try {
+    transaction.plan({
+      operation: `transaction-invalid-path-${invalidPath || "empty"}`,
+      writes: [{ path: invalidPath, content: "outside\n" }],
+      commit: { message: "chore(harness): invalid path fixture" },
+    });
+  } catch (error) {
+    rejected = errorMessage(error).includes("inside the transaction target");
+  }
+  assert(rejected, `transaction plan should reject unsafe path: ${invalidPath || "<empty>"}`);
+}
+assert(!fs.existsSync(path.join(tmpRoot, "transaction-outside.txt")), "invalid relative paths must not write outside target");
+assert(!fs.existsSync(path.join(tmpRoot, "target-outside.txt")), "invalid TARGET paths must not write outside target");
+assert(!fs.existsSync(path.join(tmpRoot, "absolute-outside.txt")), "invalid absolute paths must not write outside target");
+
+const dirtyCallbackTarget = path.join(tmpRoot, "harness-transaction-dirty-callback-target");
+fs.mkdirSync(dirtyCallbackTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core", dirtyCallbackTarget]);
+git(dirtyCallbackTarget, ["init"]);
+git(dirtyCallbackTarget, ["config", "user.name", "Harness Test"]);
+git(dirtyCallbackTarget, ["config", "user.email", "harness-test@example.invalid"]);
+git(dirtyCallbackTarget, ["add", "."]);
+git(dirtyCallbackTarget, ["commit", "-m", "test fixture baseline"]);
+fs.writeFileSync(path.join(dirtyCallbackTarget, "DIRTY_SCOPE.txt"), "dirty before\n");
+const dirtyCallbackTransaction = createGovernanceHarnessTransaction(normalizeTarget(dirtyCallbackTarget));
+const dirtyCallbackPlan = dirtyCallbackTransaction.plan({
+  operation: "transaction-dirty-callback-path",
+  allowedPaths: ["coding-agent-harness/planning/tasks/predeclared/task_plan.md"],
+  commit: {
+    message: "chore(harness): dirty callback path fixture",
+    allowDirtyWorktree: true,
+  },
+  apply() {
+    fs.writeFileSync(path.join(dirtyCallbackTarget, "DIRTY_SCOPE.txt"), "dirty after\n");
+    return { allowedPaths: ["DIRTY_SCOPE.txt"] };
+  },
+});
+const dirtyCallbackHead = git(dirtyCallbackTarget, ["rev-parse", "HEAD"]).stdout.trim();
+const dirtyCallbackResult = dirtyCallbackTransaction.apply(dirtyCallbackPlan);
+assert(dirtyCallbackResult.success === false, "dirty worktree transactions should reject callback-added allowed paths");
+assert(dirtyCallbackResult.error?.message.includes("predeclared"), "dirty callback rejection should explain predeclared paths");
+assert(git(dirtyCallbackTarget, ["rev-parse", "HEAD"]).stdout.trim() === dirtyCallbackHead, "dirty callback rejection should not create a commit");
+
+const deferredScopeTarget = path.join(tmpRoot, "harness-transaction-deferred-scope-target");
+fs.mkdirSync(deferredScopeTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core", deferredScopeTarget]);
+git(deferredScopeTarget, ["init"]);
+git(deferredScopeTarget, ["config", "user.name", "Harness Test"]);
+git(deferredScopeTarget, ["config", "user.email", "harness-test@example.invalid"]);
+git(deferredScopeTarget, ["add", "."]);
+git(deferredScopeTarget, ["commit", "-m", "test fixture baseline"]);
+const deferredScopeTransaction = createGovernanceHarnessTransaction(normalizeTarget(deferredScopeTarget));
+const deferredScopePlan = deferredScopeTransaction.plan({
+  operation: "transaction-deferred-out-of-scope",
+  allowedPaths: ["coding-agent-harness/planning/tasks/deferred/task_plan.md"],
+  commit: {
+    message: "chore(harness): deferred out-of-scope fixture",
+    defer: true,
+  },
+  apply() {
+    fs.writeFileSync(path.join(deferredScopeTarget, "UNDECLARED.txt"), "undeclared\n");
+  },
+});
+const deferredScopeResult = deferredScopeTransaction.apply(deferredScopePlan);
+assert(deferredScopeResult.success === false, "deferred transactions should reject out-of-scope callback writes");
+assert(deferredScopeResult.error?.message.includes("outside the transaction write scope"), "deferred scope rejection should explain out-of-scope writes");
+assert(!fs.existsSync(path.join(deferredScopeTarget, ".harness/locks/governance-sync.lock")), "deferred scope rejection should release governance sync");
+
 const lifecycleTarget = path.join(tmpRoot, "harness-transaction-lifecycle-target");
 fs.mkdirSync(lifecycleTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core,module-parallel", lifecycleTarget]);
@@ -134,4 +204,8 @@ function git(cwd: string, args: string[]): SpawnSyncReturns<string> {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   assert(result.status === 0, `git ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
