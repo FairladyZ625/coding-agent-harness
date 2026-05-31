@@ -32,6 +32,8 @@ const timeout = await runRuntimeReliabilitySpikeProbe({
 assert(timeout.ok === false, "slow command should produce a structured timeout result");
 assert(timeout.failure.code === "probe-timeout", `unexpected timeout code ${timeout.failure.code}`);
 assert(timeout.failure.message.includes("25ms"), "timeout failure should include duration");
+assert(typeof timeout.root === "string", "timeout result should include the temp root for cleanup evidence");
+assert(!fs.existsSync(timeout.root), "Effect acquireRelease should remove the temp root after timeout");
 
 const leakCheck = spawnSync("rg", ["-n", "from \"effect\"|from 'effect'", "scripts/lib", "scripts/commands"], {
   encoding: "utf8",

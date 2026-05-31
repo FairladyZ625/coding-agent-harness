@@ -80,7 +80,16 @@ export async function runRuntimeReliabilitySpikeProbe({
           PATH: [context.bin, ...extraPath, "/usr/bin", "/bin"].join(path.delimiter),
         };
         const command = yield* acquireProbeCommand({ context, env, script });
-        const result = yield* awaitProbeCommand(command, context.root);
+        const result = yield* awaitProbeCommand(command, context.root).pipe(
+          Effect.timeoutFail({
+            duration: `${timeoutMillis} millis`,
+            onTimeout: () =>
+              new RuntimeReliabilitySpikeFailure({
+                code: "probe-timeout",
+                message: `runtime reliability probe timed out after ${timeoutMillis}ms`,
+              }, context.root),
+          }),
+        );
 
         if (result.status !== 0) {
           return yield* Effect.fail(
@@ -102,14 +111,6 @@ export async function runRuntimeReliabilitySpikeProbe({
           stdout: result.stdout,
         };
       }).pipe(
-        Effect.timeoutFail({
-          duration: `${timeoutMillis} millis`,
-          onTimeout: () =>
-            new RuntimeReliabilitySpikeFailure({
-              code: "probe-timeout",
-              message: `runtime reliability probe timed out after ${timeoutMillis}ms`,
-            }),
-        }),
         Effect.catchAll((error) =>
           Effect.succeed({
             ok: false as const,
