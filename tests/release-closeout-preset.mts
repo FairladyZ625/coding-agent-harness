@@ -34,6 +34,17 @@ type ReleaseTaskAggregate = {
   excluded: Array<{ id: string; reason: string }>;
 };
 
+type PresetRunResult = {
+  entrypoint?: string;
+  materialized: Array<{ destination?: string }>;
+  governance?: {
+    transaction?: {
+      success?: boolean;
+      allowedPaths?: string[];
+    };
+  };
+};
+
 const home = path.join(tmpRoot, "release-closeout-home");
 const env = { ...process.env, HOME: home, HARNESS_PRESET_SECRET: "do-not-leak" };
 const target = path.join(tmpRoot, "release-closeout-target");
@@ -109,9 +120,11 @@ assert(runnerInstallWithoutTrust.status !== 0, "script entrypoint presets should
 assert(`${runnerInstallWithoutTrust.stdout}\n${runnerInstallWithoutTrust.stderr}`.includes("--allow-scripts"), "entrypoint trust failure should explain --allow-scripts");
 expectJson(["preset", "install", runnerPreset, "--project", "--force", "--allow-scripts", "--json", target], { env });
 const runnerOwnedTask = expectJson(["new-task", "runner-owned-task", "--budget", "standard", "--preset", "runner-materialize", "--note", "hello", target], { env });
-const runnerResult = expectJson(["preset", "run", "runner-materialize", "plan", "--task", "runner-owned-task", "--json", target], { env });
+const runnerResult = expectJson<PresetRunResult>(["preset", "run", "runner-materialize", "plan", "--task", "runner-owned-task", "--json", target], { env });
 assert(runnerResult.entrypoint === "plan", "generic preset runner should report the executed entrypoint");
 assert(runnerResult.materialized.some((item) => item.destination === "coding-agent-harness/governance/runner/runner.txt"), "generic preset runner should report materialized writes");
+assert(runnerResult.governance?.transaction?.success === true, "generic preset runner should report successful transaction materialization");
+assert(runnerResult.governance.transaction.allowedPaths?.includes("coding-agent-harness/governance/runner/runner.txt"), "generic preset runner transaction should predeclare materialized write paths");
 const runnerOutput = fs.readFileSync(path.join(target, "coding-agent-harness/governance/runner/runner.txt"), "utf8");
 assert(runnerOutput.includes("note=hello"), "generic preset runner should pass resolved preset inputs to scripts");
 assert(runnerOutput.includes("secret=missing"), "generic preset runner should not pass arbitrary caller environment variables to scripts");

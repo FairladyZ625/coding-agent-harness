@@ -31,6 +31,12 @@ type PresetActionResult = {
   manifestSha256?: string;
   presetDrift?: { accepted?: boolean };
   materialized?: Array<{ destination?: string }>;
+  governance?: {
+    transaction?: {
+      success?: boolean;
+      allowedPaths?: string[];
+    };
+  };
 };
 
 const home = path.join(tmpRoot, "preset-action-home");
@@ -171,6 +177,8 @@ const actionResult = expectJson<PresetActionResult>([
 assert(actionResult.action === "close-stage", "preset action should report the executed action");
 assert(actionResult.status === "closed", "preset action should return manifest status");
 assert(actionResult.materialized?.some((item) => item.destination?.endsWith("/artifacts/stages/PLAN.md")), "preset action should materialize task-local writes");
+assert(actionResult.governance?.transaction?.success === true, "preset action should report successful transaction materialization");
+assert(actionResult.governance.transaction.allowedPaths?.some((item) => item.endsWith("/artifacts/stages/PLAN.md")), "preset action transaction should predeclare materialized write paths");
 const taskDir = path.join(target, "coding-agent-harness/planning/tasks", `${todayLocal}-action-owned-task`);
 const stagePath = path.join(taskDir, "artifacts/stages/PLAN.md");
 const stageContent = fs.readFileSync(stagePath, "utf8");

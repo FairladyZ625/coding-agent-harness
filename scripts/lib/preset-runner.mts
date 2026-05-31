@@ -16,7 +16,7 @@ import {
   toPosix,
   walkFiles,
 } from "./core-shared.mjs";
-import { beginGovernanceSync, commitGovernanceSync, releaseGovernanceSync } from "./governance-sync.mjs";
+import { assertTransactionSucceeded, createGovernanceHarnessTransaction, type FileWrite, type TransactionResult } from "./harness-transaction.mjs";
 import { parseTaskMetadata } from "./task-metadata.mjs";
 import { taskIdForDirectory } from "./task-scanner.mjs";
 import { resolveTaskDirectory } from "./task-lifecycle.mjs";
@@ -75,10 +75,13 @@ type MaterializedWrite = {
 
 type FileSnapshot = Map<string, string>;
 
-type BackupRecord = {
-  destinationPath: string;
-  backupPath: string;
-  existed: boolean;
+type PresetTransactionSummary = {
+  operation: string;
+  dryRun: boolean;
+  allowedPaths: string[];
+  writes: string[];
+  generatedSurfaces: string[];
+  success: boolean;
 };
 
 type TaskPathContext = {
@@ -163,33 +166,25 @@ export function runPresetEntrypoint(presetId: string, entrypointName: string, { 
     assertSnapshotsEqual(beforeSnapshot, afterScriptSnapshot, "Preset script mutated target before materialization");
     const manifest = readMaterializationManifest(manifestPath);
     const materialization = validateMaterializationManifest(preset, entrypoint, manifest, { outputRoot, target, entrypointName });
-    const governanceContext = beginGovernanceSync(target, {
+    const transactionResult = applyPresetMaterializationTransaction(target, {
       operation: `preset-run ${preset.id}.${entrypointName}`,
-      allowDirtyWorktree: true,
-      allowedRelativePaths: materialization.map((item) => item.destination),
+      message: `chore(harness): run preset ${preset.id} ${entrypointName}`,
+      materialization,
     });
-    try {
-      materializeWrites(target.projectRoot, materialization);
-      const commit = commitGovernanceSync(governanceContext, materialization.map((item) => item.destination), {
-        message: `chore(harness): run preset ${preset.id} ${entrypointName}`,
-      });
-      return {
-        preset: preset.id,
-        entrypoint: entrypointName,
-        taskId,
-        status: manifest.status || (entrypoint.type === "check" ? "pass" : "ok"),
-        materialized: materialization.map((item) => ({
-          source: item.source,
-          destination: item.destination,
-          type: item.type,
-          sha256: item.sha256,
-        })),
-        governance: { commit },
-        presetDrift,
-      };
-    } finally {
-      releaseGovernanceSync(governanceContext);
-    }
+    return {
+      preset: preset.id,
+      entrypoint: entrypointName,
+      taskId,
+      status: manifest.status || (entrypoint.type === "check" ? "pass" : "ok"),
+      materialized: materialization.map((item) => ({
+        source: item.source,
+        destination: item.destination,
+        type: item.type,
+        sha256: item.sha256,
+      })),
+      governance: { commit: transactionResult.commit, transaction: presetTransactionSummary(transactionResult) },
+      presetDrift,
+    };
   } finally {
     fs.rmSync(outputRoot, { recursive: true, force: true });
   }
@@ -223,13 +218,7 @@ export function runPresetAction(presetId: string, actionName: string, { taskRef 
   const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), `harness-preset-${preset.id}-${actionName}-`));
   const manifestPath = path.join(outputRoot, "materialization-manifest.json");
   const contextPath = path.join(outputRoot, "preset-action-context.json");
-  let governanceContext: ReturnType<typeof beginGovernanceSync> | null = null;
   try {
-    governanceContext = beginGovernanceSync(target, {
-      operation: `preset-action ${preset.id}.${actionName}`,
-      allowDirtyWorktree: true,
-      allowedRelativePaths: concreteActionWriteScopes(actionWriteScopes),
-    });
     const beforeSnapshot = targetSnapshot(target.projectRoot);
     const context = {
       schemaVersion: "preset-action-context/v1",
@@ -283,9 +272,10 @@ export function runPresetAction(presetId: string, actionName: string, { taskRef 
       reads: action.reads,
       audit: action.audit,
     }, manifest, { outputRoot, target, entrypointName: actionName });
-    materializeWrites(target.projectRoot, materialization);
-    const commit = commitGovernanceSync(governanceContext, materialization.map((item) => item.destination), {
+    const transactionResult = applyPresetMaterializationTransaction(target, {
+      operation: `preset-action ${preset.id}.${actionName}`,
       message: `chore(harness): run preset action ${preset.id} ${actionName}`,
+      materialization,
     });
     return {
       preset: preset.id,
@@ -300,11 +290,10 @@ export function runPresetAction(presetId: string, actionName: string, { taskRef 
         type: item.type,
         sha256: item.sha256,
       })),
-      governance: { commit },
+      governance: { commit: transactionResult.commit, transaction: presetTransactionSummary(transactionResult) },
       presetDrift,
     };
   } finally {
-    if (governanceContext) releaseGovernanceSync(governanceContext);
     fs.rmSync(outputRoot, { recursive: true, force: true });
   }
 }
@@ -397,10 +386,6 @@ function resolveActionScopes(scopes: string[], { target, taskPaths, label }: { t
     }
     return normalized;
   });
-}
-
-function concreteActionWriteScopes(scopes: string[]): string[] {
-  return scopes.filter((scope) => !scope.endsWith("/**"));
 }
 
 function presetScriptEnv(contextPath: string): NodeJS.ProcessEnv {
@@ -536,40 +521,6 @@ function enforcePublicRedaction(manifest: MaterializationManifest, writes: Mater
   if (report.status !== "pass") throw new Error("Public materialization requires a passing public redaction report");
 }
 
-function materializeWrites(targetRoot: string, writes: MaterializedWrite[]): void {
-  const backups: BackupRecord[] = [];
-  try {
-    for (const write of writes) {
-      const destinationPath = write.destinationPath;
-      fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
-      const existed = fs.existsSync(destinationPath);
-      const backupPath = existed ? `${destinationPath}.backup-${process.pid}-${crypto.randomBytes(4).toString("hex")}` : "";
-      if (existed) {
-        fs.copyFileSync(destinationPath, backupPath);
-        backups.push({ destinationPath, backupPath, existed });
-      } else {
-        backups.push({ destinationPath, backupPath: "", existed });
-      }
-      const tempPath = `${destinationPath}.tmp-${process.pid}-${crypto.randomBytes(4).toString("hex")}`;
-      fs.copyFileSync(write.sourcePath, tempPath);
-      fs.renameSync(tempPath, destinationPath);
-    }
-    for (const backup of backups) {
-      if (backup.backupPath) fs.rmSync(backup.backupPath, { force: true });
-    }
-  } catch (error) {
-    for (const backup of backups.reverse()) {
-      try {
-        if (backup.existed && backup.backupPath && fs.existsSync(backup.backupPath)) fs.renameSync(backup.backupPath, backup.destinationPath);
-        else if (!backup.existed) fs.rmSync(backup.destinationPath, { force: true });
-      } catch {
-        // Preserve the original materialization failure.
-      }
-    }
-    throw error;
-  }
-}
-
 function targetSnapshot(root: string): FileSnapshot {
   const entries: FileSnapshot = new Map();
   for (const filePath of walkFiles(root)) {
@@ -609,4 +560,37 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function applyPresetMaterializationTransaction(target: PresetTarget, { operation, message, materialization }: { operation: string; message: string; materialization: MaterializedWrite[] }): Extract<TransactionResult, { success: true }> {
+  const transaction = createGovernanceHarnessTransaction(target);
+  const writes = materialization.map((item): FileWrite => ({
+    path: item.destination,
+    content: fs.readFileSync(item.sourcePath),
+    action: "materialize-preset-write",
+    surface: "preset-materialization",
+  }));
+  const plan = transaction.plan({
+    operation,
+    writes,
+    allowedPaths: materialization.map((item) => item.destination),
+    commit: {
+      message,
+      allowDirtyWorktree: true,
+    },
+  });
+  const result = transaction.apply(plan);
+  assertTransactionSucceeded(result);
+  return result;
+}
+
+function presetTransactionSummary(result: TransactionResult): PresetTransactionSummary {
+  return {
+    operation: result.operation,
+    dryRun: result.dryRun,
+    allowedPaths: result.allowedPaths,
+    writes: result.writes,
+    generatedSurfaces: result.generatedSurfaces,
+    success: result.success,
+  };
 }
