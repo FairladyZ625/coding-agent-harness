@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { beginGovernanceSync, commitGovernanceSync, GovernanceSyncError, inspectGit, releaseGovernanceSync } from "./governance-sync.mjs";
 import { normalizeTarget, toPosix } from "./core-shared.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
@@ -154,7 +155,7 @@ export function createGovernanceHarnessTransaction(targetInput: string | Harness
       const writes = writePaths(target, plan.changeSet.writes || []);
       const deletes = deletePaths(target, plan.changeSet.deletes || []);
       try {
-        const initialEntries = fingerprintEntries(target, inspectGit(target.projectRoot).entries);
+        const initialEntries = fingerprintEntries(target, transactionScopeEntries(target));
         context = beginGovernanceSync(target, {
           operation: plan.operation,
           dryRun: plan.dryRun,
@@ -316,7 +317,7 @@ function assertNoOutOfScopeTransactionChanges(target: HarnessTransactionTarget, 
   const initialOutside = new Map(initialEntries.filter((entry) => !allowed.has(entry.path)).map((entry) => [entry.path, entry]));
   const unexpected: FingerprintedGitStatusEntry[] = [];
   const changed: Array<{ before: FingerprintedGitStatusEntry; after: FingerprintedGitStatusEntry }> = [];
-  for (const entry of fingerprintEntries(target, inspectGit(target.projectRoot).entries)) {
+  for (const entry of fingerprintEntries(target, transactionScopeEntries(target))) {
     if (allowed.has(entry.path)) continue;
     const initial = initialOutside.get(entry.path);
     if (!initial) {
@@ -335,6 +336,52 @@ function assertNoOutOfScopeTransactionChanges(target: HarnessTransactionTarget, 
 
 function fingerprintEntries(target: HarnessTransactionTarget, entries: GitStatusEntry[]): FingerprintedGitStatusEntry[] {
   return entries.map((entry) => ({ ...entry, fingerprint: fingerprintEntry(target, entry) }));
+}
+
+function transactionScopeEntries(target: HarnessTransactionTarget): GitStatusEntry[] {
+  const git = inspectGit(target.projectRoot);
+  if (!git.inGit) return fileSystemStatusEntries(target.projectRoot);
+  const result = spawnSync("git", ["status", "--porcelain=v1", "--untracked-files=all", "--ignored"], {
+    cwd: target.projectRoot,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    throw new GovernanceSyncError("git status failed while inspecting transaction write scope.", {
+      code: "transaction-git-status-failed",
+      details: { stdout: result.stdout.trim(), stderr: result.stderr.trim() },
+      recovery: ["Inspect the Git error and retry after resolving it."],
+    });
+  }
+  return result.stdout
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => ({
+      index: line.slice(0, 1),
+      worktree: line.slice(1, 2),
+      path: toPosix(parseStatusPath(line.slice(3))),
+      raw: line,
+    }))
+    .filter((entry) => entry.path !== ".harness/locks/governance-sync.lock");
+}
+
+function fileSystemStatusEntries(root: string): GitStatusEntry[] {
+  const entries: GitStatusEntry[] = [];
+  const visit = (directory: string): void => {
+    if (!fs.existsSync(directory)) return;
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+      const relative = toPosix(path.relative(root, absolute));
+      if (relative === ".harness/locks/governance-sync.lock") continue;
+      if (entry.name === ".git") continue;
+      if (entry.isDirectory()) {
+        visit(absolute);
+        continue;
+      }
+      entries.push({ index: "?", worktree: "?", path: relative, raw: `?? ${relative}` });
+    }
+  };
+  visit(root);
+  return entries;
 }
 
 function fingerprintEntry(target: HarnessTransactionTarget, entry: GitStatusEntry): string {
@@ -356,6 +403,11 @@ function transactionPathError(target: HarnessTransactionTarget, rawPath: string)
     details: { path: rawPath, targetRoot: target.projectRoot },
     recovery: ["Use a path inside the target project root."],
   });
+}
+
+function parseStatusPath(value: string): string {
+  const unquoted = value.replace(/^"|"$/g, "");
+  return unquoted.includes(" -> ") ? unquoted.split(" -> ").pop() ?? unquoted : unquoted;
 }
 
 function resolveExistingAncestorPath(absolutePath: string): string {

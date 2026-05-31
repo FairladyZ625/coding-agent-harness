@@ -178,6 +178,41 @@ const emptyAllowlistResult = emptyAllowlistTransaction.apply(emptyAllowlistPlan)
 assert(emptyAllowlistResult.success === false, "transactions should reject callback writes when the allowlist is empty");
 assert(emptyAllowlistResult.error.message.includes("outside the transaction write scope"), "empty allowlist rejection should explain write scope");
 
+const ignoredAllowlistTarget = path.join(tmpRoot, "harness-transaction-ignored-allowlist-target");
+fs.mkdirSync(ignoredAllowlistTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core", ignoredAllowlistTarget]);
+git(ignoredAllowlistTarget, ["init"]);
+git(ignoredAllowlistTarget, ["config", "user.name", "Harness Test"]);
+git(ignoredAllowlistTarget, ["config", "user.email", "harness-test@example.invalid"]);
+fs.writeFileSync(path.join(ignoredAllowlistTarget, ".gitignore"), "ignored.txt\n");
+git(ignoredAllowlistTarget, ["add", "."]);
+git(ignoredAllowlistTarget, ["commit", "-m", "test fixture baseline"]);
+const ignoredAllowlistTransaction = createGovernanceHarnessTransaction(normalizeTarget(ignoredAllowlistTarget));
+const ignoredAllowlistPlan = ignoredAllowlistTransaction.plan({
+  operation: "transaction-ignored-empty-allowlist-callback-write",
+  commit: { message: "chore(harness): ignored empty allowlist callback fixture" },
+  apply() {
+    fs.writeFileSync(path.join(ignoredAllowlistTarget, "ignored.txt"), "ignored but undeclared\n");
+  },
+});
+const ignoredAllowlistResult = ignoredAllowlistTransaction.apply(ignoredAllowlistPlan);
+assert(ignoredAllowlistResult.success === false, "transactions should reject ignored callback writes outside the allowlist");
+assert(ignoredAllowlistResult.error.message.includes("outside the transaction write scope"), "ignored write rejection should explain write scope");
+
+const nonGitTarget = path.join(tmpRoot, "harness-transaction-non-git-target");
+fs.mkdirSync(nonGitTarget);
+const nonGitTransaction = createGovernanceHarnessTransaction(normalizeTarget(nonGitTarget));
+const nonGitPlan = nonGitTransaction.plan({
+  operation: "transaction-non-git-empty-allowlist-callback-write",
+  commit: { message: "chore(harness): non-git empty allowlist callback fixture" },
+  apply() {
+    fs.writeFileSync(path.join(nonGitTarget, "UNDECLARED_NON_GIT.txt"), "undeclared non-git\n");
+  },
+});
+const nonGitResult = nonGitTransaction.apply(nonGitPlan);
+assert(nonGitResult.success === false, "non-git transactions should reject callback writes outside the allowlist");
+assert(nonGitResult.error.message.includes("outside the transaction write scope"), "non-git write rejection should explain write scope");
+
 const dirtyCallbackTarget = path.join(tmpRoot, "harness-transaction-dirty-callback-target");
 fs.mkdirSync(dirtyCallbackTarget);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", dirtyCallbackTarget]);
