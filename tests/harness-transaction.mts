@@ -80,6 +80,35 @@ assert(/^[0-9a-f]{7,40}$/.test(commit.commitSha || ""), "commit summary should i
 assert(fs.readFileSync(path.join(target, "coding-agent-harness/planning/tasks/transaction-plan/task_plan.md"), "utf8") === "# Transaction Plan\n", "transaction apply should write content");
 assert(git(target, ["status", "--short"]).stdout.trim() === "", "transaction apply should leave git clean");
 
+const dryRunCallbackTarget = path.join(tmpRoot, "harness-transaction-dry-run-callback-target");
+fs.mkdirSync(dryRunCallbackTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core", dryRunCallbackTarget]);
+git(dryRunCallbackTarget, ["init"]);
+git(dryRunCallbackTarget, ["config", "user.name", "Harness Test"]);
+git(dryRunCallbackTarget, ["config", "user.email", "harness-test@example.invalid"]);
+git(dryRunCallbackTarget, ["add", "."]);
+git(dryRunCallbackTarget, ["commit", "-m", "test fixture baseline"]);
+const dryRunCallbackTransaction = createGovernanceHarnessTransaction(normalizeTarget(dryRunCallbackTarget));
+let dryRunCallbackInvoked = false;
+const dryRunCallbackPlan = dryRunCallbackTransaction.plan({
+  operation: "transaction-dry-run-callback",
+  dryRun: true,
+  writes: [{ path: "coding-agent-harness/planning/tasks/dry-run/task_plan.md", content: "# Dry Run\n" }],
+  commit: { message: "chore(harness): dry run callback fixture" },
+  apply() {
+    dryRunCallbackInvoked = true;
+    fs.writeFileSync(path.join(dryRunCallbackTarget, "CALLBACK_MUTATION.txt"), "callback mutation\n");
+    return { allowedPaths: ["CALLBACK_MUTATION.txt"] };
+  },
+});
+const dryRunCallbackResult = dryRunCallbackTransaction.apply(dryRunCallbackPlan);
+assertTransactionSucceeded(dryRunCallbackResult);
+assert(dryRunCallbackResult.commit.committed === false && dryRunCallbackResult.commit.reason === "dry-run", "dry-run transactions should report dry-run commit result");
+assert(dryRunCallbackInvoked === false, "dry-run transactions should not invoke mutation callbacks");
+assert(!fs.existsSync(path.join(dryRunCallbackTarget, "CALLBACK_MUTATION.txt")), "dry-run transaction callback must not mutate files");
+assert(!fs.existsSync(path.join(dryRunCallbackTarget, "coding-agent-harness/planning/tasks/dry-run/task_plan.md")), "dry-run declarative writes must not mutate files");
+assert(git(dryRunCallbackTarget, ["status", "--short"]).stdout.trim() === "", "dry-run transaction should leave git clean");
+
 fs.writeFileSync(path.join(target, "DIRTY.txt"), "dirty\n");
 const dirtyPlan = transaction.plan({
   operation: "transaction-dirty-gate",

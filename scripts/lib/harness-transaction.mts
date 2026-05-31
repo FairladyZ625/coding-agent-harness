@@ -164,7 +164,7 @@ export function createGovernanceHarnessTransaction(targetInput: string | Harness
           allowedRelativePaths: allowedPaths,
         });
         applyDeclarativeChanges(target, plan);
-        const mutation = plan.changeSet.apply?.({ target, plan }) || {};
+        const mutation = plan.dryRun ? {} : plan.changeSet.apply?.({ target, plan }) || {};
         const mutationGeneratedSurfaces = mutation.generatedSurfaces || [];
         const commitOptions = { ...(plan.changeSet.commit || {}), ...(mutation.commit || {}) };
         const mutationAllowedPaths = normalizeAllowedPaths(target, [...(mutation.allowedPaths || []), ...generatedSurfacePaths(mutationGeneratedSurfaces)]);
