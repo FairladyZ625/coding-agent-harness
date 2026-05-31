@@ -18,6 +18,7 @@ import { renderAgentReviewSubmission, replaceAgentReviewSubmission } from "./tas
 import { appendLongRunningContractFile, moduleTemplateFiles, taskFilesForBudget } from "./task-lifecycle/template-files.mjs";
 import { planCreateTaskChanges, refreshPresetCommandAudit, resolveImplicitCreateTarget } from "./task-lifecycle/create-task-helpers.mjs";
 import { beginGovernanceSync, commitGovernanceSync, governanceRelativePaths, releaseGovernanceSync, syncModuleStepGovernance, syncTaskGovernance } from "./governance-sync.mjs";
+import { assertTransactionSucceeded, createGovernanceHarnessTransaction } from "./harness-transaction.mjs";
 import { normalizeHarnessModuleKey, prepareModuleRegistration, prepareModuleStepRegistrationUpdate, readHarnessModules, registeredHarnessModule } from "./module-registry.mjs";
 import { assertLifecyclePresetWriteScope, buildLifecyclePresetContext, evaluatePresetValues, renderLifecyclePresetTaskTemplate, resolveLifecyclePresetInputs } from "./task-lifecycle/preset-interop.mjs";
 import { taskIdFromDirectory } from "./harness-paths.mjs";
@@ -385,63 +386,85 @@ export function updateTaskLifecycle(targetInput: string, taskId: string, { event
     taskDir,
   });
   if (event === "task-review") validateReviewEntryGate(taskDir, budget);
-  const governanceContext = beginGovernanceSync(target, { operation: `${event} ${canonicalTaskId}` });
-  try {
-    let content = readFileSafe(progressPath);
-    if (normalizedState) content = updateProgressState(content, normalizedState, registry.locale || "en-US");
-    content = appendProgressLog(content, { event, message, evidence });
-    fs.writeFileSync(progressPath, content.endsWith("\n") ? content : `${content}\n`);
-    const allowedPaths = [toPosix(path.relative(target.projectRoot, progressPath))];
-    const advancedPhasePath = advanceLifecyclePhase(target, taskDir, normalizedEvent);
-    if (advancedPhasePath) allowedPaths.push(advancedPhasePath);
-    if (event === "task-review") {
-      const reviewPath = path.join(taskDir, "review.md");
-      const reviewContent = readFileSafe(reviewPath);
-      fs.writeFileSync(
-        reviewPath,
-        replaceAgentReviewSubmission(
-          reviewContent,
-          renderAgentReviewSubmission({
-            target,
-            taskDir,
-            canonicalTaskId,
-            message,
-            evidence,
-          }),
-        ),
-      );
-      allowedPaths.push(toPosix(path.relative(target.projectRoot, reviewPath)));
-      const lessonDecisionPath = autoRecordNoLessonCandidateDecision(target, taskDir);
-      if (lessonDecisionPath) allowedPaths.push(lessonDecisionPath);
-    }
-    if (event === "task-complete" && target.harness.version === 2) {
-      const walkthroughPath = path.join(taskDir, "walkthrough.md");
-      const currentWalkthrough = readFileSafe(walkthroughPath) || `# Walkthrough: ${canonicalTaskId}\n`;
-      fs.writeFileSync(walkthroughPath, markWalkthroughClosed(currentWalkthrough));
-      allowedPaths.push(toPosix(path.relative(target.projectRoot, walkthroughPath)));
-    }
-    const task =
-      findTaskByDirectory(target, taskDir) ||
-      {
-        id: canonicalTaskId,
-        shortId: path.basename(taskDir),
-        title: canonicalTaskId,
-        path: `TARGET:${toPosix(path.relative(target.projectRoot, taskDir))}`,
-        state: normalizedState || currentTask?.state || "unknown",
-      };
-    const governanceState = normalizedState || task.state || currentTask?.state || "planned";
-    const governance = syncTaskGovernance(target, task, { event, state: governanceState, message, dryRun: false });
-    const commit = commitGovernanceSync(governanceContext, [...allowedPaths, ...governanceRelativePaths(governance.changes)], {
-      message: `chore(harness): advance task ${canonicalTaskId} to ${governanceState}`,
-    });
-    return {
-      event,
-      task,
-      governance: { ...governance, commit },
+  type LifecycleTransactionPayload = {
+    event: string;
+    task: LifecycleTask | {
+      id: string;
+      shortId: string;
+      title: string;
+      path: string;
+      state: string;
     };
-  } finally {
-    releaseGovernanceSync(governanceContext);
-  }
+    governance: ReturnType<typeof syncTaskGovernance>;
+  };
+  const lifecycleResultBox: { current: LifecycleTransactionPayload | null } = { current: null };
+  const transaction = createGovernanceHarnessTransaction(target);
+  const plan = transaction.plan({
+    operation: `${event} ${canonicalTaskId}`,
+    commit: { message: `chore(harness): advance task ${canonicalTaskId}` },
+    apply() {
+      let content = readFileSafe(progressPath);
+      if (normalizedState) content = updateProgressState(content, normalizedState, registry.locale || "en-US");
+      content = appendProgressLog(content, { event, message, evidence });
+      fs.writeFileSync(progressPath, content.endsWith("\n") ? content : `${content}\n`);
+      const allowedPaths = [toPosix(path.relative(target.projectRoot, progressPath))];
+      const advancedPhasePath = advanceLifecyclePhase(target, taskDir, normalizedEvent);
+      if (advancedPhasePath) allowedPaths.push(advancedPhasePath);
+      if (event === "task-review") {
+        const reviewPath = path.join(taskDir, "review.md");
+        const reviewContent = readFileSafe(reviewPath);
+        fs.writeFileSync(
+          reviewPath,
+          replaceAgentReviewSubmission(
+            reviewContent,
+            renderAgentReviewSubmission({
+              target,
+              taskDir,
+              canonicalTaskId,
+              message,
+              evidence,
+            }),
+          ),
+        );
+        allowedPaths.push(toPosix(path.relative(target.projectRoot, reviewPath)));
+        const lessonDecisionPath = autoRecordNoLessonCandidateDecision(target, taskDir);
+        if (lessonDecisionPath) allowedPaths.push(lessonDecisionPath);
+      }
+      if (event === "task-complete" && target.harness.version === 2) {
+        const walkthroughPath = path.join(taskDir, "walkthrough.md");
+        const currentWalkthrough = readFileSafe(walkthroughPath) || `# Walkthrough: ${canonicalTaskId}\n`;
+        fs.writeFileSync(walkthroughPath, markWalkthroughClosed(currentWalkthrough));
+        allowedPaths.push(toPosix(path.relative(target.projectRoot, walkthroughPath)));
+      }
+      const task =
+        findTaskByDirectory(target, taskDir) ||
+        {
+          id: canonicalTaskId,
+          shortId: path.basename(taskDir),
+          title: canonicalTaskId,
+          path: `TARGET:${toPosix(path.relative(target.projectRoot, taskDir))}`,
+          state: normalizedState || currentTask?.state || "unknown",
+        };
+      const governanceState = normalizedState || task.state || currentTask?.state || "planned";
+      const governance = syncTaskGovernance(target, task, { event, state: governanceState, message, dryRun: false });
+      const governancePaths = governanceRelativePaths(governance.changes);
+      lifecycleResultBox.current = { event, task, governance };
+      return {
+        allowedPaths: [...allowedPaths, ...governancePaths],
+        generatedSurfaces: governance.changes.map((change) => ({ surface: change.surface, paths: [change.destination] })),
+        commit: { message: `chore(harness): advance task ${canonicalTaskId} to ${governanceState}` },
+      };
+    },
+  });
+  const transactionResult = transaction.apply(plan);
+  assertTransactionSucceeded(transactionResult);
+  const lifecycleResult = lifecycleResultBox.current;
+  if (!lifecycleResult) throw new Error(`Lifecycle transaction did not produce a result: ${canonicalTaskId}`);
+  return {
+    event: lifecycleResult.event,
+    task: lifecycleResult.task,
+    governance: { ...lifecycleResult.governance, commit: transactionResult.commit },
+  };
 }
 
 function assertLifecycleEventStateConsistency(event: LifecycleGateEvent, state: string): void {
