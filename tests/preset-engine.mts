@@ -63,8 +63,24 @@ assert(initResult.presetSeed?.scope === "project", "init should seed bundled pre
 assert(fs.existsSync(path.join(target, ".coding-agent-harness/presets/module/preset.yaml")), "init should install the bundled module preset into the project");
 const projectSeededList = expectJson(["preset", "list", "--json", target], { env });
 assert(projectSeededList.presets.some((preset) => preset.id === "module" && preset.source === "project"), "project-seeded bundled presets should be discovered before builtin fallback");
+assert(projectSeededList.presets.some((preset) => preset.id === "codex-thread-orchestration" && preset.source === "project"), "init should seed the bundled Codex thread orchestration preset into the project");
 const projectSeedAgain = expectJson(["preset", "seed", "--project", "--json", target], { env });
 assert(projectSeedAgain.skipped >= 1, "preset seed should be idempotent by default");
+
+const codexThreadInspect = expectJson(["preset", "inspect", "codex-thread-orchestration", "--json", target], { env });
+assert(codexThreadInspect.task.kind === "codex-thread-orchestration-task", "Codex thread preset should expose its public task kind");
+assert(codexThreadInspect.compatibleBudgets.includes("complex"), "Codex thread preset should support complex tasks");
+const codexThreadTask = expectJson(["new-task", "codex-thread-smoke", "--budget", "complex", "--preset", "codex-thread-orchestration", "--title", "Codex Thread Smoke", target], { env });
+assert(codexThreadTask.task.kind === "codex-thread-orchestration-task", "Codex thread preset should create its own independent task kind");
+assert(codexThreadTask.task.preset === "codex-thread-orchestration", "Codex thread preset should not depend on a project-private preset");
+const codexThreadTaskDir = path.join(target, `coding-agent-harness/planning/tasks/${todayLocal}-codex-thread-smoke`);
+const codexThreadTaskPlan = fs.readFileSync(path.join(codexThreadTaskDir, "task_plan.md"), "utf8");
+const codexThreadStrategy = fs.readFileSync(path.join(codexThreadTaskDir, "execution_strategy.md"), "utf8");
+const codexThreadReferences = fs.readFileSync(path.join(codexThreadTaskDir, "references/INDEX.md"), "utf8");
+assert(codexThreadTaskPlan.includes("Codex Thread Orchestration Preset"), "Codex thread preset should append task-plan guidance");
+assert(codexThreadStrategy.includes("## Codex Thread Orchestration"), "Codex thread preset should append execution strategy guidance");
+assert(codexThreadReferences.includes("REF-001") && codexThreadReferences.includes("codex-thread-orchestration-protocol.md"), "Codex thread preset should provide a required protocol reference");
+assert(!codexThreadTaskPlan.includes("Admin Review Bypass"), "public Codex thread preset must not include coding-agent-harness internal PR policy");
 
 const listBefore = expectJson(["preset", "list", "--json"], { env });
 const legacyBefore = listBefore.presets.find((preset) => preset.id === "legacy-migration");
