@@ -14,9 +14,9 @@ English mirror: `docs-release/guides/migration-playbook.en-US.md`
 本文默认使用已安装的 `harness` 命令。执行 agent 必须先检查 `command -v harness`。
 如果目标环境没有 `harness`，不得静默全局安装；先询问用户是否允许运行
 `npm install -g coding-agent-harness`。用户明确同意后才能安装。用户不同意或未回复时，
-用 `npx --yes coding-agent-harness <command>` 运行同一条 CLI。维护者在本源码仓调试时，
-可以在 `npm install` 或 `npm run build:runtime` 生成 `dist/` 后，把同一命令替换为
-`node dist/harness.mjs`。
+用 `npx --yes coding-agent-harness <command>` 运行同一条 CLI。维护者调试当前源码
+checkout 改动时，可以在仓库根目录把同一命令替换为
+`node run-dist.mjs harness.mjs <command>`。
 
 ## 目标路径和 v2 结构
 

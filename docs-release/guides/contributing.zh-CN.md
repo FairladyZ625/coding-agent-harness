@@ -43,7 +43,7 @@ npm ci
 | --- | --- |
 | 仅文档 | `git diff --check` |
 | CLI / runtime | `npm run typecheck`, `npm run typecheck:guards`, `npm test`, `npm run check`, `git diff --check` |
-| 模板或示例 | `npm test`, `npm run build:runtime`, `node dist/harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
+| 模板或示例 | `npm test`, `npm run build:runtime`, `node run-dist.mjs harness.mjs check --profile target-project examples/minimal-project`, `git diff --check` |
 | Dashboard | `npm test`, `npm run smoke:dashboard`, `git diff --check` |
 | Package surface | `npm test`, `npm run pack:dry-run`, `git diff --check` |
 | GUI 子模块 | `cd harness-gui && npm ci && npm run typecheck && npm test && npm run build` |
@@ -57,7 +57,7 @@ npm run typecheck:guards
 npm test
 npm run smoke:dashboard
 npm run check
-node dist/harness.mjs check --profile target-project examples/minimal-project
+node run-dist.mjs harness.mjs check --profile target-project examples/minimal-project
 npm run pack:dry-run
 git diff --check
 ```
