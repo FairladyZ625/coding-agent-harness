@@ -939,6 +939,8 @@ function taskSwimlaneModel(tasks) {
 }
 
 function taskVisibleInSwimlane(task) {
+  const view = taskDashboardTaskView(task);
+  if (typeof view.visibleInSwimlane === "boolean") return view.visibleInSwimlane;
   const stateValue = String(task.state || "");
   const closeout = String(task.closeoutStatus || "");
   if (["done", "closed", "finalized"].includes(stateValue)) return false;
@@ -950,6 +952,8 @@ function taskVisibleInSwimlane(task) {
 }
 
 function taskSwimlaneStage(task) {
+  const view = taskDashboardTaskView(task);
+  if (view.swimlaneStage) return view.swimlaneStage;
   const stateValue = String(task.state || "");
   const review = String(task.reviewStatus || "");
   const reviewQueue = String(task.reviewQueueState || "");
@@ -966,12 +970,19 @@ function taskSwimlaneStage(task) {
 }
 
 function taskNeedsEvidence(task) {
+  const view = taskDashboardTaskView(task);
+  if (typeof view.needsEvidence === "boolean") return view.needsEvidence;
   if (["missing", "legacy-only"].includes(String(task.visualMapStatus || ""))) return true;
   if (task.briefSource && task.briefSource !== "standalone") return true;
   return (task.phases || []).some((phase) => ["missing", "partial"].includes(String(phase.evidenceStatus || "")));
 }
 
 function taskSwimlaneReason(task) {
+  const view = taskDashboardTaskView(task);
+  if (view.reasonMessage) return view.reasonMessage;
+  if (view.reasonCode === "needs-evidence") return t("swimlaneNeedsEvidence");
+  if (view.reasonCode === "ready-to-confirm") return t("swimlaneReadyToConfirm");
+  if (view.reasonCode === "needs-closeout") return t("swimlaneNeedsCloseout");
   const reasons = Array.isArray(task.queueReasons) ? task.queueReasons.filter(Boolean) : [];
   if (reasons.length) return reasons[0];
   if (taskNeedsEvidence(task)) return t("swimlaneNeedsEvidence");
@@ -1501,14 +1512,20 @@ function reviewActionPanel(task, { mode = "summary" } = {}) {
 }
 
 function isTaskInReviewQueue(task) {
+  const view = taskReviewWorkbenchQueueView(task);
+  if (typeof view.inQueue === "boolean") return view.inQueue;
   return (task?.reviewQueueState || "not-in-queue") !== "not-in-queue";
 }
 
 function taskCanBeHumanConfirmed(task) {
+  const view = taskReviewWorkbenchQueueView(task);
+  if (typeof view.humanConfirmable === "boolean") return view.humanConfirmable;
   return task?.reviewQueueState === "ready-to-confirm" && Array.isArray(task?.taskQueues) && task.taskQueues.includes("review");
 }
 
 function taskHasPendingLessonWork(task) {
+  const view = taskReviewWorkbenchQueueView(task);
+  if (typeof view.hasPendingLessonWork === "boolean") return view.hasPendingLessonWork;
   const queues = Array.isArray(task?.taskQueues) ? task.taskQueues : [];
   const candidates = Array.isArray(task?.lessonCandidateRows) ? task.lessonCandidateRows : [];
   return queues.includes("lessons")
@@ -1518,9 +1535,19 @@ function taskHasPendingLessonWork(task) {
 }
 
 function taskReadyForCloseout(task) {
+  const view = taskReviewWorkbenchQueueView(task);
+  if (typeof view.readyForCloseout === "boolean") return view.readyForCloseout;
   if (!task || task.reviewStatus !== "confirmed" || task.closeoutStatus === "closed") return false;
   if (taskHasPendingLessonWork(task)) return false;
   return ["no-candidate-accepted", "promoted", "rejected"].includes(String(task.lessonCandidateStatus || ""));
+}
+
+function taskDashboardTaskView(task) {
+  return task?.dashboardTaskView || task?.semanticProjection?.dashboardTaskView || {};
+}
+
+function taskReviewWorkbenchQueueView(task) {
+  return task?.reviewWorkbenchQueueView || task?.semanticProjection?.reviewWorkbenchQueueView || {};
 }
 
 function evidenceList(task) {
@@ -1925,11 +1952,15 @@ function reviewQueueBaseTasks(tab) {
 }
 
 function taskMatchesReviewTab(task, tab) {
+  const view = taskReviewWorkbenchQueueView(task);
   const queues = reviewTaskQueues(task);
+  if (view.primaryQueue && (tab.queues || []).includes(view.primaryQueue)) return true;
   return (tab.queues || []).some((queue) => queues.includes(queue));
 }
 
 function reviewTaskQueues(task) {
+  const view = taskReviewWorkbenchQueueView(task);
+  if (Array.isArray(view.queues)) return view.queues;
   return Array.isArray(task?.taskQueues) ? task.taskQueues : Array.isArray(task?.queues) ? task.queues : [];
 }
 

@@ -117,11 +117,15 @@ function reviewQueueBaseTasks(tab) {
 }
 
 function taskMatchesReviewTab(task, tab) {
+  const view = taskReviewWorkbenchQueueView(task);
   const queues = reviewTaskQueues(task);
+  if (view.primaryQueue && (tab.queues || []).includes(view.primaryQueue)) return true;
   return (tab.queues || []).some((queue) => queues.includes(queue));
 }
 
 function reviewTaskQueues(task) {
+  const view = taskReviewWorkbenchQueueView(task);
+  if (Array.isArray(view.queues)) return view.queues;
   return Array.isArray(task?.taskQueues) ? task.taskQueues : Array.isArray(task?.queues) ? task.queues : [];
 }
 

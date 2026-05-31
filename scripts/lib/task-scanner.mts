@@ -57,6 +57,7 @@ import {
   taskReviewStatus,
   taskScannerVersion,
 } from "./task-review-model.mjs";
+import { attachTaskSemanticProjection } from "./task-semantic-projection.mjs";
 import {
   resolveHarnessPaths,
   safeAdoptionCapability,
@@ -421,7 +422,7 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       taskDir,
       target,
     });
-    return {
+    return attachTaskSemanticProjection({
       id,
       taskKey: identity.taskKey,
       currentPath: `TARGET:${relative}`,
@@ -511,7 +512,7 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       evidence: collectEvidence(progress),
       handoffs: collectHandoffs(progress, title),
       dependencies: [],
-    };
+    });
   });
 }
 

@@ -285,14 +285,20 @@ function reviewActionPanel(task, { mode = "summary" } = {}) {
 }
 
 function isTaskInReviewQueue(task) {
+  const view = taskReviewWorkbenchQueueView(task);
+  if (typeof view.inQueue === "boolean") return view.inQueue;
   return (task?.reviewQueueState || "not-in-queue") !== "not-in-queue";
 }
 
 function taskCanBeHumanConfirmed(task) {
+  const view = taskReviewWorkbenchQueueView(task);
+  if (typeof view.humanConfirmable === "boolean") return view.humanConfirmable;
   return task?.reviewQueueState === "ready-to-confirm" && Array.isArray(task?.taskQueues) && task.taskQueues.includes("review");
 }
 
 function taskHasPendingLessonWork(task) {
+  const view = taskReviewWorkbenchQueueView(task);
+  if (typeof view.hasPendingLessonWork === "boolean") return view.hasPendingLessonWork;
   const queues = Array.isArray(task?.taskQueues) ? task.taskQueues : [];
   const candidates = Array.isArray(task?.lessonCandidateRows) ? task.lessonCandidateRows : [];
   return queues.includes("lessons")
@@ -302,9 +308,19 @@ function taskHasPendingLessonWork(task) {
 }
 
 function taskReadyForCloseout(task) {
+  const view = taskReviewWorkbenchQueueView(task);
+  if (typeof view.readyForCloseout === "boolean") return view.readyForCloseout;
   if (!task || task.reviewStatus !== "confirmed" || task.closeoutStatus === "closed") return false;
   if (taskHasPendingLessonWork(task)) return false;
   return ["no-candidate-accepted", "promoted", "rejected"].includes(String(task.lessonCandidateStatus || ""));
+}
+
+function taskDashboardTaskView(task) {
+  return task?.dashboardTaskView || task?.semanticProjection?.dashboardTaskView || {};
+}
+
+function taskReviewWorkbenchQueueView(task) {
+  return task?.reviewWorkbenchQueueView || task?.semanticProjection?.reviewWorkbenchQueueView || {};
 }
 
 function evidenceList(task) {

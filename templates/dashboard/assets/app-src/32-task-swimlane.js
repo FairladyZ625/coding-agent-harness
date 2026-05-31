@@ -38,6 +38,8 @@ function taskSwimlaneModel(tasks) {
 }
 
 function taskVisibleInSwimlane(task) {
+  const view = taskDashboardTaskView(task);
+  if (typeof view.visibleInSwimlane === "boolean") return view.visibleInSwimlane;
   const stateValue = String(task.state || "");
   const closeout = String(task.closeoutStatus || "");
   if (["done", "closed", "finalized"].includes(stateValue)) return false;
@@ -49,6 +51,8 @@ function taskVisibleInSwimlane(task) {
 }
 
 function taskSwimlaneStage(task) {
+  const view = taskDashboardTaskView(task);
+  if (view.swimlaneStage) return view.swimlaneStage;
   const stateValue = String(task.state || "");
   const review = String(task.reviewStatus || "");
   const reviewQueue = String(task.reviewQueueState || "");
@@ -65,12 +69,19 @@ function taskSwimlaneStage(task) {
 }
 
 function taskNeedsEvidence(task) {
+  const view = taskDashboardTaskView(task);
+  if (typeof view.needsEvidence === "boolean") return view.needsEvidence;
   if (["missing", "legacy-only"].includes(String(task.visualMapStatus || ""))) return true;
   if (task.briefSource && task.briefSource !== "standalone") return true;
   return (task.phases || []).some((phase) => ["missing", "partial"].includes(String(phase.evidenceStatus || "")));
 }
 
 function taskSwimlaneReason(task) {
+  const view = taskDashboardTaskView(task);
+  if (view.reasonMessage) return view.reasonMessage;
+  if (view.reasonCode === "needs-evidence") return t("swimlaneNeedsEvidence");
+  if (view.reasonCode === "ready-to-confirm") return t("swimlaneReadyToConfirm");
+  if (view.reasonCode === "needs-closeout") return t("swimlaneNeedsCloseout");
   const reasons = Array.isArray(task.queueReasons) ? task.queueReasons.filter(Boolean) : [];
   if (reasons.length) return reasons[0];
   if (taskNeedsEvidence(task)) return t("swimlaneNeedsEvidence");
