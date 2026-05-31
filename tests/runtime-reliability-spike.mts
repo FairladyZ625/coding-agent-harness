@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import path from "node:path";
 import { runRuntimeReliabilitySpikeProbe } from "./helpers/runtime-reliability-spike-effect.mjs";
-import { spawnSync } from "node:child_process";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -35,9 +35,25 @@ assert(timeout.failure.message.includes("25ms"), "timeout failure should include
 assert(typeof timeout.root === "string", "timeout result should include the temp root for cleanup evidence");
 assert(!fs.existsSync(timeout.root), "Effect acquireRelease should remove the temp root after timeout");
 
-const leakCheck = spawnSync("rg", ["-n", "from \"effect\"|from 'effect'", "scripts/lib", "scripts/commands"], {
-  encoding: "utf8",
-});
-assert(leakCheck.status === 1, `Effect imports must not leak into runtime ports/application/domain surfaces:\n${leakCheck.stdout}\n${leakCheck.stderr}`);
+const runtimeEffectImports = collectFiles("scripts/lib")
+  .concat(collectFiles("scripts/commands"))
+  .filter((file) => fs.readFileSync(file, "utf8").match(/from\s+["']effect["']/));
+assert(runtimeEffectImports.length === 0, `Effect imports must not leak into runtime ports/application/domain surfaces:\n${runtimeEffectImports.join("\n")}`);
 
 console.log("Runtime reliability Effect spike tests passed");
+
+function collectFiles(root: string): string[] {
+  const files: string[] = [];
+  walk(root, files);
+  return files;
+}
+
+function walk(current: string, files: string[]) {
+  const stat = fs.lstatSync(current);
+  if (stat.isSymbolicLink()) return;
+  if (stat.isDirectory()) {
+    for (const entry of fs.readdirSync(current)) walk(path.join(current, entry), files);
+    return;
+  }
+  if (stat.isFile() && current.endsWith(".mts")) files.push(current);
+}
