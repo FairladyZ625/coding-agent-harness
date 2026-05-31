@@ -21,6 +21,7 @@ const suiteFiles = walkTestSuites(path.join(repoRoot, "tests"))
     "tests/run-built.mts",
     "tests/smoke-dashboard.mts",
     "tests/helpers/harness-test-utils.mts",
+    "tests/helpers/runtime-reliability-spike-effect.mts",
     "tests/scripts/snapshot-matrix.mts",
   ].includes(file))
   .filter((file) => !file.startsWith("tests/fixtures/"));
