@@ -168,7 +168,7 @@ function taskVisibleInSwimlane(task: TaskSemanticProjectionInput, lifecycle: Tas
   if (clampCompletion(task.completion) >= 100 && !["review", "blocked", "reopened", "current-evidence"].includes(lifecycle.state)) return false;
   return ["active", "planned", "not_started", "in_progress", "review", "blocked", "reopened", "current-evidence"].includes(lifecycle.state)
     || reviewView.inQueue
-    || ["agent-reviewed", "confirmed", "blocked-open-findings"].includes(lifecycle.reviewStatus);
+    || ["confirmed", "blocked-open-findings"].includes(lifecycle.reviewStatus);
 }
 
 function taskSwimlaneStage(task: TaskSemanticProjectionInput, lifecycle: TaskLifecycleProjection, reviewView: ReviewWorkbenchQueueView, needsEvidence: boolean): string {
@@ -176,7 +176,7 @@ function taskSwimlaneStage(task: TaskSemanticProjectionInput, lifecycle: TaskLif
   if (reviewView.hasPendingLessonWork && lifecycle.reviewStatus === "confirmed") return "closeout";
   if (reviewView.readyForCloseout || (lifecycle.reviewStatus === "confirmed" && ["missing", "pending", "required", "closing"].includes(lifecycle.closeoutStatus))) return "closeout";
   if (lifecycle.reviewStatus === "confirmed") return "confirmed";
-  if (lifecycle.state === "review" || lifecycle.reviewQueueState === "ready-to-confirm" || lifecycle.taskQueues.includes("review") || ["agent-reviewed", "in_review"].includes(lifecycle.reviewStatus)) return "review";
+  if (lifecycle.state === "review" || lifecycle.reviewQueueState === "ready-to-confirm" || lifecycle.taskQueues.includes("review")) return "review";
   if (["planned", "not_started"].includes(lifecycle.state)) return "planned";
   if (needsEvidence) return "evidence";
   if (["active", "in_progress", "reopened", "current-evidence"].includes(lifecycle.state)) return "in_progress";

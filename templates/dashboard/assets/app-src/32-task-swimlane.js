@@ -47,7 +47,7 @@ function taskVisibleInSwimlane(task) {
   if (clampCompletion(task.completion) >= 100 && !["review", "blocked", "reopened", "current-evidence"].includes(stateValue)) return false;
   return ["active", "planned", "not_started", "in_progress", "review", "blocked", "reopened", "current-evidence"].includes(stateValue)
     || ["ready-to-confirm", "needs-material", "review-blocked"].includes(String(task.reviewQueueState || ""))
-    || ["agent-reviewed", "confirmed", "blocked-open-findings"].includes(String(task.reviewStatus || ""));
+    || ["confirmed", "blocked-open-findings"].includes(String(task.reviewStatus || ""));
 }
 
 function taskSwimlaneStage(task) {
@@ -61,7 +61,7 @@ function taskSwimlaneStage(task) {
   if (review === "confirmed" && taskHasPendingLessonWork(task)) return "closeout";
   if (review === "confirmed" && ["missing", "pending", "required", "closing"].includes(closeout)) return "closeout";
   if (review === "confirmed") return "confirmed";
-  if (stateValue === "review" || reviewQueue === "ready-to-confirm" || (task.taskQueues || []).includes("review") || ["agent-reviewed", "in_review"].includes(review)) return "review";
+  if (stateValue === "review" || reviewQueue === "ready-to-confirm" || (task.taskQueues || []).includes("review")) return "review";
   if (["planned", "not_started"].includes(stateValue)) return "planned";
   if (taskNeedsEvidence(task)) return "evidence";
   if (["active", "in_progress", "reopened", "current-evidence"].includes(stateValue)) return "in_progress";
@@ -269,7 +269,7 @@ function taskSwimlanePagedCardList(cards, page) {
 function taskSwimlaneCard(card) {
   const task = card.task;
   const completion = clampCompletion(task.completion);
-  return `<article class="swimlane-card ${escapeAttr(card.stage)}" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(task.state)}); --task-progress: ${completion}%">
+  return `<article class="swimlane-card ${escapeAttr(card.stage)}" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(taskStateValue(task))}); --task-progress: ${completion}%">
     <span class="swimlane-status-dot" aria-hidden="true"></span>
     <strong>${escapeHtml(task.title)}</strong>
     <span class="swimlane-progress" aria-label="${completion}%"><i></i></span>

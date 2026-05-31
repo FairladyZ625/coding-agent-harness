@@ -230,8 +230,8 @@ function flowPanel() {
   const tasks = normalCycleTasks();
   const total = tasks.length;
   if (total === 0) return "";
-  const active = tasks.filter((task) => isActiveTaskState(task.state)).length;
-  const done = tasks.filter((task) => !isActiveTaskState(task.state) && (task.state === "done" || task.completion === 100)).length;
+  const active = tasks.filter((task) => isActiveTaskState(taskStateValue(task))).length;
+  const done = tasks.filter((task) => !isActiveTaskState(taskStateValue(task)) && (taskStateValue(task) === "done" || task.completion === 100)).length;
   const planned = Math.max(0, total - done - active);
   const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
   return `<section class="flow-panel">
@@ -356,7 +356,10 @@ function activeTaskBriefs() {
 
 function activeTasks() {
   const tasks = normalCycleTasks();
-  const active = tasks.filter((task) => isActiveTaskState(task.state) || ["planned", "not_started"].includes(task.state));
+  const active = tasks.filter((task) => {
+    const stateValue = taskStateValue(task);
+    return isActiveTaskState(stateValue) || ["planned", "not_started"].includes(stateValue);
+  });
   if (active.length > 0) return sortTasksByTime(active);
   return sortTasksByTime(tasks.filter((task) => task.briefSource === "standalone"));
 }
@@ -368,13 +371,14 @@ function isActiveTaskState(state) {
 function taskBriefCard(task, { compact = true } = {}) {
   const doc = taskDocument(task, "brief.md");
   const summaryText = doc ? getBriefSummary(doc.content) : t("missingBriefExplain");
+  const stateValue = taskStateValue(task);
   return `<article class="brief-card ${compact ? "compact" : ""}">
     <div class="card-head">
       <div>
         <a href="#/tasks/${encodeURIComponent(task.id)}">${escapeHtml(task.title)}</a>
         <p>${escapeHtml(task.id)}</p>
       </div>
-      ${tag(task.state)}
+      ${tag(stateValue)}
     </div>
     ${progressBar(task.completion)}
     <div class="brief-content">
@@ -975,7 +979,7 @@ function taskVisibleInSwimlane(task) {
   if (clampCompletion(task.completion) >= 100 && !["review", "blocked", "reopened", "current-evidence"].includes(stateValue)) return false;
   return ["active", "planned", "not_started", "in_progress", "review", "blocked", "reopened", "current-evidence"].includes(stateValue)
     || ["ready-to-confirm", "needs-material", "review-blocked"].includes(String(task.reviewQueueState || ""))
-    || ["agent-reviewed", "confirmed", "blocked-open-findings"].includes(String(task.reviewStatus || ""));
+    || ["confirmed", "blocked-open-findings"].includes(String(task.reviewStatus || ""));
 }
 
 function taskSwimlaneStage(task) {
@@ -989,7 +993,7 @@ function taskSwimlaneStage(task) {
   if (review === "confirmed" && taskHasPendingLessonWork(task)) return "closeout";
   if (review === "confirmed" && ["missing", "pending", "required", "closing"].includes(closeout)) return "closeout";
   if (review === "confirmed") return "confirmed";
-  if (stateValue === "review" || reviewQueue === "ready-to-confirm" || (task.taskQueues || []).includes("review") || ["agent-reviewed", "in_review"].includes(review)) return "review";
+  if (stateValue === "review" || reviewQueue === "ready-to-confirm" || (task.taskQueues || []).includes("review")) return "review";
   if (["planned", "not_started"].includes(stateValue)) return "planned";
   if (taskNeedsEvidence(task)) return "evidence";
   if (["active", "in_progress", "reopened", "current-evidence"].includes(stateValue)) return "in_progress";
@@ -1197,7 +1201,7 @@ function taskSwimlanePagedCardList(cards, page) {
 function taskSwimlaneCard(card) {
   const task = card.task;
   const completion = clampCompletion(task.completion);
-  return `<article class="swimlane-card ${escapeAttr(card.stage)}" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(task.state)}); --task-progress: ${completion}%">
+  return `<article class="swimlane-card ${escapeAttr(card.stage)}" data-open-drawer="${escapeAttr(task.id)}" style="--row-accent: var(${stateToColorVar(taskStateValue(task))}); --task-progress: ${completion}%">
     <span class="swimlane-status-dot" aria-hidden="true"></span>
     <strong>${escapeHtml(task.title)}</strong>
     <span class="swimlane-progress" aria-label="${completion}%"><i></i></span>
@@ -2144,7 +2148,7 @@ function reviewQueueCard(task, tab) {
       <input type="checkbox" data-review-bulk-select="${escapeAttr(task.id)}" ${canBulkConfirm ? "" : "disabled"} ${bulkSelected ? "checked" : ""} aria-label="${escapeAttr(t("selectReviewTask"))}">
       <span>${t("select")}</span>
     </label>` : "";
-  return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(task.state)})">
+  return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(lifecycle.state || taskStateValue(task))})">
     <div class="card-header">
       <span class="card-id" title="${escapeAttr(task.id)}">${escapeHtml(displayId)}</span>
       ${tag(lifecycle.reviewStatus || task.reviewStatus || "missing")}
@@ -2488,11 +2492,11 @@ function warningQueue() {
       category: "Visibility Layer",
       type: "missing-brief",
       scope: "task",
-      priority: (typeof isActiveTaskState === "function" && isActiveTaskState(task.state)) || ["planned", "not_started"].includes(task.state) ? "P2" : "P3",
+      priority: (typeof isActiveTaskState === "function" && isActiveTaskState(taskStateValue(task))) || ["planned", "not_started"].includes(taskStateValue(task)) ? "P2" : "P3",
       phase: "active-task-contracts",
       fixability: "guided",
       status: "open",
-      confidence: task.state === "unknown" ? "medium" : "high",
+      confidence: taskStateValue(task) === "unknown" ? "medium" : "high",
       severity: "advice",
       title: t("visibilityBriefMissing"),
       affected: task.path,

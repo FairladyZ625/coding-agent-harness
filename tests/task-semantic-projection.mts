@@ -49,6 +49,43 @@ assert(readyToConfirm.reviewWorkbenchQueueView.primaryQueue === "review", "ready
 assert(readyToConfirm.reviewWorkbenchQueueView.humanConfirmable === true, "ready review tasks should be human-confirmable");
 assert(readyToConfirm.dashboardTaskView.visibleInSwimlane === true, "ready review tasks should stay visible in dashboard swimlane");
 
+const agentReviewedPlanned = buildTaskSemanticProjection({
+  state: "not_started",
+  lifecycleState: "ready",
+  reviewStatus: "agent-reviewed",
+  reviewQueueState: "not-in-queue",
+  closeoutStatus: "missing",
+  budget: "standard",
+  completion: 0,
+  taskQueues: ["active"],
+  materialsReady: true,
+  reviewSubmitted: false,
+  lessonCandidateDecisionComplete: true,
+  deletionState: "active",
+});
+
+assert(agentReviewedPlanned.reviewWorkbenchQueueView.primaryQueue === "active", "agent-reviewed tasks outside the review queue should stay in the active queue");
+assert(agentReviewedPlanned.reviewWorkbenchQueueView.humanConfirmable === false, "agent-reviewed evidence alone must not make a task human-confirmable");
+assert(agentReviewedPlanned.dashboardTaskView.swimlaneStage === "planned", "agent-reviewed evidence alone must not project a not-started task into the review swimlane");
+
+const agentReviewedUnknown = buildTaskSemanticProjection({
+  state: "unknown",
+  lifecycleState: "unknown",
+  reviewStatus: "agent-reviewed",
+  reviewQueueState: "not-in-queue",
+  closeoutStatus: "missing",
+  budget: "standard",
+  completion: 0,
+  taskQueues: ["active"],
+  materialsReady: true,
+  reviewSubmitted: false,
+  lessonCandidateDecisionComplete: true,
+  deletionState: "active",
+});
+
+assert(agentReviewedUnknown.dashboardTaskView.visibleInSwimlane === false, "agent-reviewed evidence alone must not make unknown lifecycle tasks visible in the active swimlane");
+assert(agentReviewedUnknown.dashboardTaskView.swimlaneStage === "planned", "unknown agent-reviewed evidence should fall back to planned rather than review");
+
 const confirmedLessonWork = buildTaskSemanticProjection({
   state: "review",
   lifecycleState: "lesson-finalization-pending",
