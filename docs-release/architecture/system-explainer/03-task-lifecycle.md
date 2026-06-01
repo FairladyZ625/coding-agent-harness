@@ -2,7 +2,7 @@
 
 ## Level 0 — 一个任务的一生
 
-一个任务从创建到最终结项，经历六个状态。注意这里的最终结项不同于 Agent 在提交人工审查前准备的 closeout packet：
+一个任务从创建到最终结项，包含执行状态、人工确认点和阻塞/返工路径。注意这里的最终结项不同于 Agent 在提交人工审查前准备的 closeout packet：
 
 ```mermaid
 flowchart LR

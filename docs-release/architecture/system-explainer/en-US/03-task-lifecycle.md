@@ -2,7 +2,7 @@
 
 ## Level 0 — A task's life
 
-A task goes through six states from creation to finalization. This finalization is separate from the closeout packet an agent prepares before Human Review:
+A task moves from creation to finalization through execution states, a human confirmation point, and blocked/rework paths. This finalization is separate from the closeout packet an agent prepares before Human Review:
 
 ```mermaid
 flowchart LR
