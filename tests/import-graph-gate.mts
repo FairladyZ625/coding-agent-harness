@@ -110,6 +110,8 @@ writeFixture(fixtureRoot, "scripts/lib/governance-index-generator.mts", 'import 
 writeFixture(fixtureRoot, "scripts/lib/governance-sync.mts", "export const sync = 1;\n");
 writeFixture(fixtureRoot, "scripts/lib/preset-runner.mts", 'import { sync } from "./governance-sync.mjs";\nexport const preset = sync;\n');
 writeFixture(fixtureRoot, "scripts/commands/module-command.mts", 'import { sync } from "../lib/governance-sync.mjs";\nexport const command = sync;\n');
+writeFixture(fixtureRoot, "scripts/lib/task-operations.mts", "export const operations = 1;\n");
+writeFixture(fixtureRoot, "scripts/commands/task-command.mts", 'import { operations } from "../lib/task-operations.mjs";\nexport const commandTask = operations;\n');
 
 const failed = checkImportGraph({ repoRoot: fixtureRoot });
 assert(failed.ok === false, "invalid graph fixture should fail");
@@ -124,6 +126,7 @@ assert(failed.violations.some((violation) => violation.code === "dashboard-data-
 assert(failed.violations.some((violation) => violation.code === "dashboard-workbench-imports-task-internal"), "gate should report dashboard-workbench imports from task internals");
 assert(failed.violations.some((violation) => violation.code === "generated-governance-imports-task-scanner"), "gate should report generated governance imports from task scanner internals");
 assert(failed.violations.some((violation) => violation.code === "command-imports-task-internal"), "gate should report command adapters importing task internals");
+assert(failed.violations.some((violation) => violation.code === "runtime-imports-task-operations-facade"), "gate should report runtime callers importing the TaskOperations compatibility facade");
 assert(failed.violations.some((violation) => violation.code === "preset-runtime-imports-governance-sync"), "gate should report preset runtime direct governance sync imports");
 
 console.log("Import graph gate tests passed");

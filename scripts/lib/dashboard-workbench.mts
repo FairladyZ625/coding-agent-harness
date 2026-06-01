@@ -11,7 +11,7 @@ import { createAggregateLessonSedimentationTask } from "./task-lesson-sedimentat
 import { normalizeTarget, toPosix } from "./core-shared.mjs";
 import { dashboardWatchRoots } from "./harness-paths.mjs";
 import { createScannerTaskRepository } from "./task-repository.mjs";
-import { createTaskOperations, taskOperationFailurePayload } from "./task-operations.mjs";
+import { createTaskOperations, taskOperationFailurePayload } from "../application/task/task-operations.mjs";
 import {
   confirmTaskReview as confirmTaskReviewWithContext,
   finalizeDeferredTaskReviewConfirmation as finalizeDeferredTaskReviewConfirmationWithContext,
