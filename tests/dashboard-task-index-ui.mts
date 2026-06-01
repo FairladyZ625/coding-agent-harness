@@ -170,7 +170,7 @@ assert(activeSemanticsResult.activeBriefIds.length === 1 && activeSemanticsResul
 assert(!activeSemanticsResult.briefs.includes("Open task index"), "overview active brief section should not render the redundant task-index CTA");
 assert(activeSemanticsResult.flow.includes("Queued"), "overview progress should expose non-active queue work separately from active work");
 
-const legacyActiveSandbox = createSandbox();
+const unknownLifecycleSandbox = createSandbox();
 vm.runInContext(`
   bundle.status.tasks = [{
     id: "TASKS/legacy-active-unknown-lifecycle",
@@ -189,9 +189,9 @@ vm.runInContext(`
     },
   }];
   __result = JSON.stringify({ active: activeTasks().map((item) => item.id) });
-`, legacyActiveSandbox);
-const legacyActiveResult = JSON.parse(String(legacyActiveSandbox.__result)) as { active: string[] };
-assert(legacyActiveResult.active.includes("TASKS/legacy-active-unknown-lifecycle"), "legacy in-progress tasks with unknown lifecycle should still count as active");
+`, unknownLifecycleSandbox);
+const unknownLifecycleResult = JSON.parse(String(unknownLifecycleSandbox.__result)) as { active: string[] };
+assert(!unknownLifecycleResult.active.includes("TASKS/legacy-active-unknown-lifecycle"), "unknown lifecycle projection should fail closed instead of being treated as active");
 
 const missingProjectionSandbox = createSandbox();
 vm.runInContext(`

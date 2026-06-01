@@ -389,10 +389,10 @@ function isActiveTaskState(state) {
 function taskIsCurrentlyActive(task) {
   const projection = taskLifecycleProjection(task);
   const queues = taskQueueValues(task);
-  return String(projection.deletionState || task.deletionState || "active") === "active"
-    && String(projection.state || task.state || "") === "in_progress"
-    && ["active", "unknown"].includes(String(projection.lifecycleState || task.lifecycleState || "unknown"))
-    && String(projection.closeoutStatus || task.closeoutStatus || "") !== "closed"
+  return String(projection.deletionState || "active") === "active"
+    && String(projection.state || "") === "in_progress"
+    && String(projection.lifecycleState || "") === "active"
+    && String(projection.closeoutStatus || "") !== "closed"
     && queues.includes("active")
     && clampCompletion(task.completion) < 100;
 }
@@ -401,8 +401,8 @@ function taskCountsAsCompleted(task) {
   const stateValue = taskStateValue(task);
   const projection = taskLifecycleProjection(task);
   return ["finalized", "done", "soft-deleted-superseded"].includes(stateValue)
-    || String(projection.closeoutStatus || task.closeoutStatus || "") === "closed"
-    || String(projection.lifecycleState || task.lifecycleState || "") === "closed";
+    || String(projection.closeoutStatus || "") === "closed"
+    || String(projection.lifecycleState || "") === "closed";
 }
 
 function taskIsNonActiveQueueWork(task) {
@@ -1400,7 +1400,7 @@ function taskStateSummary(task) {
     </div>
     <div>
       <span>${t("lifecycleQueues")}</span>
-      ${queues.map(tag).join("") || tag("active")}
+      ${queues.map(tag).join("") || tag("unknown")}
     </div>
     ${taskQueueReasonSummary(task)}
   </section>`;
@@ -1516,8 +1516,9 @@ function orderedTaskDocuments(task) {
 }
 
 function taskDocumentPriority(task) {
-  const stateName = task?.state || "";
-  const lifecycle = taskLifecycleProjection(task)?.lifecycleState || task?.lifecycleState || "";
+  const projection = taskLifecycleProjection(task);
+  const stateName = projection.state || "";
+  const lifecycle = projection.lifecycleState || "";
   if (stateName === "review" || ["in_review", "review-blocked"].includes(lifecycle)) {
     return ["walkthrough", "lessonCandidates", "review", "findings", "visualMap", "progress", "brief", "taskPlan", "strategy", "longRunningContract", "legacyRoadmap", "references", "artifacts"];
   }

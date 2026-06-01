@@ -213,10 +213,10 @@ function isActiveTaskState(state) {
 function taskIsCurrentlyActive(task) {
   const projection = taskLifecycleProjection(task);
   const queues = taskQueueValues(task);
-  return String(projection.deletionState || task.deletionState || "active") === "active"
-    && String(projection.state || task.state || "") === "in_progress"
-    && ["active", "unknown"].includes(String(projection.lifecycleState || task.lifecycleState || "unknown"))
-    && String(projection.closeoutStatus || task.closeoutStatus || "") !== "closed"
+  return String(projection.deletionState || "active") === "active"
+    && String(projection.state || "") === "in_progress"
+    && String(projection.lifecycleState || "") === "active"
+    && String(projection.closeoutStatus || "") !== "closed"
     && queues.includes("active")
     && clampCompletion(task.completion) < 100;
 }
@@ -225,8 +225,8 @@ function taskCountsAsCompleted(task) {
   const stateValue = taskStateValue(task);
   const projection = taskLifecycleProjection(task);
   return ["finalized", "done", "soft-deleted-superseded"].includes(stateValue)
-    || String(projection.closeoutStatus || task.closeoutStatus || "") === "closed"
-    || String(projection.lifecycleState || task.lifecycleState || "") === "closed";
+    || String(projection.closeoutStatus || "") === "closed"
+    || String(projection.lifecycleState || "") === "closed";
 }
 
 function taskIsNonActiveQueueWork(task) {

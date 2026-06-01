@@ -108,7 +108,7 @@ function taskStateSummary(task) {
     </div>
     <div>
       <span>${t("lifecycleQueues")}</span>
-      ${queues.map(tag).join("") || tag("active")}
+      ${queues.map(tag).join("") || tag("unknown")}
     </div>
     ${taskQueueReasonSummary(task)}
   </section>`;
@@ -224,8 +224,9 @@ function orderedTaskDocuments(task) {
 }
 
 function taskDocumentPriority(task) {
-  const stateName = task?.state || "";
-  const lifecycle = taskLifecycleProjection(task)?.lifecycleState || task?.lifecycleState || "";
+  const projection = taskLifecycleProjection(task);
+  const stateName = projection.state || "";
+  const lifecycle = projection.lifecycleState || "";
   if (stateName === "review" || ["in_review", "review-blocked"].includes(lifecycle)) {
     return ["walkthrough", "lessonCandidates", "review", "findings", "visualMap", "progress", "brief", "taskPlan", "strategy", "longRunningContract", "legacyRoadmap", "references", "artifacts"];
   }

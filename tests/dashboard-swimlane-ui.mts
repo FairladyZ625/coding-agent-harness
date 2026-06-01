@@ -777,6 +777,40 @@ const missingProjectionFailClosed = renderTasks(`
 `);
 assert(missingProjectionFailClosed.model.cards.length === 0, "swimlane must fail closed instead of deriving placement from raw fields when the view projection is missing");
 
+const missingProjectionOverviewFailClosed = renderTasks(`
+  bundle.status.tasks = [
+    {
+      ...bundle.status.tasks[0],
+      id: "TASKS/raw-active-without-projection",
+      shortId: "raw-active-without-projection",
+      title: "Raw active without projection",
+      state: "in_progress",
+      completion: 24,
+      taskQueues: ["active"],
+      taskLifecycleProjection: undefined,
+      dashboardTaskView: undefined,
+      reviewWorkbenchQueueView: undefined,
+      semanticProjection: undefined,
+    },
+  ];
+  const html = flowPanel() + activeTaskBriefs();
+  __result = {
+    html,
+    model: taskSwimlaneModel(bundle.status.tasks),
+    enLabel: window.HarnessI18n.en.layoutSwimlane,
+    zhLabel: window.HarnessI18n.zh.layoutSwimlane,
+    enHeatmapLabel: window.HarnessI18n.en.swimlaneHeatmapLabel,
+    zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
+    enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
+    zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
+    enBaseLabel: window.HarnessI18n.en.baseModule,
+    zhBaseLabel: window.HarnessI18n.zh.baseModule,
+  };
+`);
+
+assert(missingProjectionOverviewFailClosed.html.includes("Active 0"), "overview flow must not derive active counts from raw state/queues when lifecycle projection is missing");
+assert(!missingProjectionOverviewFailClosed.html.includes("Raw active without projection"), "active briefs must fail closed when lifecycle projection is missing");
+
 const overviewProjection = renderTasks(`
   bundle.status.tasks = [
     {

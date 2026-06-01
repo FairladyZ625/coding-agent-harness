@@ -319,6 +319,8 @@ assert(dashboardApp.includes("dashboardBundleSchemaVersion"), "dashboard startup
 assert(dashboardApp.includes("bundleSchemaCompatible"), "dashboard startup should expose schema compatibility gating");
 assert(dashboardApp.includes("function taskLifecycleProjection("), "dashboard should use task lifecycle projection helper");
 assert(dashboardApp.includes("function taskLifecycleDisplay("), "dashboard list/module views should render lifecycle through projection");
+assert(!dashboardApp.includes("projection.lifecycleState || task.lifecycleState"), "dashboard overview must not silently derive lifecycle from raw lifecycleState fallback");
+assert(!dashboardApp.includes("projection.closeoutStatus || task.closeoutStatus"), "dashboard overview must not silently derive closeout from raw closeoutStatus fallback");
 assert(dashboardApp.includes("taskCanBeHumanConfirmed("), "dashboard missing canonical human confirmation gate helper");
 assert(dashboardApp.includes("taskReviewWorkbenchQueueView(task)"), "dashboard human confirmation gate should consume review workbench projection");
 assert(!dashboardApp.includes("queues.includes(\"review\")"), "dashboard human confirmation gate should not derive confirmability from raw or lifecycle queue fallback");
