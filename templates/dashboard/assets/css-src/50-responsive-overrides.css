@@ -110,10 +110,12 @@
   display: flex;
   flex-direction: column;
   transform: translateX(105%);
+  pointer-events: none;
   transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .task-drawer.active {
   transform: translateX(0);
+  pointer-events: auto;
 }
 @media (max-width: 768px) {
   .task-drawer {
@@ -136,6 +138,8 @@
   letter-spacing: -0.01em;
 }
 .task-drawer-header button.btn-close {
+  min-width: 44px;
+  min-height: 44px;
   background: none;
   border: none;
   font-size: 24px;
@@ -182,7 +186,7 @@
   display: block;
   font-size: 22px;
   font-weight: 850;
-  color: var(--accent);
+  color: var(--accent-text);
   line-height: 1;
 }
 
@@ -206,6 +210,11 @@
   margin-top: auto;
 }
 .btn-drawer-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
   padding: 6px 14px;
   background: var(--paper-2);
   border: 1px solid var(--line);
@@ -218,8 +227,8 @@
 }
 .btn-drawer-trigger:hover {
   background: var(--accent);
-  color: var(--paper);
-  border-color: var(--accent);
+  color: var(--ink);
+  border-color: var(--accent-text);
 }
 
 /* Compact capsules for module list tasks */
@@ -236,7 +245,7 @@
   transition: all 0.2s ease;
 }
 .module-task-row:hover {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   transform: translateX(3px);
 }
 .module-task-left {
@@ -275,7 +284,7 @@
 .module-task-pct {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 700;
   flex-shrink: 0;
   margin-left: 8px;
@@ -307,6 +316,8 @@
   border-radius: 8px;
 }
 .module-pager button {
+  min-width: 44px;
+  min-height: 44px;
   background: var(--paper);
   border: 1px solid var(--line);
   color: var(--ink);
@@ -319,8 +330,8 @@
 }
 .module-pager button:hover:not(:disabled) {
   background: var(--accent);
-  color: var(--paper);
-  border-color: var(--accent);
+  color: var(--ink);
+  border-color: var(--accent-text);
 }
 .module-pager button:disabled {
   opacity: 0.4;
@@ -343,7 +354,7 @@
   transition: all 0.2s ease;
 }
 .lesson-panel .lesson:hover {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   transform: translateX(3px);
 }
 
@@ -421,7 +432,7 @@
 .ledger-gauge-card strong {
   font-size: 16px;
   font-weight: 800;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* Scroll containment for total overview cards */
@@ -526,6 +537,8 @@
   color: var(--ink);
   border: 1px solid var(--line);
   padding: 6px 10px;
+  min-width: 44px;
+  min-height: 32px;
 }
 .review-actions button {
   width: 100%;

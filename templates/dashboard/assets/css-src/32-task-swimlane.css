@@ -121,7 +121,7 @@
 .swimlane-lane-button.active,
 .swimlane-mobile-module:hover,
 .swimlane-mobile-module.active {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
 }
 
 .swimlane-heat-cell {
@@ -164,7 +164,7 @@
 
 .swimlane-heat-cell:not(:disabled):hover,
 .swimlane-heat-cell.active {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   transform: translateY(-1px);
 }
 
@@ -288,7 +288,7 @@
 }
 
 .swimlane-card:hover {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   transform: translateY(-1px);
 }
 
@@ -350,7 +350,7 @@
 }
 
 .swimlane-stage-drilldown span {
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 11px;
   font-weight: 900;
 }

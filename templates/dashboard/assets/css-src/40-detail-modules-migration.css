@@ -19,7 +19,7 @@
 .detail-score {
   font-size: 42px;
   font-weight: 800;
-  color: var(--accent);
+  color: var(--accent-text);
   line-height: 1;
 }
 
@@ -197,7 +197,7 @@
   grid-column: 1;
   grid-row: 1;
   margin-right: 8px;
-  color: var(--accent);
+  color: var(--accent-text);
   transform: rotate(0deg);
   transition: transform 0.2s ease;
 }
@@ -272,8 +272,8 @@
 
 .side-panel a:hover {
   background: var(--accent);
-  color: var(--paper);
-  border-color: var(--accent);
+  color: var(--ink);
+  border-color: var(--accent-text);
 }
 
 .finding {
@@ -359,7 +359,7 @@
 .module-list-item:hover,
 .module-list-item.active {
   background: var(--paper-2);
-  border-color: var(--accent);
+  border-color: var(--accent-text);
 }
 
 .module-list-item strong,
@@ -548,7 +548,7 @@
 
 .migration-grid > button.active,
 .migration-grid > button:hover {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   background: var(--paper);
   transform: translateY(-2px);
   box-shadow: var(--shadow);
@@ -673,7 +673,7 @@ details {
 
 details[open] {
   background: var(--paper);
-  border-color: var(--accent);
+  border-color: var(--accent-text);
 }
 
 details summary {

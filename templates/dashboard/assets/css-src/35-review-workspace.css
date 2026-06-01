@@ -43,7 +43,7 @@
 }
 
 .review-queue-tab.active {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   background: color-mix(in srgb, var(--accent) 10%, var(--paper));
 }
 
@@ -121,7 +121,7 @@
 .bulk-card-check input {
   width: 16px;
   height: 16px;
-  accent-color: var(--accent);
+  accent-color: var(--accent-text);
 }
 
 .bulk-selected-count,
@@ -251,7 +251,7 @@
 
 .review-queue-actions a:hover,
 .review-queue-actions button:hover {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
 }
 
 .review-queue-actions button:disabled {

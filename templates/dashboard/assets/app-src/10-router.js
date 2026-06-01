@@ -22,27 +22,30 @@ function app() {
 }
 
 function shell() {
-  return `<div class="visibility-shell">
+  return `<a class="skip-link" href="#main">${escapeHtml(t("skipToMain"))}</a>
+  <div class="visibility-shell">
     <header class="hero">
       <div class="hero-copy">
         <p class="eyebrow">${t("eyebrow")}</p>
         <h1>${escapeHtml(projectName())} ${t("projectCockpit")}</h1>
       </div>
-      <div class="hero-actions">
+      <nav class="hero-actions" aria-label="${escapeAttr(t("primaryNavigation"))}">
         ${routeLink("#/", t("overview"), "overview")}
         ${routeLink("#/tasks", t("taskIndex"), "tasks")}
         ${routeLink("#/review", t("reviewQueue"), "review")}
         ${routeLink("#/archive", t("archive"), "archive")}
         ${routeLink("#/modules", t("moduleView"), "modules")}
         ${routeLink("#/presets", t("presetCatalog"), "presets")}
-        <button data-language-toggle>${locale === "zh" ? "EN" : "中文"}</button>
-        <button data-theme-toggle>${themeLabel()}</button>
-      </div>
+        <button type="button" data-language-toggle>${locale === "zh" ? "EN" : "中文"}</button>
+        <button type="button" data-theme-toggle>${themeLabel()}</button>
+      </nav>
     </header>
-    ${runtimeModeBanner()}
-    ${renderRoute()}
+    <main id="main" tabindex="-1">
+      ${runtimeModeBanner()}
+      ${renderRoute()}
+    </main>
     <div id="drawer-overlay" class="drawer-overlay"></div>
-    <div id="task-drawer" class="task-drawer"></div>
+    <div id="task-drawer" class="task-drawer" aria-hidden="true" inert></div>
   </div>`;
 }
 
