@@ -7,7 +7,7 @@ import {
   updateTaskPhase,
 } from "../lib/harness-core.mjs";
 import { takeRepeatedOptionsFromArgs } from "../lib/command-registry.mjs";
-import { createTaskOperations, unwrapTaskOperation } from "../lib/task-operations.mjs";
+import { createTaskOperations, unwrapTaskOperation } from "../application/task/task-operations.mjs";
 
 type FlagReader = (name: string, fallback?: boolean) => boolean;
 type OptionReader = (name: string, fallback?: string) => string;

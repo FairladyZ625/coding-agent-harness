@@ -2,7 +2,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { createTaskOperations } from "../scripts/lib/task-operations.mjs";
+import { createTaskOperations } from "../scripts/application/task/task-operations.mjs";
 import {
   assert,
   repoRoot,

@@ -504,6 +504,9 @@ function architectureBoundaryCode(file: string, target: string): string {
   if (file.startsWith("scripts/application/") && target.startsWith("scripts/adapters/")) {
     return "application-imports-adapter";
   }
+  if ((file.startsWith("scripts/commands/") || file === "scripts/lib/dashboard-workbench.mts") && target === "scripts/lib/task-operations.mts") {
+    return "runtime-imports-task-operations-facade";
+  }
   if (file.startsWith("scripts/adapters/") && isTaskSourceOfTruthInternal(target)) {
     return "adapter-imports-task-internal";
   }
@@ -530,6 +533,7 @@ function architectureBoundaryMessage(code: string, file: string, target: string)
   if (code === "domain-imports-outer-layer") return `${file} is domain code and must not import outer layer module ${target}`;
   if (code === "domain-imports-infrastructure") return `${file} is domain code and may only import infrastructure/kernel, not ${target}`;
   if (code === "application-imports-adapter") return `${file} is application code and must not import adapter module ${target}`;
+  if (code === "runtime-imports-task-operations-facade") return `${file} must import TaskOperations from scripts/application/task, not the scripts/lib compatibility facade`;
   if (code === "adapter-imports-task-internal") return `${file} adapter must go through application/repository boundaries, not task internal ${target}`;
   if (code === "command-imports-task-internal") return `${file} command adapter must go through application/repository boundaries, not task internal ${target}`;
   if (code === "dashboard-workbench-imports-task-internal") return `${file} must go through application workbench boundaries, not task internal ${target}`;

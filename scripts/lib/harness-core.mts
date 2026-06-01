@@ -14,7 +14,7 @@ export * from "./preset-runner.mjs";
 export * from "./governance-index-generator.mjs";
 export * from "./harness-transaction.mjs";
 export * from "./task-lifecycle.mjs";
-export * from "./task-operations.mjs";
+export * from "../application/task/task-operations.mjs";
 export * from "./module-registry.mjs";
 export * from "./task-lesson-sedimentation.mjs";
 export * from "./lesson-maintenance.mjs";
