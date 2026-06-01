@@ -6,252 +6,196 @@
 
 ```mermaid
 flowchart LR
-  User["用户 / Agent\n$ harness <command> [target]"] -->|"解析参数 + 分发"| Entry["dist/harness.mjs\n唯一 CLI 入口"]
+  User["用户 / Agent\n$ harness <command> [target]"] --> Entry["dist/harness.mjs\nCLI 入口"]
+  Entry --> Registry["Command Registry\nCommandDefinition[]"]
+  Registry --> Handler["命令 handler\ncommands/*.mjs"]
 ```
 
-`harness.mjs` 做两件事：解析命令行参数，然后分发给对应的 command 模块或直接调用核心库。
-它本身不包含任何业务逻辑。
+`harness.mjs` 只负责把参数交给 command registry。命令名称、usage、flags、
+positionals 和 handler 都注册在 `CommandDefinition` 里；help 输出也从注册表生成。
+这让新增命令从“改多个 if/else 和手写 help”收敛成“加一个定义和一个 handler”。
 
 ---
 
-## Level 1 — 命令如何分发
+## Level 1 — 当前分层
+
+底层重构后的公开架构不是“六个平级功能模块”，而是一个 facade-first 的
+ports/adapters 结构。旧 scanner、governance-sync、preset runner 仍然存在，但它们被
+当作 infrastructure / legacy adapter 接入，而不是让 CLI 或 Dashboard 直接绕过业务层。
 
 ```mermaid
-flowchart TD
-  Entry["dist/harness.mjs"]
+flowchart TB
+  Adapter["Adapters\nCLI / Dashboard Workbench / Preset / Migration"]
+  App["Application use cases\nTaskOperations / module governance / workbench actions"]
+  Domain["Domain kernel\nstate policy / review gates / module ownership / preset model"]
+  Ports["Ports\nTaskRepository / HarnessTransaction / projections"]
+  Infra["Infrastructure + legacy adapters\nscanner / markdown / fs / git / governance-sync / preset runner"]
 
-  Entry -->|"dashboard\ndev"| DashCmd["dist/commands/dashboard-command.mjs\nDashboard 生成 + 动态服务"]
-  Entry -->|"migrate-plan\nmigrate-run\nmigrate-verify"| MigCmd["dist/commands/migration-command.mjs\n迁移三阶段命令"]
-  Entry -->|"new-task / task-start\ntask-phase / task-review\ntask-complete / task-tombstone"| TaskCmd["dist/commands/task-command.mjs\n任务生命周期命令"]
-  Entry -->|"preset catalog\npreset install\npreset uninstall"| PresetCmd["dist/commands/preset-command.mjs\nPreset 管理命令"]
-  Entry -->|"check / status / init\ngovernance / lesson-promote\n..."| Core["dist/lib/harness-core.mjs\n（直接调用）"]
+  Adapter --> App
+  App --> Domain
+  App --> Ports
+  Ports --> Infra
+  Infra --> Ports
 ```
 
-四个 command 模块各自负责一个领域，其余命令直接调用 `harness-core.mjs`。
-
-**为什么这样分**：command 模块处理的是有复杂交互逻辑的命令（多步骤、需要读写多个文件、
-有用户提示），而简单的查询类命令（`check`、`status`）直接调用核心库更简洁。
+依赖方向是向内的：adapter 负责协议和呈现，application 负责业务动作，domain
+负责规则，ports 定义边界，infrastructure 实现文件系统、Git、Markdown 和遗留扫描能力。
 
 ---
 
-## Level 2 — harness-core.mjs 是什么
-
-`harness-core.mjs` 是一个 **facade（门面）**，它自己不写任何业务逻辑，
-只是把 `lib/` 下所有模块的导出重新 re-export 出来。
-
-这样设计的好处：外部代码只需要 `import from "./lib/harness-core.mjs"` 就能拿到所有功能，
-不需要知道具体在哪个子模块里。
-
-```mermaid
-flowchart TD
-  Core["harness-core.mjs\n（纯 re-export facade）"]
-
-  Core --> G1["① 核心工具层\ncore-shared + markdown-utils"]
-  Core --> G2["② 任务扫描层\ntask-scanner + review-model + lesson-candidates"]
-  Core --> G3["③ 检查与治理层\ncheck-profiles + governance-sync + governance-index"]
-  Core --> G4["④ Dashboard 层\ndashboard-data + dashboard-writer + workbench"]
-  Core --> G5["⑤ 任务生命周期层\ntask-lifecycle + review-gates + review-confirm"]
-  Core --> G6["⑥ 迁移与 Preset 层\nmigration-planner + preset-registry + tombstone"]
-```
-
-下面逐层展开。
-
----
-
-## Level 3 — 六个功能层详解
-
-### ① 核心工具层
-
-这两个模块是所有其他模块的基础，几乎每个模块都会 import 它们：
+## Level 2 — 命令注册表
 
 ```mermaid
 flowchart LR
-  CoreShared["core-shared.mjs\n路径解析 / 常量枚举\n文件读写 / locale 处理\n模板渲染"]
-  MarkdownUtils["markdown-utils.mjs\nMarkdown 表格提取\n行更新 / 列查找\n依赖列表拆分"]
+  Harness["scripts/harness.mts"] --> Dispatch["dispatchCommand()"]
+  Dispatch --> Defs["CommandDefinition[]"]
+  Defs --> Dash["dashboard / dev"]
+  Defs --> Migration["migrate-*"]
+  Defs --> Task["new-task / task-*"]
+  Defs --> Preset["preset *"]
+  Defs --> Module["module *"]
+  Defs --> Core["check / status / init / governance"]
 ```
 
-`core-shared` 定义了所有允许的枚举值，是整个系统的"类型系统"：
+`commands/registry.mts` 是命令面的 source of truth。它声明每个命令的名称、usage、
+flag schema、positionals 和 handler。复杂命令仍分发到 `dashboard-command.mts`、
+`migration-command.mts`、`task-command.mts`、`preset-command.mts` 和
+`module-command.mts`，但注册和 help 不再散落在入口文件里。
 
-| 枚举 | 允许值 |
+---
+
+## Level 2 — 任务读路径：TaskRepository
+
+```mermaid
+flowchart TD
+  Consumer["status / dashboard / workbench / lifecycle / task-index"]
+  Repo["TaskRepository\nlist / get / resolve / readMaterials"]
+  Scanner["legacy scanner\ncollectTasks + task discovery"]
+  Files["Markdown task package\nINDEX / task_plan / progress / review / visual_map"]
+
+  Consumer --> Repo
+  Repo --> Scanner
+  Scanner --> Files
+```
+
+`TaskRepository` 是读缝。第一版实现仍包装现有 scanner；重点不是重写 scanner，
+而是让调用方停止直接依赖 task discovery 细节。它提供四类能力：
+
+| 方法 | 用途 |
 | --- | --- |
-| `allowedTaskStates` | `not_started / planned / in_progress / review / blocked / done` |
-| `allowedTaskBudgets` | `simple / standard / complex` |
-| `allowedPhaseStates` | `planned / in_progress / review / blocked / done / skipped` |
-| `allowedCapabilities` | `core / module-parallel / subagent-worker / adversarial-review / ...` |
+| `list(query)` | 列出任务并应用 state、module、queue、preset、review、lesson 等查询条件 |
+| `get(ref)` | 用 id 或路径取一个任务 |
+| `resolve(ref)` | 把任务引用解析成目录和 `task_plan.md` 路径 |
+| `readMaterials(ref)` | 读取任务包中可审查的 Markdown 文件 |
 
-`markdown-utils` 提供了对 Markdown 表格的结构化操作——这是整个系统能从 Markdown 文件
-派生状态的技术基础。
+这个 facade 让以后替换 scanner 内部实现时，不需要逐个改 Dashboard、Workbench、
+check 和 lifecycle 调用方。
 
 ---
 
-### ② 任务扫描层
-
-负责读取 `coding-agent-harness/planning/tasks/` 下的所有文件，解析出结构化数据：
+## Level 2 — 任务写路径：TaskOperations
 
 ```mermaid
 flowchart TD
-  TaskScanner["task-scanner.mjs\n扫描所有任务目录\n解析状态 / 预算 / 阶段 / 元数据"]
+  CLI["CLI task commands"]
+  Workbench["Dashboard Workbench"]
+  Ops["TaskOperations\ncreate / start / review / complete / confirmReview / delete / archive / supersede / reopen / lessonSediment"]
+  Repo["TaskRepository"]
+  LegacyWrite["legacy lifecycle / tombstone / lesson writers"]
 
-  TaskScanner --> ReviewModel["task-review-model.mjs\n审查确认解析\n生命周期队列派生\ntombstone 解析"]
-  TaskScanner --> LessonCandidates["task-lesson-candidates.mjs\nLesson candidate 状态解析\n决策完成判定"]
-
-  ReviewModel --> CoreShared
-  ReviewModel --> MarkdownUtils
-  TaskScanner --> CoreShared
-  TaskScanner --> MarkdownUtils
+  CLI --> Ops
+  Workbench --> Ops
+  Ops --> Repo
+  Ops --> LegacyWrite
 ```
 
-`task-review-model` 里有几个关键的**派生函数**——它们不读文件，
-只根据已解析的数据计算出新的状态：
+`TaskOperations` 是 application use-case 层。CLI 和 Dashboard Workbench 都通过它做任务动作，
+所以“能不能确认 review”“能不能 task-complete”“open blocking findings 是否阻断”等规则不会在多个入口分叉。
 
-| 函数 | 输入 | 输出 |
+当前实现仍会调用 legacy lifecycle writer 来实际更新 Markdown；这是有意的过渡形态。
+架构边界先收口到 use case，再逐步把底层 writer 迁入统一 transaction。
+
+---
+
+## Level 2 — 写入事务：HarnessTransaction
+
+```mermaid
+flowchart LR
+  UseCase["write use case / preset action / governance rebuild"]
+  ChangeSet["ChangeSet\nwrites / deletes / generated surfaces / commit policy"]
+  Tx["HarnessTransaction\nplan + apply"]
+  GovSync["governance-sync legacy adapter\nlock + allowed paths + git commit"]
+  Git["Git history"]
+
+  UseCase --> ChangeSet
+  ChangeSet --> Tx
+  Tx --> GovSync
+  GovSync --> Git
+```
+
+`HarnessTransaction` 把写入计划、allowed paths、generated surfaces、dirty tree 检查、
+dry-run 语义和 Git commit 结果收进一个命名边界。它的核心类型是：
+
+| 类型 | 作用 |
+| --- | --- |
+| `ChangeSet` | 声明本次操作要写、删、生成什么，以及 commit 策略 |
+| `TransactionPlan` | 规范化后的计划，包含 allowed paths、generated surfaces、Git 状态和冲突 |
+| `TransactionResult` | apply 后的成功/失败、写入列表、提交结果和 lock release 状态 |
+
+这不是新的事实源。事务只管理写入安全和提交边界；任务事实仍然来自
+`coding-agent-harness/` 下的 Markdown 文件。
+
+---
+
+## Level 2 — 语义投影：Task Semantic Projection
+
+```mermaid
+flowchart TD
+  Raw["raw task record\nstate / reviewStatus / taskQueues / closeoutStatus / lessons"]
+  Projection["Task semantic projection"]
+  Lifecycle["TaskLifecycleProjection\ncanonical task lifecycle fields"]
+  Dashboard["DashboardTaskView\nswimlane stage + display affordances"]
+  Review["ReviewWorkbenchQueueView\nqueue / confirmability / blocking reasons"]
+
+  Raw --> Projection
+  Projection --> Lifecycle
+  Projection --> Dashboard
+  Projection --> Review
+```
+
+Task semantic projection 解决的是“同一个 review 概念在 status、Dashboard、Workbench、
+generated indexes 中被多次解释”的问题。它把 raw task record 包成三个 view model：
+
+| Projection | 消费者 | 不能做什么 |
 | --- | --- | --- |
-| `deriveLifecycleState()` | taskState + reviewStatus + tombstone | `lifecycleState`（队列分类） |
-| `deriveTaskQueues()` | lifecycleState + materials + lessons | `taskQueues[]`（属于哪些队列） |
-| `deriveReviewQueueState()` | findings + confirmation | `reviewQueueState` |
-| `parseTaskTombstone()` | task_plan.md 内容 | 软删除 / 合并 / 被取代状态 |
+| `TaskLifecycleProjection` | status JSON、task-index、Dashboard、governance rows | 不能写回 source 文件 |
+| `DashboardTaskView` | task list、detail drawer、swimlane | 不能在前端重新发明 lifecycle 规则 |
+| `ReviewWorkbenchQueueView` | review workbench、批量确认动作、review queue 视图 | 不能从 Markdown 重新计算 blocking risks |
 
-这些派生函数是**纯函数**，相同输入永远得到相同输出，便于测试和调试。
-
----
-
-### ③ 检查与治理层
-
-负责验证合规性，以及维护全局索引的原子写入：
-
-```mermaid
-flowchart TD
-  CheckProfiles["check-profiles.mjs\nbuildStatus() 编排 9 个验证器\n返回 failures + warnings + tasks"]
-
-  CheckProfiles --> V1["validateCapabilities\n能力注册表一致性"]
-  CheckProfiles --> V2["validateReviewSchema\nreview.md 结构"]
-  CheckProfiles --> V3["validateVisualMaps\nvisual_map 合规"]
-  CheckProfiles --> V4["validatePlanContracts\n任务合约标记"]
-  CheckProfiles --> V5["validateTaskPresetContracts\nPreset 合约"]
-  CheckProfiles --> V6["validateContextDocs\n上下文文档完整性"]
-  CheckProfiles --> V7["validateGovernanceTableBoundaries\n表格边界"]
-  CheckProfiles --> V8["validateSubagentAuthorization\nsubagent 授权"]
-  CheckProfiles --> V9["validateTaskCompletionConsistency\n完成一致性"]
-
-  CheckProfiles --> GitSummary["git-status-summary.mjs\nGit 状态摘要（dirty files 等）"]
-
-  GovSync["governance-sync.mjs\n原子锁 + 行级更新 + Git commit\n（任务状态变更时自动调用）"]
-  GovIndex["governance-index-generator.mjs\n重建全局索引表\n（手动触发）"]
-  GovIndex --> GovSync
-```
-
-**重要区分**：`governance-sync` 和 `check-profiles` 没有依赖关系。
-- `check-profiles`：只读，验证状态，不写文件
-- `governance-sync`：只写，更新账本，不做验证
+Projection 可以落盘或缓存为 generated JSON，但它不是权威事实源；删掉后必须能从任务文件重建。
 
 ---
 
-### ④ Dashboard 层
+## Level 3 — Legacy 模块仍然在哪里
 
-负责把扫描结果转换成 HTML Dashboard：
+很多文件名仍保留在 `scripts/lib/` 下，这是为了让重构可验证、可回滚，而不是一次性搬目录。
+它们的当前角色如下：
 
-```mermaid
-flowchart TD
-  DashData["dashboard-data.mjs\nbuildDashboardBundle()\n收集 status + documents + tables + graph + adoption"]
+| 模块 | 当前角色 |
+| --- | --- |
+| `task-scanner.mts` / `task-review-model.mts` | TaskRepository 背后的 legacy read implementation |
+| `governance-sync.mts` | HarnessTransaction 背后的 legacy write / commit adapter |
+| `task-lifecycle.mts` | 仍执行部分 Markdown 写入，逐步由 TaskOperations 和 transaction 收口 |
+| `dashboard-data.mts` / `dashboard-workbench.mts` | Dashboard adapter 和 projection consumer |
+| `preset-runner.mts` | Preset adapter，逐步收敛到 ChangeSet / transaction 模式 |
 
-  DashData --> CheckProfiles["check-profiles.mjs\n（调用 buildStatus）"]
-  DashData --> DashWriter["dashboard-writer.mjs\n写入 HTML + JSON 文件\n（静态快照模式）"]
-  DashData --> StatusRenderer["status-dashboard-renderer.mjs\n渲染状态摘要文本"]
-
-  DashWorkbench["dashboard-workbench.mjs\nDev 动态服务\nHTTP server + 文件监听 + 自动刷新\n（harness dev 命令）"]
-```
-
-`DashWorkbench` 和 `DashData` / `DashWriter` 是**独立的**：
-- `DashData` + `DashWriter`：生成静态快照（只读）
-- `DashWorkbench`：启动本地 HTTP 服务，支持 Workbench 写操作
+阅读代码时，先找 adapter 调哪个 use case，再看 use case 依赖哪个 port。只有 port 的 legacy
+实现内部才应该直接接触 scanner、Markdown 文件细节或 governance-sync。
 
 ---
 
-### ⑤ 任务生命周期层
+## 下一步
 
-负责执行所有任务状态转换命令：
-
-```mermaid
-flowchart TD
-  TaskLifecycle["task-lifecycle.mjs\n生命周期命令实现\nnew-task / task-start / task-phase\ntask-review / task-complete"]
-
-  TaskLifecycle --> ReviewGates["task-lifecycle/review-gates.mjs\n门禁验证逻辑\n（进入 review 前的检查）"]
-  TaskLifecycle --> ReviewConfirm["task-lifecycle/review-confirm.mjs\n人工确认执行\n（Workbench 内部写入口）"]
-  TaskLifecycle --> TextUtils["task-lifecycle/text-utils.mjs\n文本追加工具\n（向 Markdown 文件追加内容）"]
-  TaskLifecycle --> GovSync["governance-sync.mjs\n状态变更时同步账本"]
-  TaskLifecycle --> MigPreset["task-migration-preset.mjs\n迁移 preset 上下文注入"]
-
-  ReviewConfirm --> GitGate["review-confirm-git-gate.mjs\nGit 原子提交门禁\n（写入人工确认块 + commit）"]
-```
-
-人工确认是整个生命周期层里最特殊的写操作——它只通过本地 Workbench 触发，并需要 Git 原子提交
-（见 [01-system-overview.md](01-system-overview.md) 的设计决策）。
-
----
-
-### ⑥ 迁移与 Preset 层
-
-```mermaid
-flowchart TD
-  PresetReg["preset-registry.mjs\n读取 presets/ YAML\n验证包完整性\n分层发现（project / user / bundled）"]
-  PresetEngine["preset-engine.mjs\n执行 preset entrypoints\n（template / script / check 类型）"]
-  PresetAudit["preset-audit-contracts.mjs\n验证 preset 合约完整性"]
-  PresetResource["preset-resource-contracts.mjs\n验证 preset 资源声明"]
-
-  MigPlanner["migration-planner.mjs\n分析目标仓库差距\n生成迁移动作队列"]
-  MigSupport["migration-support.mjs\nsession 管理 / locale 探测\nGit 状态检查 / full-cutover 验证"]
-  Tombstone["task-tombstone-commands.mjs\n软删除 / 合并 / 重开命令"]
-
-  LessonSed["task-lesson-sedimentation.mjs\nLesson 沉淀任务创建"]
-  LessonMaint["lesson-maintenance.mjs\nLesson 库维护"]
-  TaskIndex["task-index.mjs\n任务索引生成"]
-
-  MigPlanner --> MigSupport
-  PresetEngine --> PresetReg
-```
-
----
-
-## 一张完整的依赖总图（参考用）
-
-如果你已经理解了上面的分层，这张图可以作为查阅索引：
-
-```mermaid
-flowchart TD
-  Entry["harness.mjs"] --> DashCmd & MigCmd & TaskCmd & PresetCmd & Core["harness-core.mjs"]
-
-  Core --> CoreShared & MarkdownUtils
-  Core --> TaskScanner --> ReviewModel & LessonCandidates
-  Core --> CheckProfiles --> GitSummary
-  Core --> GovSync
-  Core --> GovIndex --> GovSync
-  Core --> DashData --> DashWriter & StatusRenderer
-  Core --> DashWorkbench
-  Core --> TaskLifecycle --> ReviewGates & ReviewConfirm & TextUtils & GovSync & MigPreset
-  ReviewConfirm --> GitGate
-  Core --> PresetReg
-  Core --> PresetEngine --> PresetReg
-  Core --> MigPlanner --> MigSupport
-  Core --> Tombstone
-  Core --> LessonSed
-  Core --> LessonMaint
-  Core --> TaskIndex
-```
-
----
-
-## Level 2 — 模块命名规律
-
-理解命名规律可以帮你快速定位代码：
-
-| 前缀 / 后缀 | 含义 | 例子 |
-| --- | --- | --- |
-| `task-` | 与任务相关 | `task-scanner`, `task-lifecycle`, `task-review-model` |
-| `dashboard-` | 与 Dashboard 相关 | `dashboard-data`, `dashboard-writer`, `dashboard-workbench` |
-| `governance-` | 与治理 / 账本相关 | `governance-sync`, `governance-index-generator` |
-| `migration-` | 与迁移相关 | `migration-planner`, `migration-support` |
-| `preset-` | 与 Preset 相关 | `preset-registry`, `preset-engine`, `preset-audit-contracts` |
-| `check-` | 验证器 | `check-profiles`, `check-module-parallel` |
-| `-command.mjs` | CLI 命令模块 | `task-command`, `dashboard-command` |
-| `-utils.mjs` | 工具函数 | `markdown-utils`, `text-utils` |
-| `-gates.mjs` | 门禁逻辑 | `review-gates`, `review-confirm-git-gate` |
+- 想理解一个任务怎么走：读 [03-task-lifecycle.md](03-task-lifecycle.md)
+- 想理解检查器和治理：读 [04-check-and-governance.md](04-check-and-governance.md)
+- 想理解 Dashboard 数据流和 projection：读 [05-data-flow.md](05-data-flow.md)

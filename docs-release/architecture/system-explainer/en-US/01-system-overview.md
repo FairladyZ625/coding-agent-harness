@@ -57,8 +57,8 @@ Start at the highest level. The whole system is made up of four blocks:
 ```mermaid
 flowchart LR
   A["📦 Package\nPublished npm package\n(CLI + templates + standards + Presets)"]
-  B["📁 Target Repo\nUser's project repository\n(doc tree + state files)"]
-  C["⚙️ Runtime\nRuntime engine\n(scan + check + generate)"]
+  B["📁 Target Repo\nUser's project repository\n(Harness workspace + state files)"]
+  C["⚙️ Runtime\nRuntime engine\n(command registry + use cases + projection views)"]
   D["👤 Human\nHuman review entry point\n(Dashboard + review confirmation)"]
 
   A -->|"scaffold + validate"| B
@@ -68,8 +68,8 @@ flowchart LR
 ```
 
 - **Package**: What you `npm install` — contains the CLI, templates, standards docs, and Preset packages
-- **Target Repo**: Your project, where harness creates a `coding-agent-harness/` tree to record task state
-- **Runtime**: The CLI runtime that scans the doc tree, validates compliance, and generates the Dashboard
+- **Target Repo**: Your project, where harness creates a `coding-agent-harness/` workspace to record task state
+- **Runtime**: The CLI runtime that uses command definitions, application use cases, repository ports, and semantic projections to produce reviewable views
 - **Human**: Views the Dashboard in a browser, performs review confirmation in the Workbench
 
 Note the direction of this loop: **Package writes to Target Repo, Runtime reads from Target Repo,
@@ -87,7 +87,7 @@ flowchart TD
   PKG["📦 Package\ncoding-agent-harness@npm"]
 
   PKG --> CLI["harness CLI\ndist/harness.mjs\nSingle command entry point"]
-  PKG --> Lib["Core library\nscripts/lib/\n~30 modules, 6 functional layers"]
+  PKG --> Lib["Core library\nscripts/lib/\ncommand registry + application use cases + domain kernel"]
   PKG --> Templates["Templates\ntemplates/\nTask scaffolds + module-root templates"]
   PKG --> References["Operating standards\nreferences/\nSpec docs that can be copied to target repos"]
   PKG --> Presets["Preset packages\npresets/\nReusable task methods (legacy-migration / module etc.)"]
@@ -105,13 +105,14 @@ flowchart TD
   REPO --> Entry["AGENTS.md\nAgent entry point and routing\n(tells Agents where to find context)"]
   REPO --> Manifest["coding-agent-harness/harness.yaml\nEnabled capabilities and structure"]
   REPO --> Harness["coding-agent-harness/\nHarness workspace"]
-  REPO --> Docs["docs/\nReference docs and project standards"]
+  REPO -.-> LegacyDocs["docs/\nLegacy migration input\nnot current runtime state"]
 
   Harness --> Planning["planning/\nTask directory + module directory"]
   Harness --> Ledger["governance/generated/Harness-Ledger.md\nGlobal ledger (all tasks summarized)"]
   Harness --> Walkthrough["task-local walkthrough.md\nCloseout evidence"]
-  Docs --> Reference["coding-agent-harness/governance/standards/\nLocal operating standards (copied from Package)"]
-  Docs --> Governance["01-GOVERNANCE/\nLesson library"]
+  Harness --> Reference["governance/standards/\nLocal operating standards (copied from Package)"]
+  Harness --> Governance["governance/lessons/\nLesson library"]
+  LegacyDocs -.-> Migration["legacy migration\nread only as migration evidence"]
 ```
 
 Each task corresponds to a directory under `coding-agent-harness/planning/tasks/<task-id>/`,
@@ -120,21 +121,26 @@ Modules are registered in `harness.yaml` `modules.items`. A module root owns
 only `brief.md` and `module_plan.md` by default, while module tasks live under
 `coding-agent-harness/planning/modules/<key>/tasks/<task-id>/`.
 
+If the target repository still has a root `docs/` tree, treat it as legacy
+migration input or historical evidence. It is not the v2 runtime source for
+Reference docs or project standards.
+
 ### What the Runtime does
 
 ```mermaid
 flowchart TD
   RT["⚙️ Runtime\nharness CLI runtime"]
 
-  RT --> Scan["Scan\nRead all task files\nParse state / phases / review / Lessons"]
-  RT --> Check["Check\n9 validators verify compliance\nOutput failures / warnings"]
-  RT --> Generate["Generate\nOutput Dashboard HTML + JSON index\nOutput governance index tables"]
-  RT --> Migrate["Migrate\nAnalyze legacy project gaps\nGenerate migration action queue"]
-  RT --> Lifecycle["Lifecycle\nExecute state transition commands\nWrite Governance Sync"]
+  RT --> Commands["Command registry\nCommandDefinition[] binds CLI actions"]
+  RT --> UseCases["Application use cases\nTaskOperations orchestrates lifecycle and review"]
+  RT --> Ports["Ports\nTaskRepository / HarnessTransaction isolate filesystem writes"]
+  RT --> Projection["Semantic projection\nTaskLifecycleProjection / DashboardTaskView"]
+  RT --> Render["Generate\nOutput Dashboard HTML + JSON index\nOutput governance index tables"]
 ```
 
-The Runtime is **stateless** — every run re-reads from Markdown files from scratch,
-caching no intermediate state (except file watching in `harness dev`).
+The Runtime is **stateless** — every run re-reads from Markdown files from scratch.
+Dashboard, Workbench queues, and governance indexes are derived projection views
+from task source files, not a second source of truth.
 
 ---
 

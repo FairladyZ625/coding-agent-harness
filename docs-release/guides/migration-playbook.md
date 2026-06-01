@@ -49,6 +49,12 @@ harness status --json /path/to/project/.project-control/harness-state
 
 如果一个项目下存在多个 `harness.yaml`，不要让 agent 猜；必须把目标 Harness 根目录作为命令参数传入。
 
+本文后续出现的 `docs/Harness-Ledger.md`、`docs/09-PLANNING/**`、
+`docs/10-WALKTHROUGH/**`、`docs/11-REFERENCE/**`、`03-ARCHITECTURE`、
+`04-DEVELOPMENT` 和 `06-INTEGRATIONS` 都是旧项目输入路径。它们表示需要读取或迁移的历史证据，
+不是 v2 active runtime 布局。v2 目标位置是已声明的 Harness 根目录，通常是
+`coding-agent-harness/`，生成视图位于 `coding-agent-harness/governance/generated/`。
+
 ## 迁移原则
 
 - 先保护历史，再补新合同。不要覆盖 `AGENTS.md`、`CLAUDE.md`、历史 task、walkthrough、SSoT 或 ledger。

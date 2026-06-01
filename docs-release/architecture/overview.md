@@ -67,7 +67,6 @@ project facts.
 flowchart TB
   Entry["AGENTS.md<br/>agent entry and routing"]
   Registry["coding-agent-harness/harness.yaml<br/>enabled capabilities"]
-  Docs["docs/"]
   Architecture["coding-agent-harness/context/architecture<br/>system facts"]
   Development["coding-agent-harness/context/development<br/>local setup and code map"]
   QA["coding-agent-harness/governance/regression<br/>regression and cadence"]
@@ -75,22 +74,28 @@ flowchart TB
   Planning["coding-agent-harness/planning<br/>tasks and modules"]
   Walkthrough["coding-agent-harness/planning/tasks/<task><br/>closeout evidence"]
   Reference["coding-agent-harness/governance/standards<br/>local operating standards"]
-  Ledger["Harness Ledger / SSoTs / Lessons<br/>long-lived memory"]
+  Generated["coding-agent-harness/governance/generated<br/>rebuildable indexes and ledgers"]
+  Lessons["coding-agent-harness/governance/lessons<br/>promoted lessons"]
+  LegacyDocs["docs/<br/>legacy migration input only"]
 
-  Entry --> Docs
-  Registry --> Docs
-  Docs --> Architecture
-  Docs --> Development
-  Docs --> QA
-  Docs --> Integrations
-  Docs --> Planning
-  Docs --> Walkthrough
-  Docs --> Reference
-  Docs --> Ledger
+  Entry --> Registry
+  Registry --> Architecture
+  Registry --> Development
+  Registry --> QA
+  Registry --> Integrations
+  Registry --> Planning
+  Registry --> Reference
+  Planning --> Walkthrough
+  Planning --> Generated
+  QA --> Generated
+  Reference --> Lessons
+  LegacyDocs -. "migrate-structure input" .-> Registry
 ```
 
 The target repository is the source of truth. The agent should be able to resume
-from these files without relying on previous chat memory.
+from `AGENTS.md` and the v2 `coding-agent-harness/` manifest tree without
+relying on previous chat memory. A legacy root `docs/` tree may exist during
+migration, but active runtime state belongs under `coding-agent-harness/`.
 
 ## Repository Operating Models
 
@@ -122,8 +127,9 @@ flowchart LR
   CLI --> UserSkill["install-user / doctor-user<br/>local skill setup"]
 
   Status --> Scanner["task scanner + check profiles"]
-  Dashboard --> Bundle["status, tables, docs, graph, adoption warnings"]
-  Task --> Lifecycle["task lifecycle writer"]
+  Dashboard --> Bundle["status, semantic projections, tables, docs, graph, adoption warnings"]
+  Task --> Operations["TaskOperations use cases"]
+  Operations --> Transaction["HarnessTransaction / scoped writers"]
   Migration --> Planner["migration planner and verifier"]
 ```
 
@@ -136,19 +142,21 @@ checks, migration reports, and dashboard views aligned.
 sequenceDiagram
   autonumber
   participant CLI as harness dashboard/dev
-  participant Scanner as scanner + validators
+  participant Repo as TaskRepository + scanner
+  participant Projection as task semantic projection
   participant Bundle as dashboard bundle
   participant Output as HTML output
   participant Browser as browser
-  participant Target as target docs
+  participant Target as target harness files
 
-  CLI->>Scanner: read AGENTS.md, docs, tasks, SSoTs
-  Scanner->>Bundle: build status, tables, documents, graph, warnings
+  CLI->>Repo: read AGENTS.md and coding-agent-harness/
+  Repo->>Projection: build lifecycle, dashboard, and review queue views
+  Projection->>Bundle: build status, tables, documents, graph, warnings
   Bundle->>Output: write index.html, assets, data/*.json
   Browser->>Output: open static dashboard snapshot
   alt local workbench mode
     Browser->>CLI: submit approved action
-    CLI->>Target: update scoped markdown files
+    CLI->>Target: update scoped Markdown through TaskOperations / transaction
     CLI->>Output: regenerate snapshot
   end
 ```
@@ -318,5 +326,6 @@ flowchart LR
   Registry --> Check
 ```
 
-Workers own local task and module facts. Coordinators own global projections:
-registries, ledgers, closeout indexes, and regression state.
+Workers own local task and module facts. Coordinators own global generated views:
+module registries, ledgers, closeout indexes, and regression summaries. Those
+views are projections, not a second source of truth.

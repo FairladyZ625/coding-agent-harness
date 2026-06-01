@@ -46,6 +46,14 @@ harness status --json /path/to/project/.project-control/harness-state
 If a project contains multiple `harness.yaml` files, the agent must not guess.
 Pass the intended Harness root explicitly.
 
+Legacy path references later in this guide, such as `docs/Harness-Ledger.md`,
+`docs/09-PLANNING/**`, `docs/10-WALKTHROUGH/**`, `docs/11-REFERENCE/**`,
+`03-ARCHITECTURE`, `04-DEVELOPMENT`, and `06-INTEGRATIONS`, are legacy input
+paths. They name old evidence to read or migrate. They are not the active v2
+runtime layout. The v2 destination is the declared Harness root, usually
+`coding-agent-harness/`, with generated views under
+`coding-agent-harness/governance/generated/`.
+
 ## Migration Principles
 
 - Protect history first, then add the new contract. Do not overwrite `AGENTS.md`, `CLAUDE.md`, historical tasks, walkthroughs, SSoTs, or ledgers.

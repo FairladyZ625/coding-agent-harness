@@ -19,6 +19,14 @@ English source: `docs-release/guides/legacy-migration-agent-prompt.md`
 
 本 prompt 足够完成 baseline safe-adoption。完整可读切换有更严格门禁。
 
+## 路径术语
+
+本文出现的 `docs/Harness-Ledger.md`、`docs/09-PLANNING/**`、
+`docs/10-WALKTHROUGH/**`、`docs/11-REFERENCE/**`、`03-ARCHITECTURE`、
+`04-DEVELOPMENT` 或 `06-INTEGRATIONS` 都是旧项目输入路径。它们表示需要读取或迁移的历史证据，
+不是 v2 active runtime 结构。新的 active state 应写入探测到的 Harness 根目录，
+通常是 `coding-agent-harness/`。
+
 ## 不可违反的规则
 
 1. 不要覆盖 `AGENTS.md`、`CLAUDE.md`、历史 task 文件夹、Harness Ledger、SSoT、review、walkthrough 或 evidence 文件。

@@ -19,6 +19,15 @@ If the user asks for proof that a legacy project is fully migrated, also follow:
 
 This prompt alone is enough for baseline safe-adoption. Full readable cutover has stricter gates.
 
+## Path Terminology
+
+When this prompt names `docs/Harness-Ledger.md`, `docs/09-PLANNING/**`,
+`docs/10-WALKTHROUGH/**`, `docs/11-REFERENCE/**`, `03-ARCHITECTURE`,
+`04-DEVELOPMENT`, or `06-INTEGRATIONS`, those are legacy input paths. Read them
+as old evidence sources that may need migration. They are not the active v2
+runtime structure. New active state belongs under the detected Harness root,
+normally `coding-agent-harness/`.
+
 ## Non-Negotiable Rules
 
 1. Do not overwrite `AGENTS.md`, `CLAUDE.md`, historical task folders, Harness Ledger, SSoTs, reviews, walkthroughs, or evidence files.
