@@ -13,7 +13,7 @@ import { readCapabilityRegistry } from "./capability-registry.mjs";
 import { createTask, resolveTaskDirectory } from "./task-lifecycle.mjs";
 import { readPresetPackage, buildPresetAudit, renderPresetTemplate } from "./preset-registry.mjs";
 import { firstColumn, updateMarkdownTableRow } from "./markdown-utils.mjs";
-import { taskIdForDirectory } from "./task-scanner.mjs";
+import { listTaskPlanPaths, taskIdForDirectory } from "./task-scanner.mjs";
 import {
   beginGovernanceSync,
   commitGovernanceSync,
@@ -37,6 +37,10 @@ type LessonEntry = {
   sourceShortId: string;
   candidatePath: string;
   candidate: LessonCandidateRow;
+};
+type LessonTaskDirectoryIndex = {
+  byRef: Map<string, string>;
+  directories: string[];
 };
 type LessonSedimentationErrorOptions = {
   code?: string;
@@ -277,7 +281,8 @@ export function createAggregateLessonSedimentationTask(targetInput: string, sele
       recovery: ["Select at least one actionable lesson candidate."],
     });
   }
-  const entries = normalizedSelections.map((selection) => resolveLessonCandidate(target, selection.taskId, selection.candidateId));
+  const taskDirectoryIndex = buildLessonTaskDirectoryIndex(target);
+  const entries = normalizedSelections.map((selection) => resolveLessonCandidate(target, selection.taskId, selection.candidateId, taskDirectoryIndex));
   const sourceShort = entries.length === 1
     ? entries[0].sourceShortId.replace(/^\d{4}-\d{2}-\d{2}-/, "")
     : commonSourceShort(entries) || "selected-lessons";
@@ -389,8 +394,10 @@ function normalizeAggregateSelections(selections: unknown): LessonSelection[] {
   return normalized;
 }
 
-function resolveLessonCandidate(target: LessonTarget, taskRef: string, candidateId: string): LessonEntry {
-  const sourceTaskDir = resolveTaskDirectory(target, taskRef);
+function resolveLessonCandidate(target: LessonTarget, taskRef: string, candidateId: string, taskDirectoryIndex?: LessonTaskDirectoryIndex): LessonEntry {
+  const sourceTaskDir = taskDirectoryIndex
+    ? resolveLessonTaskDirectory(target, taskDirectoryIndex, taskRef)
+    : resolveTaskDirectory(target, taskRef);
   const sourceTaskId = taskIdForDirectory(target, sourceTaskDir);
   const sourceShortId = path.basename(sourceTaskDir);
   const candidatePath = path.join(sourceTaskDir, lessonCandidatesFile);
@@ -430,6 +437,74 @@ function resolveLessonCandidate(target: LessonTarget, taskRef: string, candidate
     });
   }
   return { sourceTaskDir, sourceTaskId, sourceShortId, candidatePath, candidate };
+}
+
+function buildLessonTaskDirectoryIndex(target: LessonTarget): LessonTaskDirectoryIndex {
+  const byRef = new Map<string, string>();
+  const directories = listTaskPlanPaths(target).map((taskPlanPath) => path.dirname(taskPlanPath));
+  for (const taskDir of directories) {
+    const sourceTaskId = taskIdForDirectory(target, taskDir);
+    const sourceShortId = path.basename(taskDir);
+    for (const ref of lessonTaskRefs(sourceTaskId, sourceShortId, taskDir, target.projectRoot)) {
+      const normalized = normalizeLessonTaskRef(ref);
+      if (!normalized || byRef.has(normalized)) continue;
+      byRef.set(normalized, taskDir);
+    }
+  }
+  return { byRef, directories };
+}
+
+function resolveLessonTaskDirectory(target: LessonTarget, index: LessonTaskDirectoryIndex, taskRef: string): string {
+  const absolute = absoluteLessonTaskRef(target, taskRef);
+  if (absolute && fs.existsSync(path.join(absolute, "task_plan.md"))) return absolute;
+  const raw = normalizeLessonTaskRef(taskRef);
+  const direct = raw ? index.byRef.get(raw) : undefined;
+  if (direct) return direct;
+  const normalized = normalizeTaskId(raw);
+  const normalizedMatch = normalized ? index.byRef.get(normalized) : undefined;
+  if (normalizedMatch) return normalizedMatch;
+  const datedMatches = index.directories.filter((taskDir) => {
+    const dirName = path.basename(taskDir);
+    return /^\d{4}-\d{2}-\d{2}-/.test(dirName) && dirName.replace(/^\d{4}-\d{2}-\d{2}-/, "") === normalized;
+  });
+  if (datedMatches.length === 1) return datedMatches[0];
+  if (datedMatches.length > 1) {
+    const options = datedMatches.map((taskDir) => `- ${taskIdForDirectory(target, taskDir)}`).join("\n");
+    throw new Error(`Ambiguous task reference: ${taskRef}\n${options}`);
+  }
+  throw new Error(`Task not found: ${taskRef}`);
+}
+
+function lessonTaskRefs(sourceTaskId: string, sourceShortId: string, taskDir: string, projectRoot: string): string[] {
+  const relative = toPosix(path.relative(projectRoot, taskDir));
+  const undatedShortId = sourceShortId.replace(/^\d{4}-\d{2}-\d{2}-/, "");
+  const refs = [
+    sourceTaskId,
+    sourceShortId,
+    normalizeTaskId(sourceShortId),
+    undatedShortId,
+    normalizeTaskId(undatedShortId),
+    relative,
+    `TARGET:${relative}`,
+  ];
+  const parts = sourceTaskId.split("/");
+  if (parts.length > 1) refs.push(parts.at(-1) || "");
+  return refs.filter(Boolean);
+}
+
+function absoluteLessonTaskRef(target: LessonTarget, taskRef: string): string {
+  const withoutTarget = String(taskRef || "").replace(/^TARGET:/, "");
+  if (!withoutTarget) return "";
+  return path.isAbsolute(withoutTarget) ? withoutTarget : path.join(target.projectRoot, withoutTarget.replace(/^\/+/, ""));
+}
+
+function normalizeLessonTaskRef(taskRef: string): string {
+  return String(taskRef || "")
+    .replace(/^TARGET:/, "")
+    .replace(/^coding-agent-harness\/planning\//, "")
+    .replace(/^planning\//, "")
+    .replace(/^docs\/09-PLANNING\//, "")
+    .replace(/^\/+/, "");
 }
 
 function commonSourceShort(entries: LessonEntry[]): string {
