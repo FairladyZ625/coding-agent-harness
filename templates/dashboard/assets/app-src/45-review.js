@@ -200,9 +200,8 @@ function reviewPriorityRank(task) {
 
 function reviewTruthyCount(tasks, key) {
   return tasks.filter((task) => {
-    const materials = taskMaterialsView(task);
-    if (key === "materialsReady" && typeof materials.evidenceReady === "boolean") return materials.evidenceReady;
     const lifecycle = taskLifecycleProjection(task);
+    if (key === "materialsReady" && typeof lifecycle.materialsReady === "boolean") return lifecycle.materialsReady;
     if (key === "reviewSubmitted" && typeof lifecycle.reviewSubmitted === "boolean") return lifecycle.reviewSubmitted;
     return false;
   }).length;
@@ -242,7 +241,6 @@ function reviewQueueCard(task, tab) {
   const openMaterial = (task.risks || []).filter((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease)).length;
   const reasons = taskQueueReasonSummaries(task);
   const lifecycle = taskLifecycleProjection(task);
-  const materials = taskMaterialsView(task);
   const canCopyRepairPrompt = tab?.repair && String(task.repairPrompt || "").trim();
   const lessonActions = tab?.id === "lessons" ? lessonCandidatePanel(task, { context: "card", limit: 2 }) : "";
   const closeoutAction = taskReadyForCloseout(task)
@@ -268,7 +266,7 @@ function reviewQueueCard(task, tab) {
       <span>${tag(lifecycle.closeoutStatus || "missing")}</span>
       <span>${openMaterial} ${t("openFindings")}</span>
       <span>${t("reviewSubmitted")}: ${lifecycle.reviewSubmitted === true ? t("yes") : t("no")}</span>
-      <span>${t("materialsReady")}: ${materials.evidenceReady === true ? t("yes") : t("no")}</span>
+      <span>${t("materialsReady")}: ${lifecycle.materialsReady === true ? t("yes") : t("no")}</span>
     </div>
     <p class="subtle">${escapeHtml(firstUsefulLine(task.summary || task.briefText || ""))}</p>
     ${tombstoneSummary(task)}

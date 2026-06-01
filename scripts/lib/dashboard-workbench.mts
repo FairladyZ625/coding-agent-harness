@@ -6,12 +6,16 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
-import { commitWorkbenchBatch, finalizeWorkbenchReviewConfirmation } from "../application/workbench/review-confirmation.mjs";
+import { commitWorkbenchBatch } from "../application/workbench/review-confirmation.mjs";
 import { createAggregateLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
-import { normalizeTarget } from "./core-shared.mjs";
+import { normalizeTarget, toPosix } from "./core-shared.mjs";
 import { dashboardWatchRoots } from "./harness-paths.mjs";
 import { createScannerTaskRepository } from "./task-repository.mjs";
 import { createTaskOperations, taskOperationFailurePayload } from "./task-operations.mjs";
+import {
+  confirmTaskReview as confirmTaskReviewWithContext,
+  finalizeDeferredTaskReviewConfirmation as finalizeDeferredTaskReviewConfirmationWithContext,
+} from "./task-lifecycle/review-confirm.mjs";
 import { writeDashboardFolder } from "./dashboard-data.mjs";
 import {
   checkPresetPackage,
@@ -164,22 +168,33 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
           return;
         }
         const results: WorkbenchBatchResult[] = [];
+        const taskCache = buildWorkbenchTaskCache(taskRepository, target.projectRoot);
         for (const taskId of taskIds) {
-          const task = findWorkbenchTask(taskRepository, taskId);
-          const result = taskOperations.confirmReview({
-            taskId,
-            reviewer: body.reviewer || "Human Reviewer",
-            message: body.message || "bulk confirmed from dashboard workbench",
-            evidence: body.evidence || "",
-            confirmText: task?.shortId || task?.id || taskId,
-            deferCommit: true,
-          });
-          if (!result.success) {
-            results.push({ taskId, ok: false, status: result.status, ...taskOperationFailurePayload(result) });
+          const task = findCachedWorkbenchTask(taskCache, taskId);
+          const block = task ? bulkReviewConfirmationBlock(task) : { status: 404, reason: `Task not found: ${taskId}`, payload: { taskId } };
+          if (!task || block) {
+            results.push({ taskId, ok: false, status: block?.status || 404, error: block?.reason || `Task not found: ${taskId}`, payload: block?.payload || { taskId } });
             continue;
           }
-          const payload = result.data as { audit?: WorkbenchBatchResult["audit"]; task?: { id?: string } };
-          results.push({ taskId, ok: true, status: 200, audit: payload.audit, task: { id: payload.task?.id || taskId } });
+          try {
+            const payload = confirmTaskReviewWithContext(
+              {
+                target,
+                taskDir: taskDirectoryForCachedTask(target.projectRoot, task),
+                findTaskByDirectory: (_target, taskDir) => findCachedTaskByDirectory(taskCache, taskDir),
+              },
+              {
+                reviewer: body.reviewer || "Human Reviewer",
+                message: body.message || "bulk confirmed from dashboard workbench",
+                evidence: body.evidence || "",
+                confirmText: task.shortId || task.id || taskId,
+                deferCommit: true,
+              },
+            ) as { audit?: WorkbenchBatchResult["audit"]; task?: { id?: string } };
+            results.push({ taskId, ok: true, status: 200, audit: payload.audit, task: { id: payload.task?.id || taskId } });
+          } catch (error) {
+            results.push({ taskId, ok: false, status: errorStatus(error), ...errorPayload(error) });
+          }
         }
         const confirmed = results.filter((result) => result.ok).length;
         const failed = results.length - confirmed;
@@ -187,7 +202,16 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
           const allowedPaths = uniqueValues(results.filter((result) => result.ok).flatMap((result) => result.audit?.allowedPaths || []));
           const confirmCommit = commitWorkbenchBatch(target, allowedPaths, { operation: "review-complete-bulk", message: "chore: confirm selected reviews" });
           for (const result of results.filter((item) => item.ok)) {
-            finalizeWorkbenchReviewConfirmation(target, result.taskId, { commitSha: confirmCommit.commitSha });
+            const task = findCachedWorkbenchTask(taskCache, result.taskId);
+            if (!task) continue;
+            finalizeDeferredTaskReviewConfirmationWithContext(
+              {
+                target,
+                taskDir: taskDirectoryForCachedTask(target.projectRoot, task),
+                findTaskByDirectory: (_target, taskDir) => findCachedTaskByDirectory(taskCache, taskDir),
+              },
+              { commitSha: confirmCommit.commitSha },
+            );
           }
           const auditCommit = commitWorkbenchBatch(target, allowedPaths, { operation: "review-complete-bulk-audit", message: "chore: record selected review confirmation audit" });
           for (const result of results.filter((item) => item.ok)) {
@@ -404,6 +428,69 @@ function findWorkbenchTask(repository: TaskRepository, taskId: string): TaskReco
   } catch {
     return undefined;
   }
+}
+
+type WorkbenchTaskCache = {
+  byId: Map<string, TaskRecord>;
+  byDirectory: Map<string, TaskRecord>;
+};
+
+type BulkReviewBlock = {
+  status: number;
+  reason: string;
+  payload: Record<string, unknown>;
+};
+
+function buildWorkbenchTaskCache(repository: TaskRepository, projectRoot: string): WorkbenchTaskCache {
+  const tasks = repository.list();
+  const byId = new Map<string, TaskRecord>();
+  const byDirectory = new Map<string, TaskRecord>();
+  for (const task of tasks) {
+    for (const id of [task.id, task.taskKey, task.shortId].filter(Boolean)) byId.set(String(id), task);
+    byDirectory.set(normalizeWorkbenchPath(taskDirectoryForCachedTask(projectRoot, task)), task);
+  }
+  return { byId, byDirectory };
+}
+
+function findCachedWorkbenchTask(cache: WorkbenchTaskCache, taskId: string): TaskRecord | undefined {
+  return cache.byId.get(String(taskId || ""));
+}
+
+function findCachedTaskByDirectory(cache: WorkbenchTaskCache, taskDir: string): TaskRecord | undefined {
+  return cache.byDirectory.get(normalizeWorkbenchPath(taskDir));
+}
+
+function taskDirectoryForCachedTask(projectRoot: string, task: TaskRecord): string {
+  const raw = String(task.currentPath || task.path || "");
+  if (!raw) throw new Error(`Task has no currentPath/path: ${task.id || task.taskKey || "unknown"}`);
+  const withoutTarget = raw.replace(/^TARGET:/, "");
+  return path.isAbsolute(withoutTarget) ? withoutTarget : path.join(projectRoot, withoutTarget.replace(/^\/+/, ""));
+}
+
+function normalizeWorkbenchPath(filePath: string): string {
+  return toPosix(path.resolve(filePath));
+}
+
+function bulkReviewConfirmationBlock(task: TaskRecord): BulkReviewBlock | null {
+  if (task.reviewStatus === "confirmed" || task.reviewConfirmation?.confirmed === true) {
+    return { status: 409, reason: "Review is already confirmed.", payload: { reviewStatus: task.reviewStatus || "confirmed", taskId: task.id || "" } };
+  }
+  const queues = Array.isArray(task.taskQueues) ? task.taskQueues : [];
+  if (task.reviewQueueState !== "ready-to-confirm" || !queues.includes("review")) {
+    return {
+      status: 409,
+      reason: "Review completion is only available for tasks in the review queue.",
+      payload: {
+        reviewQueueState: task.reviewQueueState || "unknown",
+        taskQueues: queues,
+        queueReasons: Array.isArray(task.queueReasons) ? task.queueReasons : [],
+        repairPrompt: task.repairPrompt || "",
+        reviewStatus: task.reviewStatus || "unknown",
+        taskId: task.id || "",
+      },
+    };
+  }
+  return null;
 }
 
 function startPollingWatch(roots: string | string[], regenerate: () => void): ReturnType<typeof setInterval> {
