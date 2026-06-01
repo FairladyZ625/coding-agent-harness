@@ -82,6 +82,9 @@ try {
   for (const action of ["preset-check", "preset-install", "preset-seed", "preset-uninstall"]) {
     assert(runtimePayload.writableActions.includes(action), `workbench runtime should expose ${action}`);
   }
+  const appScript = await (await fetch(new URL("assets/app.js", runtime.url))).text();
+  assert(appScript.includes("refreshDashboardSnapshot"), "workbench app should hot-update dashboard data without a full page reload");
+  assert(!appScript.includes("window.location.reload()"), "workbench app should not hard reload when snapshots change");
 
   const checkPayload = await postJson("api/presets/check", { id: "module" });
   assert(checkPayload.status === 200, `preset check should pass, got ${checkPayload.status}: ${checkPayload.text}`);

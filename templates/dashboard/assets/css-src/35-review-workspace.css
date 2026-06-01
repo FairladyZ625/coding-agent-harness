@@ -221,6 +221,14 @@
   padding: 14px;
 }
 
+.review-queue-summary + .side-panel > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 650;
+}
+
 .review-queue-actions {
   display: flex;
   gap: 10px;
@@ -352,9 +360,21 @@
   overflow-wrap: anywhere;
 }
 
+.lesson-candidate-action strong {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.lesson-candidate-action span {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .lesson-candidate-action small {
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.35;
 }
 
 .lesson-candidate-command-row {
@@ -447,6 +467,9 @@
 .review-queue-contract dt,
 .review-queue-contract dd {
   margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 800;
 }
 
 .review-queue-contract dt {
@@ -456,6 +479,30 @@
 .review-queue-contract dd {
   font-family: var(--font-mono);
   color: var(--ink);
+}
+
+.review-tombstone-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.review-tombstone-summary span:not(.tag),
+.review-tombstone-summary a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.review-tombstone-summary a {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .runtime-banner {

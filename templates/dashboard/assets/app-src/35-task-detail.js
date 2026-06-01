@@ -385,7 +385,7 @@ function taskReviewWorkbenchQueueView(task) {
 
 function evidenceList(task) {
   const evidence = task.evidence || [];
-  return `<section class="side-panel">
+  return `<section class="side-panel evidence-panel">
     <h3>${t("evidence")}</h3>
     ${evidence.map((item) => `<p><strong>${escapeHtml(item.type || "evidence")}</strong> ${escapeHtml(item.summary || "")}</p>`).join("") || `<p>${t("noEvidence")}</p>`}
   </section>`;

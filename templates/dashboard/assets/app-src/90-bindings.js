@@ -256,7 +256,7 @@ function startRuntimePolling() {
       if (!response.ok) return;
       const nextRuntime = await response.json();
       if (state.runtime?.snapshotVersion && nextRuntime.snapshotVersion !== state.runtime.snapshotVersion) {
-        window.location.reload();
+        await refreshDashboardSnapshot(nextRuntime);
         return;
       }
       state.runtime = nextRuntime;
@@ -265,6 +265,36 @@ function startRuntimePolling() {
       state.runtimePoller = null;
     }
   }, 1500);
+}
+
+async function refreshDashboardSnapshot(nextRuntime = null) {
+  if (state.runtimeRefreshInFlight) return;
+  state.runtimeRefreshInFlight = true;
+  try {
+    const response = await fetch(`/assets/dashboard-data.js?v=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`dashboard data ${response.status}`);
+    const script = await response.text();
+    const match = script.match(/^\s*window\.__HARNESS_DASHBOARD__\s*=\s*([\s\S]*?);\s*$/);
+    if (!match) throw new Error("dashboard data payload missing");
+    setDashboardBundle(JSON.parse(match[1]));
+    let refreshedRuntime = nextRuntime;
+    if (state.runtime?.autoRefresh) {
+      const runtimeResponse = await fetch("/api/runtime", { cache: "no-store" });
+      if (runtimeResponse.ok) refreshedRuntime = await runtimeResponse.json();
+    }
+    if (refreshedRuntime) state.runtime = refreshedRuntime;
+    app();
+  } catch (error) {
+    state.runtimeRefreshError = error?.message || String(error);
+  } finally {
+    state.runtimeRefreshInFlight = false;
+  }
+}
+
+function scheduleDashboardSnapshotRefresh(delay = 0) {
+  setTimeout(() => {
+    refreshDashboardSnapshot().catch(() => {});
+  }, delay);
 }
 
 async function completeReviewFromDashboard(taskId) {
@@ -298,7 +328,7 @@ async function completeReviewFromDashboard(taskId) {
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || t("reviewCompleteFailed"));
     if (result) result.textContent = t("reviewCompleteSuccess");
-    setTimeout(() => window.location.reload(), 500);
+    scheduleDashboardSnapshotRefresh(500);
   } catch (error) {
     if (result) result.textContent = `${t("reviewCompleteFailed")}: ${error.message}`;
   }
@@ -323,7 +353,7 @@ async function completeTaskFromDashboard(taskId) {
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || t("taskCloseoutFailed"));
     if (result) result.textContent = t("taskCloseoutSuccess");
-    setTimeout(() => window.location.reload(), 500);
+    scheduleDashboardSnapshotRefresh(500);
   } catch (error) {
     if (result) result.textContent = `${t("taskCloseoutFailed")}: ${error.message}`;
   }
@@ -381,7 +411,7 @@ async function confirmSelectedReviewsFromDashboard(button) {
       message: payload.failed ? formatMessage("reviewBulkPartial", { confirmed: payload.confirmed || 0, failed: payload.failed || 0 }) : formatMessage("reviewBulkSuccess", { confirmed: payload.confirmed || 0 }),
     };
     app();
-    if ((payload.confirmed || 0) > 0) setTimeout(() => window.location.reload(), 1500);
+    if ((payload.confirmed || 0) > 0) scheduleDashboardSnapshotRefresh(1500);
   } catch (error) {
     state.reviewBulkResult = { ok: false, message: `${t("reviewCompleteFailed")}: ${dashboardActionErrorDetail(error, t("reviewCompleteFailed"))}` };
     app();
@@ -408,7 +438,7 @@ async function runPresetAction(action, body) {
       message: presetActionMessage(action, payload),
     };
     app();
-    if (["install", "seed", "uninstall"].includes(action)) setTimeout(() => window.location.reload(), 650);
+    if (["install", "seed", "uninstall"].includes(action)) scheduleDashboardSnapshotRefresh(650);
   } catch (error) {
     state.presetActionResult = {
       ok: false,
@@ -632,7 +662,7 @@ async function createSelectedLessonSedimentationFromDashboard(button) {
       message: payload.failed ? formatMessage("lessonBulkPartial", { created: payload.created || 0, failed: payload.failed || 0 }) : formatMessage("lessonBulkSuccess", { candidates: payload.candidates || selections.length }),
     };
     app();
-    if ((payload.created || 0) > 0) setTimeout(() => window.location.reload(), 1500);
+    if ((payload.created || 0) > 0) scheduleDashboardSnapshotRefresh(1500);
   } catch (error) {
     state.lessonBulkResult = { ok: false, message: `${t("lessonTaskCreateFailed")}: ${error?.error || error?.message || String(error)}` };
     app();

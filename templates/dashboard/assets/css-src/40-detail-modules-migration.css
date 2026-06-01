@@ -242,6 +242,22 @@
   max-width: 100%;
 }
 
+.side-panel > p,
+.evidence-panel p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.evidence-panel p strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .side-panel a {
   display: inline-flex;
   margin: 6px 6px 0 0;
