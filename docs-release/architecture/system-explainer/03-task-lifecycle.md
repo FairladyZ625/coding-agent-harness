@@ -2,13 +2,14 @@
 
 ## Level 0 — 一个任务的一生
 
-一个任务从创建到收口，经历六个状态：
+一个任务从创建到最终结项，包含执行状态、人工确认点和阻塞/返工路径。注意这里的最终结项不同于 Agent 在提交人工审查前准备的 closeout packet：
 
 ```mermaid
 flowchart LR
   A["not_started\n目录已创建"] --> B["planned\n计划已填写"] --> C["in_progress\n正在执行"]
   C --> D["review\n等待人工审查"]
-  D --> E["done\n收口完成"]
+  D --> H["human_confirmed\n人工已确认"]
+  H --> E["done\n最终结项完成"]
   C -->|"外部阻塞"| F["blocked"] -->|"解除"| C
   D -->|"打回重做"| C
 ```
@@ -25,19 +26,21 @@ flowchart TD
   NS["not_started\n任务目录已创建\n文件已 scaffold"]
   IP["in_progress\n正在执行"]
   R["review\n等待人工审查"]
-  D["done\n收口完成"]
+  HC["human_confirmed\n人工已确认"]
+  D["done\n最终结项完成"]
   BL["blocked\n外部依赖阻塞"]
 
   NS -->|"harness task-start"| IP
   IP -->|"harness task-review"| R
-  R -->|"Dashboard workbench\n人工确认"| D
+  R -->|"Dashboard workbench\n人工确认"| HC
+  HC -->|"harness task-complete"| D
   IP -->|"harness task-phase --blocked"| BL
   BL -->|"harness task-start"| IP
   R -->|"打回重做"| IP
 ```
 
 **关键点**：人工确认不作为普通 CLI 命令暴露。它只能通过本地 Dashboard workbench 的写接口触发，
-并会写入带有 Git `user.name` / `user.email` 的可审计确认块。
+并会写入带有 Git `user.name` / `user.email` 的可审计确认块。Agent 的完成边界是在人工审查前准备好 evidence、`review.md`、`walkthrough.md`、lesson decision 和 residual risk；人工确认之后的 `task-complete` 只是最终生命周期结项。
 
 ---
 

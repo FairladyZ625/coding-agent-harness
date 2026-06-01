@@ -6,7 +6,7 @@ Define the closeout walkthrough that converts implementation work into durable p
 
 ## Rules
 
-1. Write a walkthrough for non-trivial tasks, long-running tasks, releases, cross-cutting changes, or work that future agents will need to understand.
+1. Write a walkthrough for non-trivial tasks, long-running tasks, releases, cross-cutting changes, or work that future agents will need to understand. For non-simple tasks, this walkthrough is part of the agent-owned closeout packet that must be ready before Human Review.
 2. A walkthrough must explain what changed, why it changed, how it was verified, what review found, and what residual risk remains.
 3. Do not paste large raw logs. Link to evidence files, commands, PRs, screenshots, or CI runs.
 4. Material findings and their resolution must be visible.
@@ -27,4 +27,4 @@ Define the closeout walkthrough that converts implementation work into durable p
 
 ## Closeout Expectations
 
-Walkthrough closeout is complete when a future agent can understand the delivery state, reproduce the important evidence trail, and know which residuals or lessons still matter.
+Walkthrough closeout is complete when a future agent can understand the delivery state, reproduce the important evidence trail, and know which residuals or lessons still matter. That readiness is separate from Human Review Confirmation and the later `task-complete` / finalization transition.
