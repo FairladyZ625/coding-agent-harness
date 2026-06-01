@@ -24,3 +24,4 @@ harness-dashboard-*.png
 # Local npm install artifact; this package currently publishes from package.json.
 package-lock.json
 node_modules/
+.gstack/
