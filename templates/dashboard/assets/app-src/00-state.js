@@ -1,18 +1,28 @@
 const dashboardBundleSchemaVersion = "dashboard-bundle/v1";
-const rawBundle = window.__HARNESS_DASHBOARD__ || {};
-const bundleSchemaCompatible = !rawBundle.schemaVersion || rawBundle.schemaVersion === dashboardBundleSchemaVersion;
-const bundle = bundleSchemaCompatible ? rawBundle : {
-  schemaVersion: rawBundle.schemaVersion || "missing",
-  schemaError: `Unsupported dashboard bundle schema: ${rawBundle.schemaVersion || "missing"}`,
-  status: { tasks: [], summary: {}, checkState: { details: { warnings: [], failures: [] } } },
-  tables: { tables: [] },
-  documents: { documents: [] },
-  graph: { nodes: [], edges: [] },
-  modules: [],
-  moduleSummary: {},
-  adoption: { warnings: [], summary: {} },
-  presetCatalog: { presets: [], roots: [], summary: {} },
-};
+let rawBundle = window.__HARNESS_DASHBOARD__ || {};
+let bundle = normalizeDashboardBundle(rawBundle);
+
+function normalizeDashboardBundle(nextRawBundle) {
+  const bundleSchemaCompatible = !nextRawBundle.schemaVersion || nextRawBundle.schemaVersion === dashboardBundleSchemaVersion;
+  return bundleSchemaCompatible ? nextRawBundle : {
+    schemaVersion: nextRawBundle.schemaVersion || "missing",
+    schemaError: `Unsupported dashboard bundle schema: ${nextRawBundle.schemaVersion || "missing"}`,
+    status: { tasks: [], summary: {}, checkState: { details: { warnings: [], failures: [] } } },
+    tables: { tables: [] },
+    documents: { documents: [] },
+    graph: { nodes: [], edges: [] },
+    modules: [],
+    moduleSummary: {},
+    adoption: { warnings: [], summary: {} },
+    presetCatalog: { presets: [], roots: [], summary: {} },
+  };
+}
+
+function setDashboardBundle(nextRawBundle) {
+  rawBundle = nextRawBundle || {};
+  window.__HARNESS_DASHBOARD__ = rawBundle;
+  bundle = normalizeDashboardBundle(rawBundle);
+}
 const defaultLocale = window.__HARNESS_LOCALE__ || ((navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en");
 let locale = localStorage.getItem("harness.locale") || defaultLocale;
 if (!window.HarnessI18n?.[locale]) locale = "en";
@@ -49,6 +59,8 @@ const state = {
   runtime: { mode: "static", csrfToken: "", writableActions: [] },
   runtimeLoaded: false,
   runtimePoller: null,
+  runtimeRefreshInFlight: false,
+  runtimeRefreshError: "",
 };
 
 const taskPageSize = 25;
