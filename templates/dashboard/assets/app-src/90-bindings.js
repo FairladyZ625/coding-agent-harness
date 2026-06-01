@@ -19,6 +19,13 @@ function rerenderPreservingFieldFocus(field, selector) {
 }
 
 function bind() {
+  if (typeof document.querySelector === "function") document.querySelector(".skip-link")?.addEventListener("click", (event) => {
+    const main = document.getElementById("main");
+    if (!main) return;
+    event.preventDefault();
+    main.focus({ preventScroll: true });
+    main.scrollIntoView({ block: "start" });
+  });
   document.querySelectorAll("[data-search]").forEach((input) => input.addEventListener("input", () => {
     state.query = input.value;
     state.taskPageByGroup = {};
@@ -468,7 +475,7 @@ function renderDrawerContent(taskId) {
         <p style="font-family: var(--font-mono); font-size: 11px; margin: 4px 0 0; color: var(--muted);">${escapeHtml(task.id)}</p>
         ${taskCopyButton(task, "detail-copy")}
       </div>
-      <button class="btn-close" data-close-drawer>×</button>
+      <button class="btn-close" data-close-drawer aria-label="${escapeAttr(t("close"))}">×</button>
     </div>
   `;
 
@@ -504,6 +511,8 @@ function openDrawer(taskId) {
   const overlay = document.getElementById("drawer-overlay");
   if (!drawer || !overlay) return;
   drawer.innerHTML = renderDrawerContent(taskId);
+  drawer.removeAttribute("aria-hidden");
+  drawer.removeAttribute("inert");
   drawer.classList.add("active");
   overlay.classList.add("active");
 
@@ -717,7 +726,7 @@ function renderLessonDrawerContent(lessonId) {
   if (!lesson) {
     return `<div class="task-drawer-header">
       <h2>${escapeHtml(lessonId)}</h2>
-      <button class="btn-close" data-close-drawer>×</button>
+      <button class="btn-close" data-close-drawer aria-label="${escapeAttr(t("close"))}">×</button>
     </div>
     <div class="task-drawer-body">
       <div class="empty">${t("lessonNotFound")}</div>
@@ -732,7 +741,7 @@ function renderLessonDrawerContent(lessonId) {
         <h2>${escapeHtml(lessonId)}</h2>
         <p style="font-size: 12px; margin: 4px 0 0; color: var(--muted); font-weight: 600;">${escapeHtml(lesson.title || lesson.path)}</p>
       </div>
-      <button class="btn-close" data-close-drawer>×</button>
+      <button class="btn-close" data-close-drawer aria-label="${escapeAttr(t("close"))}">×</button>
     </div>
   `;
 
@@ -761,6 +770,8 @@ function openLessonDrawer(lessonId) {
   const overlay = document.getElementById("drawer-overlay");
   if (!drawer || !overlay) return;
   drawer.innerHTML = renderLessonDrawerContent(lessonId);
+  drawer.removeAttribute("aria-hidden");
+  drawer.removeAttribute("inert");
   drawer.classList.add("active");
   overlay.classList.add("active");
 
@@ -770,7 +781,14 @@ function openLessonDrawer(lessonId) {
 function closeDrawer() {
   const drawer = document.getElementById("task-drawer");
   const overlay = document.getElementById("drawer-overlay");
-  if (drawer) drawer.classList.remove("active");
+  if (drawer) {
+    if (drawer.contains(document.activeElement)) {
+      document.getElementById("main")?.focus({ preventScroll: true });
+    }
+    drawer.classList.remove("active");
+    drawer.setAttribute("aria-hidden", "true");
+    drawer.setAttribute("inert", "");
+  }
   if (overlay) overlay.classList.remove("active");
 }
 

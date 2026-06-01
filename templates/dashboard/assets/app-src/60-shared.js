@@ -20,7 +20,7 @@ function mermaidId(value) {
 
 function progressBar(value) {
   const score = Math.max(0, Math.min(100, Number(value) || 0));
-  return `<div class="progress" aria-label="${score}%"><i style="width:${score}%"></i></div>`;
+  return `<div class="progress" role="progressbar" aria-label="${score}%" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${score}"><i style="width:${score}%" aria-hidden="true"></i></div>`;
 }
 
 function tag(value) {

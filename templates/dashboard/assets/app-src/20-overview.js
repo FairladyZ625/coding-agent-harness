@@ -73,6 +73,11 @@ function flowPanel() {
   const done = tasks.filter((task) => !isActiveTaskState(taskStateValue(task)) && (taskStateValue(task) === "done" || task.completion === 100)).length;
   const planned = Math.max(0, total - done - active);
   const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
+  const progressText = t("taskProgressAria")
+    .replaceAll("{done}", String(done))
+    .replaceAll("{active}", String(active))
+    .replaceAll("{planned}", String(planned))
+    .replaceAll("{total}", String(total));
   return `<section class="flow-panel">
     <div class="section-head">
       <div>
@@ -82,10 +87,10 @@ function flowPanel() {
       <span class="subtle">${done}/${total} ${t("completed")}</span>
     </div>
     <div class="progress-bar-container">
-      <div class="progress-bar">
-        ${done > 0 ? `<div class="progress-segment done" style="width:${pct(done)}%" title="${t("done")}: ${done}"></div>` : ""}
-        ${active > 0 ? `<div class="progress-segment active" style="width:${pct(active)}%" title="${t("active")}: ${active}"></div>` : ""}
-        ${planned > 0 ? `<div class="progress-segment planned" style="width:${pct(planned)}%" title="${t("planned")}: ${planned}"></div>` : ""}
+      <div class="progress-bar" role="progressbar" aria-label="${escapeAttr(t("projectProgress"))}" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}" aria-valuetext="${escapeAttr(progressText)}">
+        ${done > 0 ? `<div class="progress-segment done" style="width:${pct(done)}%" title="${t("done")}: ${done}" aria-hidden="true"></div>` : ""}
+        ${active > 0 ? `<div class="progress-segment active" style="width:${pct(active)}%" title="${t("active")}: ${active}" aria-hidden="true"></div>` : ""}
+        ${planned > 0 ? `<div class="progress-segment planned" style="width:${pct(planned)}%" title="${t("planned")}: ${planned}" aria-hidden="true"></div>` : ""}
       </div>
       <div class="progress-legend">
         <span class="legend-item"><span class="legend-dot done"></span>${t("done")} ${done}</span>

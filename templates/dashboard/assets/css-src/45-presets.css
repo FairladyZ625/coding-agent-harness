@@ -86,7 +86,7 @@
 }
 
 .preset-source-tabs button.active {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   background: var(--paper-2);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
 }
@@ -137,7 +137,7 @@
 }
 
 .preset-card.active {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   background: var(--paper-2);
   box-shadow: inset 3px 0 0 var(--accent);
 }
@@ -234,7 +234,7 @@
 .preset-card-select:hover .card-id,
 .preset-card-body:hover span,
 .preset-layer-row:hover strong {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .preset-detail-hero {
@@ -379,7 +379,7 @@
 }
 
 .preset-layer-row.active {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   background: var(--paper-2);
 }
 

@@ -107,27 +107,30 @@ function app() {
 }
 
 function shell() {
-  return `<div class="visibility-shell">
+  return `<a class="skip-link" href="#main">${escapeHtml(t("skipToMain"))}</a>
+  <div class="visibility-shell">
     <header class="hero">
       <div class="hero-copy">
         <p class="eyebrow">${t("eyebrow")}</p>
         <h1>${escapeHtml(projectName())} ${t("projectCockpit")}</h1>
       </div>
-      <div class="hero-actions">
+      <nav class="hero-actions" aria-label="${escapeAttr(t("primaryNavigation"))}">
         ${routeLink("#/", t("overview"), "overview")}
         ${routeLink("#/tasks", t("taskIndex"), "tasks")}
         ${routeLink("#/review", t("reviewQueue"), "review")}
         ${routeLink("#/archive", t("archive"), "archive")}
         ${routeLink("#/modules", t("moduleView"), "modules")}
         ${routeLink("#/presets", t("presetCatalog"), "presets")}
-        <button data-language-toggle>${locale === "zh" ? "EN" : "中文"}</button>
-        <button data-theme-toggle>${themeLabel()}</button>
-      </div>
+        <button type="button" data-language-toggle>${locale === "zh" ? "EN" : "中文"}</button>
+        <button type="button" data-theme-toggle>${themeLabel()}</button>
+      </nav>
     </header>
-    ${runtimeModeBanner()}
-    ${renderRoute()}
+    <main id="main" tabindex="-1">
+      ${runtimeModeBanner()}
+      ${renderRoute()}
+    </main>
     <div id="drawer-overlay" class="drawer-overlay"></div>
-    <div id="task-drawer" class="task-drawer"></div>
+    <div id="task-drawer" class="task-drawer" aria-hidden="true" inert></div>
   </div>`;
 }
 
@@ -246,6 +249,11 @@ function flowPanel() {
   const done = tasks.filter((task) => !isActiveTaskState(taskStateValue(task)) && (taskStateValue(task) === "done" || task.completion === 100)).length;
   const planned = Math.max(0, total - done - active);
   const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
+  const progressText = t("taskProgressAria")
+    .replaceAll("{done}", String(done))
+    .replaceAll("{active}", String(active))
+    .replaceAll("{planned}", String(planned))
+    .replaceAll("{total}", String(total));
   return `<section class="flow-panel">
     <div class="section-head">
       <div>
@@ -255,10 +263,10 @@ function flowPanel() {
       <span class="subtle">${done}/${total} ${t("completed")}</span>
     </div>
     <div class="progress-bar-container">
-      <div class="progress-bar">
-        ${done > 0 ? `<div class="progress-segment done" style="width:${pct(done)}%" title="${t("done")}: ${done}"></div>` : ""}
-        ${active > 0 ? `<div class="progress-segment active" style="width:${pct(active)}%" title="${t("active")}: ${active}"></div>` : ""}
-        ${planned > 0 ? `<div class="progress-segment planned" style="width:${pct(planned)}%" title="${t("planned")}: ${planned}"></div>` : ""}
+      <div class="progress-bar" role="progressbar" aria-label="${escapeAttr(t("projectProgress"))}" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}" aria-valuetext="${escapeAttr(progressText)}">
+        ${done > 0 ? `<div class="progress-segment done" style="width:${pct(done)}%" title="${t("done")}: ${done}" aria-hidden="true"></div>` : ""}
+        ${active > 0 ? `<div class="progress-segment active" style="width:${pct(active)}%" title="${t("active")}: ${active}" aria-hidden="true"></div>` : ""}
+        ${planned > 0 ? `<div class="progress-segment planned" style="width:${pct(planned)}%" title="${t("planned")}: ${planned}" aria-hidden="true"></div>` : ""}
       </div>
       <div class="progress-legend">
         <span class="legend-item"><span class="legend-dot done"></span>${t("done")} ${done}</span>
@@ -3023,7 +3031,7 @@ function mermaidId(value) {
 
 function progressBar(value) {
   const score = Math.max(0, Math.min(100, Number(value) || 0));
-  return `<div class="progress" aria-label="${score}%"><i style="width:${score}%"></i></div>`;
+  return `<div class="progress" role="progressbar" aria-label="${score}%" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${score}"><i style="width:${score}%" aria-hidden="true"></i></div>`;
 }
 
 function tag(value) {
@@ -3088,6 +3096,13 @@ function rerenderPreservingFieldFocus(field, selector) {
 }
 
 function bind() {
+  if (typeof document.querySelector === "function") document.querySelector(".skip-link")?.addEventListener("click", (event) => {
+    const main = document.getElementById("main");
+    if (!main) return;
+    event.preventDefault();
+    main.focus({ preventScroll: true });
+    main.scrollIntoView({ block: "start" });
+  });
   document.querySelectorAll("[data-search]").forEach((input) => input.addEventListener("input", () => {
     state.query = input.value;
     state.taskPageByGroup = {};
@@ -3537,7 +3552,7 @@ function renderDrawerContent(taskId) {
         <p style="font-family: var(--font-mono); font-size: 11px; margin: 4px 0 0; color: var(--muted);">${escapeHtml(task.id)}</p>
         ${taskCopyButton(task, "detail-copy")}
       </div>
-      <button class="btn-close" data-close-drawer>×</button>
+      <button class="btn-close" data-close-drawer aria-label="${escapeAttr(t("close"))}">×</button>
     </div>
   `;
 
@@ -3573,6 +3588,8 @@ function openDrawer(taskId) {
   const overlay = document.getElementById("drawer-overlay");
   if (!drawer || !overlay) return;
   drawer.innerHTML = renderDrawerContent(taskId);
+  drawer.removeAttribute("aria-hidden");
+  drawer.removeAttribute("inert");
   drawer.classList.add("active");
   overlay.classList.add("active");
 
@@ -3786,7 +3803,7 @@ function renderLessonDrawerContent(lessonId) {
   if (!lesson) {
     return `<div class="task-drawer-header">
       <h2>${escapeHtml(lessonId)}</h2>
-      <button class="btn-close" data-close-drawer>×</button>
+      <button class="btn-close" data-close-drawer aria-label="${escapeAttr(t("close"))}">×</button>
     </div>
     <div class="task-drawer-body">
       <div class="empty">${t("lessonNotFound")}</div>
@@ -3801,7 +3818,7 @@ function renderLessonDrawerContent(lessonId) {
         <h2>${escapeHtml(lessonId)}</h2>
         <p style="font-size: 12px; margin: 4px 0 0; color: var(--muted); font-weight: 600;">${escapeHtml(lesson.title || lesson.path)}</p>
       </div>
-      <button class="btn-close" data-close-drawer>×</button>
+      <button class="btn-close" data-close-drawer aria-label="${escapeAttr(t("close"))}">×</button>
     </div>
   `;
 
@@ -3830,6 +3847,8 @@ function openLessonDrawer(lessonId) {
   const overlay = document.getElementById("drawer-overlay");
   if (!drawer || !overlay) return;
   drawer.innerHTML = renderLessonDrawerContent(lessonId);
+  drawer.removeAttribute("aria-hidden");
+  drawer.removeAttribute("inert");
   drawer.classList.add("active");
   overlay.classList.add("active");
 
@@ -3839,7 +3858,14 @@ function openLessonDrawer(lessonId) {
 function closeDrawer() {
   const drawer = document.getElementById("task-drawer");
   const overlay = document.getElementById("drawer-overlay");
-  if (drawer) drawer.classList.remove("active");
+  if (drawer) {
+    if (drawer.contains(document.activeElement)) {
+      document.getElementById("main")?.focus({ preventScroll: true });
+    }
+    drawer.classList.remove("active");
+    drawer.setAttribute("aria-hidden", "true");
+    drawer.setAttribute("inert", "");
+  }
   if (overlay) overlay.classList.remove("active");
 }
 

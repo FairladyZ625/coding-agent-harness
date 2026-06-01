@@ -36,7 +36,7 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--accent);
+  color: var(--accent-text);
   border-left: 3px solid var(--accent);
   padding-left: 8px;
   line-height: 1.2;
@@ -77,7 +77,7 @@
 
 .sidebar-card input:focus,
 .sidebar-card select:focus {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.15);
   outline: none;
 }
@@ -111,7 +111,7 @@
 .gauge-percentage {
   font-size: 32px;
   font-weight: 800;
-  color: var(--accent);
+  color: var(--accent-text);
   letter-spacing: -0.02em;
   line-height: 1;
 }
@@ -187,15 +187,15 @@
 }
 
 .legend-item .badge.ready {
-  background: rgba(22, 163, 74, 0.08);
-  color: #16a34a;
-  border: 1px solid rgba(22, 163, 74, 0.15);
+  background: rgba(22, 101, 52, 0.08);
+  color: var(--ok);
+  border: 1px solid rgba(22, 101, 52, 0.22);
 }
 
 .legend-item .badge.map-ready {
-  background: rgba(217, 119, 6, 0.08);
-  color: var(--accent);
-  border: 1px solid rgba(217, 119, 6, 0.15);
+  background: rgba(146, 64, 14, 0.08);
+  color: var(--accent-text);
+  border: 1px solid rgba(146, 64, 14, 0.22);
 }
 
 .legend-item span {
@@ -235,7 +235,7 @@
 
 .layout-btn.active {
   background: var(--paper);
-  color: var(--accent);
+  color: var(--accent-text);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
@@ -291,12 +291,10 @@
   text-transform: uppercase;
 }
 
-.stat-chip.in-progress .stat-value {
-  color: var(--accent);
-}
-
+.stat-chip.active .stat-value,
+.stat-chip.in-progress .stat-value,
 .stat-chip.review .stat-value {
-  color: var(--accent-2);
+  color: var(--accent-text);
 }
 
 .stat-chip.blocked .stat-value {
@@ -630,9 +628,9 @@
 
 .task-card .badge.brief.ready,
 .task-row-card .badge.brief.ready {
-  background: rgba(22, 163, 74, 0.08);
-  color: #16a34a;
-  border: 1px solid rgba(22, 163, 74, 0.15);
+  background: rgba(22, 101, 52, 0.08);
+  color: var(--ok);
+  border: 1px solid rgba(22, 101, 52, 0.22);
 }
 
 .task-card .badge.brief.missing,
@@ -644,9 +642,9 @@
 
 .task-card .badge.map.ready,
 .task-row-card .badge.map.ready {
-  background: rgba(217, 119, 6, 0.08);
-  color: var(--accent);
-  border: 1px solid rgba(217, 119, 6, 0.15);
+  background: rgba(146, 64, 14, 0.08);
+  color: var(--accent-text);
+  border: 1px solid rgba(146, 64, 14, 0.22);
 }
 
 .task-card .badge.map.missing,
@@ -743,5 +741,5 @@
 }
 
 .crumbs a:hover {
-  color: var(--accent);
+  color: var(--accent-text);
 }

@@ -30,7 +30,7 @@
 .brief-card:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-hover);
-  border-color: var(--accent);
+  border-color: var(--accent-text);
 }
 
 .brief-card.compact {
@@ -47,11 +47,16 @@
 }
 
 .copy-task-name {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--line);
   background: var(--paper-2);
   color: var(--muted);
   border-radius: 6px;
-  padding: 5px 8px;
+  min-width: 44px;
+  min-height: 32px;
+  padding: 8px 12px;
   font-size: 11px;
   font-weight: 800;
   line-height: 1.2;
@@ -60,13 +65,13 @@
 }
 
 .copy-task-name:hover {
-  color: var(--accent);
+  color: var(--accent-text);
   border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
 }
 
 .copy-task-name.compact,
 .copy-task-name.row-copy {
-  padding: 4px 7px;
+  padding: 6px 10px;
 }
 
 .copy-task-name.row-copy {
@@ -92,7 +97,7 @@
 }
 
 .card-head a:hover {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .card-head p {
@@ -293,7 +298,7 @@
 .index-toolbar input:focus,
 .index-toolbar select:focus,
 .warning-toolbar select:focus {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
   outline: none;
 }

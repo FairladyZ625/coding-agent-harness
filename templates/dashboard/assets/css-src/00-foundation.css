@@ -13,16 +13,19 @@
   --muted: #4b5563;     /* Slate 600: Secondary text */
 
   /* Borders & Dividers */
-  --line: #d1d5db;      /* Slate 300: High-contrast thin border line */
+  --line: #6b7280;      /* Slate 500: 3:1+ UI boundary contrast on light surfaces */
 
   /* Branding Accents */
-  --accent: #d97706;    /* Amber 600: Rich golden amber for primary actions */
-  --accent-2: #ca8a04;  /* Yellow 600: Deep warm gold for gradients */
+  --accent: #d97706;    /* Amber 600: original warm orange theme */
+  --accent-2: #ca8a04;  /* Yellow 600: original warm gold for gradients */
+  --accent-text: #92400e; /* Amber 800: AA text companion for the orange theme */
+  --accent-on: #111827; /* Dark text for orange/yellow filled controls */
+  --eyebrow: #92400e;   /* Amber 800: Compact label text with AA contrast */
 
   /* Semantic Statuses */
-  --danger: #e11d48;    /* Rose 600: Blockers, failures, and errors */
-  --warn: #ea580c;      /* Orange 600: Warnings and advice */
-  --ok: #16a34a;        /* Green 600: Complete and verified */
+  --danger: #be123c;    /* Rose 700: Blockers, failures, and errors */
+  --warn: #9a3412;      /* Orange 800: Warnings and advice */
+  --ok: #166534;        /* Green 800: Complete and verified */
 
   /* Dimensions, Shadows, & Glows */
   --shadow: 0 10px 15px -3px rgba(17, 24, 39, 0.03), 0 4px 6px -4px rgba(17, 24, 39, 0.03), 0 1px 3px rgba(0, 0, 0, 0.01);
@@ -53,11 +56,14 @@
   --muted: #9ca3af;     /* Slate 400: Mid-tone tech gray */
 
   /* Borders & Dividers */
-  --line: #2b2b2e;      /* Subdued dark border line */
+  --line: #666670;      /* Zinc mid: 3:1+ UI boundary contrast on dark surfaces */
 
   /* Branding Accents */
   --accent: #fbbf24;    /* Amber 400: Radiant warm amber */
   --accent-2: #f59e0b;  /* Amber 500: Deep glowing amber */
+  --accent-text: #fbbf24; /* Amber 400: AA text companion on dark surfaces */
+  --accent-on: #111827; /* Dark text for orange/yellow filled controls */
+  --eyebrow: #fbbf24;   /* Amber 400: Compact label text with high dark contrast */
 
   /* Semantic Statuses */
   --danger: #fb7185;    /* Rose 400: High-visibility error rose */
@@ -94,7 +100,7 @@
 /* Reset & Scrollbars */
 * {
   box-sizing: border-box;
-  outline-color: var(--accent);
+  outline-color: var(--accent-text);
 }
 
 body {
@@ -114,7 +120,7 @@ a {
 }
 
 a:hover {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 button, input, select {
@@ -176,7 +182,7 @@ button, input, select {
 }
 
 .eyebrow {
-  color: var(--accent);
+  color: var(--eyebrow);
   font-weight: 800;
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -204,6 +210,8 @@ button, input, select {
   color: var(--ink);
   border-radius: 999px; /* Capsules */
   padding: 8px 16px;
+  min-width: 44px;
+  min-height: 44px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -211,9 +219,46 @@ button, input, select {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.skip-link {
+  position: absolute;
+  left: 16px;
+  top: 10px;
+  z-index: 2000;
+  background: var(--accent);
+  color: var(--accent-on);
+  border-radius: 8px;
+  box-shadow: var(--shadow-hover);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 10px 14px;
+  transform: translateY(-160%);
+  transition: transform 0.18s ease;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 .hero-actions a.active {
   background: var(--accent);
-  color: var(--paper);
+  color: var(--accent-on);
   border-color: var(--accent);
 }
 
@@ -348,5 +393,5 @@ button, input, select {
   font-size: 32px;
   font-weight: 800;
   line-height: 1;
-  color: var(--accent);
+  color: var(--accent-text);
 }
