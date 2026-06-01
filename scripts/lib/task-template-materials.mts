@@ -33,6 +33,7 @@ type TemplateMaterialInput = {
   reviewContent: string;
   lessonCandidatesContent: string;
   walkthroughPath: string;
+  includeWalkthrough: boolean;
   humanReviewConfirmed: boolean;
 };
 
@@ -48,7 +49,7 @@ export function collectUneditedTemplateMaterialIssues(target: TaskScannerTarget,
     { label: "review.md", sourcePath: toPosix(path.relative(target.projectRoot, path.join(taskDir, "review.md"))), content: materials.reviewContent },
     { label: lessonCandidatesFile, sourcePath: toPosix(path.relative(target.projectRoot, path.join(taskDir, lessonCandidatesFile))), content: materials.lessonCandidatesContent },
   ];
-  if (materials.walkthroughPath) {
+  if (materials.includeWalkthrough && materials.walkthroughPath) {
     files.push({
       label: path.basename(materials.walkthroughPath),
       sourcePath: materials.walkthroughPath,

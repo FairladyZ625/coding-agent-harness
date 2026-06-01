@@ -383,6 +383,7 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
         reviewContent: review,
         lessonCandidatesContent: readFileSafe(lessonCandidatesPath),
         walkthroughPath: closeoutInfo.walkthroughPath,
+        includeWalkthrough: Boolean(reviewSubmission?.submitted || reviewConfirmation?.confirmed || effectiveCloseoutStatus === "closed"),
         humanReviewConfirmed: taskAudit.summary.humanReviewStatus === "confirmed",
       })
       : [];

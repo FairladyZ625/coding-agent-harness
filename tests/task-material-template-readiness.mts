@@ -37,6 +37,23 @@ assert(
   `check should report unedited-template-material for default core text\nSTDOUT:\n${defaultCoreCheck.stdout}\nSTDERR:\n${defaultCoreCheck.stderr}`,
 );
 
+const earlyWalkthrough = createReviewableTask("task-material-template-early-walkthrough", "过早收口模板任务");
+sanitizeTemplateFixtureMaterials(earlyWalkthrough.taskDir);
+acceptNoLessonCandidate(earlyWalkthrough.taskDir);
+fs.writeFileSync(path.join(earlyWalkthrough.taskDir, "walkthrough.md"), "# Walkthrough\n\n## Summary\n\nPending closeout.\n");
+const earlyWalkthroughStatus = run(["status", "--json", earlyWalkthrough.target]);
+assert(earlyWalkthroughStatus.status === 0, `status should render early walkthrough fixture\nSTDOUT:\n${earlyWalkthroughStatus.stdout}\nSTDERR:\n${earlyWalkthroughStatus.stderr}`);
+const earlyWalkthroughTask = JSON.parse(earlyWalkthroughStatus.stdout).tasks[0];
+const earlyWalkthroughMessages = JSON.stringify(earlyWalkthroughTask.materialIssues || []);
+assert(
+  !earlyWalkthroughMessages.includes("walkthrough.md: walkthrough-summary"),
+  `pre-submission review repair should not demand closeout walkthrough content\n${earlyWalkthroughMessages}`,
+);
+assert(
+  earlyWalkthroughMessages.includes("missing-review-submission"),
+  `pre-submission review repair should still report the actual review entry blocker\n${earlyWalkthroughMessages}`,
+);
+
 const nonCoreOnly = createReviewableTask("task-material-template-non-core-placeholders", "非核心占位保留任务");
 sanitizeTemplateFixtureMaterials(nonCoreOnly.taskDir);
 acceptNoLessonCandidate(nonCoreOnly.taskDir);
