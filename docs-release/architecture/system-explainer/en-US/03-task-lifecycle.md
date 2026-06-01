@@ -2,13 +2,14 @@
 
 ## Level 0 — A task's life
 
-A task goes through six states from creation to closeout:
+A task goes through six states from creation to finalization. This finalization is separate from the closeout packet an agent prepares before Human Review:
 
 ```mermaid
 flowchart LR
   A["not_started\nDirectory created"] --> B["planned\nPlan filled in"] --> C["in_progress\nExecuting"]
   C --> D["review\nAwaiting human review"]
-  D --> E["done\nCloseout complete"]
+  D --> H["human_confirmed\nHuman confirmed"]
+  H --> E["done\nFinalization complete"]
   C -->|"external block"| F["blocked"] -->|"unblocked"| C
   D -->|"sent back for rework"| C
 ```
@@ -25,12 +26,14 @@ flowchart TD
   NS["not_started\nTask directory created\nFiles scaffolded"]
   IP["in_progress\nExecuting"]
   R["review\nAwaiting human review"]
-  D["done\nCloseout complete"]
+  HC["human_confirmed\nHuman confirmed"]
+  D["done\nFinalization complete"]
   BL["blocked\nBlocked by external dependency"]
 
   NS -->|"harness task-start"| IP
   IP -->|"harness task-review"| R
-  R -->|"Dashboard workbench\nhuman confirmation"| D
+  R -->|"Dashboard workbench\nhuman confirmation"| HC
+  HC -->|"harness task-complete"| D
   IP -->|"harness task-phase --blocked"| BL
   BL -->|"harness task-start"| IP
   R -->|"sent back for rework"| IP
@@ -38,7 +41,10 @@ flowchart TD
 
 **Key point**: human confirmation is not exposed as a regular CLI command. It can only
 be triggered through the local Dashboard workbench write endpoint, and it writes an
-auditable confirmation block with Git `user.name` / `user.email`.
+auditable confirmation block with Git `user.name` / `user.email`. The agent completion
+boundary is preparing evidence, `review.md`, `walkthrough.md`, lesson decisions, and
+residual risk before Human Review; the post-confirmation `task-complete` command is the
+final lifecycle transition.
 
 ---
 

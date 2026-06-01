@@ -12,7 +12,7 @@ Define the contract required before an agent performs extended autonomous work a
 4. Material scope changes require contract update or user confirmation before continuing.
 5. The agent must preserve unrelated user or worker changes and must not revert files outside its scope.
 6. Review checkpoints must challenge direction, evidence quality, and residual risk before final closeout.
-7. Completion requires verification evidence and a closeout record, not just implementation completion.
+7. Agent completion requires verification evidence and an agent-owned closeout record before Human Review, not just implementation completion. Human Review Confirmation and `task-complete` finalization are separate lifecycle gates.
 
 ## Required Artifacts
 
@@ -25,4 +25,4 @@ Define the contract required before an agent performs extended autonomous work a
 
 ## Closeout Expectations
 
-Closeout must confirm the contract scope was honored, list evidence checked, identify checks not run, resolve or record material findings, and state the final residual risk. If the task stopped early, closeout must explain the stop condition and next safe action.
+Agent-owned closeout must confirm the contract scope was honored, list evidence checked, identify checks not run, resolve or record material findings, and state the final residual risk. If the task stopped early, closeout must explain the stop condition and next safe action.

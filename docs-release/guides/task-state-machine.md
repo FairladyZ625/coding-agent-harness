@@ -29,11 +29,16 @@ stateDiagram-v2
   missing_materials --> in_progress: repair materials
   review_submitted --> blocked: blocking finding
   review_submitted --> human_confirmed: Dashboard workbench confirmation
-  human_confirmed --> finalized: task-complete + closeout
+  human_confirmed --> finalized: task-complete + post-confirmation finalization
   finalized --> [*]
 ```
 
-`task-review` 表示 Agent 提交审查材料包，不表示人工批准。Dashboard workbench 人工确认才表示人工确认门禁，并把审计字段写入 `INDEX.md`。`task-complete` / closeout 也不是 review confirmation 的替代品。
+`task-review` 表示 Agent 提交审查材料包，不表示人工批准。Dashboard workbench 人工确认才表示人工确认门禁，并把审计字段写入 `INDEX.md`。`task-complete` / post-confirmation finalization 也不是 review confirmation 的替代品。
+
+本指南把两个容易混淆的收口动作分开：
+
+- Agent-owned closeout packet：Agent 在提交 Human Review 前准备的材料，包括 evidence、`review.md`、`walkthrough.md`、lesson decision 和 residual risk。
+- Post-confirmation finalization：Human Review Confirmation 之后，系统允许执行的 `task-complete` / final lifecycle transition。
 
 ## 阶段类型地图
 
@@ -43,7 +48,7 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | `init` | 范围、上下文、预算和执行策略。 | 否 | `harness task-start <task-id>` |
 | `execution` | 实现、文档和验证切片。 | 是 | `harness task-phase <task-id> <phase-id> --state done --completion 100 --evidence present` |
-| `gate` | Agent 提交审查、人工确认、lesson routing、walkthrough 和 closeout。 | 否 | `harness task-review`、Dashboard workbench 人工确认，或 `harness task-complete` |
+| `gate` | Agent 提交审查、人工确认、lesson routing、Review 前 closeout packet，以及人工确认后的 finalization。 | 否 | `harness task-review`、Dashboard workbench 人工确认，或 `harness task-complete` |
 
 旧阶段表没有 `Kind` 也继续有效，默认按 `execution` 处理。
 Dashboard 实现完成度只计算非 skipped 的 `execution` 阶段。
@@ -95,8 +100,8 @@ flowchart TB
 | 有 open P0-P2 finding、非法状态转换、审计失败或人审门禁失败 | `blocked` | 不能进入人工确认，必须先修 blocker 或记录 waiver。 |
 | 标准/复杂任务缺必需文件、章节、证据、lesson decision 或 review submission | `missing-materials` | 需要 Agent 补材料，不属于人审队列。 |
 | 已执行 `task-review`，材料齐全，且 `INDEX.md` 尚未显示人工确认 | `review-submitted` | 真正等待人审。 |
-| `INDEX.md` 已显示人工确认，但 closeout / ledger / lessons 仍未全部收口 | `confirmed-finalization-pending` | 责任已转移给确认人，但治理收口仍待完成。 |
-| `INDEX.md` 已显示人工确认，且 closeout / ledger / lesson routing 完成 | `finalized` | 真正完成，可只读追溯。 |
+| `INDEX.md` 已显示人工确认，但 post-confirmation finalization / ledger / lessons 仍未全部收口 | `confirmed-finalization-pending` | 责任已转移给确认人，但最终生命周期结项仍待完成。 |
+| `INDEX.md` 已显示人工确认，且 post-confirmation finalization / ledger / lesson routing 完成 | `finalized` | 真正完成，可只读追溯。 |
 | `task.state = blocked` 但没有 review blocker | `active-blocked` | 执行阻塞。 |
 | `task.state = in_progress` | `active` | 执行中。 |
 | `task.state = planned/not_started` | `ready` | 准备中，默认不进入人审队列。 |
@@ -142,7 +147,7 @@ flowchart TD
 | Missing Materials | 缺文件、缺章节、缺证据、缺 lesson decision、缺 review submission 或 phase 未完成。 | agent | 补齐材料并重新提交 review。 |
 | Blocked | 有 blocking finding、状态矛盾、Git 审计失败、完成门禁失败或需要 human waiver。 | agent + human | 修复、关闭、或人工豁免。 |
 | Lessons | lesson candidate 需要判定、保留、拒绝、dry-run promotion 或创建沉淀任务。 | human + agent | 决策完成，或创建可追踪沉淀任务。 |
-| Confirmed / Finalized | 已人工确认，或已结项需要只读追溯。 | coordinator | closeout、ledger、lesson routing 全部完成；之后只读。 |
+| Confirmed / Finalized | 已人工确认，或已结项需要只读追溯。 | coordinator | `task-complete` / finalization、ledger、lesson routing 全部完成；之后只读。 |
 | Soft-deleted / Superseded | 任务被软删除、替代、合并、归档或废弃。 | coordinator | 只读追溯；必要时 reopen。 |
 
 Review 队列只等人确认。缺材料、阻塞、lesson 沉淀、已确认待结项、历史替代任务都不应伪装成 Review 队列项。

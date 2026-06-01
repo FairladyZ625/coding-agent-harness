@@ -29,11 +29,16 @@ stateDiagram-v2
   missing_materials --> in_progress: repair materials
   review_submitted --> blocked: blocking finding
   review_submitted --> human_confirmed: Dashboard workbench confirmation
-  human_confirmed --> finalized: task-complete + closeout
+  human_confirmed --> finalized: task-complete + post-confirmation finalization
   finalized --> [*]
 ```
 
-`task-review` means the agent submitted a review packet. It does not mean human approval. Dashboard workbench human confirmation is the human confirmation gate and writes its audit fields to `INDEX.md`. `task-complete` / closeout is not a substitute for review confirmation.
+`task-review` means the agent submitted a review packet. It does not mean human approval. Dashboard workbench human confirmation is the human confirmation gate and writes its audit fields to `INDEX.md`. `task-complete` / post-confirmation finalization is not a substitute for review confirmation.
+
+This guide separates two easily-confused closeout actions:
+
+- Agent-owned closeout packet: the material an agent prepares before Human Review, including evidence, `review.md`, `walkthrough.md`, lesson decisions, and residual risk.
+- Post-confirmation finalization: the `task-complete` / final lifecycle transition that is allowed only after Human Review Confirmation.
 
 ## Phase Kind Map
 
@@ -43,7 +48,7 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | `init` | Scope, context, budget, and execution strategy. | no | `harness task-start <task-id>` |
 | `execution` | Implementation, documentation, and verification slices. | yes | `harness task-phase <task-id> <phase-id> --state done --completion 100 --evidence present` |
-| `gate` | Agent review submission, human confirmation, lesson routing, walkthrough, and closeout. | no | `harness task-review`, Dashboard workbench human confirmation, or `harness task-complete` |
+| `gate` | Agent review submission, human confirmation, lesson routing, the pre-review closeout packet, and post-confirmation finalization. | no | `harness task-review`, Dashboard workbench human confirmation, or `harness task-complete` |
 
 Older phase tables without `Kind` remain valid and are treated as `execution`.
 The Dashboard implementation score uses non-skipped `execution` phases only.
@@ -95,8 +100,8 @@ flowchart TB
 | Open P0-P2 finding, invalid transition, audit failure, or failed human-review gate | `blocked` | Cannot enter human confirmation until the blocker is fixed or waived. |
 | Standard / complex task is missing required files, sections, evidence, lesson decision, or review submission | `missing-materials` | Needs agent repair; not part of the human review queue. |
 | `task-review` was submitted, materials are ready, and `INDEX.md` does not show human confirmation | `review-submitted` | Truly waiting for human review. |
-| `INDEX.md` shows human confirmation, but closeout / ledger / lessons are not fully closed | `confirmed-finalization-pending` | Accountability moved to the reviewer, but governance closeout remains. |
-| `INDEX.md` shows human confirmation, and closeout / ledger / lesson routing are complete | `finalized` | Truly complete and traceable. |
+| `INDEX.md` shows human confirmation, but post-confirmation finalization / ledger / lessons are not fully closed | `confirmed-finalization-pending` | Accountability moved to the reviewer, but final lifecycle closeout remains. |
+| `INDEX.md` shows human confirmation, and post-confirmation finalization / ledger / lesson routing are complete | `finalized` | Truly complete and traceable. |
 | `task.state = blocked` without a review blocker | `active-blocked` | Execution is blocked. |
 | `task.state = in_progress` | `active` | Work is active. |
 | `task.state = planned/not_started` | `ready` | Work has not started; not in human review by default. |
@@ -142,7 +147,7 @@ flowchart TD
 | Missing Materials | Missing file, section, evidence, lesson decision, review submission, or incomplete phase. | agent | Agent repairs materials and resubmits review. |
 | Blocked | Blocking finding, state conflict, Git audit failure, completion gate failure, or human waiver required. | agent + human | Fixed, closed, or explicitly waived. |
 | Lessons | Lesson candidate needs decision, task-local retention, rejection, dry-run promotion, or a sedimentation task. | human + agent | Decision is complete, or a traceable sedimentation task exists. |
-| Confirmed / Finalized | Human-confirmed, or finalized and ready for read-only tracing. | coordinator | Closeout, ledger, and lesson routing are complete; then read-only. |
+| Confirmed / Finalized | Human-confirmed, or finalized and ready for read-only tracing. | coordinator | `task-complete` / finalization, ledger, and lesson routing are complete; then read-only. |
 | Soft-deleted / Superseded | Task was soft-deleted, replaced, merged, or archived; abandoned / duplicate / requirement-change semantics are tombstone reasons. | coordinator | Read-only tracing; reopen only when needed. |
 
 The Review queue only waits for human confirmation. Missing materials, blockers, lesson sedimentation, confirmed-but-not-finalized work, and historical superseded tasks must not masquerade as Review queue items.
