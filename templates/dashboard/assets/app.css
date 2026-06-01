@@ -3242,6 +3242,10 @@ button, input, select {
   min-width: 0;
 }
 
+.module-list-item > span:first-child {
+  min-width: 0;
+}
+
 .module-list-item:hover,
 .module-list-item.active {
   background: var(--paper-2);
@@ -3268,6 +3272,13 @@ button, input, select {
   justify-items: end;
   gap: 4px;
   flex-shrink: 0;
+  max-width: 112px;
+}
+
+.module-list-counts .tag {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .module-list-counts b {

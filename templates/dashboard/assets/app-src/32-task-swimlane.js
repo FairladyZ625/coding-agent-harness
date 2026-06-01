@@ -16,8 +16,10 @@ function taskSwimlaneModel(tasks) {
   const cards = sortTasksByTime(tasks)
     .filter((task) => taskVisibleInSwimlane(task))
     .map((task) => {
-      const lane = taskModuleKey(task);
-      const stage = taskSwimlaneStage(task);
+      const swimlane = taskSwimlaneProjection(task);
+      if (!swimlane.rowKey || !swimlane.columnKey) return null;
+      const lane = swimlane.rowKey;
+      const stage = swimlane.columnKey;
       return {
         task,
         lane,
@@ -26,7 +28,8 @@ function taskSwimlaneModel(tasks) {
         title: task.title,
         reason: taskSwimlaneReason(task),
       };
-    });
+    })
+    .filter(Boolean);
   const laneKeys = [...new Set(cards.map((card) => card.lane))].sort((left, right) => {
     if (left === "legacy-unclassified") return 1;
     if (right === "legacy-unclassified") return -1;
@@ -40,19 +43,26 @@ function taskSwimlaneModel(tasks) {
 }
 
 function taskVisibleInSwimlane(task) {
-  return !isArchivedTask(task);
+  const swimlane = taskSwimlaneProjection(task);
+  if (typeof swimlane.visible === "boolean") return swimlane.visible;
+  return false;
 }
 
 function taskSwimlaneStage(task) {
-  return taskStateValue(task);
+  const swimlane = taskSwimlaneProjection(task);
+  if (swimlane.columnKey) return swimlane.columnKey;
+  return "";
+}
+
+function taskSwimlaneProjection(task) {
+  const view = taskDashboardTaskView(task);
+  return view?.swimlane && typeof view.swimlane === "object" ? view.swimlane : {};
 }
 
 function taskNeedsEvidence(task) {
   const view = taskDashboardTaskView(task);
   if (typeof view.needsEvidence === "boolean") return view.needsEvidence;
-  if (["missing", "legacy-only"].includes(String(task.visualMapStatus || ""))) return true;
-  if (task.briefSource && task.briefSource !== "standalone") return true;
-  return (task.phases || []).some((phase) => ["missing", "partial"].includes(String(phase.evidenceStatus || "")));
+  return false;
 }
 
 function taskSwimlaneReason(task) {
@@ -61,11 +71,9 @@ function taskSwimlaneReason(task) {
   if (view.reasonCode === "needs-evidence") return t("swimlaneNeedsEvidence");
   if (view.reasonCode === "ready-to-confirm") return t("swimlaneReadyToConfirm");
   if (view.reasonCode === "needs-closeout") return t("swimlaneNeedsCloseout");
-  const reasons = Array.isArray(task.queueReasons) ? task.queueReasons.filter(Boolean) : [];
-  if (reasons.length) return reasons[0];
+  const reasons = taskQueueReasonSummaries(task);
+  if (reasons.length) return reasons[0].message || reasons[0].code || reasons[0].queue || "";
   if (taskNeedsEvidence(task)) return t("swimlaneNeedsEvidence");
-  if (task.reviewQueueState === "ready-to-confirm") return t("swimlaneReadyToConfirm");
-  if (task.closeoutStatus === "missing") return t("swimlaneNeedsCloseout");
   return "";
 }
 

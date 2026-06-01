@@ -13,9 +13,42 @@ type TestRunOptions = Omit<SpawnSyncOptionsWithStringEncoding, "encoding"> & {
 };
 type DashboardDocument = { path: string };
 type DashboardDocuments = { documents: DashboardDocument[] };
+type DashboardSemanticTask = {
+  id?: string;
+  path?: string;
+  module?: string | null;
+  inferredModule?: string;
+  classificationSource?: string;
+  visualMapSource?: string;
+  roadmapSource?: string;
+  semanticProjection?: {
+    taskLifecycleProjection?: unknown;
+    dashboardTaskView?: { swimlaneStage?: string; swimlane?: { columnKey?: string; rowKey?: string; visible?: boolean }; materials?: unknown };
+    reviewWorkbenchQueueView?: unknown;
+  };
+  taskLifecycleProjection?: unknown;
+  dashboardTaskView?: { swimlaneStage?: string; swimlane?: { columnKey?: string; rowKey?: string; visible?: boolean }; materials?: unknown };
+  reviewWorkbenchQueueView?: unknown;
+  documentsByKey?: Record<string, unknown>;
+  documentProjection?: { byKey?: Record<string, unknown> };
+};
+type DashboardModuleProjection = {
+  key?: string;
+  sourceKind?: string;
+  sourceLabelKey?: string;
+  statusKey?: string;
+  statusLabelKey?: string;
+  statusTone?: string;
+  counts?: Record<string, unknown>;
+};
+type DashboardModule = {
+  key: string;
+  dashboardModuleView?: DashboardModuleProjection;
+  moduleProjection?: DashboardModuleProjection;
+};
 type DashboardStatus = {
   schemaVersion: number;
-  tasks: Array<{ module?: string | null; inferredModule?: string; classificationSource?: string; visualMapSource?: string; roadmapSource?: string }>;
+  tasks: DashboardSemanticTask[];
   summary: {
     fullCutoverEligible?: boolean;
     legacyVisualOnlyCount?: number;
@@ -32,6 +65,8 @@ type DashboardGraph = {
 type DashboardGeneratedBundle = {
   schemaVersion: string;
   status: DashboardStatus;
+  modules?: DashboardModule[];
+  adoption?: { warnings?: unknown[]; warningProjection?: { queue?: unknown[] } };
 };
 type PresetLayer = {
   id: string;
@@ -114,6 +149,10 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+function assertDeepEqual(left: unknown, right: unknown, message: string): void {
+  assert(JSON.stringify(left) === JSON.stringify(right), message);
+}
+
 function expectPass(args: string[], options: TestRunOptions = {}): SpawnSyncReturns<string> {
   const result = run(args, options);
   assert(result.status === 0, `${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
@@ -166,6 +205,29 @@ assert(folderBundleMatch, "dashboard-data.js should contain a generated dashboar
 const folderBundle = JSON.parse(folderBundleMatch[1]) as DashboardGeneratedBundle;
 assert(folderBundle.schemaVersion === "dashboard-bundle/v1", "dashboard bundle should expose explicit schemaVersion");
 assert(folderBundle.status.schemaVersion === 2, "dashboard bundle status should preserve schemaVersion 2");
+assert(folderBundle.status.tasks.length > 0, "dashboard bundle should include task projections");
+for (const task of folderBundle.status.tasks) {
+  assert(task.semanticProjection, "dashboard task should expose nested semanticProjection");
+  assert(task.taskLifecycleProjection, "dashboard task should expose direct taskLifecycleProjection alias");
+  assert(task.dashboardTaskView?.swimlane, "dashboard task should expose direct dashboard swimlane view");
+  assert(task.reviewWorkbenchQueueView, "dashboard task should expose direct review workbench projection");
+  assertDeepEqual(task.taskLifecycleProjection, task.semanticProjection?.taskLifecycleProjection, "direct taskLifecycleProjection must match nested semanticProjection");
+  assertDeepEqual(task.dashboardTaskView, task.semanticProjection?.dashboardTaskView, "direct dashboardTaskView must match nested semanticProjection");
+  assertDeepEqual(task.reviewWorkbenchQueueView, task.semanticProjection?.reviewWorkbenchQueueView, "direct reviewWorkbenchQueueView must match nested semanticProjection");
+  assert(task.dashboardTaskView.swimlaneStage === task.dashboardTaskView.swimlane.columnKey, "legacy swimlaneStage alias must match projected swimlane column");
+  assert(task.dashboardTaskView.swimlane.rowKey, "dashboard swimlane projection should expose rowKey");
+  assert(task.dashboardTaskView.materials, "dashboard task should expose material readiness projection");
+  assert(task.documentsByKey && task.documentProjection?.byKey, "dashboard task should expose document lookup projections");
+  assertDeepEqual(task.documentsByKey, task.documentProjection.byKey, "direct documentsByKey must match documentProjection.byKey");
+}
+for (const module of folderBundle.modules || []) {
+  assert(module.dashboardModuleView, "dashboard module should expose dashboardModuleView");
+  assert(module.moduleProjection, "dashboard module should expose moduleProjection alias");
+  assertDeepEqual(module.dashboardModuleView, module.moduleProjection, "moduleProjection must match dashboardModuleView");
+  assert(module.dashboardModuleView.sourceLabelKey, "dashboard module projection should expose source i18n label key");
+  assert(module.dashboardModuleView.statusLabelKey, "dashboard module projection should expose status i18n label key");
+}
+assert(Array.isArray(folderBundle.adoption?.warningProjection?.queue), "dashboard adoption warnings should expose backend warningProjection.queue");
 assert(!folderStatus.tasks[0].module, "dashboard status should keep project-root tasks out of explicit module ownership");
 assert(folderStatus.tasks[0].inferredModule === "base", "dashboard status should expose base for project-root tasks");
 assert(folderStatus.tasks[0].classificationSource === "structure", "dashboard status should mark project-root base classification as structure-derived");
@@ -183,6 +245,20 @@ assert(documents.documents.some((doc) => doc.path.endsWith("/task_plan.md")), "d
 assert(documents.documents.some((doc) => doc.path.endsWith("execution_strategy.md")), "documents missing execution strategy");
 assert(documents.documents.some((doc) => doc.path.endsWith("visual_map.md")), "documents missing visual map");
 assert(documents.documents.some((doc) => doc.path.endsWith("lesson_candidates.md")), "documents missing lesson candidates");
+
+const siblingPrefixProject = path.join(tmpRoot, "sibling-prefix-project");
+fs.cpSync(path.join(repoRoot, "examples/minimal-project"), siblingPrefixProject, { recursive: true });
+const siblingTaskDir = path.join(siblingPrefixProject, "coding-agent-harness/planning/tasks/demo-task-extra");
+fs.mkdirSync(siblingTaskDir, { recursive: true });
+fs.writeFileSync(path.join(siblingTaskDir, "brief.md"), "# Sibling brief\n\nThis belongs only to demo-task-extra.\n");
+const siblingDashboardDir = path.join(tmpRoot, "dashboard-sibling-prefix");
+expectPass(["dashboard", "--out-dir", siblingDashboardDir, siblingPrefixProject]);
+const siblingStatus = JSON.parse(fs.readFileSync(path.join(siblingDashboardDir, "data/status.json"), "utf8")) as DashboardStatus;
+const demoTask = siblingStatus.tasks.find((task) => task.id === "TASKS/demo-task");
+assert(demoTask, "sibling-prefix fixture should include demo-task");
+assert(String(demoTask.documentsByKey?.["brief.md"] && (demoTask.documentsByKey["brief.md"] as DashboardDocument).path).endsWith("/demo-task/brief.md"), "document projection must not attach sibling-prefix task documents to the current task");
+assert(!JSON.stringify(demoTask.documentProjection?.byKey || {}).includes("demo-task-extra"), "documentProjection.byKey should be scoped by task directory boundary");
+
 const tables = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/tables.json"), "utf8")) as DashboardTables;
 assert(tables.tables.some((table) => table.kind === "harness-ledger"), "documents missing harness ledger table");
 assert(JSON.stringify(tables).includes("alpha|beta"), "markdown table parser should preserve escaped pipes");
@@ -245,7 +321,7 @@ assert(dashboardApp.includes("function taskLifecycleProjection("), "dashboard sh
 assert(dashboardApp.includes("function taskLifecycleDisplay("), "dashboard list/module views should render lifecycle through projection");
 assert(dashboardApp.includes("taskCanBeHumanConfirmed("), "dashboard missing canonical human confirmation gate helper");
 assert(dashboardApp.includes("taskReviewWorkbenchQueueView(task)"), "dashboard human confirmation gate should consume review workbench projection");
-assert(dashboardApp.includes("queues.includes(\"review\")"), "dashboard human confirmation fallback must require canonical Review queue membership");
+assert(!dashboardApp.includes("queues.includes(\"review\")"), "dashboard human confirmation gate should not derive confirmability from raw or lifecycle queue fallback");
 assert(!dashboardApp.includes("activeTasks().slice(0, 8)"), "dashboard should not hard-cap active briefs at 8 items");
 assert(dashboardApp.includes("fullCutoverEligible"), "dashboard missing full cutover summary field");
 assert(dashboardApp.includes("legacyVisualOnlyCount"), "dashboard missing legacy visual-only summary field");
@@ -271,7 +347,7 @@ assert(dashboardApp.includes("state.selectedPresetKey = \"\""), "dashboard prese
 assert(dashboardApp.includes("syncPresetUninstallScope(selected)"), "dashboard preset uninstall scope should follow the selected preset source");
 assert(dashboardApp.includes("data-preset-uninstall-scope ${lockedUninstallScope ? \"disabled\" : \"\"}"), "dashboard preset uninstall scope should be locked for project/user selections");
 assert(dashboardApp.includes("reviewWorkspace("), "dashboard missing review workspace route implementation");
-assert(dashboardApp.includes("reviewQueueState"), "dashboard review queue must use status-level review queue state");
+assert(dashboardApp.includes("reviewWorkbenchQueueView"), "dashboard review queue must use review workbench projection");
 assert(dashboardApp.includes("data-review-bulk-select"), "dashboard review queue should expose per-task bulk review selection");
 assert(dashboardApp.includes("data-review-bulk-select-all"), "dashboard review queue should expose select-all review confirmation");
 assert(dashboardApp.includes("/api/tasks/review-complete-bulk"), "dashboard review queue should call the bulk review completion endpoint");

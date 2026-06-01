@@ -185,7 +185,7 @@ function statusStrip() {
   const tasks = normalCycleTasks();
   const summary = bundle.status?.summary || {};
   const visual = summary.visualMapCoverage || {};
-  const withBrief = tasks.filter((task) => task.briefSource === "standalone").length;
+  const withBrief = tasks.filter((task) => taskMaterialsView(task).briefReady === true).length;
   return `<section class="status-card-group">
     <div class="status-primary ${displayState}">
       <span>${snapshotOnly ? t("snapshotStatus") : t("readiness")}</span>
@@ -214,7 +214,7 @@ function nextActionText() {
   if (dataOnly && !isWorkbenchRuntime()) return t("snapshotNotValidated");
   const failures = bundle.status?.checkState?.failures || 0;
   if (failures > 0) return t("resolveBlockers");
-  const missingBriefs = normalCycleTasks().filter((task) => task.briefSource !== "standalone").length;
+  const missingBriefs = normalCycleTasks().filter((task) => taskMaterialsView(task).briefReady === false).length;
   if (missingBriefs > 0) return `${missingBriefs} ${t("missingBriefs")}`;
   const warnings = bundle.status?.checkState?.warnings || 0;
   if (warnings > 0) return t("reviewAdvice");
@@ -361,7 +361,7 @@ function activeTasks() {
     return isActiveTaskState(stateValue);
   });
   if (active.length > 0) return sortTasksByTime(active);
-  return sortTasksByTime(tasks.filter((task) => task.briefSource === "standalone"));
+  return sortTasksByTime(tasks.filter((task) => taskMaterialsView(task).briefReady === true));
 }
 
 function isActiveTaskState(state) {
@@ -428,9 +428,9 @@ function stateToColorVar(state) {
 function taskLifecycleDisplay(task) {
   const projection = taskLifecycleProjection(task);
   return [
-    projection.lifecycleState || task.lifecycleState,
-    projection.reviewStatus || task.reviewStatus,
-    projection.closeoutStatus || task.closeoutStatus,
+    projection.lifecycleState,
+    projection.reviewStatus,
+    projection.closeoutStatus,
   ].filter(Boolean).map((item) => label(item)).join(" · ");
 }
 
@@ -644,8 +644,9 @@ function taskStatsBar() {
 
 function taskRow(task) {
   const completion = clampCompletion(task.completion);
-  const briefReady = task.briefSource === "standalone" || !!taskDocument(task, "brief.md");
-  const mapReady = !!taskDocument(task, "visual_map.md");
+  const materials = taskMaterialsView(task);
+  const briefReady = materials.briefReady === true;
+  const mapReady = materials.visualMapReady === true;
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
   const moduleLabel = taskModuleLabel(task);
@@ -746,7 +747,7 @@ function taskGroups(tasks) {
   return groupBy(tasks, (task) => {
     const stateValue = taskStateValue(task);
     if (taskPrimaryQueueOrder.includes(stateValue) && !["finalized", "soft-deleted-superseded"].includes(stateValue)) return stateValue;
-    if (task.briefSource === "standalone") return "brief-ready";
+    if (taskMaterialsView(task).briefReady === true) return "brief-ready";
     const match = task.shortId?.match(/^(\d{4}-\d{2})/);
     return match ? `legacy:${match[1]}` : stateValue || "unknown";
   });
@@ -799,8 +800,9 @@ function taskCard(task) {
   const completion = clampCompletion(task.completion);
   const stateValue = taskStateValue(task);
   const stateColor = stateToColorVar(stateValue);
-  const briefReady = task.briefSource === "standalone" || !!taskDocument(task, "brief.md");
-  const mapReady = !!taskDocument(task, "visual_map.md");
+  const materials = taskMaterialsView(task);
+  const briefReady = materials.briefReady === true;
+  const mapReady = materials.visualMapReady === true;
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
   const lifecycle = taskLifecycleDisplay(task);
@@ -856,7 +858,7 @@ function filteredTasks() {
     const stateMatch = state.taskState === "all" || stateValue === state.taskState;
     if (!stateMatch) return false;
     if (!query) return true;
-    return [task.id, task.shortId, task.title, task.module, task.inferredModule, task.classificationSource, task.classificationBucket, stateValue, ...taskQueueValues(task)].some((value) => String(value || "").toLowerCase().includes(query));
+    return [task.id, task.shortId, task.title, taskModuleKey(task), taskModuleLabel(task), stateValue, ...taskQueueValues(task)].some((value) => String(value || "").toLowerCase().includes(query));
   }));
 }
 
@@ -951,8 +953,10 @@ function taskSwimlaneModel(tasks) {
   const cards = sortTasksByTime(tasks)
     .filter((task) => taskVisibleInSwimlane(task))
     .map((task) => {
-      const lane = taskModuleKey(task);
-      const stage = taskSwimlaneStage(task);
+      const swimlane = taskSwimlaneProjection(task);
+      if (!swimlane.rowKey || !swimlane.columnKey) return null;
+      const lane = swimlane.rowKey;
+      const stage = swimlane.columnKey;
       return {
         task,
         lane,
@@ -961,7 +965,8 @@ function taskSwimlaneModel(tasks) {
         title: task.title,
         reason: taskSwimlaneReason(task),
       };
-    });
+    })
+    .filter(Boolean);
   const laneKeys = [...new Set(cards.map((card) => card.lane))].sort((left, right) => {
     if (left === "legacy-unclassified") return 1;
     if (right === "legacy-unclassified") return -1;
@@ -975,19 +980,26 @@ function taskSwimlaneModel(tasks) {
 }
 
 function taskVisibleInSwimlane(task) {
-  return !isArchivedTask(task);
+  const swimlane = taskSwimlaneProjection(task);
+  if (typeof swimlane.visible === "boolean") return swimlane.visible;
+  return false;
 }
 
 function taskSwimlaneStage(task) {
-  return taskStateValue(task);
+  const swimlane = taskSwimlaneProjection(task);
+  if (swimlane.columnKey) return swimlane.columnKey;
+  return "";
+}
+
+function taskSwimlaneProjection(task) {
+  const view = taskDashboardTaskView(task);
+  return view?.swimlane && typeof view.swimlane === "object" ? view.swimlane : {};
 }
 
 function taskNeedsEvidence(task) {
   const view = taskDashboardTaskView(task);
   if (typeof view.needsEvidence === "boolean") return view.needsEvidence;
-  if (["missing", "legacy-only"].includes(String(task.visualMapStatus || ""))) return true;
-  if (task.briefSource && task.briefSource !== "standalone") return true;
-  return (task.phases || []).some((phase) => ["missing", "partial"].includes(String(phase.evidenceStatus || "")));
+  return false;
 }
 
 function taskSwimlaneReason(task) {
@@ -996,11 +1008,9 @@ function taskSwimlaneReason(task) {
   if (view.reasonCode === "needs-evidence") return t("swimlaneNeedsEvidence");
   if (view.reasonCode === "ready-to-confirm") return t("swimlaneReadyToConfirm");
   if (view.reasonCode === "needs-closeout") return t("swimlaneNeedsCloseout");
-  const reasons = Array.isArray(task.queueReasons) ? task.queueReasons.filter(Boolean) : [];
-  if (reasons.length) return reasons[0];
+  const reasons = taskQueueReasonSummaries(task);
+  if (reasons.length) return reasons[0].message || reasons[0].code || reasons[0].queue || "";
   if (taskNeedsEvidence(task)) return t("swimlaneNeedsEvidence");
-  if (task.reviewQueueState === "ready-to-confirm") return t("swimlaneReadyToConfirm");
-  if (task.closeoutStatus === "missing") return t("swimlaneNeedsCloseout");
   return "";
 }
 
@@ -1271,10 +1281,8 @@ function taskPrimaryQueueValue(task) {
     ? reviewProjection.queues
     : Array.isArray(lifecycleProjection.taskQueues)
       ? lifecycleProjection.taskQueues
-    : Array.isArray(task?.taskQueues)
-      ? task.taskQueues
       : [];
-  return taskPrimaryQueueOrder.find((queue) => queues.includes(queue)) || queues[0] || "active";
+  return taskPrimaryQueueOrder.find((queue) => queues.includes(queue)) || queues[0] || "unknown";
 }
 
 function taskStateValue(task) {
@@ -1288,7 +1296,7 @@ function taskRawStateValue(task) {
 
 function taskQueueValues(task) {
   const projection = taskLifecycleProjection(task);
-  return Array.isArray(projection.taskQueues) ? projection.taskQueues : Array.isArray(task?.taskQueues) ? task.taskQueues : [];
+  return Array.isArray(projection.taskQueues) ? projection.taskQueues : [];
 }
 
 function taskDetail(route) {
@@ -1325,7 +1333,7 @@ function taskDetail(route) {
 
 function taskStateSummary(task) {
   const lifecycle = taskLifecycleProjection(task);
-  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : task.taskQueues || [];
+  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : [];
   return `<section class="task-state-summary">
     <div>
       <span>${t("legacyState")}</span>
@@ -1333,11 +1341,11 @@ function taskStateSummary(task) {
     </div>
     <div>
       <span>${t("lifecycleState")}</span>
-      ${tag(lifecycle.lifecycleState || task.lifecycleState || "unknown")}
+      ${tag(lifecycle.lifecycleState || "unknown")}
     </div>
     <div>
       <span>${t("reviewStatus")}</span>
-      ${tag(lifecycle.reviewStatus || task.reviewStatus || "missing")}
+      ${tag(lifecycle.reviewStatus || "missing")}
     </div>
     <div>
       <span>${t("sedimentationStatus")}</span>
@@ -1345,7 +1353,7 @@ function taskStateSummary(task) {
     </div>
     <div>
       <span>${t("closeoutStatus")}</span>
-      ${tag(lifecycle.closeoutStatus || task.closeoutStatus || "missing")}
+      ${tag(lifecycle.closeoutStatus || "missing")}
     </div>
     <div>
       <span>${t("lifecycleQueues")}</span>
@@ -1356,7 +1364,7 @@ function taskStateSummary(task) {
 }
 
 function taskQueueReasonSummary(task) {
-  const reasons = task.queueReasons || [];
+  const reasons = taskQueueReasonSummaries(task);
   if (!reasons.length) return "";
   return `<div class="task-queue-reasons">
     <span>${t("queueReasons")}</span>
@@ -1364,6 +1372,11 @@ function taskQueueReasonSummary(task) {
       ${reasons.slice(0, 5).map(reviewReason).join("")}
     </div>
   </div>`;
+}
+
+function taskQueueReasonSummaries(task) {
+  const projection = taskReviewWorkbenchQueueView(task);
+  return Array.isArray(projection.reasonSummaries) ? projection.reasonSummaries.filter(Boolean) : [];
 }
 
 function phaseTimeline(task) {
@@ -1586,40 +1599,34 @@ function reviewActionPanel(task, { mode = "summary" } = {}) {
 function isTaskInReviewQueue(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.inQueue === "boolean") return view.inQueue;
-  return (task?.reviewQueueState || "not-in-queue") !== "not-in-queue";
+  return false;
 }
 
 function taskCanBeHumanConfirmed(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.humanConfirmable === "boolean") return view.humanConfirmable;
-  const lifecycle = taskLifecycleProjection(task);
-  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : Array.isArray(task?.taskQueues) ? task.taskQueues : [];
-  return (lifecycle.reviewQueueState || task?.reviewQueueState) === "ready-to-confirm" && queues.includes("review");
+  return false;
 }
 
 function taskHasPendingLessonWork(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.hasPendingLessonWork === "boolean") return view.hasPendingLessonWork;
-  const lifecycle = taskLifecycleProjection(task);
-  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : Array.isArray(task?.taskQueues) ? task.taskQueues : [];
-  const candidates = Array.isArray(task?.lessonCandidateRows) ? task.lessonCandidateRows : [];
-  return queues.includes("lessons")
-    || task?.lessonCandidateStatus === "needs-promotion"
-    || task?.lessonCandidatePromotionState === "queued"
-    || candidates.some((candidate) => ["ready-for-review", "needs-promotion"].includes(String(candidate?.status || "")));
+  return false;
 }
 
 function taskReadyForCloseout(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.readyForCloseout === "boolean") return view.readyForCloseout;
-  const lifecycle = taskLifecycleProjection(task);
-  if (!task || (lifecycle.reviewStatus || task.reviewStatus) !== "confirmed" || (lifecycle.closeoutStatus || task.closeoutStatus) === "closed") return false;
-  if (taskHasPendingLessonWork(task)) return false;
-  return ["no-candidate-accepted", "promoted", "rejected"].includes(String(task.lessonCandidateStatus || ""));
+  return false;
 }
 
 function taskDashboardTaskView(task) {
   return task?.dashboardTaskView || task?.semanticProjection?.dashboardTaskView || {};
+}
+
+function taskMaterialsView(task) {
+  const view = taskDashboardTaskView(task);
+  return view?.materials && typeof view.materials === "object" ? view.materials : {};
 }
 
 function taskReviewWorkbenchQueueView(task) {
@@ -1653,6 +1660,32 @@ function moduleDefinition(key) {
   return dashboardModules().find((module) => module.key === key) || null;
 }
 
+function dashboardModuleView(module) {
+  return module?.dashboardModuleView || module?.moduleProjection || {};
+}
+
+function moduleSourceLabel(module) {
+  const view = dashboardModuleView(module);
+  if (view.sourceLabelKey) return t(view.sourceLabelKey);
+  if (module?.key === "base") return t("moduleSourceStructure");
+  return t("moduleSourceUnknown");
+}
+
+function moduleStatusLabel(module) {
+  const view = dashboardModuleView(module);
+  if (view.statusLabelKey) {
+    const translated = t(view.statusLabelKey);
+    if (translated !== view.statusLabelKey) return translated;
+  }
+  return label(view.statusKey || "unknown");
+}
+
+function moduleStatusTag(module) {
+  const view = dashboardModuleView(module);
+  const tone = view.statusTone || (/blocked/i.test(view.statusKey || "") ? "fail" : /planned|unknown/i.test(view.statusKey || "") ? "warn" : "pass");
+  return `<span class="tag ${escapeAttr(tone)}">${escapeHtml(moduleStatusLabel(module))}</span>`;
+}
+
 function taskModuleLabel(task) {
   const key = taskModuleKey(task);
   if (key === "base" || key === "legacy-unclassified") return taskModuleDisplayLabel(key);
@@ -1679,16 +1712,16 @@ function taskGroupContext(group, tasks) {
         chips: [`${tasks.length} ${t("tasks")}`, `${counts.risk} ${t("moduleRisks")}`],
       };
     }
-    const module = moduleDefinition(key) || { key, title: key, source: "inferred" };
+    const module = moduleDefinition(key) || { key, title: key, source: "inferred", dashboardModuleView: { sourceLabelKey: "moduleSourceInferred", statusLabelKey: "state_unknown", statusKey: "unknown", statusTone: "warn" } };
     const chips = [
-      module.status ? `${t("columnState")}: ${label(module.status)}` : "",
+      `${t("columnState")}: ${moduleStatusLabel(module)}`,
       module.owner ? `${t("moduleOwner")}: ${module.owner}` : "",
       module.currentStep ? `${t("moduleCurrentStep")}: ${module.currentStep}` : "",
       module.dependsOn?.length ? `${t("moduleDependsOn")}: ${module.dependsOn.join(", ")}` : "",
       module.scope?.length ? `${t("moduleScope")}: ${module.scope.join(", ")}` : "",
     ].filter(Boolean);
     return {
-      eyebrow: module.source === "registry" ? t("registeredModule") : t("inferredModule"),
+      eyebrow: moduleSourceLabel(module),
       title: module.title || key,
       summary: `${tasks.length} ${t("tasks")} · ${counts.active} ${t("active")} · ${counts.review} ${t("statReview")} · ${counts.blocked} ${t("statBlocked")}`,
       chips,
@@ -1734,8 +1767,9 @@ function modulesView(moduleId = "") {
 function modulesWithTaskFallback() {
   const moduleMap = new Map(dashboardModules().map((module) => [module.key, {
     ...module,
-    counts: emptyUiModuleCounts(),
+    counts: { ...emptyUiModuleCounts(), ...(dashboardModuleView(module).counts || {}) },
     tasks: [],
+    __countsAuthoritative: !!dashboardModuleView(module).counts,
   }]));
   for (const task of normalCycleTasks()) {
     const key = taskModuleKey(task);
@@ -1745,7 +1779,16 @@ function modulesWithTaskFallback() {
         key,
         title: taskModuleDisplayLabel(key),
         source: key === "base" ? "structure" : "inferred",
-        status: task.classificationSource || "inferred",
+        dashboardModuleView: {
+          key,
+          title: taskModuleDisplayLabel(key),
+          sourceKind: key === "base" ? "structure" : "inferred",
+          sourceLabelKey: key === "base" ? "moduleSourceStructure" : "moduleSourceInferred",
+          statusKey: "unknown",
+          statusLabelKey: "state_unknown",
+          statusTone: "warn",
+          counts: emptyUiModuleCounts(),
+        },
         counts: emptyUiModuleCounts(),
         tasks: [],
       });
@@ -1769,6 +1812,7 @@ function accumulateUiModuleTask(module, task) {
   if (!module || !task) return;
   const stateValue = taskStateValue(task);
   if (!module.tasks.some((item) => item.id === task.id)) module.tasks.push(task);
+  if (module.__countsAuthoritative) return;
   module.counts.total = (module.counts.total || 0) + 1;
   if (["active", "missing-materials", "blocked", "review", "lessons", "confirmed", "confirmed-finalization-pending"].includes(stateValue)) {
     module.counts.active = (module.counts.active || 0) + 1;
@@ -1777,7 +1821,7 @@ function accumulateUiModuleTask(module, task) {
   if (uiDashboardTaskHasRisk(task)) {
     module.counts.risk = (module.counts.risk || 0) + 1;
   }
-  if (task.briefSource && task.briefSource !== "standalone") {
+  if (taskMaterialsView(task).briefReady === false) {
     module.counts.missingDocs = (module.counts.missingDocs || 0) + 1;
   }
 }
@@ -1787,17 +1831,15 @@ function uiDashboardTaskHasRisk(task) {
   if (reviewView.blocked === true || reviewView.needsMaterials === true) return true;
   if (Array.isArray(reviewView.reasonCodes) && reviewView.reasonCodes.length > 0) return true;
   if (taskStateValue(task) === "blocked") return true;
-  if (String(task.reviewStatus || "").includes("blocked")) return true;
-  if (Array.isArray(task.materialIssues) && task.materialIssues.length > 0) return true;
-  if (Array.isArray(task.queueReasons) && task.queueReasons.length > 0) return true;
-  if (String(task.visualMapStatus || "") === "missing") return true;
+  const materials = taskMaterialsView(task);
+  if (materials.evidenceReady === false) return true;
   return false;
 }
 
 function moduleRunStrip(modules, unclassified) {
   const active = modules.filter((module) => Number(module.counts?.active || 0) > 0).length;
   const risk = modules.reduce((sum, module) => sum + Number(module.counts?.risk || 0), 0);
-  const registered = modules.filter((module) => module.source === "registry").length;
+  const registered = modules.filter((module) => dashboardModuleView(module).sourceKind === "registry").length;
   return `<section class="module-run-strip">
     ${metric(t("moduleRegistered"), registered)}
     ${metric(t("moduleActive"), active)}
@@ -1811,29 +1853,29 @@ function moduleListItem(module, active) {
   return `<a class="module-list-item ${active ? "active" : ""}" href="#/modules/${encodeURIComponent(module.key)}" data-module-select="${escapeAttr(module.key)}">
     <span>
       <strong>${escapeHtml(module.key === "base" ? t("baseModule") : module.title || module.key)}</strong>
-      <small>${escapeHtml(module.key)} · ${escapeHtml(module.source || "registry")}</small>
+      <small>${escapeHtml(module.key)} · ${escapeHtml(moduleSourceLabel(module))}</small>
     </span>
     <span class="module-list-counts">
       <b>${Number(counts.active || 0)}</b>
-      ${tag(module.status || "planned")}
+      ${moduleStatusTag(module)}
     </span>
   </a>`;
 }
 
 function moduleDetail(module) {
   const tasks = normalCycleTasks().filter((task) => taskModuleKey(task) === module.key);
-  const activeTasks = tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(taskStateValue(task)));
+  const activeTasks = tasks.filter((task) => isActiveTaskState(taskStateValue(task)));
   const riskTasks = tasks.filter(uiDashboardTaskHasRisk);
   const brief = findDocument(module.briefPath || `TARGET:coding-agent-harness/planning/modules/${module.key}/brief.md`);
   const plan = findDocument(module.modulePlanPath || "");
   return `<div class="module-detail-stack">
     <header class="module-detail-header">
       <div>
-        <p class="eyebrow">${escapeHtml(module.key === "base" ? t("baseModuleEyebrow") : module.source === "registry" ? t("registeredModule") : t("inferredModule"))}</p>
+        <p class="eyebrow">${escapeHtml(module.key === "base" ? t("baseModuleEyebrow") : moduleSourceLabel(module))}</p>
         <h2>${escapeHtml(module.key === "base" ? t("baseModule") : module.title || module.key)}</h2>
         <p class="subtle">${escapeHtml(module.key)}${module.currentStep ? ` · ${escapeHtml(module.currentStep)}` : ""}</p>
       </div>
-      ${tag(module.status || "planned")}
+      ${moduleStatusTag(module)}
     </header>
     <div class="module-chip-row">
       ${module.owner ? `<span class="module-chip">${t("moduleOwner")}: ${escapeHtml(module.owner)}</span>` : ""}
@@ -2041,15 +2083,13 @@ function taskMatchesReviewTab(task, tab) {
 function reviewTaskQueues(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (Array.isArray(view.queues)) return view.queues;
-  return Array.isArray(task?.taskQueues) ? task.taskQueues : Array.isArray(task?.queues) ? task.queues : [];
+  return [];
 }
 
 function reviewReasonOptions(tasks) {
   return [...new Set(tasks.flatMap((task) => {
     const view = taskReviewWorkbenchQueueView(task);
-    const projected = Array.isArray(view.reasonCodes) ? view.reasonCodes : [];
-    const raw = (task.queueReasons || []).map((reason) => reason.code || reason.queue || "");
-    return [...projected, ...raw].filter(Boolean);
+    return (Array.isArray(view.reasonCodes) ? view.reasonCodes : []).filter(Boolean);
   }))].sort();
 }
 
@@ -2066,7 +2106,7 @@ function reviewFilteredTasks(tasks) {
     .filter((task) => {
       const view = taskReviewWorkbenchQueueView(task);
       const reasonCodes = Array.isArray(view.reasonCodes) ? view.reasonCodes : [];
-      if (reasonFilter !== "all" && !reasonCodes.includes(reasonFilter) && !(task.queueReasons || []).some((reason) => (reason.code || reason.queue) === reasonFilter)) return false;
+      if (reasonFilter !== "all" && !reasonCodes.includes(reasonFilter)) return false;
       if (!query) return true;
       const lifecycle = taskLifecycleProjection(task);
       const queues = reviewTaskQueues(task);
@@ -2076,12 +2116,12 @@ function reviewFilteredTasks(tasks) {
         task.title,
         task.module,
         task.inferredModule,
-        lifecycle.state || task.state,
-        lifecycle.lifecycleState || task.lifecycleState,
-        lifecycle.reviewStatus || task.reviewStatus,
-        lifecycle.closeoutStatus || task.closeoutStatus,
+        lifecycle.state,
+        lifecycle.lifecycleState,
+        lifecycle.reviewStatus,
+        lifecycle.closeoutStatus,
         ...queues,
-        ...(task.queueReasons || []).flatMap((reason) => [reason.code, reason.message, reason.sourcePath]),
+        ...reasonCodes,
       ].some((value) => String(value || "").toLowerCase().includes(query));
     })
     .sort(reviewTaskSort);
@@ -2106,7 +2146,7 @@ function compareTasksByTimeForOrder(left, right, order) {
 
 function reviewPriorityRank(task) {
   const severityRank = { P0: 0, P1: 1, P2: 2, P3: 3 };
-  const reasonRank = Math.min(...(task.queueReasons || []).map((reason) => severityRank[String(reason.severity || "").toUpperCase()] ?? 8), 8);
+  const reasonRank = Math.min(...taskQueueReasonSummaries(task).map((reason) => severityRank[String(reason.severity || "").toUpperCase()] ?? 8), 8);
   const queueRank = { blocked: 0, "missing-materials": 1, review: 2, lessons: 3, confirmed: 4, finalized: 5, "soft-deleted-superseded": 6 };
   const queues = reviewTaskQueues(task);
   const view = taskReviewWorkbenchQueueView(task);
@@ -2116,7 +2156,13 @@ function reviewPriorityRank(task) {
 }
 
 function reviewTruthyCount(tasks, key) {
-  return tasks.filter((task) => task[key] === true).length;
+  return tasks.filter((task) => {
+    const materials = taskMaterialsView(task);
+    if (key === "materialsReady" && typeof materials.evidenceReady === "boolean") return materials.evidenceReady;
+    const lifecycle = taskLifecycleProjection(task);
+    if (key === "reviewSubmitted" && typeof lifecycle.reviewSubmitted === "boolean") return lifecycle.reviewSubmitted;
+    return false;
+  }).length;
 }
 
 function reviewBulkSelectedIds() {
@@ -2151,8 +2197,9 @@ function reviewBulkBar(confirmableTasks) {
 
 function reviewQueueCard(task, tab) {
   const openMaterial = (task.risks || []).filter((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease)).length;
-  const reasons = task.queueReasons || [];
+  const reasons = taskQueueReasonSummaries(task);
   const lifecycle = taskLifecycleProjection(task);
+  const materials = taskMaterialsView(task);
   const canCopyRepairPrompt = tab?.repair && String(task.repairPrompt || "").trim();
   const lessonActions = tab?.id === "lessons" ? lessonCandidatePanel(task, { context: "card", limit: 2 }) : "";
   const closeoutAction = taskReadyForCloseout(task)
@@ -2168,17 +2215,17 @@ function reviewQueueCard(task, tab) {
   return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(lifecycle.state || taskStateValue(task))})">
     <div class="card-header">
       <span class="card-id" title="${escapeAttr(task.id)}">${escapeHtml(displayId)}</span>
-      ${tag(lifecycle.reviewStatus || task.reviewStatus || "missing")}
+      ${tag(lifecycle.reviewStatus || "missing")}
       ${reviewTaskQueues(task).map(tag).join("")}
       ${bulkControl}
     </div>
     <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
     <div class="card-meta">
-      <span>${tag(lifecycle.lifecycleState || task.lifecycleState || "unknown")}</span>
-      <span>${tag(lifecycle.closeoutStatus || task.closeoutStatus || "missing")}</span>
+      <span>${tag(lifecycle.lifecycleState || "unknown")}</span>
+      <span>${tag(lifecycle.closeoutStatus || "missing")}</span>
       <span>${openMaterial} ${t("openFindings")}</span>
-      <span>${t("reviewSubmitted")}: ${task.reviewSubmitted === true ? t("yes") : t("no")}</span>
-      <span>${t("materialsReady")}: ${task.materialsReady === true ? t("yes") : t("no")}</span>
+      <span>${t("reviewSubmitted")}: ${lifecycle.reviewSubmitted === true ? t("yes") : t("no")}</span>
+      <span>${t("materialsReady")}: ${materials.evidenceReady === true ? t("yes") : t("no")}</span>
     </div>
     <p class="subtle">${escapeHtml(firstUsefulLine(task.summary || task.briefText || ""))}</p>
     ${tombstoneSummary(task)}
@@ -2369,8 +2416,8 @@ function reviewWorkspace(route) {
         <p>${escapeHtml(task.path)}</p>
       </div>
       <div class="review-hero-tags">
-        ${tag(lifecycle.lifecycleState || task.lifecycleState || "unknown")}
-        ${tag(lifecycle.reviewStatus || task.reviewStatus || "missing")}
+        ${tag(lifecycle.lifecycleState || "unknown")}
+        ${tag(lifecycle.reviewStatus || "missing")}
         ${tag(task.lessonCandidateStatus || "missing")}
       </div>
     </section>
@@ -2499,29 +2546,9 @@ function warningRow(warning) {
 }
 
 function warningQueue() {
-  const adoptionWarnings = (bundle.adoption?.warnings || []).map((warning) => ({ ...warning }));
-  const existingBriefPaths = new Set(adoptionWarnings.filter((warning) => warning.type === "missing-brief").map((warning) => warning.affected));
-  const briefWarnings = (bundle.status?.tasks || [])
-    .filter((task) => task.briefSource !== "standalone")
-    .filter((task) => !existingBriefPaths.has(task.path))
-    .map((task, index) => ({
-      id: `VB-${String(index + 1).padStart(3, "0")}`,
-      category: "Visibility Layer",
-      type: "missing-brief",
-      scope: "task",
-      priority: (typeof isActiveTaskState === "function" && isActiveTaskState(taskStateValue(task))) || ["planned", "not_started"].includes(taskStateValue(task)) ? "P2" : "P3",
-      phase: "active-task-contracts",
-      fixability: "guided",
-      status: "open",
-      confidence: taskStateValue(task) === "unknown" ? "medium" : "high",
-      severity: "advice",
-      title: t("visibilityBriefMissing"),
-      affected: task.path,
-      affectedPaths: [task.path],
-      requiredAction: t("addVisibilityBrief"),
-      detail: `${task.id} ${task.title}`,
-    }));
-  return [...adoptionWarnings, ...briefWarnings].sort(warningSort);
+  const projected = bundle.adoption?.warningProjection?.queue;
+  const warnings = Array.isArray(projected) ? projected : (bundle.adoption?.warnings || []);
+  return warnings.map((warning) => ({ ...warning })).sort(warningSort);
 }
 
 function warningSort(left, right) {
@@ -2965,6 +2992,8 @@ function presetActionResult() {
 }
 
 function taskDocument(task, fileName) {
+  const projected = task?.documentsByKey?.[fileName] || task?.documentProjection?.byKey?.[fileName];
+  if (projected) return projected;
   if (fileName === "__walkthrough__" && task.walkthroughPath) return findDocument(task.walkthroughPath);
   return findDocument(`${task.path}/${fileName}`);
 }

@@ -24,7 +24,7 @@ function statusStrip() {
   const tasks = normalCycleTasks();
   const summary = bundle.status?.summary || {};
   const visual = summary.visualMapCoverage || {};
-  const withBrief = tasks.filter((task) => task.briefSource === "standalone").length;
+  const withBrief = tasks.filter((task) => taskMaterialsView(task).briefReady === true).length;
   return `<section class="status-card-group">
     <div class="status-primary ${displayState}">
       <span>${snapshotOnly ? t("snapshotStatus") : t("readiness")}</span>
@@ -53,7 +53,7 @@ function nextActionText() {
   if (dataOnly && !isWorkbenchRuntime()) return t("snapshotNotValidated");
   const failures = bundle.status?.checkState?.failures || 0;
   if (failures > 0) return t("resolveBlockers");
-  const missingBriefs = normalCycleTasks().filter((task) => task.briefSource !== "standalone").length;
+  const missingBriefs = normalCycleTasks().filter((task) => taskMaterialsView(task).briefReady === false).length;
   if (missingBriefs > 0) return `${missingBriefs} ${t("missingBriefs")}`;
   const warnings = bundle.status?.checkState?.warnings || 0;
   if (warnings > 0) return t("reviewAdvice");
@@ -200,7 +200,7 @@ function activeTasks() {
     return isActiveTaskState(stateValue);
   });
   if (active.length > 0) return sortTasksByTime(active);
-  return sortTasksByTime(tasks.filter((task) => task.briefSource === "standalone"));
+  return sortTasksByTime(tasks.filter((task) => taskMaterialsView(task).briefReady === true));
 }
 
 function isActiveTaskState(state) {

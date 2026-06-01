@@ -47,6 +47,10 @@ type RenderedSwimlane = {
   zhPageLabel: string;
   enBaseLabel: string;
   zhBaseLabel: string;
+  zhMissingMaterialsLabel?: string;
+  zhBlockedLabel?: string;
+  zhLessonsLabel?: string;
+  zhSoftDeletedLabel?: string;
 };
 
 type SandboxContext = {
@@ -67,7 +71,7 @@ type SandboxContext = {
         };
         tasks: DashboardTask[];
       };
-      modules: Array<{ key: string; title: string; source: string; status: string; counts?: Record<string, number>; tasks?: DashboardTask[] }>;
+      modules: Array<{ key: string; title: string; source: string; status: string; counts?: Record<string, number>; tasks?: DashboardTask[]; dashboardModuleView?: Record<string, unknown>; moduleProjection?: Record<string, unknown> }>;
       documents: { documents: { path: string; content: string }[] };
       graph: { nodes: unknown[]; edges: unknown[] };
       adoption: { warnings: unknown[] };
@@ -86,7 +90,7 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 function fixtureTask(overrides: Partial<DashboardTask> = {}): DashboardTask {
-  return {
+  const item = {
     id: "TASKS/2026-05-28-fixture",
     shortId: "2026-05-28-fixture",
     title: "Fixture task",
@@ -103,7 +107,66 @@ function fixtureTask(overrides: Partial<DashboardTask> = {}): DashboardTask {
     taskQueues: ["active"],
     queueReasons: [],
     ...overrides,
+  } as DashboardTask & Record<string, unknown>;
+  const queues = Array.isArray(item.taskQueues) && item.taskQueues.length ? item.taskQueues : ["active"];
+  const reasonSummaries = (Array.isArray(item.queueReasons) ? item.queueReasons : [])
+    .map((reason) => typeof reason === "string" ? { code: reason, message: reason } : reason)
+    .filter(Boolean);
+  const primaryQueue = queues.find((queue) => ["blocked", "missing-materials", "review", "lessons", "confirmed", "confirmed-finalization-pending", "finalized", "soft-deleted-superseded", "active"].includes(queue)) || queues[0] || "active";
+  item.taskLifecycleProjection ||= {
+    state: item.state,
+    lifecycleState: item.state,
+    reviewStatus: item.reviewStatus,
+    reviewQueueState: item.reviewQueueState,
+    closeoutStatus: item.closeoutStatus,
+    taskQueues: queues,
+    materialsReady: true,
+    reviewSubmitted: item.reviewStatus === "agent-reviewed",
+    lessonCandidateDecisionComplete: true,
+    deletionState: "active",
   };
+  item.reviewWorkbenchQueueView ||= {
+    queues,
+    primaryQueue,
+    inQueue: primaryQueue !== "active",
+    humanConfirmable: item.reviewQueueState === "ready-to-confirm" && primaryQueue === "review",
+    blocked: primaryQueue === "blocked",
+    needsMaterials: primaryQueue === "missing-materials",
+    confirmed: primaryQueue === "confirmed",
+    finalized: primaryQueue === "finalized",
+    hasPendingLessonWork: primaryQueue === "lessons",
+    readyForCloseout: primaryQueue === "confirmed-finalization-pending",
+    reasonCodes: reasonSummaries.map((reason) => String((reason as Record<string, unknown>).code || "")),
+    reasonSummaries,
+  };
+  item.dashboardTaskView ||= {
+    visibleInSwimlane: primaryQueue !== "finalized",
+    swimlaneStage: primaryQueue,
+    needsEvidence: item.visualMapStatus === "missing" || item.briefSource !== "standalone",
+    reasonCode: "",
+    reasonMessage: "",
+    materials: {
+      briefReady: item.briefSource === "standalone",
+      visualMapReady: item.visualMapStatus !== "missing",
+      evidenceReady: item.visualMapStatus !== "missing" && item.briefSource === "standalone",
+      blockingReasonCodes: [],
+    },
+    swimlane: {
+      visible: primaryQueue !== "finalized",
+      rowKey: item.module || item.inferredModule || "legacy-unclassified",
+      rowLabelKey: "",
+      columnKey: primaryQueue,
+      columnLabelKey: primaryQueue === "review" ? "queueReview" : primaryQueue === "blocked" ? "queueBlocked" : primaryQueue === "active" ? "active" : `state_${primaryQueue}`,
+      tone: primaryQueue === "blocked" ? "fail" : primaryQueue === "active" ? "warn" : "pass",
+      sortKey: item.shortId,
+    },
+  };
+  item.semanticProjection ||= {
+    taskLifecycleProjection: item.taskLifecycleProjection,
+    dashboardTaskView: item.dashboardTaskView,
+    reviewWorkbenchQueueView: item.reviewWorkbenchQueueView,
+  };
+  return item as DashboardTask;
 }
 
 function renderTasks(mutator: string): RenderedSwimlane {
@@ -173,6 +236,10 @@ const rendered = renderTasks(`
     zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
     enBaseLabel: window.HarnessI18n.en.baseModule,
     zhBaseLabel: window.HarnessI18n.zh.baseModule,
+    zhMissingMaterialsLabel: window.HarnessI18n.zh.queueMissingMaterials,
+    zhBlockedLabel: window.HarnessI18n.zh.queueBlocked,
+    zhLessonsLabel: window.HarnessI18n.zh.queueLessons,
+    zhSoftDeletedLabel: window.HarnessI18n.zh.queueSoftDeletedSuperseded,
   };
 `);
 
@@ -184,6 +251,10 @@ assert(rendered.enPageLabel === "Page", "English i18n should expose the swimlane
 assert(rendered.zhPageLabel === "页", "Chinese i18n should expose the swimlane pagination label");
 assert(rendered.enBaseLabel === "Base", "English i18n should expose the base module label");
 assert(rendered.zhBaseLabel === "Base（未分模块）", "Chinese i18n should expose the base module label");
+assert(rendered.zhMissingMaterialsLabel === "缺材料", "Chinese i18n should translate the missing-materials queue label");
+assert(rendered.zhBlockedLabel === "阻塞", "Chinese i18n should translate the blocked queue label");
+assert(rendered.zhLessonsLabel === "经验沉淀", "Chinese i18n should translate the lessons queue label");
+assert(rendered.zhSoftDeletedLabel === "软删除 / 已替代", "Chinese i18n should translate the soft-deleted/superseded queue label");
 assert(rendered.html.includes('data-layout="swimlane"'), "task toolbar should expose a swimlane layout toggle");
 assert(rendered.html.includes("task-swimlane"), "task index should render the swimlane view when selected");
 assert(rendered.html.includes('data-swimlane-heatmap="true"'), "swimlane should render a heatmap overview by default");
@@ -213,7 +284,7 @@ assert(rendered.model.cards.some((card) => card.stage === "blocked" && card.lane
 assert(rendered.model.cards.some((card) => card.title === "Confirmed closeout" && card.stage === "confirmed-finalization-pending"), "confirmed tasks with missing closeout should project into the confirmed finalization queue");
 assert(rendered.model.cards.some((card) => card.title === "Agent reviewed not started" && card.stage === "active"), "agent-reviewed evidence alone must not inflate the review queue");
 assert(!rendered.model.cards.some((card) => card.title === "Agent reviewed not started" && card.stage === "review"), "agent-reviewed evidence outside the review queue must not appear as current review work");
-assert(rendered.model.cards.some((card) => card.title === "Historical task" && card.stage === "finalized"), "swimlane model should keep finalized tasks in the same lifecycle queue projection as list/grid views");
+assert(!rendered.model.cards.some((card) => card.title === "Historical task"), "closed historical tasks should stay hidden when the dashboard swimlane projection marks them invisible");
 assert(css.includes(".task-swimlane"), "dashboard CSS should style the swimlane surface");
 assert(css.includes(".swimlane-heatmap"), "dashboard CSS should style the heatmap surface");
 assert(css.includes(".swimlane-drilldown"), "dashboard CSS should style the drilldown surface");
@@ -234,16 +305,29 @@ const moduleMetrics = renderTasks(`
     materialIssues: ["missing review evidence"],
     queueReasons: ["Needs owner decision"],
   };
-  const unreachableActiveTask = {
-    ...bundle.status.tasks[0],
-    id: "TASKS/2026-05-30-active",
-    state: "active",
-    module: "core",
+	  const unreachableActiveTask = {
+	    ...bundle.status.tasks[0],
+	    id: "TASKS/2026-05-30-active",
+	    state: "active",
+	    module: "core",
     reviewStatus: "missing",
-    visualMapStatus: "present",
-    taskQueues: ["finalized"],
-    queueReasons: [],
-  };
+	    visualMapStatus: "present",
+	    taskQueues: ["finalized"],
+	    queueReasons: [],
+	    reviewWorkbenchQueueView: {
+	      queues: ["finalized"],
+	      primaryQueue: "finalized",
+	      inQueue: true,
+	      humanConfirmable: false,
+	      blocked: false,
+	      needsMaterials: false,
+	      confirmed: true,
+	      finalized: true,
+	      hasPendingLessonWork: false,
+	      readyForCloseout: false,
+	      reasonCodes: [],
+	    },
+	  };
   const projectionActiveTask = {
     ...bundle.status.tasks[0],
     id: "TASKS/2026-05-30-projected-active",
@@ -252,15 +336,28 @@ const moduleMetrics = renderTasks(`
     reviewStatus: "missing",
     visualMapStatus: "present",
     queueReasons: [],
-    taskLifecycleProjection: {
-      state: "in_progress",
-      lifecycleState: "active",
-      reviewStatus: "missing",
-      reviewQueueState: "not-in-queue",
-      closeoutStatus: "missing",
-      taskQueues: ["active"],
-    },
-  };
+	    taskLifecycleProjection: {
+	      state: "in_progress",
+	      lifecycleState: "active",
+	      reviewStatus: "missing",
+	      reviewQueueState: "not-in-queue",
+	      closeoutStatus: "missing",
+	      taskQueues: ["active"],
+	    },
+	    reviewWorkbenchQueueView: {
+	      queues: ["active"],
+	      primaryQueue: "active",
+	      inQueue: false,
+	      humanConfirmable: false,
+	      blocked: false,
+	      needsMaterials: false,
+	      confirmed: false,
+	      finalized: false,
+	      hasPendingLessonWork: false,
+	      readyForCloseout: false,
+	      reasonCodes: [],
+	    },
+	  };
   bundle.status.tasks = [riskyTask, unreachableActiveTask, projectionActiveTask];
   __result = {
     html: "",
@@ -297,11 +394,41 @@ const pagedDrilldown = renderTasks(`
       reviewStatus: "agent-reviewed",
       reviewQueueState: "ready-to-confirm",
       closeoutStatus: "missing",
-      visualMapStatus: "present",
-      briefSource: "standalone",
-      taskQueues: ["review"],
-      queueReasons: [],
-    });
+	      visualMapStatus: "present",
+	      briefSource: "standalone",
+	      taskQueues: ["review"],
+	      queueReasons: [],
+	      taskLifecycleProjection: {
+	        state: "review",
+	        lifecycleState: "in_review",
+	        reviewStatus: "agent-reviewed",
+	        reviewQueueState: "ready-to-confirm",
+	        closeoutStatus: "missing",
+	        taskQueues: ["review"],
+	      },
+	      reviewWorkbenchQueueView: {
+	        queues: ["review"],
+	        primaryQueue: "review",
+	        inQueue: true,
+	        humanConfirmable: true,
+	        blocked: false,
+	        needsMaterials: false,
+	        confirmed: false,
+	        finalized: false,
+	        hasPendingLessonWork: false,
+	        readyForCloseout: false,
+	        reasonCodes: [],
+	      },
+	      dashboardTaskView: {
+	        visibleInSwimlane: true,
+	        swimlaneStage: "review",
+	        needsEvidence: false,
+	        reasonCode: "",
+	        reasonMessage: "",
+	        materials: { briefReady: true, visualMapReady: true, evidenceReady: true, blockingReasonCodes: [] },
+	        swimlane: { visible: true, rowKey: "core", rowLabelKey: "", columnKey: "review", columnLabelKey: "queueReview", tone: "pass", sortKey: "2026-05-29-core-review-extra-" + suffix },
+	      },
+	    });
   }
   state.taskLayout = "swimlane";
   state.taskSortOrder = "asc";
@@ -343,11 +470,41 @@ const laneDrilldown = renderTasks(`
       reviewStatus: "agent-reviewed",
       reviewQueueState: "ready-to-confirm",
       closeoutStatus: "missing",
-      visualMapStatus: "present",
-      briefSource: "standalone",
-      taskQueues: ["review"],
-      queueReasons: [],
-    });
+	      visualMapStatus: "present",
+	      briefSource: "standalone",
+	      taskQueues: ["review"],
+	      queueReasons: [],
+	      taskLifecycleProjection: {
+	        state: "review",
+	        lifecycleState: "in_review",
+	        reviewStatus: "agent-reviewed",
+	        reviewQueueState: "ready-to-confirm",
+	        closeoutStatus: "missing",
+	        taskQueues: ["review"],
+	      },
+	      reviewWorkbenchQueueView: {
+	        queues: ["review"],
+	        primaryQueue: "review",
+	        inQueue: true,
+	        humanConfirmable: true,
+	        blocked: false,
+	        needsMaterials: false,
+	        confirmed: false,
+	        finalized: false,
+	        hasPendingLessonWork: false,
+	        readyForCloseout: false,
+	        reasonCodes: [],
+	      },
+	      dashboardTaskView: {
+	        visibleInSwimlane: true,
+	        swimlaneStage: "review",
+	        needsEvidence: false,
+	        reasonCode: "",
+	        reasonMessage: "",
+	        materials: { briefReady: true, visualMapReady: true, evidenceReady: true, blockingReasonCodes: [] },
+	        swimlane: { visible: true, rowKey: "core", rowLabelKey: "", columnKey: "review", columnLabelKey: "queueReview", tone: "pass", sortKey: "2026-05-29-core-review-extra-" + suffix },
+	      },
+	    });
   }
   state.taskLayout = "swimlane";
   state.taskSortOrder = "asc";
@@ -392,6 +549,233 @@ const moduleRenderStability = renderTasks(`
 assert(moduleRenderStability.enLabel === "6", "module view rendering should not mutate structured module active counts");
 assert(moduleRenderStability.zhLabel === "0", "zero-task registered module counts should remain stable after module view rendering");
 assert(moduleRenderStability.html.includes("Quality Assurance"), "module view should retain zero-task registered YAML modules");
+
+const projectedModuleAndSwimlane = renderTasks(`
+  bundle.status.tasks = [{
+    ...bundle.status.tasks[0],
+    id: "TASKS/projected-swimlane-contract",
+    title: "Projected swimlane contract",
+    state: "done",
+    module: "raw-wrong-module",
+    inferredModule: "",
+    taskQueues: ["review"],
+    taskLifecycleProjection: {
+      state: "review",
+      lifecycleState: "in_review",
+      reviewStatus: "agent-reviewed",
+      reviewQueueState: "needs-material",
+      closeoutStatus: "missing",
+      taskQueues: ["missing-materials"],
+      materialsReady: false,
+      reviewSubmitted: true,
+      lessonCandidateDecisionComplete: false,
+      deletionState: "active",
+    },
+    dashboardTaskView: {
+      visibleInSwimlane: true,
+      swimlaneStage: "missing-materials",
+      needsEvidence: true,
+      reasonCode: "missing-brief",
+      reasonMessage: "Brief required",
+      materials: {
+        briefReady: false,
+        visualMapReady: true,
+        evidenceReady: false,
+        blockingReasonCodes: ["missing-brief"],
+      },
+      swimlane: {
+        visible: true,
+        rowKey: "core",
+        rowLabelKey: "",
+        columnKey: "missing-materials",
+        columnLabelKey: "queueMissingMaterials",
+        tone: "warn",
+        sortKey: "2026-05-28-fixture",
+      },
+    },
+    reviewWorkbenchQueueView: {
+      queues: ["missing-materials"],
+      primaryQueue: "missing-materials",
+      inQueue: true,
+      humanConfirmable: false,
+      blocked: false,
+      needsMaterials: true,
+      confirmed: false,
+      finalized: false,
+      hasPendingLessonWork: false,
+      readyForCloseout: false,
+      reasonCodes: ["missing-brief"],
+    },
+  }];
+  bundle.modules = [{
+    key: "core",
+    title: "Core",
+    source: "registry",
+    status: "in-progress",
+    counts: { total: 1, active: 1, review: 0, blocked: 0, risk: 1 },
+    tasks: [],
+    dashboardModuleView: {
+      key: "core",
+      title: "Core",
+      sourceKind: "registry",
+      sourceLabelKey: "moduleSourceRegistry",
+      statusKey: "in_progress",
+      statusLabelKey: "state_in_progress",
+      statusTone: "pass",
+      counts: { total: 1, active: 1, review: 0, blocked: 0, risk: 1, missingDocs: 1 },
+    },
+  }];
+  const moduleHtml = modulesView("core");
+  __result = {
+    html: moduleHtml,
+    model: taskSwimlaneModel(bundle.status.tasks),
+    enLabel: window.HarnessI18n.en.layoutSwimlane,
+    zhLabel: window.HarnessI18n.zh.layoutSwimlane,
+    enHeatmapLabel: window.HarnessI18n.en.swimlaneHeatmapLabel,
+    zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
+    enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
+    zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
+    enBaseLabel: window.HarnessI18n.en.baseModule,
+    zhBaseLabel: window.HarnessI18n.zh.baseModule,
+  };
+`);
+
+assert(projectedModuleAndSwimlane.model.cards.some((card) => card.title === "Projected swimlane contract" && card.lane === "core" && card.stage === "missing-materials"), "swimlane model should use dashboardTaskView.swimlane row/column instead of raw module/state/queue fields");
+assert(!projectedModuleAndSwimlane.model.cards.some((card) => card.lane === "raw-wrong-module" || card.stage === "review"), "swimlane model must not derive placement from raw module or raw queues when a dashboard swimlane projection exists");
+assert(projectedModuleAndSwimlane.html.includes("Registered"), "module view should render the module source from the semantic source label key");
+assert(projectedModuleAndSwimlane.html.includes("in progress"), "module view should render the module status from the semantic status label key");
+assert(!projectedModuleAndSwimlane.html.includes(">registry<"), "module view should not render raw module source tokens as display text");
+assert(!projectedModuleAndSwimlane.html.includes(">in-progress<"), "module view should not render raw module status tokens as display text");
+
+const moduleCurrentWorkProjection = renderTasks(`
+  bundle.status.tasks = [
+    {
+      ...bundle.status.tasks[0],
+      id: "TASKS/module-active-queue",
+      title: "Module active queue",
+      state: "done",
+      module: "core",
+      taskQueues: ["finalized"],
+      queueReasons: [],
+      materialIssues: [],
+      risks: [],
+      taskLifecycleProjection: {
+        state: "review",
+        lifecycleState: "in_review",
+        reviewStatus: "agent-reviewed",
+        reviewQueueState: "needs-material",
+        closeoutStatus: "missing",
+        taskQueues: ["missing-materials"],
+      },
+      reviewWorkbenchQueueView: {
+        queues: ["missing-materials"],
+        primaryQueue: "missing-materials",
+        inQueue: true,
+        humanConfirmable: false,
+        blocked: false,
+        needsMaterials: true,
+        confirmed: false,
+        finalized: false,
+        hasPendingLessonWork: false,
+        readyForCloseout: false,
+        reasonCodes: ["missing-material"],
+      },
+    },
+    {
+      ...bundle.status.tasks[0],
+      id: "TASKS/module-finalized-queue",
+      title: "Module finalized queue",
+      state: "in_progress",
+      module: "core",
+      taskQueues: ["active"],
+      queueReasons: [],
+      materialIssues: [],
+      risks: [],
+      taskLifecycleProjection: {
+        state: "done",
+        lifecycleState: "closed",
+        reviewStatus: "confirmed",
+        reviewQueueState: "not-in-queue",
+        closeoutStatus: "closed",
+        taskQueues: ["finalized"],
+      },
+      reviewWorkbenchQueueView: {
+        queues: ["finalized"],
+        primaryQueue: "finalized",
+        inQueue: true,
+        humanConfirmable: false,
+        blocked: false,
+        needsMaterials: false,
+        confirmed: true,
+        finalized: true,
+        hasPendingLessonWork: false,
+        readyForCloseout: false,
+        reasonCodes: [],
+      },
+    },
+  ];
+  bundle.modules = [{
+    key: "core",
+    title: "Core",
+    source: "registry",
+    status: "in-progress",
+    counts: { total: 2, active: 1, risk: 1 },
+    tasks: [],
+    dashboardModuleView: {
+      key: "core",
+      title: "Core",
+      sourceLabelKey: "moduleSourceRegistry",
+      statusKey: "in_progress",
+      statusLabelKey: "state_in_progress",
+      statusTone: "pass",
+      counts: { total: 2, active: 1, risk: 1 },
+    },
+  }];
+  __result = {
+    html: modulesView("core"),
+    model: taskSwimlaneModel(bundle.status.tasks),
+    enLabel: window.HarnessI18n.en.layoutSwimlane,
+    zhLabel: window.HarnessI18n.zh.layoutSwimlane,
+    enHeatmapLabel: window.HarnessI18n.en.swimlaneHeatmapLabel,
+    zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
+    enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
+    zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
+    enBaseLabel: window.HarnessI18n.en.baseModule,
+    zhBaseLabel: window.HarnessI18n.zh.baseModule,
+  };
+`);
+
+const moduleCurrentWorkHtml = moduleCurrentWorkProjection.html.match(/<section class="module-work-panel">[\s\S]*?<\/section>/)?.[0] || "";
+assert(moduleCurrentWorkHtml.includes("Module active queue"), "module detail current work should use semantic active queue states");
+assert(!moduleCurrentWorkHtml.includes("Module finalized queue"), "module detail current work should not show finalized queue tasks just because raw state is active");
+
+const missingProjectionFailClosed = renderTasks(`
+  bundle.status.tasks = [{
+    ...bundle.status.tasks[0],
+    id: "TASKS/missing-projection",
+    title: "Missing projection task",
+    state: "review",
+    module: "raw-module",
+    taskQueues: ["review"],
+    taskLifecycleProjection: undefined,
+    dashboardTaskView: undefined,
+    reviewWorkbenchQueueView: undefined,
+    semanticProjection: undefined,
+  }];
+  __result = {
+    html: "",
+    model: taskSwimlaneModel(bundle.status.tasks),
+    enLabel: window.HarnessI18n.en.layoutSwimlane,
+    zhLabel: window.HarnessI18n.zh.layoutSwimlane,
+    enHeatmapLabel: window.HarnessI18n.en.swimlaneHeatmapLabel,
+    zhHeatmapLabel: window.HarnessI18n.zh.swimlaneHeatmapLabel,
+    enPageLabel: window.HarnessI18n.en.swimlanePageLabel,
+    zhPageLabel: window.HarnessI18n.zh.swimlanePageLabel,
+    enBaseLabel: window.HarnessI18n.en.baseModule,
+    zhBaseLabel: window.HarnessI18n.zh.baseModule,
+  };
+`);
+assert(missingProjectionFailClosed.model.cards.length === 0, "swimlane must fail closed instead of deriving placement from raw fields when the view projection is missing");
 
 const overviewProjection = renderTasks(`
   bundle.status.tasks = [

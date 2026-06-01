@@ -17,6 +17,32 @@ function moduleDefinition(key) {
   return dashboardModules().find((module) => module.key === key) || null;
 }
 
+function dashboardModuleView(module) {
+  return module?.dashboardModuleView || module?.moduleProjection || {};
+}
+
+function moduleSourceLabel(module) {
+  const view = dashboardModuleView(module);
+  if (view.sourceLabelKey) return t(view.sourceLabelKey);
+  if (module?.key === "base") return t("moduleSourceStructure");
+  return t("moduleSourceUnknown");
+}
+
+function moduleStatusLabel(module) {
+  const view = dashboardModuleView(module);
+  if (view.statusLabelKey) {
+    const translated = t(view.statusLabelKey);
+    if (translated !== view.statusLabelKey) return translated;
+  }
+  return label(view.statusKey || "unknown");
+}
+
+function moduleStatusTag(module) {
+  const view = dashboardModuleView(module);
+  const tone = view.statusTone || (/blocked/i.test(view.statusKey || "") ? "fail" : /planned|unknown/i.test(view.statusKey || "") ? "warn" : "pass");
+  return `<span class="tag ${escapeAttr(tone)}">${escapeHtml(moduleStatusLabel(module))}</span>`;
+}
+
 function taskModuleLabel(task) {
   const key = taskModuleKey(task);
   if (key === "base" || key === "legacy-unclassified") return taskModuleDisplayLabel(key);
@@ -43,16 +69,16 @@ function taskGroupContext(group, tasks) {
         chips: [`${tasks.length} ${t("tasks")}`, `${counts.risk} ${t("moduleRisks")}`],
       };
     }
-    const module = moduleDefinition(key) || { key, title: key, source: "inferred" };
+    const module = moduleDefinition(key) || { key, title: key, source: "inferred", dashboardModuleView: { sourceLabelKey: "moduleSourceInferred", statusLabelKey: "state_unknown", statusKey: "unknown", statusTone: "warn" } };
     const chips = [
-      module.status ? `${t("columnState")}: ${label(module.status)}` : "",
+      `${t("columnState")}: ${moduleStatusLabel(module)}`,
       module.owner ? `${t("moduleOwner")}: ${module.owner}` : "",
       module.currentStep ? `${t("moduleCurrentStep")}: ${module.currentStep}` : "",
       module.dependsOn?.length ? `${t("moduleDependsOn")}: ${module.dependsOn.join(", ")}` : "",
       module.scope?.length ? `${t("moduleScope")}: ${module.scope.join(", ")}` : "",
     ].filter(Boolean);
     return {
-      eyebrow: module.source === "registry" ? t("registeredModule") : t("inferredModule"),
+      eyebrow: moduleSourceLabel(module),
       title: module.title || key,
       summary: `${tasks.length} ${t("tasks")} · ${counts.active} ${t("active")} · ${counts.review} ${t("statReview")} · ${counts.blocked} ${t("statBlocked")}`,
       chips,
@@ -98,8 +124,9 @@ function modulesView(moduleId = "") {
 function modulesWithTaskFallback() {
   const moduleMap = new Map(dashboardModules().map((module) => [module.key, {
     ...module,
-    counts: emptyUiModuleCounts(),
+    counts: { ...emptyUiModuleCounts(), ...(dashboardModuleView(module).counts || {}) },
     tasks: [],
+    __countsAuthoritative: !!dashboardModuleView(module).counts,
   }]));
   for (const task of normalCycleTasks()) {
     const key = taskModuleKey(task);
@@ -109,7 +136,16 @@ function modulesWithTaskFallback() {
         key,
         title: taskModuleDisplayLabel(key),
         source: key === "base" ? "structure" : "inferred",
-        status: task.classificationSource || "inferred",
+        dashboardModuleView: {
+          key,
+          title: taskModuleDisplayLabel(key),
+          sourceKind: key === "base" ? "structure" : "inferred",
+          sourceLabelKey: key === "base" ? "moduleSourceStructure" : "moduleSourceInferred",
+          statusKey: "unknown",
+          statusLabelKey: "state_unknown",
+          statusTone: "warn",
+          counts: emptyUiModuleCounts(),
+        },
         counts: emptyUiModuleCounts(),
         tasks: [],
       });
@@ -133,6 +169,7 @@ function accumulateUiModuleTask(module, task) {
   if (!module || !task) return;
   const stateValue = taskStateValue(task);
   if (!module.tasks.some((item) => item.id === task.id)) module.tasks.push(task);
+  if (module.__countsAuthoritative) return;
   module.counts.total = (module.counts.total || 0) + 1;
   if (["active", "missing-materials", "blocked", "review", "lessons", "confirmed", "confirmed-finalization-pending"].includes(stateValue)) {
     module.counts.active = (module.counts.active || 0) + 1;
@@ -141,7 +178,7 @@ function accumulateUiModuleTask(module, task) {
   if (uiDashboardTaskHasRisk(task)) {
     module.counts.risk = (module.counts.risk || 0) + 1;
   }
-  if (task.briefSource && task.briefSource !== "standalone") {
+  if (taskMaterialsView(task).briefReady === false) {
     module.counts.missingDocs = (module.counts.missingDocs || 0) + 1;
   }
 }
@@ -151,17 +188,15 @@ function uiDashboardTaskHasRisk(task) {
   if (reviewView.blocked === true || reviewView.needsMaterials === true) return true;
   if (Array.isArray(reviewView.reasonCodes) && reviewView.reasonCodes.length > 0) return true;
   if (taskStateValue(task) === "blocked") return true;
-  if (String(task.reviewStatus || "").includes("blocked")) return true;
-  if (Array.isArray(task.materialIssues) && task.materialIssues.length > 0) return true;
-  if (Array.isArray(task.queueReasons) && task.queueReasons.length > 0) return true;
-  if (String(task.visualMapStatus || "") === "missing") return true;
+  const materials = taskMaterialsView(task);
+  if (materials.evidenceReady === false) return true;
   return false;
 }
 
 function moduleRunStrip(modules, unclassified) {
   const active = modules.filter((module) => Number(module.counts?.active || 0) > 0).length;
   const risk = modules.reduce((sum, module) => sum + Number(module.counts?.risk || 0), 0);
-  const registered = modules.filter((module) => module.source === "registry").length;
+  const registered = modules.filter((module) => dashboardModuleView(module).sourceKind === "registry").length;
   return `<section class="module-run-strip">
     ${metric(t("moduleRegistered"), registered)}
     ${metric(t("moduleActive"), active)}
@@ -175,29 +210,29 @@ function moduleListItem(module, active) {
   return `<a class="module-list-item ${active ? "active" : ""}" href="#/modules/${encodeURIComponent(module.key)}" data-module-select="${escapeAttr(module.key)}">
     <span>
       <strong>${escapeHtml(module.key === "base" ? t("baseModule") : module.title || module.key)}</strong>
-      <small>${escapeHtml(module.key)} · ${escapeHtml(module.source || "registry")}</small>
+      <small>${escapeHtml(module.key)} · ${escapeHtml(moduleSourceLabel(module))}</small>
     </span>
     <span class="module-list-counts">
       <b>${Number(counts.active || 0)}</b>
-      ${tag(module.status || "planned")}
+      ${moduleStatusTag(module)}
     </span>
   </a>`;
 }
 
 function moduleDetail(module) {
   const tasks = normalCycleTasks().filter((task) => taskModuleKey(task) === module.key);
-  const activeTasks = tasks.filter((task) => ["in_progress", "review", "blocked", "planned", "not_started"].includes(taskStateValue(task)));
+  const activeTasks = tasks.filter((task) => isActiveTaskState(taskStateValue(task)));
   const riskTasks = tasks.filter(uiDashboardTaskHasRisk);
   const brief = findDocument(module.briefPath || `TARGET:coding-agent-harness/planning/modules/${module.key}/brief.md`);
   const plan = findDocument(module.modulePlanPath || "");
   return `<div class="module-detail-stack">
     <header class="module-detail-header">
       <div>
-        <p class="eyebrow">${escapeHtml(module.key === "base" ? t("baseModuleEyebrow") : module.source === "registry" ? t("registeredModule") : t("inferredModule"))}</p>
+        <p class="eyebrow">${escapeHtml(module.key === "base" ? t("baseModuleEyebrow") : moduleSourceLabel(module))}</p>
         <h2>${escapeHtml(module.key === "base" ? t("baseModule") : module.title || module.key)}</h2>
         <p class="subtle">${escapeHtml(module.key)}${module.currentStep ? ` · ${escapeHtml(module.currentStep)}` : ""}</p>
       </div>
-      ${tag(module.status || "planned")}
+      ${moduleStatusTag(module)}
     </header>
     <div class="module-chip-row">
       ${module.owner ? `<span class="module-chip">${t("moduleOwner")}: ${escapeHtml(module.owner)}</span>` : ""}

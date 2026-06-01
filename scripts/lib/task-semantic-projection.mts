@@ -8,6 +8,7 @@ type QueueReason = {
 };
 
 type TaskSemanticProjectionInput = {
+  [key: string]: unknown;
   state?: string;
   lifecycleState?: string;
   reviewStatus?: string;
@@ -46,10 +47,29 @@ export type TaskLifecycleProjection = {
 
 export type DashboardTaskView = {
   visibleInSwimlane: boolean;
-  swimlaneStage: "planned" | "in_progress" | "evidence" | "review" | "confirmed" | "closeout" | "blocked";
+  swimlaneStage: string;
+  swimlane: DashboardTaskSwimlaneView;
+  materials: DashboardTaskMaterialsView;
   needsEvidence: boolean;
   reasonCode: string;
   reasonMessage: string;
+};
+
+export type DashboardTaskSwimlaneView = {
+  visible: boolean;
+  rowKey: string;
+  rowLabelKey: string;
+  columnKey: string;
+  columnLabelKey: string;
+  tone: string;
+  sortKey: string;
+};
+
+export type DashboardTaskMaterialsView = {
+  briefReady: boolean;
+  visualMapReady: boolean;
+  evidenceReady: boolean;
+  blockingReasonCodes: string[];
 };
 
 export type ReviewWorkbenchQueueView = {
@@ -64,6 +84,7 @@ export type ReviewWorkbenchQueueView = {
   hasPendingLessonWork: boolean;
   readyForCloseout: boolean;
   reasonCodes: string[];
+  reasonSummaries: QueueReason[];
 };
 
 export type TaskSemanticProjection = {
@@ -72,7 +93,17 @@ export type TaskSemanticProjection = {
   reviewWorkbenchQueueView: ReviewWorkbenchQueueView;
 };
 
-const swimlaneStages = new Set(["planned", "in_progress", "evidence", "review", "confirmed", "closeout", "blocked"]);
+const swimlaneColumnLabelKeys: Record<string, string> = {
+  active: "active",
+  "missing-materials": "queueMissingMaterials",
+  blocked: "queueBlocked",
+  review: "queueReview",
+  lessons: "queueLessons",
+  confirmed: "state_confirmed",
+  "confirmed-finalization-pending": "state_confirmed-finalization-pending",
+  finalized: "state_finalized",
+  "soft-deleted-superseded": "queueSoftDeletedSuperseded",
+};
 
 export function buildTaskSemanticProjection(task: TaskSemanticProjectionInput): TaskSemanticProjection {
   const taskQueues = normalizedTaskQueues(task);
@@ -116,14 +147,51 @@ export function buildDashboardTaskView(
   reviewWorkbenchQueueView = buildReviewWorkbenchQueueView(task, lifecycle, lifecycle.taskQueues),
 ): DashboardTaskView {
   const needsEvidence = taskNeedsEvidence(task);
-  const stage = taskSwimlaneStage(task, lifecycle, reviewWorkbenchQueueView, needsEvidence);
   const reason = firstQueueReason(task);
+  const visible = taskVisibleInSwimlane(task, lifecycle, reviewWorkbenchQueueView);
+  const materials = buildDashboardTaskMaterialsView(task, needsEvidence);
+  const swimlane = buildDashboardTaskSwimlaneView(task, visible, reviewWorkbenchQueueView);
   return {
-    visibleInSwimlane: taskVisibleInSwimlane(task, lifecycle, reviewWorkbenchQueueView),
-    swimlaneStage: swimlaneStages.has(stage) ? stage as DashboardTaskView["swimlaneStage"] : "planned",
+    visibleInSwimlane: visible,
+    swimlaneStage: swimlane.columnKey,
+    swimlane,
+    materials,
     needsEvidence,
     reasonCode: reason.code || reason.queue || (needsEvidence ? "needs-evidence" : lifecycle.reviewQueueState === "ready-to-confirm" ? "ready-to-confirm" : lifecycle.closeoutStatus === "missing" ? "needs-closeout" : ""),
     reasonMessage: reason.message || "",
+  };
+}
+
+function buildDashboardTaskMaterialsView(task: TaskSemanticProjectionInput, needsEvidence = taskNeedsEvidence(task)): DashboardTaskMaterialsView {
+  const visualMapStatus = stringValue(task.visualMapStatus, "present");
+  const briefSource = stringValue(task.briefSource, "standalone");
+  const briefReady = !briefSource || briefSource === "standalone";
+  const visualMapReady = !["missing", "legacy-only"].includes(visualMapStatus);
+  const phaseEvidenceReady = !(task.phases || []).some((phase) => ["missing", "partial"].includes(stringValue(phase.evidenceStatus, "")));
+  return {
+    briefReady,
+    visualMapReady,
+    evidenceReady: !needsEvidence && phaseEvidenceReady,
+    blockingReasonCodes: (task.queueReasons || []).map((reason) => stringValue(reason.code || reason.queue, "")).filter(Boolean),
+  };
+}
+
+function buildDashboardTaskSwimlaneView(
+  task: TaskSemanticProjectionInput,
+  visible: boolean,
+  reviewWorkbenchQueueView: ReviewWorkbenchQueueView,
+): DashboardTaskSwimlaneView {
+  const taskRecord = task as Record<string, unknown>;
+  const rowKey = stringValue(taskRecord.module || taskRecord.inferredModule, "legacy-unclassified");
+  const columnKey = reviewWorkbenchQueueView.primaryQueue || "active";
+  return {
+    visible,
+    rowKey,
+    rowLabelKey: rowKey === "base" ? "baseModule" : rowKey === "legacy-unclassified" ? "unclassifiedModule" : "",
+    columnKey,
+    columnLabelKey: swimlaneColumnLabelKeys[columnKey] || `state_${columnKey}`,
+    tone: swimlaneTone(columnKey),
+    sortKey: stringValue(taskRecord.shortId || taskRecord.id || taskRecord.path || taskRecord.title, ""),
   };
 }
 
@@ -136,6 +204,7 @@ export function buildReviewWorkbenchQueueView(
   const humanConfirmable = lifecycle.reviewQueueState === "ready-to-confirm" && taskQueues.includes("review");
   const readyForCloseout = lifecycle.reviewStatus === "confirmed" && lifecycle.closeoutStatus !== "closed" && !hasPendingLessonWork && ["no-candidate-accepted", "promoted", "rejected"].includes(stringValue(task.lessonCandidateStatus, ""));
   const primaryQueue = primaryReviewQueue(taskQueues);
+  const reasonSummaries = normalizedQueueReasons(task);
   return {
     queues: taskQueues,
     primaryQueue,
@@ -147,13 +216,27 @@ export function buildReviewWorkbenchQueueView(
     finalized: lifecycle.closeoutStatus === "closed" || taskQueues.includes("finalized"),
     hasPendingLessonWork,
     readyForCloseout,
-    reasonCodes: (task.queueReasons || []).map((reason) => stringValue(reason.code || reason.queue, "")).filter(Boolean),
+    reasonCodes: reasonSummaries.map((reason) => stringValue(reason.code || reason.queue, "")).filter(Boolean),
+    reasonSummaries,
   };
 }
 
 function normalizedTaskQueues(task: TaskSemanticProjectionInput): string[] {
   const queues = Array.isArray(task.taskQueues) ? task.taskQueues.map((queue) => stringValue(queue, "")).filter(Boolean) : [];
   return queues.length ? [...new Set(queues)] : ["active"];
+}
+
+function normalizedQueueReasons(task: TaskSemanticProjectionInput): QueueReason[] {
+  if (!Array.isArray(task.queueReasons)) return [];
+  return task.queueReasons
+    .filter((reason) => reason && typeof reason === "object")
+    .map((reason) => ({
+      code: stringValue(reason.code, ""),
+      queue: stringValue(reason.queue, ""),
+      message: stringValue(reason.message, ""),
+      severity: stringValue(reason.severity, ""),
+    }))
+    .filter((reason) => reason.code || reason.queue || reason.message || reason.severity);
 }
 
 function primaryReviewQueue(queues: string[]): string {
@@ -171,22 +254,17 @@ function taskVisibleInSwimlane(task: TaskSemanticProjectionInput, lifecycle: Tas
     || ["confirmed", "blocked-open-findings"].includes(lifecycle.reviewStatus);
 }
 
-function taskSwimlaneStage(task: TaskSemanticProjectionInput, lifecycle: TaskLifecycleProjection, reviewView: ReviewWorkbenchQueueView, needsEvidence: boolean): string {
-  if (lifecycle.state === "blocked" || reviewView.blocked || lifecycle.reviewQueueState.includes("blocked")) return "blocked";
-  if (reviewView.hasPendingLessonWork && lifecycle.reviewStatus === "confirmed") return "closeout";
-  if (reviewView.readyForCloseout || (lifecycle.reviewStatus === "confirmed" && ["missing", "pending", "required", "closing"].includes(lifecycle.closeoutStatus))) return "closeout";
-  if (lifecycle.reviewStatus === "confirmed") return "confirmed";
-  if (lifecycle.state === "review" || lifecycle.reviewQueueState === "ready-to-confirm" || lifecycle.taskQueues.includes("review")) return "review";
-  if (["planned", "not_started"].includes(lifecycle.state)) return "planned";
-  if (needsEvidence) return "evidence";
-  if (["active", "in_progress", "reopened", "current-evidence"].includes(lifecycle.state)) return "in_progress";
-  return "planned";
-}
-
 function taskNeedsEvidence(task: TaskSemanticProjectionInput): boolean {
   if (["missing", "legacy-only"].includes(stringValue(task.visualMapStatus, ""))) return true;
   if (task.briefSource && task.briefSource !== "standalone") return true;
   return (task.phases || []).some((phase) => ["missing", "partial"].includes(stringValue(phase.evidenceStatus, "")));
+}
+
+function swimlaneTone(columnKey: string): string {
+  if (["blocked"].includes(columnKey)) return "fail";
+  if (["missing-materials", "active"].includes(columnKey)) return "warn";
+  if (["review", "lessons", "confirmed", "confirmed-finalization-pending", "finalized"].includes(columnKey)) return "pass";
+  return "muted";
 }
 
 function taskHasPendingLessonWork(task: TaskSemanticProjectionInput, taskQueues: string[]): boolean {

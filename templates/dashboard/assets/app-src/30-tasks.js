@@ -11,9 +11,9 @@ function stateToColorVar(state) {
 function taskLifecycleDisplay(task) {
   const projection = taskLifecycleProjection(task);
   return [
-    projection.lifecycleState || task.lifecycleState,
-    projection.reviewStatus || task.reviewStatus,
-    projection.closeoutStatus || task.closeoutStatus,
+    projection.lifecycleState,
+    projection.reviewStatus,
+    projection.closeoutStatus,
   ].filter(Boolean).map((item) => label(item)).join(" · ");
 }
 
@@ -227,8 +227,9 @@ function taskStatsBar() {
 
 function taskRow(task) {
   const completion = clampCompletion(task.completion);
-  const briefReady = task.briefSource === "standalone" || !!taskDocument(task, "brief.md");
-  const mapReady = !!taskDocument(task, "visual_map.md");
+  const materials = taskMaterialsView(task);
+  const briefReady = materials.briefReady === true;
+  const mapReady = materials.visualMapReady === true;
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
   const moduleLabel = taskModuleLabel(task);
@@ -329,7 +330,7 @@ function taskGroups(tasks) {
   return groupBy(tasks, (task) => {
     const stateValue = taskStateValue(task);
     if (taskPrimaryQueueOrder.includes(stateValue) && !["finalized", "soft-deleted-superseded"].includes(stateValue)) return stateValue;
-    if (task.briefSource === "standalone") return "brief-ready";
+    if (taskMaterialsView(task).briefReady === true) return "brief-ready";
     const match = task.shortId?.match(/^(\d{4}-\d{2})/);
     return match ? `legacy:${match[1]}` : stateValue || "unknown";
   });
@@ -382,8 +383,9 @@ function taskCard(task) {
   const completion = clampCompletion(task.completion);
   const stateValue = taskStateValue(task);
   const stateColor = stateToColorVar(stateValue);
-  const briefReady = task.briefSource === "standalone" || !!taskDocument(task, "brief.md");
-  const mapReady = !!taskDocument(task, "visual_map.md");
+  const materials = taskMaterialsView(task);
+  const briefReady = materials.briefReady === true;
+  const mapReady = materials.visualMapReady === true;
   const briefLabel = briefReady ? t("briefReady") : t("briefMissing");
   const mapLabel = mapReady ? t("mapReady") : t("mapMissing");
   const lifecycle = taskLifecycleDisplay(task);
@@ -439,7 +441,7 @@ function filteredTasks() {
     const stateMatch = state.taskState === "all" || stateValue === state.taskState;
     if (!stateMatch) return false;
     if (!query) return true;
-    return [task.id, task.shortId, task.title, task.module, task.inferredModule, task.classificationSource, task.classificationBucket, stateValue, ...taskQueueValues(task)].some((value) => String(value || "").toLowerCase().includes(query));
+    return [task.id, task.shortId, task.title, taskModuleKey(task), taskModuleLabel(task), stateValue, ...taskQueueValues(task)].some((value) => String(value || "").toLowerCase().includes(query));
   }));
 }
 

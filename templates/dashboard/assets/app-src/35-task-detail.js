@@ -31,10 +31,8 @@ function taskPrimaryQueueValue(task) {
     ? reviewProjection.queues
     : Array.isArray(lifecycleProjection.taskQueues)
       ? lifecycleProjection.taskQueues
-    : Array.isArray(task?.taskQueues)
-      ? task.taskQueues
       : [];
-  return taskPrimaryQueueOrder.find((queue) => queues.includes(queue)) || queues[0] || "active";
+  return taskPrimaryQueueOrder.find((queue) => queues.includes(queue)) || queues[0] || "unknown";
 }
 
 function taskStateValue(task) {
@@ -48,7 +46,7 @@ function taskRawStateValue(task) {
 
 function taskQueueValues(task) {
   const projection = taskLifecycleProjection(task);
-  return Array.isArray(projection.taskQueues) ? projection.taskQueues : Array.isArray(task?.taskQueues) ? task.taskQueues : [];
+  return Array.isArray(projection.taskQueues) ? projection.taskQueues : [];
 }
 
 function taskDetail(route) {
@@ -85,7 +83,7 @@ function taskDetail(route) {
 
 function taskStateSummary(task) {
   const lifecycle = taskLifecycleProjection(task);
-  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : task.taskQueues || [];
+  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : [];
   return `<section class="task-state-summary">
     <div>
       <span>${t("legacyState")}</span>
@@ -93,11 +91,11 @@ function taskStateSummary(task) {
     </div>
     <div>
       <span>${t("lifecycleState")}</span>
-      ${tag(lifecycle.lifecycleState || task.lifecycleState || "unknown")}
+      ${tag(lifecycle.lifecycleState || "unknown")}
     </div>
     <div>
       <span>${t("reviewStatus")}</span>
-      ${tag(lifecycle.reviewStatus || task.reviewStatus || "missing")}
+      ${tag(lifecycle.reviewStatus || "missing")}
     </div>
     <div>
       <span>${t("sedimentationStatus")}</span>
@@ -105,7 +103,7 @@ function taskStateSummary(task) {
     </div>
     <div>
       <span>${t("closeoutStatus")}</span>
-      ${tag(lifecycle.closeoutStatus || task.closeoutStatus || "missing")}
+      ${tag(lifecycle.closeoutStatus || "missing")}
     </div>
     <div>
       <span>${t("lifecycleQueues")}</span>
@@ -116,7 +114,7 @@ function taskStateSummary(task) {
 }
 
 function taskQueueReasonSummary(task) {
-  const reasons = task.queueReasons || [];
+  const reasons = taskQueueReasonSummaries(task);
   if (!reasons.length) return "";
   return `<div class="task-queue-reasons">
     <span>${t("queueReasons")}</span>
@@ -124,6 +122,11 @@ function taskQueueReasonSummary(task) {
       ${reasons.slice(0, 5).map(reviewReason).join("")}
     </div>
   </div>`;
+}
+
+function taskQueueReasonSummaries(task) {
+  const projection = taskReviewWorkbenchQueueView(task);
+  return Array.isArray(projection.reasonSummaries) ? projection.reasonSummaries.filter(Boolean) : [];
 }
 
 function phaseTimeline(task) {
@@ -346,40 +349,34 @@ function reviewActionPanel(task, { mode = "summary" } = {}) {
 function isTaskInReviewQueue(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.inQueue === "boolean") return view.inQueue;
-  return (task?.reviewQueueState || "not-in-queue") !== "not-in-queue";
+  return false;
 }
 
 function taskCanBeHumanConfirmed(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.humanConfirmable === "boolean") return view.humanConfirmable;
-  const lifecycle = taskLifecycleProjection(task);
-  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : Array.isArray(task?.taskQueues) ? task.taskQueues : [];
-  return (lifecycle.reviewQueueState || task?.reviewQueueState) === "ready-to-confirm" && queues.includes("review");
+  return false;
 }
 
 function taskHasPendingLessonWork(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.hasPendingLessonWork === "boolean") return view.hasPendingLessonWork;
-  const lifecycle = taskLifecycleProjection(task);
-  const queues = Array.isArray(lifecycle.taskQueues) ? lifecycle.taskQueues : Array.isArray(task?.taskQueues) ? task.taskQueues : [];
-  const candidates = Array.isArray(task?.lessonCandidateRows) ? task.lessonCandidateRows : [];
-  return queues.includes("lessons")
-    || task?.lessonCandidateStatus === "needs-promotion"
-    || task?.lessonCandidatePromotionState === "queued"
-    || candidates.some((candidate) => ["ready-for-review", "needs-promotion"].includes(String(candidate?.status || "")));
+  return false;
 }
 
 function taskReadyForCloseout(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (typeof view.readyForCloseout === "boolean") return view.readyForCloseout;
-  const lifecycle = taskLifecycleProjection(task);
-  if (!task || (lifecycle.reviewStatus || task.reviewStatus) !== "confirmed" || (lifecycle.closeoutStatus || task.closeoutStatus) === "closed") return false;
-  if (taskHasPendingLessonWork(task)) return false;
-  return ["no-candidate-accepted", "promoted", "rejected"].includes(String(task.lessonCandidateStatus || ""));
+  return false;
 }
 
 function taskDashboardTaskView(task) {
   return task?.dashboardTaskView || task?.semanticProjection?.dashboardTaskView || {};
+}
+
+function taskMaterialsView(task) {
+  const view = taskDashboardTaskView(task);
+  return view?.materials && typeof view.materials === "object" ? view.materials : {};
 }
 
 function taskReviewWorkbenchQueueView(task) {

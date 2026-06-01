@@ -1,4 +1,6 @@
 function taskDocument(task, fileName) {
+  const projected = task?.documentsByKey?.[fileName] || task?.documentProjection?.byKey?.[fileName];
+  if (projected) return projected;
   if (fileName === "__walkthrough__" && task.walkthroughPath) return findDocument(task.walkthroughPath);
   return findDocument(`${task.path}/${fileName}`);
 }

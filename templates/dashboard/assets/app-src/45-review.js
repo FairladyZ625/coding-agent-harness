@@ -126,15 +126,13 @@ function taskMatchesReviewTab(task, tab) {
 function reviewTaskQueues(task) {
   const view = taskReviewWorkbenchQueueView(task);
   if (Array.isArray(view.queues)) return view.queues;
-  return Array.isArray(task?.taskQueues) ? task.taskQueues : Array.isArray(task?.queues) ? task.queues : [];
+  return [];
 }
 
 function reviewReasonOptions(tasks) {
   return [...new Set(tasks.flatMap((task) => {
     const view = taskReviewWorkbenchQueueView(task);
-    const projected = Array.isArray(view.reasonCodes) ? view.reasonCodes : [];
-    const raw = (task.queueReasons || []).map((reason) => reason.code || reason.queue || "");
-    return [...projected, ...raw].filter(Boolean);
+    return (Array.isArray(view.reasonCodes) ? view.reasonCodes : []).filter(Boolean);
   }))].sort();
 }
 
@@ -151,7 +149,7 @@ function reviewFilteredTasks(tasks) {
     .filter((task) => {
       const view = taskReviewWorkbenchQueueView(task);
       const reasonCodes = Array.isArray(view.reasonCodes) ? view.reasonCodes : [];
-      if (reasonFilter !== "all" && !reasonCodes.includes(reasonFilter) && !(task.queueReasons || []).some((reason) => (reason.code || reason.queue) === reasonFilter)) return false;
+      if (reasonFilter !== "all" && !reasonCodes.includes(reasonFilter)) return false;
       if (!query) return true;
       const lifecycle = taskLifecycleProjection(task);
       const queues = reviewTaskQueues(task);
@@ -161,12 +159,12 @@ function reviewFilteredTasks(tasks) {
         task.title,
         task.module,
         task.inferredModule,
-        lifecycle.state || task.state,
-        lifecycle.lifecycleState || task.lifecycleState,
-        lifecycle.reviewStatus || task.reviewStatus,
-        lifecycle.closeoutStatus || task.closeoutStatus,
+        lifecycle.state,
+        lifecycle.lifecycleState,
+        lifecycle.reviewStatus,
+        lifecycle.closeoutStatus,
         ...queues,
-        ...(task.queueReasons || []).flatMap((reason) => [reason.code, reason.message, reason.sourcePath]),
+        ...reasonCodes,
       ].some((value) => String(value || "").toLowerCase().includes(query));
     })
     .sort(reviewTaskSort);
@@ -191,7 +189,7 @@ function compareTasksByTimeForOrder(left, right, order) {
 
 function reviewPriorityRank(task) {
   const severityRank = { P0: 0, P1: 1, P2: 2, P3: 3 };
-  const reasonRank = Math.min(...(task.queueReasons || []).map((reason) => severityRank[String(reason.severity || "").toUpperCase()] ?? 8), 8);
+  const reasonRank = Math.min(...taskQueueReasonSummaries(task).map((reason) => severityRank[String(reason.severity || "").toUpperCase()] ?? 8), 8);
   const queueRank = { blocked: 0, "missing-materials": 1, review: 2, lessons: 3, confirmed: 4, finalized: 5, "soft-deleted-superseded": 6 };
   const queues = reviewTaskQueues(task);
   const view = taskReviewWorkbenchQueueView(task);
@@ -201,7 +199,13 @@ function reviewPriorityRank(task) {
 }
 
 function reviewTruthyCount(tasks, key) {
-  return tasks.filter((task) => task[key] === true).length;
+  return tasks.filter((task) => {
+    const materials = taskMaterialsView(task);
+    if (key === "materialsReady" && typeof materials.evidenceReady === "boolean") return materials.evidenceReady;
+    const lifecycle = taskLifecycleProjection(task);
+    if (key === "reviewSubmitted" && typeof lifecycle.reviewSubmitted === "boolean") return lifecycle.reviewSubmitted;
+    return false;
+  }).length;
 }
 
 function reviewBulkSelectedIds() {
@@ -236,8 +240,9 @@ function reviewBulkBar(confirmableTasks) {
 
 function reviewQueueCard(task, tab) {
   const openMaterial = (task.risks || []).filter((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease)).length;
-  const reasons = task.queueReasons || [];
+  const reasons = taskQueueReasonSummaries(task);
   const lifecycle = taskLifecycleProjection(task);
+  const materials = taskMaterialsView(task);
   const canCopyRepairPrompt = tab?.repair && String(task.repairPrompt || "").trim();
   const lessonActions = tab?.id === "lessons" ? lessonCandidatePanel(task, { context: "card", limit: 2 }) : "";
   const closeoutAction = taskReadyForCloseout(task)
@@ -253,17 +258,17 @@ function reviewQueueCard(task, tab) {
   return `<article class="task-card review-queue-card" style="--row-accent: var(${stateToColorVar(lifecycle.state || taskStateValue(task))})">
     <div class="card-header">
       <span class="card-id" title="${escapeAttr(task.id)}">${escapeHtml(displayId)}</span>
-      ${tag(lifecycle.reviewStatus || task.reviewStatus || "missing")}
+      ${tag(lifecycle.reviewStatus || "missing")}
       ${reviewTaskQueues(task).map(tag).join("")}
       ${bulkControl}
     </div>
     <h4 class="card-title" title="${escapeAttr(task.title)}">${escapeHtml(task.title)}</h4>
     <div class="card-meta">
-      <span>${tag(lifecycle.lifecycleState || task.lifecycleState || "unknown")}</span>
-      <span>${tag(lifecycle.closeoutStatus || task.closeoutStatus || "missing")}</span>
+      <span>${tag(lifecycle.lifecycleState || "unknown")}</span>
+      <span>${tag(lifecycle.closeoutStatus || "missing")}</span>
       <span>${openMaterial} ${t("openFindings")}</span>
-      <span>${t("reviewSubmitted")}: ${task.reviewSubmitted === true ? t("yes") : t("no")}</span>
-      <span>${t("materialsReady")}: ${task.materialsReady === true ? t("yes") : t("no")}</span>
+      <span>${t("reviewSubmitted")}: ${lifecycle.reviewSubmitted === true ? t("yes") : t("no")}</span>
+      <span>${t("materialsReady")}: ${materials.evidenceReady === true ? t("yes") : t("no")}</span>
     </div>
     <p class="subtle">${escapeHtml(firstUsefulLine(task.summary || task.briefText || ""))}</p>
     ${tombstoneSummary(task)}
@@ -454,8 +459,8 @@ function reviewWorkspace(route) {
         <p>${escapeHtml(task.path)}</p>
       </div>
       <div class="review-hero-tags">
-        ${tag(lifecycle.lifecycleState || task.lifecycleState || "unknown")}
-        ${tag(lifecycle.reviewStatus || task.reviewStatus || "missing")}
+        ${tag(lifecycle.lifecycleState || "unknown")}
+        ${tag(lifecycle.reviewStatus || "missing")}
         ${tag(task.lessonCandidateStatus || "missing")}
       </div>
     </section>

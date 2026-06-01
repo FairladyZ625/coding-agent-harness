@@ -120,6 +120,8 @@ type DashboardModuleSummary = Record<string, unknown> & {
   source: string;
   counts: Record<string, number>;
   tasks: Array<Record<string, unknown>>;
+  dashboardModuleView?: Record<string, unknown>;
+  moduleProjection?: Record<string, unknown>;
 };
 type DashboardPhaseRef = {
   id: string;
@@ -469,11 +471,11 @@ function collectDashboardModules(status: DashboardStatus, target: DashboardTarge
     accumulateModuleTask(module, task);
   }
   const unclassifiedTasks = tasks.filter((task) => !isArchivedDashboardTask(task) && dashboardTaskModuleKey(task) === "legacy-unclassified");
-  const moduleList = [...modules.values()].sort((left, right) => {
-    const leftStatus = String(left.status || "");
-    const rightStatus = String(right.status || "");
-    if (leftStatus === "in-progress" && rightStatus !== "in-progress") return -1;
-    if (rightStatus === "in-progress" && leftStatus !== "in-progress") return 1;
+  const moduleList = [...modules.values()].map(withDashboardModuleView).sort((left, right) => {
+    const leftStatus = String(left.dashboardModuleView?.statusKey || left.status || "");
+    const rightStatus = String(right.dashboardModuleView?.statusKey || right.status || "");
+    if (leftStatus === "in_progress" && rightStatus !== "in_progress") return -1;
+    if (rightStatus === "in_progress" && leftStatus !== "in_progress") return 1;
     return left.key.localeCompare(right.key);
   });
   return {
@@ -487,6 +489,69 @@ function collectDashboardModules(status: DashboardStatus, target: DashboardTarge
       unclassifiedTasks: unclassifiedTasks.length,
     },
   };
+}
+
+function withDashboardModuleView(module: DashboardModuleSummary): DashboardModuleSummary {
+  const sourceKind = normalizedModuleSourceKind(module.source);
+  const statusKey = normalizedModuleStatusKey(module.status || (Number(module.counts.active || 0) > 0 ? "in_progress" : "planned"));
+  const view = {
+    key: module.key,
+    title: module.title || module.key,
+    sourceKind,
+    sourceLabelKey: moduleSourceLabelKey(sourceKind),
+    statusKey,
+    statusLabelKey: moduleStatusLabelKey(statusKey),
+    statusTone: moduleStatusTone(statusKey),
+    counts: module.counts,
+  };
+  return {
+    ...module,
+    dashboardModuleView: view,
+    moduleProjection: view,
+  };
+}
+
+function normalizedModuleSourceKind(value: unknown): string {
+  const source = String(value || "").trim();
+  if (source === "registry" || source === "inferred" || source === "structure" || source === "graph") return source;
+  return source || "unknown";
+}
+
+function moduleSourceLabelKey(sourceKind: string): string {
+  const map: Record<string, string> = {
+    registry: "moduleSourceRegistry",
+    inferred: "moduleSourceInferred",
+    structure: "moduleSourceStructure",
+    graph: "moduleSourceGraph",
+    unknown: "moduleSourceUnknown",
+  };
+  return map[sourceKind] || "moduleSourceUnknown";
+}
+
+function normalizedModuleStatusKey(value: unknown): string {
+  const status = String(value || "").trim().replaceAll("-", "_");
+  if (status === "in_progress" || status === "planned" || status === "active" || status === "blocked" || status === "done" || status === "unknown") return status;
+  if (status === "registry" || status === "structure" || status === "inferred") return "planned";
+  return status || "unknown";
+}
+
+function moduleStatusLabelKey(statusKey: string): string {
+  const map: Record<string, string> = {
+    active: "active",
+    in_progress: "state_in_progress",
+    planned: "state_planned",
+    blocked: "state_blocked",
+    done: "state_done",
+    unknown: "state_unknown",
+  };
+  return map[statusKey] || `state_${statusKey}`;
+}
+
+function moduleStatusTone(statusKey: string): string {
+  if (statusKey === "blocked") return "fail";
+  if (statusKey === "planned" || statusKey === "unknown") return "warn";
+  if (statusKey === "active" || statusKey === "in_progress" || statusKey === "done") return "pass";
+  return "";
 }
 
 function emptyModuleCounts(): Record<string, number> {
@@ -509,7 +574,7 @@ function accumulateModuleTask(module: DashboardModuleSummary, task: Record<strin
   const state = dashboardTaskStateValue(task);
   module.counts.total += 1;
   module.counts[state] = (module.counts[state] || 0) + 1;
-  if (["in_progress", "review", "blocked", "planned", "not_started"].includes(state)) module.counts.active += 1;
+  if (["active", "missing-materials", "blocked", "review", "lessons", "confirmed", "confirmed-finalization-pending"].includes(state)) module.counts.active += 1;
   if (dashboardTaskHasRisk(task)) module.counts.risk += 1;
   if (dashboardTaskMissingDocs(task)) module.counts.missingDocs += 1;
   if (module.tasks.length < 16) {
@@ -557,8 +622,11 @@ function dashboardTaskHasRisk(task: Record<string, unknown>): boolean {
 }
 
 function dashboardTaskStateValue(task: Record<string, unknown>): string {
-  const lifecycle = dashboardTaskLifecycleProjection(task);
-  return String(lifecycle.state || task.state || "unknown");
+  const reviewView = dashboardTaskReviewWorkbenchQueueView(task);
+  if (reviewView.primaryQueue) return String(reviewView.primaryQueue);
+  const queues = Array.isArray(reviewView.queues) ? reviewView.queues : [];
+  if (queues.length) return String(queues[0]);
+  return "active";
 }
 
 function dashboardTaskLifecycleProjection(task: Record<string, unknown>): Record<string, unknown> {
@@ -706,15 +774,43 @@ export function collectAdoption(status: DashboardStatus) {
       detail: sanitizeText(message),
     };
   });
+  const existingBriefPaths = new Set(warnings.filter((warning) => warning.type === "missing-brief").map((warning) => warning.affected));
+  const briefWarnings = (Array.isArray(status.tasks) ? status.tasks as Array<Record<string, unknown>> : [])
+    .filter((task) => task.briefSource !== "standalone")
+    .filter((task) => !existingBriefPaths.has(String(task.path || "")))
+    .map((task, index) => {
+      const state = dashboardTaskStateValue(task);
+      return {
+        id: `VB-${String(index + 1).padStart(3, "0")}`,
+        category: "Visibility Layer",
+        type: "missing-brief",
+        scope: "task",
+        priority: ["active", "missing-materials", "blocked", "review", "lessons", "confirmed", "confirmed-finalization-pending"].includes(state) ? "P2" : "P3",
+        phase: "active-task-contracts",
+        fixability: "guided",
+        status: "open",
+        confidence: state === "unknown" ? "medium" : "high",
+        severity: "advice",
+        title: "Visibility brief missing",
+        affected: String(task.path || ""),
+        affectedPaths: [String(task.path || "")].filter(Boolean),
+        requiredAction: "Add a human-readable brief before this task is treated as migrated.",
+        detail: `${String(task.id || "")} ${String(task.title || "")}`.trim(),
+      };
+    });
+  const warningQueue = [...warnings, ...briefWarnings];
   return {
     mode: status.mode,
     project: status.project,
     summary: {
       blockers: status.checkState.failures,
-      advice: warnings.length,
-      ...summarizeWarnings(warnings),
+      advice: warningQueue.length,
+      ...summarizeWarnings(warningQueue),
     },
-    warnings,
+    warnings: warningQueue,
+    warningProjection: {
+      queue: warningQueue,
+    },
     manualSteps: {
       zh: [
         "先查看升级建议，决定当前项目要采用哪些 v1.0 能力合同。",
@@ -796,6 +892,7 @@ export function buildDashboardBundle(targetInput: string, options: DashboardOpti
     warnings: [...capabilityState.warnings, ...legacyWarnings, ...governanceBoundaries.warnings, ...gitState.warnings],
   });
   const documents = { documents: collectMarkdownDocuments(target, { tasks: status.tasks as DashboardTaskRef[] }) };
+  attachDocumentProjection(status, documents.documents);
   const tables = collectTables(documents.documents);
   const graph = collectGraph(status, tables, target);
   const modules = collectDashboardModules(status, target);
@@ -812,6 +909,28 @@ export function buildDashboardBundle(targetInput: string, options: DashboardOpti
     adoption,
     presetCatalog,
   }) as DashboardBundle;
+}
+
+function attachDocumentProjection(status: DashboardStatus, documents: DashboardDocument[]): void {
+  const tasks = Array.isArray(status.tasks) ? status.tasks as Array<Record<string, unknown>> : [];
+  for (const task of tasks) {
+    const taskPath = String(task.path || "");
+    if (!taskPath) continue;
+    const byKey: Record<string, DashboardDocument> = {};
+    for (const document of documents) {
+      if (document.path !== taskPath && !document.path.startsWith(`${taskPath}/`)) continue;
+      const key = documentKeyForTaskPath(taskPath, document.path);
+      if (key) byKey[key] = document;
+    }
+    task.documentsByKey = byKey;
+    task.documentProjection = { byKey };
+  }
+}
+
+function documentKeyForTaskPath(taskPath: string, documentPath: string): string {
+  const relative = documentPath.slice(taskPath.length).replace(/^\/+/, "");
+  if (!relative) return "";
+  return relative.split("/").pop() || "";
 }
 
 function runDashboardCompatibilityCheck(target: DashboardTarget) {

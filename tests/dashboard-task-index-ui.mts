@@ -37,7 +37,7 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 function task(overrides: Record<string, unknown> = {}) {
-  return {
+  const item = {
     id: "TASKS/fixture",
     shortId: "fixture",
     title: "Fixture task",
@@ -54,7 +54,43 @@ function task(overrides: Record<string, unknown> = {}) {
     taskQueues: [],
     queueReasons: [],
     ...overrides,
+  } as Record<string, unknown>;
+  const queues = Array.isArray(item.taskQueues) && item.taskQueues.length ? item.taskQueues as string[] : ["active"];
+  const primaryQueue = queues.find((queue) => ["blocked", "missing-materials", "review", "lessons", "confirmed", "confirmed-finalization-pending", "finalized", "soft-deleted-superseded", "active"].includes(queue)) || queues[0] || "active";
+  item.taskLifecycleProjection ??= {
+    state: item.state,
+    lifecycleState: item.state,
+    reviewStatus: item.reviewStatus,
+    reviewQueueState: item.reviewQueueState,
+    closeoutStatus: item.closeoutStatus,
+    taskQueues: queues,
+    materialsReady: true,
+    reviewSubmitted: item.reviewStatus === "agent-reviewed",
   };
+  item.reviewWorkbenchQueueView ??= {
+    queues,
+    primaryQueue,
+    inQueue: primaryQueue !== "active",
+    humanConfirmable: item.reviewQueueState === "ready-to-confirm" && primaryQueue === "review",
+    blocked: primaryQueue === "blocked",
+    needsMaterials: primaryQueue === "missing-materials",
+    confirmed: primaryQueue === "confirmed",
+    finalized: primaryQueue === "finalized",
+    hasPendingLessonWork: primaryQueue === "lessons",
+    readyForCloseout: primaryQueue === "confirmed-finalization-pending",
+    reasonCodes: [],
+    reasonSummaries: [],
+  };
+  item.dashboardTaskView ??= {
+    materials: { briefReady: item.briefSource === "standalone", visualMapReady: item.visualMapStatus !== "missing", evidenceReady: item.visualMapStatus !== "missing" && item.briefSource === "standalone", blockingReasonCodes: [] },
+    swimlane: { visible: primaryQueue !== "finalized", rowKey: item.module || item.inferredModule || "legacy-unclassified", columnKey: primaryQueue },
+  };
+  item.semanticProjection ??= {
+    taskLifecycleProjection: item.taskLifecycleProjection,
+    reviewWorkbenchQueueView: item.reviewWorkbenchQueueView,
+    dashboardTaskView: item.dashboardTaskView,
+  };
+  return item;
 }
 
 function createSandbox(extra: Record<string, unknown> = {}): DashboardSandbox {
@@ -108,6 +144,39 @@ assert(statsHtml.includes(">7</span>"), "task stats total should include all tas
 assert(statsHtml.includes("Active"), "task stats should expose lifecycle queue buckets so displayed buckets add up");
 assert(!statsHtml.includes("not started"), "task stats should not expose raw task states as primary task index buckets");
 assert(!statsHtml.includes("unknown"), "task stats should not expose raw unknown states as primary task index buckets");
+
+const missingProjectionSandbox = createSandbox();
+vm.runInContext(`
+  bundle.status.tasks = [{
+    id: "TASKS/raw-without-projection",
+    shortId: "raw-without-projection",
+    title: "Raw without projection",
+    path: "TARGET:coding-agent-harness/planning/tasks/raw-without-projection",
+    state: "in_progress",
+    module: "dashboard",
+    inferredModule: "",
+    completion: 40,
+    reviewStatus: "agent-reviewed",
+    reviewQueueState: "ready-to-confirm",
+    closeoutStatus: "missing",
+    taskQueues: ["review"],
+    queueReasons: [{ code: "raw-only" }],
+    taskLifecycleProjection: undefined,
+    reviewWorkbenchQueueView: undefined,
+    dashboardTaskView: undefined,
+    semanticProjection: undefined,
+  }];
+  state.taskState = "active";
+  __result = JSON.stringify({
+    state: taskStateValue(bundle.status.tasks[0]),
+    activeCount: moduleCountsForTasks(bundle.status.tasks).active,
+    filteredActive: filteredTasks().map((item) => item.id),
+  });
+`, missingProjectionSandbox);
+const missingProjectionResult = JSON.parse(String(missingProjectionSandbox.__result)) as { state: string; activeCount: number; filteredActive: string[] };
+assert(missingProjectionResult.state === "unknown", "task state should fail closed to unknown when queue projections are missing");
+assert(missingProjectionResult.activeCount === 0, "module/task counts must not treat projection-missing tasks as active");
+assert(missingProjectionResult.filteredActive.length === 0, "task filters must not show projection-missing raw active/review tasks in the active bucket");
 
 const projectionSandbox = createSandbox();
 vm.runInContext(`
@@ -199,6 +268,24 @@ vm.runInContext(`
       hasPendingLessonWork: false,
       readyForCloseout: false,
       reasonCodes: ["missing-review-submission"],
+      reasonSummaries: [{ code: "missing-review-submission", message: "missing packet" }],
+    },
+    dashboardTaskView: {
+      visibleInSwimlane: true,
+      swimlaneStage: "missing-materials",
+      swimlane: {
+        visible: true,
+        rowKey: "dashboard",
+        rowLabelKey: "",
+        columnKey: "missing-materials",
+        columnLabelKey: "queueMissingMaterials",
+        tone: "warn",
+        sortKey: "raw-review-missing-materials",
+      },
+      materials: { briefReady: true, visualMapReady: true, evidenceReady: false, blockingReasonCodes: ["missing-review-submission"] },
+      needsEvidence: false,
+      reasonCode: "",
+      reasonMessage: "",
     },
   }];
   state.taskState = "missing-materials";
@@ -221,6 +308,90 @@ assert(!lifecycleQueueResult.stats.some(([state]) => state === "review"), "raw r
 assert(lifecycleQueueResult.filtered.includes("TASKS/raw-review-missing-materials"), "task state filter should use lifecycle primary queue values");
 assert(lifecycleQueueResult.row.includes("missing materials"), "task row should display the lifecycle primary queue label");
 assert(lifecycleQueueResult.swimlaneCards.some(([id, stage]) => id === "TASKS/raw-review-missing-materials" && stage === "missing-materials"), "task swimlane should use the same lifecycle primary queue as list/grid views");
+
+const reviewQueueProjectionSandbox = createSandbox();
+vm.runInContext(`
+  bundle.status.tasks = [{
+    id: "TASKS/raw-review-projected-materials",
+    shortId: "raw-review-projected-materials",
+    title: "Raw review projected materials",
+    path: "TARGET:coding-agent-harness/planning/tasks/raw-review-projected-materials",
+    state: "review",
+    module: "dashboard",
+    inferredModule: "",
+    completion: 80,
+    reviewStatus: "agent-reviewed",
+    reviewQueueState: "ready-to-confirm",
+    closeoutStatus: "missing",
+    visualMapStatus: "present",
+    briefSource: "standalone",
+    taskQueues: ["review"],
+    queueReasons: [{ code: "raw-review-only", message: "raw reason must not drive review UI", severity: "P0" }],
+    taskLifecycleProjection: {
+      state: "review",
+      lifecycleState: "in_review",
+      reviewStatus: "agent-reviewed",
+      reviewQueueState: "needs-material",
+      closeoutStatus: "missing",
+      taskQueues: ["missing-materials"],
+      reviewSubmitted: true,
+    },
+    reviewWorkbenchQueueView: {
+      queues: ["missing-materials"],
+      primaryQueue: "missing-materials",
+      inQueue: true,
+      humanConfirmable: false,
+      blocked: false,
+      needsMaterials: true,
+      confirmed: false,
+      finalized: false,
+      hasPendingLessonWork: false,
+      readyForCloseout: false,
+      reasonCodes: ["projected-material"],
+      reasonSummaries: [{ code: "projected-material", message: "projected reason", severity: "P3" }],
+    },
+    dashboardTaskView: {
+      materials: { evidenceReady: false },
+    },
+  }];
+  state.query = "";
+  state.reviewSort = "queue";
+  state.reviewReasonFilter = "all";
+  state.reviewQueueTab = "review";
+  const reviewHtml = reviewQueue();
+  state.reviewQueueTab = "missing-materials";
+  const materialsHtml = reviewQueue();
+  state.reviewReasonFilter = "projected-material";
+  const projectedFilterHtml = reviewQueue();
+  state.reviewReasonFilter = "all";
+  state.query = "raw-review-only";
+  const rawSearchHtml = reviewQueue();
+  __result = JSON.stringify({
+    reviewHtml,
+    materialsHtml,
+    projectedFilterHtml,
+    rawSearchHtml,
+    queues: reviewTaskQueues(bundle.status.tasks[0]),
+    reasonOptions: reviewReasonOptions(bundle.status.tasks),
+    priority: reviewPriorityRank(bundle.status.tasks[0]),
+  });
+`, reviewQueueProjectionSandbox);
+const reviewQueueProjectionResult = JSON.parse(String(reviewQueueProjectionSandbox.__result)) as {
+  reviewHtml: string;
+  materialsHtml: string;
+  projectedFilterHtml: string;
+  rawSearchHtml: string;
+  queues: string[];
+  reasonOptions: string[];
+  priority: number;
+};
+assert(!reviewQueueProjectionResult.reviewHtml.includes("Raw review projected materials"), "review queue tab must not include tasks solely because raw taskQueues contains review");
+assert(reviewQueueProjectionResult.materialsHtml.includes("Raw review projected materials"), "missing-materials tab should include tasks from reviewWorkbenchQueueView projection");
+assert(reviewQueueProjectionResult.projectedFilterHtml.includes("Raw review projected materials"), "reason filter should use projected reason codes");
+assert(!reviewQueueProjectionResult.rawSearchHtml.includes("Raw review projected materials"), "review queue search must not use raw queueReasons");
+assert(reviewQueueProjectionResult.queues.includes("missing-materials") && !reviewQueueProjectionResult.queues.includes("review"), "review queue helper should expose projected queues only");
+assert(reviewQueueProjectionResult.reasonOptions.includes("projected-material") && !reviewQueueProjectionResult.reasonOptions.includes("raw-review-only"), "review reason options should expose projected reason codes only");
+assert(reviewQueueProjectionResult.priority === 1, "review priority should be driven by projected queue rank, not raw P0 reason severity");
 
 const reviewAffordanceSandbox = createSandbox();
 vm.runInContext(`

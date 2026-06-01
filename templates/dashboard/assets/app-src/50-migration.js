@@ -93,29 +93,9 @@ function warningRow(warning) {
 }
 
 function warningQueue() {
-  const adoptionWarnings = (bundle.adoption?.warnings || []).map((warning) => ({ ...warning }));
-  const existingBriefPaths = new Set(adoptionWarnings.filter((warning) => warning.type === "missing-brief").map((warning) => warning.affected));
-  const briefWarnings = (bundle.status?.tasks || [])
-    .filter((task) => task.briefSource !== "standalone")
-    .filter((task) => !existingBriefPaths.has(task.path))
-    .map((task, index) => ({
-      id: `VB-${String(index + 1).padStart(3, "0")}`,
-      category: "Visibility Layer",
-      type: "missing-brief",
-      scope: "task",
-      priority: (typeof isActiveTaskState === "function" && isActiveTaskState(taskStateValue(task))) || ["planned", "not_started"].includes(taskStateValue(task)) ? "P2" : "P3",
-      phase: "active-task-contracts",
-      fixability: "guided",
-      status: "open",
-      confidence: taskStateValue(task) === "unknown" ? "medium" : "high",
-      severity: "advice",
-      title: t("visibilityBriefMissing"),
-      affected: task.path,
-      affectedPaths: [task.path],
-      requiredAction: t("addVisibilityBrief"),
-      detail: `${task.id} ${task.title}`,
-    }));
-  return [...adoptionWarnings, ...briefWarnings].sort(warningSort);
+  const projected = bundle.adoption?.warningProjection?.queue;
+  const warnings = Array.isArray(projected) ? projected : (bundle.adoption?.warnings || []);
+  return warnings.map((warning) => ({ ...warning })).sort(warningSort);
 }
 
 function warningSort(left, right) {
