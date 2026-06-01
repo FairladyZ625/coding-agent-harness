@@ -6,7 +6,7 @@ import {
   readFileSafe,
   toPosix,
 } from "./core-shared.mjs";
-import { collectTasks } from "./task-scanner.mjs";
+import { createScannerTaskRepository } from "./task-repository.mjs";
 import { taskScannerVersion } from "./task-review-model.mjs";
 
 type TaskIndexTarget = ReturnType<typeof normalizeTarget> & {
@@ -77,11 +77,9 @@ type TaskIndexIssue = {
   sourcePath?: string;
 };
 
-const collectTasksForIndex = collectTasks as (target: TaskIndexTarget) => TaskIndexTask[];
-
 export function buildTaskIndex(targetInput: string | undefined) {
   const target = normalizeTarget(targetInput) as TaskIndexTarget;
-  const tasks = collectTasksForIndex(target);
+  const tasks = createScannerTaskRepository(target).list() as TaskIndexTask[];
   assertUniqueTaskKeys(tasks);
   return {
     schemaVersion: target.harness.version === 2 ? "task-index/v2" : "task-index/v1",
