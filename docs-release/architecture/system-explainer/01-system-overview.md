@@ -56,8 +56,8 @@ Coding Agent Harness 不是 Agent 的替代品，而是 Agent 的约束装置：
 ```mermaid
 flowchart LR
   A["📦 Package\n发布的 npm 包\n（CLI + 模板 + 标准 + Preset）"]
-  B["📁 Target Repo\n用户的项目仓库\n（文档树 + 状态文件）"]
-  C["⚙️ Runtime\n运行时引擎\n（扫描 + 检查 + 生成）"]
+  B["📁 Target Repo\n用户的项目仓库\n（Harness 工作区 + 状态文件）"]
+  C["⚙️ Runtime\n运行时引擎\n（命令注册 + 应用用例 + 投影视图）"]
   D["👤 Human\n人类检查入口\n（Dashboard + 审查确认）"]
 
   A -->|"scaffold + validate"| B
@@ -67,8 +67,8 @@ flowchart LR
 ```
 
 - **Package**：你 `npm install` 的那个东西，包含 CLI、模板、标准文档、Preset 包
-- **Target Repo**：你的项目，harness 在里面创建 `coding-agent-harness/` 文档树来记录任务状态
-- **Runtime**：CLI 运行时，扫描文档树、验证合规、生成 Dashboard
+- **Target Repo**：你的项目，harness 在里面创建 `coding-agent-harness/` 工作区来记录任务状态
+- **Runtime**：CLI 运行时，通过命令注册、应用用例、仓储端口和语义投影生成可审查视图
 - **Human**：浏览器里看 Dashboard，在 Workbench 里做审查确认
 
 注意这个循环的方向：**Package 写入 Target Repo，Runtime 读取 Target Repo，
@@ -86,7 +86,7 @@ flowchart TD
   PKG["📦 Package\ncoding-agent-harness@npm"]
 
   PKG --> CLI["harness CLI\ndist/harness.mjs\n唯一命令入口"]
-  PKG --> Lib["核心库\nscripts/lib/\n~30 个模块，6 个功能层"]
+  PKG --> Lib["核心库\nscripts/lib/\n命令注册 + 应用用例 + 领域内核"]
   PKG --> Templates["模板\ntemplates/\n任务骨架 + 模块根模板"]
   PKG --> References["操作标准\nreferences/\n可复制到目标仓库的规范文档"]
   PKG --> Presets["Preset 包\npresets/\n可复用任务方法（legacy-migration / module 等）"]
@@ -104,13 +104,14 @@ flowchart TD
   REPO --> Entry["AGENTS.md\nAgent 入口和路由\n（告诉 Agent 去哪里找上下文）"]
   REPO --> Manifest["coding-agent-harness/harness.yaml\n启用能力和目录结构"]
   REPO --> Harness["coding-agent-harness/\nHarness 工作区"]
-  REPO --> Docs["docs/\nReference 文档和项目标准"]
+  REPO -.-> LegacyDocs["docs/\n旧结构迁移输入\n不是当前运行态"]
 
   Harness --> Planning["planning/\n任务目录 + 模块目录"]
   Harness --> Ledger["governance/generated/Harness-Ledger.md\n全局账本（所有任务汇总）"]
   Harness --> Walkthrough["任务本地 walkthrough.md\n收口证据"]
-  Docs --> Reference["coding-agent-harness/governance/standards/\n本地操作标准（从 Package 复制过来）"]
-  Docs --> Governance["01-GOVERNANCE/\nLesson 沉淀库"]
+  Harness --> Reference["governance/standards/\n本地操作标准（从 Package 复制过来）"]
+  Harness --> Governance["governance/lessons/\nLesson 沉淀库"]
+  LegacyDocs -.-> Migration["legacy migration\n只作为迁移证据读取"]
 ```
 
 每个任务对应 `coding-agent-harness/planning/tasks/<task-id>/` 下的一个目录，
@@ -119,21 +120,25 @@ flowchart TD
 `brief.md` 和 `module_plan.md`，模块任务放在
 `coding-agent-harness/planning/modules/<key>/tasks/<task-id>/`。
 
+如果目标仓库还存在根目录 `docs/`，它属于旧结构迁移输入或历史证据，
+不是 v2 运行态的 Reference 文档和项目标准来源。
+
 ### Runtime 做什么
 
 ```mermaid
 flowchart TD
   RT["⚙️ Runtime\nharness CLI 运行时"]
 
-  RT --> Scan["扫描\n读取所有任务文件\n解析状态 / 阶段 / 审查 / Lesson"]
-  RT --> Check["检查\n9 个验证器验证合规性\n输出 failures / warnings"]
-  RT --> Generate["生成\n输出 Dashboard HTML + JSON 索引\n输出治理索引表"]
-  RT --> Migrate["迁移\n分析旧项目差距\n生成迁移动作队列"]
-  RT --> Lifecycle["生命周期\n执行状态转换命令\n写入 Governance Sync"]
+  RT --> Commands["命令注册\nCommandDefinition[] 绑定 CLI 动作"]
+  RT --> UseCases["应用用例\nTaskOperations 编排生命周期和审查"]
+  RT --> Ports["端口\nTaskRepository / HarnessTransaction 隔离文件系统写入"]
+  RT --> Projection["语义投影\nTaskLifecycleProjection / DashboardTaskView"]
+  RT --> Render["生成\n输出 Dashboard HTML + JSON 索引\n输出治理索引表"]
 ```
 
-Runtime 是**无状态的**——每次运行都从 Markdown 文件重新读取，
-不缓存任何中间状态（除了 `harness dev` 的文件监听）。
+Runtime 是**无状态的**——每次运行都从 Markdown 文件重新读取。
+Dashboard、Workbench 队列和治理索引都是从任务源文件派生出来的投影视图，
+不是第二套事实来源。
 
 ---
 

@@ -4,15 +4,22 @@
 
 ```mermaid
 flowchart LR
-  A["📄 Markdown files\n(source files under coding-agent-harness/)"]
-  B["⚙️ Scanner\n(parse + validate)"]
-  C["📊 Dashboard\n(HTML + JSON)"]
+  Source["Markdown source of truth\ncoding-agent-harness/"]
+  Repository["TaskRepository\ncompatibility read seam"]
+  Status["status model\nscanner + validators"]
+  Projection["Task semantic projection\nunified lifecycle / review / queue semantics"]
+  Dashboard["Dashboard / Workbench / generated indexes"]
 
-  A -->|"read"| B -->|"generate"| C
+  Source --> Repository
+  Repository --> Status
+  Status --> Projection
+  Projection --> Dashboard
 ```
 
-All data comes from Markdown files — no database, no external services.
-Every run re-reads from the filesystem from scratch, caching no intermediate state.
+Authoritative facts live only in Markdown files under `coding-agent-harness/`.
+Scanner output, status JSON, Dashboard bundles, generated indexes, and
+projections are rebuildable views. They may be cached or written to disk, but
+they must not become a second source of truth.
 
 ---
 
@@ -22,163 +29,145 @@ Every run re-reads from the filesystem from scratch, caching no intermediate sta
 flowchart TD
   Sources["Data source files"]
 
-  Sources --> TP["task_plan.md\nBudget / title / metadata / Preset info\nTask Contract marker"]
+  Sources --> IDX["INDEX.md\nTask Audit Metadata / review confirmation"]
+  Sources --> TP["task_plan.md\nBudget / title / Tombstone / Preset info / Task Contract"]
   Sources --> PR["progress.md\nCurrent state / operation log"]
   Sources --> VM["visual_map.md\nPhase list / completion / evidence status"]
-  Sources --> RV["review.md\nFindings table / human confirmation block"]
+  Sources --> RV["review.md\nAgent review submission / findings"]
   Sources --> BR["brief.md\nTask summary"]
   Sources --> LC["lesson_candidates.md\nLesson candidates / decision state"]
-  Sources --> HL["Harness-Ledger.md\nGlobal ledger (all tasks summarized)"]
   Sources --> ES["execution_strategy.md\nSubagent authorization state"]
+  Sources --> WO["walkthrough.md\nCloseout evidence"]
 ```
+
+Generated `Harness-Ledger.md`, task-index, module-index, Closeout index, and
+Dashboard JSON are not hand-written sources. They support browsing, review, and
+context recovery, but must be rebuildable from the source files.
 
 ---
 
-## Level 2 — How the Scanner processes these files
+## Level 2 — How TaskRepository reads tasks
 
-The Scanner layer (`task-scanner.mjs` + `task-review-model.mjs`) parses raw Markdown
-into structured objects.
+```mermaid
+flowchart TD
+  Repo["TaskRepository"]
+  List["list(query)"]
+  Get["get(ref)"]
+  Resolve["resolve(ref)"]
+  Materials["readMaterials(ref)"]
+  Scanner["legacy scanner\ncollectTasks / task discovery"]
 
-### collectTasks() discovery flow
+  Repo --> List
+  Repo --> Get
+  Repo --> Resolve
+  Repo --> Materials
+  List --> Scanner
+  Get --> Scanner
+  Resolve --> Scanner
+  Materials --> Scanner
+```
+
+`TaskRepository` wraps the existing scanner. Callers see task records and task
+materials, not `listTaskPlanPaths()`, directory exclusion rules, or legacy
+visual-map fallback internals.
+
+### Task discovery flow
 
 ```mermaid
 flowchart TD
   CT["collectTasks()"]
-
-  CT --> Discover["listTaskPlanPaths()\nScans two root directories:\ncoding-agent-harness/planning/tasks/\ncoding-agent-harness/planning/modules/\nFilters out template and archive directories"]
-
-  Discover --> ReadFiles["For each task directory, reads 9 files:\ntask_plan / brief / progress\nreview / visual_map\nexecution_strategy\nlesson_candidates / findings / context"]
-
-  ReadFiles --> Parse["Parse each file"]
-
-  Parse --> P1["parseTaskBudget()\nExtract budget from task_plan.md"]
-  Parse --> P2["parseTaskState()\nExtract state from progress.md"]
-  Parse --> P3["parsePhases()\nExtract phase list from visual_map.md"]
-  Parse --> P4["parseAgentReviewSubmission()\nExtract Agent submission state from review.md"]
-  Parse --> P5["parseReviewConfirmation()\nExtract human confirmation block from review.md"]
-  Parse --> P6["parseLessonCandidateStatus()\nExtract decision state from lesson_candidates.md"]
-  Parse --> P7["parseTaskTombstone()\nExtract soft-delete state from task_plan.md"]
-
-  P1 & P2 & P3 & P4 & P5 & P6 & P7 --> Derive["Derivation (pure functions)"]
-
-  Derive --> LS["deriveLifecycleState()\nDerive lifecycleState from combined inputs"]
-  Derive --> QS["deriveTaskQueues()\nDetermine which queues the task belongs to"]
-  Derive --> RQS["deriveReviewQueueState()\nDerive reviewQueueState"]
+  CT --> Discover["Scan\ncoding-agent-harness/planning/tasks/\ncoding-agent-harness/planning/modules/<key>/tasks/"]
+  Discover --> Read["Read task package Markdown\nINDEX / task_plan / brief / progress / review / visual_map / lesson_candidates / findings / walkthrough"]
+  Read --> Parse["Parse raw fields"]
+  Parse --> Status["Assemble status task record"]
 ```
 
-### parseTaskState() format
-
-Extracts state from the first line after the `## Current Status` or `## Status` heading
-in `progress.md`:
-
-```markdown
-## Current Status
-
-in_progress
-```
-
-Supports Chinese aliases (`进行中` → `in_progress`). Falls back to legacy table parsing
-mode if the format doesn't match expectations.
-
-### parsePhases() table format
-
-Finds the table with a `Phase ID` column header in `visual_map.md` and extracts 9 fields:
-
-```markdown
-| Phase ID | Depends On | State | Completion | Output | Required Evidence | Evidence Status | Blocking Risk | Owner / Handoff |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| P1 | — | done | 100 | ... | E-001 | present | low | coordinator |
-```
-
-The dependency field supports multiple values separated by commas, semicolons, or `&`.
+The scanner still parses Markdown tables, state, phases, review submission,
+confirmation, lesson decisions, and tombstones. The post-refactor difference is
+that every UI or command surface should not re-interpret those raw fields on its own.
 
 ---
 
-## Level 2 — What buildStatus() assembles from Scanner results
+## Level 2 — What status output contains
+
+`buildStatus()` assembles machine-readable state from repository/scanner output
+and validator output:
 
 ```mermaid
 flowchart TD
-  BS["buildStatus()"]
-
-  BS --> Tasks["tasks[]\nComplete structured data for each task\n(see field list below)"]
-  BS --> Failures["failures[]\nHard failure list"]
-  BS --> Warnings["warnings[]\nSoft warning list"]
-  BS --> Caps["capabilities[]\nCapability registry state"]
-  BS --> Git["git\nGit status summary (dirty files etc.)"]
-  BS --> Summary["summary\nbriefCoverage / visualMapCoverage\nfullCutoverEligible and other aggregate metrics"]
+  Status["buildStatus()"]
+  Status --> Tasks["tasks[]\nraw task records + semantic projection"]
+  Status --> Failures["failures[]"]
+  Status --> Warnings["warnings[]"]
+  Status --> Caps["capabilities[]"]
+  Status --> Git["git status summary"]
+  Status --> Summary["summary metrics"]
 ```
 
-**Complete fields of a task object**:
-
-| Field | Meaning |
-| --- | --- |
-| `path` | Relative path |
-| `title` | Task title |
-| `state` | Task state (`in_progress / done / ...`) |
-| `stateSource` | State source (`valid / invalid`) |
-| `budget` | Budget level (`simple / standard / complex`) |
-| `lifecycleState` | Derived lifecycle state |
-| `reviewQueueState` | Review queue state |
-| `taskQueues[]` | List of queues the task belongs to |
-| `phases[]` | Phase list (with id / state / completion / evidenceStatus) |
-| `closeoutStatus` | Closeout status |
-| `tombstone` | Soft-delete information |
-| `briefSource` | Brief source (`standalone / missing / ...`) |
-| `visualMapSource` | Visual map source (`canonical / legacy / missing`) |
-| `taskPreset` | Preset ID used |
-| `presetVersion` | Preset version |
-| `handoffs` | Handoff information array |
-| `lessonCandidateDecisionComplete` | Whether Lesson decision is complete |
+Each task record still keeps raw fields such as `state`, `reviewStatus`,
+`reviewQueueState`, `taskQueues`, `closeoutStatus`, `materialsReady`, and
+`lessonCandidateDecisionComplete`. These fields are useful for debugging, but
+Dashboard and generated governance rows should prefer semantic projection.
 
 ---
 
-## Level 3 — What buildDashboardBundle() adds on top of status
+## Level 2 — Task Semantic Projection
 
-`buildDashboardBundle()` calls `buildStatus()` then additionally collects four types of data:
+```mermaid
+flowchart TD
+  Raw["raw task record"]
+  Projection["buildTaskSemanticProjection()"]
+  Lifecycle["TaskLifecycleProjection"]
+  DashView["DashboardTaskView"]
+  ReviewView["ReviewWorkbenchQueueView"]
+
+  Raw --> Projection
+  Projection --> Lifecycle
+  Projection --> DashView
+  Projection --> ReviewView
+```
+
+Projection wraps one raw task record into three explicit views:
+
+| Projection | Core fields | Consumers |
+| --- | --- | --- |
+| `TaskLifecycleProjection` | `state`, `lifecycleState`, `reviewStatus`, `reviewQueueState`, `closeoutStatus`, `taskQueues`, `materialsReady`, `reviewSubmitted`, `deletionState` | status JSON, task-index, generated governance rows |
+| `DashboardTaskView` | `visibleInSwimlane`, `swimlaneStage`, `needsEvidence`, `reasonCode`, `reasonMessage` | Dashboard task list, detail drawer, swimlane |
+| `ReviewWorkbenchQueueView` | `primaryQueue`, `humanConfirmable`, `blocked`, `needsMaterials`, `confirmed`, `finalized`, `readyForCloseout`, `reasonCodes` | Review Workbench, bulk confirmation, review queue |
+
+This boundary prevents the same task from having different meanings in top-line
+stats, lifecycle workbench, swimlanes, and review tables. The frontend may decide
+layout, color, and filtering, but it must not redefine whether a task is
+review-ready, blocked, confirmed, or finalized.
+
+---
+
+## Level 3 — How the Dashboard bundle uses projection
 
 ```mermaid
 flowchart TD
   Bundle["buildDashboardBundle()"]
+  Bundle --> Status["status\nwith semanticProjection"]
+  Bundle --> Documents["documents[]\nMarkdown document content"]
+  Bundle --> Tables["tables[]\nMarkdown table structure"]
+  Bundle --> Graph["graph\ntask / phase / module dependencies"]
+  Bundle --> Adoption["adoption\nmigration adoption state"]
 
-  Bundle --> Status["status\n(from buildStatus)"]
-  Bundle --> Documents["documents[]\nContent of all Markdown documents\nEach document: id / path / title / type / content"]
-  Bundle --> Tables["tables[]\nMarkdown tables extracted from documents\nEach table: column definitions + row data"]
-  Bundle --> Graph["graph\nTask dependency graph\nnodes (tasks/phases/modules/steps)\nedges (dependency/containment/handoff relationships)"]
-  Bundle --> Adoption["adoption\nMigration adoption state analysis\n(warnings categorized with priority and fix suggestions)"]
+  Status --> UI["Dashboard UI"]
+  Status --> Workbench["Workbench API responses"]
+  Status --> Generated["generated task rows"]
 ```
+
+Dashboard bundle adds documents, tables, graph, and adoption analysis on top of
+status. Task lifecycle, review queue, swimlane stage, and confirmability should
+come from projection, not from mixing raw `state`, `reviewStatus`, and
+`taskQueues` again in `app.js` or Workbench handlers.
 
 ### documents collection scope
 
-Which files `collectMarkdownDocuments()` collects:
-
-```mermaid
-flowchart TD
-  Collect["collectMarkdownDocuments()"]
-
-  Collect --> Fixed["Fixed paths (collected when they exist)\nHarness-Ledger.md\nharness.yaml modules.items\ncoding-agent-harness/planning/modules/Module-Registry.md\ncoding-agent-harness/governance/regression/Regression-SSoT.md\ncoding-agent-harness/governance/generated/Closeout-Index.md"]
-
-  Collect --> Walkthrough["All .md files under coding-agent-harness/planning/tasks/<task>/\n(excluding _archive/ and files starting with _)"]
-
-  Collect --> TaskDocs["Under each task directory:\nbrief / task_plan / execution_strategy\nvisual_map / lesson_candidates\nprogress / review / findings\nreferences/INDEX.md / artifacts/INDEX.md"]
-
-  Collect --> ModuleDocs["Under coding-agent-harness/planning/modules/:\nroot brief.md / module_plan.md for each module\ntask contracts under tasks/<task>/"]
-
-  Collect --> Lessons["All .md files under 01-GOVERNANCE/lessons/"]
-```
-
-After collection, uniformly filters out `_archive/`, `_task-template/`, and
-`_optional-structures/` paths.
-
-### graph data structure
-
-The graph contains two types of elements:
-
-- **nodes**: task nodes, phase nodes, module nodes, step nodes
-- **edges**: dependency relationships (phase → phase), containment relationships (task → phase),
-  handoff relationships (step → step)
-
-If the source node of a dependency doesn't exist, a virtual node of type
-`external-dependency` is created.
+`collectMarkdownDocuments()` still collects fixed governance files, task package
+files, module files, and lesson files. Those documents support human reading and
+table browsing; they do not change task lifecycle semantics.
 
 ---
 
@@ -188,103 +177,51 @@ If the source node of a dependency doesn't exist, a virtual node of type
 flowchart LR
   subgraph "Static mode (read-only snapshot)"
     SC["harness dashboard\n--out-dir ./out"]
-    SC --> SH["index.html\n(all resources inlined)"]
-    SC --> SJ["dashboard-data.json\n(for external tools to read)"]
+    SC --> SH["index.html\ninlined resources"]
+    SC --> SJ["dashboard-data.json"]
     SC --> SF["status.json / tables.json\ndocuments.json / graph.json\nadoption.json"]
   end
 
   subgraph "Dynamic mode (Workbench)"
     DC["harness dev"]
-    DC --> HTTP["Local HTTP server\nlocalhost:PORT"]
-    DC --> Watch["File watching\nPolling mode, checks every 1 second\nRegenerates after 250ms delay on change"]
-    HTTP --> Browser["Live browser view\nSupports human confirmation and other write operations"]
+    DC --> HTTP["Local HTTP server\n127.0.0.1"]
+    HTTP --> Browser["Live view\nhuman confirmation and other writes"]
+    Browser --> Ops["TaskOperations\nbusiness actions"]
+    Ops --> Tx["HarnessTransaction / legacy writers\nscoped Markdown writes + Git commit"]
   end
 ```
 
-**Key boundary**: The static Dashboard is read-only and cannot trigger any write operations.
-Only `harness dev` (Workbench mode) can execute write operations like human confirmation
-and `task-start`.
-
-### Dashboard HTML generation
-
-Dashboard HTML is generated via string concatenation (no template engine).
-`app.js` is obtained via manifest or direct read — if a manifest exists, it reads and
-concatenates multiple source files in order (modular source code under `app-src/`).
-
-`<` in the payload is escaped to `&lt;` to prevent HTML injection.
-
-### File watching implementation
-
-`dashboard-workbench.mjs` file watching uses **polling mode** (`startPollingWatch()`):
-- Checks the latest modification time (mtime) of the directory tree every 1000ms
-- When a change is detected, triggers regeneration after a 250ms delay (debounce)
-- Watch scope: the entire `target.docsRoot`, excluding `.git`, `node_modules`, `tmp`
+The static Dashboard is a shareable evidence snapshot and cannot trigger writes.
+Workbench is local-only. Writes must pass host/origin/CSRF checks,
+TaskOperations business gates, and scoped write boundaries.
 
 ---
 
-## Level 3 — Core capabilities of markdown-utils.mjs
+## Level 3 — Role of markdown-utils.mjs
 
-The technical foundation that lets the whole system derive state from Markdown files is
-the table parsing capability provided by `markdown-utils.mjs`:
-
-| Function | Purpose |
-| --- | --- |
-| `markdownTableRows()` | Extract all table rows |
-| `parseAllMarkdownTables()` | Parse all tables in a document, return array of structured objects |
-| `splitMarkdownRow()` | Split row cells (handles escaped pipe characters and code blocks) |
-| `tableAfterHeading()` | Locate the table after a specific heading |
-| `getCell()` | Get a cell by column name (supports multiple aliases) |
-| `splitList()` | Split comma/semicolon/plus-separated lists |
-| `splitDependencies()` | Split dependencies, filtering out `none/n/a` placeholders |
-
-**Pipe characters inside code blocks**: `splitMarkdownRow()` tracks code block state —
-`|` inside code blocks is not treated as a column separator and the original content is preserved.
+`markdown-utils.mjs` remains the low-level Markdown table parsing foundation. It
+extracts rows, locates columns, reads cells, splits lists, and splits dependencies.
+It does not decide whether a task is confirmable, complete, or in the review queue.
 
 ---
 
 ## Level 2 — Design decisions
 
-### Why Dashboard is plain HTML + vanilla JS, not React/Vite
+### Why projection is not source of truth
 
-harness is distributed via `npx`. Introducing React/Vite would mean users pull in large
-build dependencies on every run, breaking the zero-dependency portability. Static HTML can
-be opened directly from `file://` and shared as a CI evidence snapshot without any runtime.
+Projection is a named view over the raw task record. It eliminates semantic drift
+across consumers, but it must not be hand-written and must not bypass task files.
+After deleting generated JSON or Dashboard output, running scanner/status again
+should produce an equivalent projection.
 
-The vanilla JS components in app-src (`DashboardShell`, `SidebarNav`, `TableView`, etc.)
-are concatenated in order via manifest. Each file is < 600 lines, git-diff readable,
-no webpack/esbuild needed.
+### Why Dashboard remains plain HTML + vanilla JS
+
+harness is distributed through `npx`. Introducing React/Vite would make each run
+pull build dependencies and break zero-dependency portability. Static HTML can
+open from `file://` and can be shared as a CI evidence snapshot.
 
 ### Why the static Dashboard is read-only
 
-The static Dashboard's role is "shareable evidence snapshot" — it can be generated by CI,
-opened offline, and sent to external reviewers. In these scenarios, write operations have
-no security boundary (no CSRF/Origin/Host validation). Write operations can only be
-executed in Workbench mode, because the Workbench server binds to `127.0.0.1` and has
-a complete security validation chain.
-
-### Why `harness dev` and `harness dashboard` are two separate commands
-
-`harness dashboard` generates a static read-only snapshot (suitable for CI, migration
-reports, offline evidence). `harness dev` starts a local dynamic Workbench server with
-file watching, auto-refresh, and human-confirmation write operations. The boundary is:
-**static snapshots can be shared; the dynamic Workbench is local-only**.
-
-### Why file watching uses polling instead of fs.watch
-
-`fs.watch` has known missed-event issues on macOS for deep directory trees, and harness's
-docs directory structure is a multi-level nested Markdown file tree. The polling approach
-is simple to implement, has predictable behavior, and doesn't introduce third-party
-dependencies like chokidar (consistent with the zero-dependency principle).
-1-second polling + 250ms debounce is sufficient for human editing scenarios.
-
-### Why not introduce SQLite or a JSON database
-
-Introducing JSON/SQLite without a clear authority boundary would create drift between
-Markdown, JSON, and SQLite as three separate facts. Git review is friendly to Markdown/JSON
-diffs but not to SQLite diffs. Current scale is "hundreds of tasks" — generated JSON +
-indexed in-memory filtering is sufficient.
-
-The decision: Markdown is the single source of truth, generated JSON index is a
-regenerable cache, and SQLite is only considered when task count and query complexity
-exceed what JSON can handle — and even then, only as a regenerable query cache, never
-hand-written, never as an authoritative source of truth.
+Static Dashboard has no safety boundary and is meant for sharing and review.
+Writes only run in local Workbench mode, where the server can validate host,
+origin, CSRF, Git state, and allowed paths.

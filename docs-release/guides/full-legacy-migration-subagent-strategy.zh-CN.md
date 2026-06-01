@@ -6,6 +6,13 @@ English source: `docs-release/guides/full-legacy-migration-subagent-strategy.md`
 
 当用户需要证明“另一个 agent 能迁移旧项目”，而不只是拿到 baseline safe-adoption 报告时，使用这份指南。
 
+## 路径术语
+
+本指南有意提到 `docs/Harness-Ledger.md`、`docs/09-PLANNING/**`、
+`docs/10-WALKTHROUGH/**`、`docs/11-REFERENCE/**` 和旧编号目录。它们是迁移过程中的
+legacy input evidence 和受限重写目标，不是当前 active v2 结构。active v2 目标位置是探测到的
+Harness 根目录，通常是 `coding-agent-harness/`，不是根目录 `docs/`。
+
 ## 完成定义
 
 只有全部满足时，legacy migration 才算完成：

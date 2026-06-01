@@ -59,7 +59,6 @@ flowchart TB
 flowchart TB
   Entry["AGENTS.md<br/>Agent 入口与路由"]
   Registry["coding-agent-harness/harness.yaml<br/>已启用能力"]
-  Docs["docs/"]
   Architecture["coding-agent-harness/context/architecture<br/>系统事实"]
   Development["coding-agent-harness/context/development<br/>本地设置与代码地图"]
   QA["coding-agent-harness/governance/regression<br/>回归与节奏"]
@@ -67,21 +66,28 @@ flowchart TB
   Planning["coding-agent-harness/planning<br/>任务与模块"]
   Walkthrough["coding-agent-harness/planning/tasks/<task><br/>收口证据"]
   Reference["coding-agent-harness/governance/standards<br/>本地运行标准"]
-  Ledger["Harness Ledger / SSoT / Lessons<br/>长期记忆"]
+  Generated["coding-agent-harness/governance/generated<br/>可重建索引与账本"]
+  Lessons["coding-agent-harness/governance/lessons<br/>已沉淀经验"]
+  LegacyDocs["docs/<br/>仅作为旧项目迁移输入"]
 
-  Entry --> Docs
-  Registry --> Docs
-  Docs --> Architecture
-  Docs --> Development
-  Docs --> QA
-  Docs --> Integrations
-  Docs --> Planning
-  Docs --> Walkthrough
-  Docs --> Reference
-  Docs --> Ledger
+  Entry --> Registry
+  Registry --> Architecture
+  Registry --> Development
+  Registry --> QA
+  Registry --> Integrations
+  Registry --> Planning
+  Registry --> Reference
+  Planning --> Walkthrough
+  Planning --> Generated
+  QA --> Generated
+  Reference --> Lessons
+  LegacyDocs -. "migrate-structure 输入" .-> Registry
 ```
 
-目标仓库是事实源。Agent 应该能从这些文件恢复上下文，而不是依赖上一轮聊天记忆。
+目标仓库是事实源。Agent 应该能从 `AGENTS.md` 和 v2
+`coding-agent-harness/` manifest 树恢复上下文，而不是依赖上一轮聊天记忆。
+旧根目录 `docs/` 可以在迁移期间存在，但 active runtime 状态属于
+`coding-agent-harness/`。
 
 ## 仓库运行模式
 
@@ -109,8 +115,9 @@ flowchart LR
   CLI --> UserSkill["install-user / doctor-user<br/>本机 Skill 设置"]
 
   Status --> Scanner["任务扫描器 + check profiles"]
-  Dashboard --> Bundle["status、tables、docs、graph、adoption warnings"]
-  Task --> Lifecycle["任务生命周期写入器"]
+  Dashboard --> Bundle["status、semantic projections、tables、docs、graph、adoption warnings"]
+  Task --> Operations["TaskOperations 用例"]
+  Operations --> Transaction["HarnessTransaction / 受限写入器"]
   Migration --> Planner["迁移规划器与验证器"]
 ```
 
@@ -122,19 +129,21 @@ flowchart LR
 sequenceDiagram
   autonumber
   participant CLI as harness dashboard/dev
-  participant Scanner as 扫描器 + 校验器
+  participant Repo as TaskRepository + scanner
+  participant Projection as task semantic projection
   participant Bundle as dashboard bundle
   participant Output as HTML 输出
   participant Browser as 浏览器
-  participant Target as 目标 docs
+  participant Target as 目标 harness 文件
 
-  CLI->>Scanner: 读取 AGENTS.md、docs、tasks、SSoT
-  Scanner->>Bundle: 构建 status、tables、documents、graph、warnings
+  CLI->>Repo: 读取 AGENTS.md 和 coding-agent-harness/
+  Repo->>Projection: 构建 lifecycle、dashboard、review queue 视图
+  Projection->>Bundle: 构建 status、tables、documents、graph、warnings
   Bundle->>Output: 写入 index.html、assets、data/*.json
   Browser->>Output: 打开静态 Dashboard 快照
   alt 本地 Workbench 模式
     Browser->>CLI: 提交已批准动作
-    CLI->>Target: 更新受限 Markdown 文件
+    CLI->>Target: 通过 TaskOperations / transaction 更新受限 Markdown
     CLI->>Output: 重新生成快照
   end
 ```
@@ -289,4 +298,4 @@ flowchart LR
   Registry --> Check
 ```
 
-Worker 负责局部任务与模块事实。Coordinator 负责全局投影：registries、ledgers、closeout indexes 和 regression state。
+Worker 负责局部任务与模块事实。Coordinator 负责全局生成视图：module registry、ledger、closeout index 和 regression summary。这些视图是 projection，不是第二事实源。

@@ -6,6 +6,14 @@ This guide is for agents migrating a large pre-v1 Harness project all the way to
 
 Use it when the user needs proof that another agent can migrate an old project, not just a baseline safe-adoption report.
 
+## Path Terminology
+
+This guide intentionally mentions old paths such as `docs/Harness-Ledger.md`,
+`docs/09-PLANNING/**`, `docs/10-WALKTHROUGH/**`, `docs/11-REFERENCE/**`, and
+legacy numbered directories. Treat them as legacy input evidence and scoped
+rewrite targets during migration. The active v2 destination is the detected
+Harness root, normally `coding-agent-harness/`, not root `docs/`.
+
 ## Definition of Done
 
 A legacy migration is complete only when all of these are true:
