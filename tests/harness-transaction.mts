@@ -26,6 +26,14 @@ type NewTaskResponse = {
   };
 };
 
+type ModuleStepResponse = {
+  governance?: {
+    commit?: {
+      committed?: boolean;
+    };
+  };
+};
+
 const target = path.join(tmpRoot, "harness-transaction-target");
 fs.mkdirSync(target);
 expectJson(["init", "--locale", "en-US", "--capabilities", "core,module-parallel", target]);
@@ -309,9 +317,12 @@ expectJson(["task-start", created.task.shortId || "transaction-lifecycle", "--me
 expectJson(["task-phase", created.task.shortId || "transaction-lifecycle", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", lifecycleTarget]);
 const reviewResult = expectJson(["task-review", created.task.shortId || "transaction-lifecycle", "--message", "ready for transaction review", lifecycleTarget]);
 assert(Boolean(reviewResult), "task-review should return JSON after transaction migration");
+const moduleStepResult = expectJson<ModuleStepResponse>(["module-step", "txn", "T-TRANSACTION-LIFECYCLE", "--state", "done", lifecycleTarget]);
+assert(moduleStepResult.governance?.commit?.committed === true, "module-step transaction should commit scoped governance changes");
 const ledgerPath = path.join(lifecycleTarget, "coding-agent-harness/governance/generated/Harness-Ledger.md");
 const modulePlanPath = path.join(lifecycleTarget, "coding-agent-harness/planning/modules/txn/module_plan.md");
 assert(fs.readFileSync(ledgerPath, "utf8").includes("Transaction Lifecycle"), "transaction-migrated lifecycle review should sync generated governance ledger");
+assert(fs.readFileSync(ledgerPath, "utf8").includes("Module txn step T-TRANSACTION-LIFECYCLE"), "transaction-migrated module-step should sync generated governance ledger");
 assert(fs.readFileSync(modulePlanPath, "utf8").includes("transaction-lifecycle"), "transaction-migrated lifecycle review should regenerate module plan index");
 assert(git(lifecycleTarget, ["status", "--short"]).stdout.trim() === "", "transaction-migrated lifecycle review should leave git clean");
 

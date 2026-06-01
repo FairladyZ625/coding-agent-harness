@@ -516,17 +516,23 @@ export function updateTaskPhase(targetInput: string, taskId: string, phaseId: st
     return next;
   });
   if (!phaseUpdate.matched) throw new Error(`Phase not found: ${phaseId}`);
-  const governanceContext = beginGovernanceSync(target, { operation: `task-phase ${taskId} ${phaseId}` });
-  try {
-    content = phaseUpdate.content;
-    fs.writeFileSync(visualMapPath, content);
-    const commit = commitGovernanceSync(governanceContext, [toPosix(path.relative(target.projectRoot, visualMapPath))], {
-      message: `chore(harness): update task phase ${taskId} ${phaseId}`,
-    });
-    return { event: "task-phase", task: findTaskByDirectory(target, taskDir), phaseId, governance: { commit } };
-  } finally {
-    releaseGovernanceSync(governanceContext);
-  }
+  const visualMapRelative = toPosix(path.relative(target.projectRoot, visualMapPath));
+  const transaction = createGovernanceHarnessTransaction(target);
+  let taskAfterUpdate: LifecycleTask | undefined;
+  const plan = transaction.plan({
+    operation: `task-phase ${taskId} ${phaseId}`,
+    allowedPaths: [visualMapRelative],
+    commit: { message: `chore(harness): update task phase ${taskId} ${phaseId}` },
+    apply() {
+      content = phaseUpdate.content;
+      fs.writeFileSync(visualMapPath, content);
+      taskAfterUpdate = findTaskByDirectory(target, taskDir);
+      return { allowedPaths: [visualMapRelative] };
+    },
+  });
+  const transactionResult = transaction.apply(plan);
+  assertTransactionSucceeded(transactionResult);
+  return { event: "task-phase", task: taskAfterUpdate || findTaskByDirectory(target, taskDir), phaseId, governance: { commit: transactionResult.commit } };
 }
 
 export function updateModuleStep(targetInput: string, moduleKey: string, stepId: string, { state = "" }: ModuleStepOptions = {}) {
@@ -546,26 +552,49 @@ export function updateModuleStep(targetInput: string, moduleKey: string, stepId:
     return next;
   });
   if (!stepUpdate.matched) throw new Error(`Module step not found: ${stepId}`);
-  const governanceContext = beginGovernanceSync(target, { operation: `module-step ${normalizedModuleKey} ${stepId}` });
-  try {
-    content = stepUpdate.content;
-    fs.writeFileSync(modulePlanPath, content);
-
-    const moduleRegistration = prepareModuleStepRegistrationUpdate(target, normalizedModuleKey, { stepId, state: normalizedState });
-    const governance = syncModuleStepGovernance(target, { moduleKey: normalizedModuleKey, stepId, state: normalizedState });
-    const commit = commitGovernanceSync(
-      governanceContext,
-      [
-        toPosix(path.relative(target.projectRoot, modulePlanPath)),
-        ...governanceRelativePaths(moduleRegistration.changes),
-        ...governanceRelativePaths(governance.changes),
-      ],
-      { message: `chore(harness): update module ${normalizedModuleKey} step ${stepId}` },
-    );
-    return { event: "module-step", moduleKey: normalizedModuleKey, stepId, state: normalizedState, governance: { ...governance, commit } };
-  } finally {
-    releaseGovernanceSync(governanceContext);
-  }
+  const modulePlanRelative = toPosix(path.relative(target.projectRoot, modulePlanPath));
+  const plannedModuleRegistration = prepareModuleStepRegistrationUpdate(target, normalizedModuleKey, { stepId, state: normalizedState, dryRun: true });
+  const plannedGovernance = syncModuleStepGovernance(target, { moduleKey: normalizedModuleKey, stepId, state: normalizedState, dryRun: true });
+  const plannedGeneratedSurfaces = [...plannedModuleRegistration.changes, ...plannedGovernance.changes].map((change) => ({
+    surface: change.surface,
+    paths: [change.destination],
+  }));
+  const allowedPaths = [
+    modulePlanRelative,
+    ...governanceRelativePaths(plannedModuleRegistration.changes),
+    ...governanceRelativePaths(plannedGovernance.changes),
+  ];
+  const governanceResultBox: { current?: ReturnType<typeof syncModuleStepGovernance> } = {};
+  const transaction = createGovernanceHarnessTransaction(target);
+  const plan = transaction.plan({
+    operation: `module-step ${normalizedModuleKey} ${stepId}`,
+    allowedPaths,
+    generatedSurfaces: plannedGeneratedSurfaces,
+    commit: { message: `chore(harness): update module ${normalizedModuleKey} step ${stepId}` },
+    apply() {
+      content = stepUpdate.content;
+      fs.writeFileSync(modulePlanPath, content);
+      const moduleRegistration = prepareModuleStepRegistrationUpdate(target, normalizedModuleKey, { stepId, state: normalizedState });
+      const governance = syncModuleStepGovernance(target, { moduleKey: normalizedModuleKey, stepId, state: normalizedState });
+      governanceResultBox.current = governance;
+      return {
+        allowedPaths: [
+          modulePlanRelative,
+          ...governanceRelativePaths(moduleRegistration.changes),
+          ...governanceRelativePaths(governance.changes),
+        ],
+        generatedSurfaces: [...moduleRegistration.changes, ...governance.changes].map((change) => ({
+          surface: change.surface,
+          paths: [change.destination],
+        })),
+      };
+    },
+  });
+  const transactionResult = transaction.apply(plan);
+  assertTransactionSucceeded(transactionResult);
+  const finalGovernance = governanceResultBox.current;
+  if (!finalGovernance) throw new Error(`Module step transaction did not produce governance changes: ${normalizedModuleKey} ${stepId}`);
+  return { event: "module-step", moduleKey: normalizedModuleKey, stepId, state: normalizedState, governance: { changes: finalGovernance.changes, commit: transactionResult.commit } };
 }
 
 export function listLifecycleTasks(targetInput: string, { state = "", moduleKey = "", queue = "", preset = "", review = "", lesson = "", search = "", missingMaterials = false, includeArchived = false }: ListLifecycleTasksOptions = {}) {
