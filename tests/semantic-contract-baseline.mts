@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import type { SpawnSyncReturns } from "node:child_process";
 import { confirmTaskReview } from "../scripts/lib/task-lifecycle.mjs";
 import type { HarnessTestLooseJson, HarnessTestLooseTask } from "./helpers/harness-test-types.js";
-import { assert, expectJson, expectPass, run, sanitizeTemplateFixtureMaterials, tmpRoot } from "./helpers/harness-test-utils.mjs";
+import { acceptNoLessonCandidate, assert, expectJson, expectPass, run, sanitizeTemplateFixtureMaterials, tmpRoot } from "./helpers/harness-test-utils.mjs";
 
 type ContractTask = HarnessTestLooseTask & {
   semanticProjection?: {
@@ -37,8 +37,25 @@ const target = path.join(tmpRoot, "semantic-contract-baseline-target");
 fs.mkdirSync(target);
 expectJson(["init", "--locale", "zh-CN", "--capabilities", "core,dashboard", target]);
 
+const emptyTarget = path.join(tmpRoot, "semantic-contract-empty-target");
+fs.mkdirSync(emptyTarget);
+expectJson(["init", "--locale", "zh-CN", "--capabilities", "core,dashboard", emptyTarget]);
+const emptyStatus = expectJson(["status", "--json", emptyTarget]);
+const emptyIndex = expectJson(["task-index", "--json", emptyTarget]);
+assert(emptyStatus.schemaVersion === 2, "empty target status --json must preserve schemaVersion 2");
+assert(Array.isArray(emptyStatus.tasks) && emptyStatus.tasks.length === 0, "empty target status --json should not invent tasks");
+assert(emptyIndex.schemaVersion === "task-index/v2", "empty target task-index --json must preserve task-index/v2");
+assert(Array.isArray(emptyIndex.tasks) && emptyIndex.tasks.length === 0, "empty target task-index --json should not invent tasks");
+
 const active = expectJson(["new-task", "contract-active", "--title", "Contract Active", "--locale", "en-US", target]);
 expectJson(["task-start", "contract-active", "--message", "active contract fixture started", target]);
+
+const migrationOnly = expectJson(["new-task", "contract-migration-only", "--title", "Contract Migration Only", "--locale", "en-US", target]);
+expectJson(["task-start", "contract-migration-only", "--message", "migration-only adapter fixture started", target]);
+markMigrationOnlyAdapter(taskDirectory(migrationOnly));
+
+const rootTask = expectJson(["new-task", "contract-root-task", "--title", "Contract Root Task", "--locale", "en-US", target]);
+expectJson(["task-start", "contract-root-task", "--message", "root task fixture started", target]);
 
 const ready = submitReviewReadyTask("contract-ready-review", "Contract Ready Review");
 const missingMaterials = submitReviewReadyTask("contract-missing-materials", "Contract Missing Materials");
@@ -47,9 +64,22 @@ fs.rmSync(path.join(taskDirectory(missingMaterials), "walkthrough.md"));
 const blocked = submitReviewReadyTask("contract-blocked", "Contract Blocked");
 appendOpenBlockingFinding(taskDirectory(blocked), "CB-001", "Contract baseline blocking finding");
 
+const noLessonDecision = submitReviewReadyTask("contract-no-lesson-decision", "Contract No Lesson Decision");
+resetLessonDecision(taskDirectory(noLessonDecision));
+
+const closedButUnconfirmed = submitReviewReadyTask("contract-closed-unconfirmed", "Contract Closed Unconfirmed");
+acceptNoLessonCandidate(taskDirectory(closedButUnconfirmed));
+writeClosedCloseout(taskDirectory(closedButUnconfirmed));
+
 const confirmed = submitReviewReadyTask("contract-confirmed", "Contract Confirmed");
+acceptNoLessonCandidate(taskDirectory(confirmed));
 commitFixtureBaseline(target, "before contract confirmation");
 expectReviewConfirmJson(confirmed.task.id, confirmed.task.shortId);
+expectJson(["task-archive", confirmed.task.id, "--reason", "contract archive fixture", "--archived-by", "Contract Reviewer <contract@example.invalid>", "--archive-field", "retention bucket=contract-baseline", target]);
+
+const replacement = expectJson(["new-task", "contract-superseding", "--title", "Contract Superseding", "--locale", "en-US", target]);
+const superseded = expectJson(["new-task", "contract-superseded", "--title", "Contract Superseded", "--locale", "en-US", target]);
+expectJson(["task-supersede", superseded.task.id, "--by", replacement.task.id, "--reason", "contract supersede fixture", target]);
 
 const status = expectJsonAllowingValidationFailure(["status", "--json", target]);
 const taskIndex = expectJsonAllowingValidationFailure(["task-index", "--json", target]);
@@ -61,10 +91,16 @@ assert(taskIndex.schemaVersion === "task-index/v2", "task-index --json must expo
 
 const requiredIds = [
   active.task.id,
+  migrationOnly.task.id,
+  rootTask.task.id,
   ready.task.id,
   missingMaterials.task.id,
   blocked.task.id,
+  noLessonDecision.task.id,
+  closedButUnconfirmed.task.id,
   confirmed.task.id,
+  replacement.task.id,
+  superseded.task.id,
 ];
 for (const id of requiredIds) {
   assert(statusTasks.some((task) => task.id === id), `status --json lost contract task ${id}`);
@@ -96,19 +132,44 @@ assert(missingStatus.reviewWorkbenchQueueView?.needsMaterials === true, "missing
 assert(missingStatus.taskQueues.includes("missing-materials"), "missing-materials fixture should enter missing-materials queue");
 assert(missingStatus.reviewWorkbenchQueueView.reasonCodes?.includes("review-closeout-materials-incomplete"), "missing-materials fixture should explain closeout material debt");
 
+const noLessonStatus = findTask(statusTasks, noLessonDecision.task.id);
+assert(noLessonStatus.reviewWorkbenchQueueView?.humanConfirmable === false, "no-lesson-decision fixture must fail closed for human confirmation");
+assert(noLessonStatus.reviewWorkbenchQueueView?.needsMaterials === true, "no-lesson-decision fixture should project material debt");
+assert(noLessonStatus.reviewWorkbenchQueueView.reasonCodes?.includes("missing-lesson-decision"), "no-lesson-decision fixture should explain missing lesson decision");
+
+const closedButUnconfirmedStatus = findTask(statusTasks, closedButUnconfirmed.task.id);
+assert(closedButUnconfirmedStatus.reviewWorkbenchQueueView?.humanConfirmable === false, "closed-but-unconfirmed fixture must fail closed for human confirmation");
+assert(closedButUnconfirmedStatus.reviewQueueState !== "ready-to-confirm", "closed-but-unconfirmed fixture must not project ready-to-confirm");
+assert(!closedButUnconfirmedStatus.taskQueues.includes("review"), "closed-but-unconfirmed fixture must not enter review queue without Agent Review Submission");
+
 const blockedStatus = findTask(statusTasks, blocked.task.id);
 assert(blockedStatus.reviewWorkbenchQueueView?.humanConfirmable === false, "blocked fixture must fail closed for human confirmation");
 assert(blockedStatus.reviewWorkbenchQueueView?.blocked === true, "blocked fixture should project blocked workbench state");
 assert(blockedStatus.taskQueues.includes("blocked"), "blocked fixture should enter blocked queue");
 
 const confirmedStatus = findTask(statusTasks, confirmed.task.id);
-assert(confirmedStatus.reviewStatus === "confirmed", "confirmed fixture should expose confirmed reviewStatus");
+assert(confirmedStatus.reviewStatus === "confirmed", "confirmed archived fixture should expose confirmed reviewStatus");
+assert(confirmedStatus.deletionState === "archived", "confirmed fixture should expose archived deletionState after task-archive");
 assert(confirmedStatus.reviewWorkbenchQueueView?.finalized === true, "confirmed fixture should project finalized workbench state");
-assert(!confirmedStatus.taskQueues.includes("review"), "confirmed fixture must not remain in review queue");
+assert(!confirmedStatus.taskQueues.includes("review"), "confirmed archived fixture must not remain in review queue");
+
+const supersededStatus = findTask(statusTasks, superseded.task.id);
+assert(supersededStatus.deletionState === "superseded", "superseded fixture should expose superseded deletionState");
+assert(supersededStatus.supersededBy === replacement.task.id, "superseded fixture should expose replacement task id");
+assert(supersededStatus.reviewQueueState === "not-in-queue", "superseded fixture must not enter review queue");
 
 const dashboardDir = path.join(target, "tmp-dashboard");
 expectPass(["dashboard", "--out-dir", dashboardDir, target]);
 const dashboardStatus = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/status.json"), "utf8")) as { tasks: ContractTask[] };
+const dashboardTables = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/tables.json"), "utf8")) as { tables?: unknown[] };
+const dashboardDocuments = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/documents.json"), "utf8")) as { documents?: unknown[] };
+const dashboardGraph = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/graph.json"), "utf8")) as { nodes?: unknown[]; edges?: unknown[] };
+for (const generated of ["data/modules.json", "data/moduleSummary.json", "data/adoption.json"]) {
+  assert(fs.existsSync(path.join(dashboardDir, generated)), `dashboard generated-only projection missing ${generated}`);
+}
+assert(Array.isArray(dashboardTables.tables), "dashboard generated-only projection should expose tables array");
+assert(Array.isArray(dashboardDocuments.documents), "dashboard generated-only projection should expose documents array");
+assert(Array.isArray(dashboardGraph.nodes) && Array.isArray(dashboardGraph.edges), "dashboard generated-only projection should expose graph nodes and edges arrays");
 const dashboardScript = fs.readFileSync(path.join(dashboardDir, "assets/dashboard-data.js"), "utf8");
 const match = dashboardScript.match(/window\.__HARNESS_DASHBOARD__\s*=\s*([\s\S]*);\s*$/);
 assert(match, "dashboard-data.js must expose a parseable dashboard bundle");
@@ -126,6 +187,7 @@ for (const task of dashboardBundle.status.tasks.filter((item) => requiredIds.inc
 }
 
 assertGuiPreviewOnlyBaseline();
+assertGuiSchemaCompatibility(statusTasks.filter((item) => requiredIds.includes(item.id)));
 
 console.log("Semantic contract baseline tests passed");
 
@@ -160,6 +222,33 @@ function appendOpenBlockingFinding(taskDir: string, findingId: string, message: 
       `| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| ${findingId} | P1 | ${message} | command:TARGET:semantic-contract-baseline:checked | Resolve before human confirmation | yes | open | yes | P01 |`,
     ),
   );
+}
+
+function markMigrationOnlyAdapter(taskDir: string): void {
+  fs.mkdirSync(path.join(taskDir, "artifacts"), { recursive: true });
+  fs.writeFileSync(
+    path.join(taskDir, "artifacts", "migration-only-legacy-input.json"),
+    JSON.stringify({ schemaVersion: "legacy-migration-input/v1", source: "legacy-task-pack", runtimeTruth: false }, null, 2),
+  );
+  fs.appendFileSync(
+    path.join(taskDir, "task_plan.md"),
+    "\n## Migration-Only Adapter Contract\n\nThis fixture represents legacy input that may be read only by migration adapters. It is not runtime truth and must not change Dashboard or Workbench projection semantics.\n",
+  );
+}
+
+function resetLessonDecision(taskDir: string): void {
+  const candidatePath = path.join(taskDir, "lesson_candidates.md");
+  let content = fs.readFileSync(candidatePath, "utf8");
+  content = content
+    .replace("| Task-level status | no-candidate-accepted |", "| Task-level status | pending-review |")
+    .replace("| Review decision | accepted-no-candidate |", "| Review decision | pending-human-review |")
+    .replace("| Closeout token | checked-candidate:LC-TEST-000 |", "| Closeout token | pending |");
+  fs.writeFileSync(candidatePath, content);
+}
+
+function writeClosedCloseout(taskDir: string): void {
+  const closeoutPath = path.join(taskDir, "walkthrough.md");
+  fs.writeFileSync(closeoutPath, `${fs.readFileSync(closeoutPath, "utf8").trimEnd()}\n\nCloseout Status: closed\n`);
 }
 
 function expectReviewConfirmJson(taskId: string, confirmText: string): HarnessTestLooseJson {
@@ -238,6 +327,166 @@ function assertGuiPreviewOnlyBaseline(): void {
   assert(scanner.includes("previewOnly: true"), "GUi review-confirm action must remain preview-only until P08 consumes stable CLI projection");
   assert(scanner.includes("Disabled as a real write until Harness CLI/core confirm action exists."), "GUi preview-only action must explain why it is not runtime truth");
   assert(scanner.includes("inferQueues("), "P01 baseline should still detect the current independent GUi raw queue inference for P08 routing");
+}
+
+function assertGuiSchemaCompatibility(tasks: ContractTask[]): void {
+  const snapshot = {
+    schemaVersion: "harness-gui/v1",
+    generatedAt: new Date(0).toISOString(),
+    scannerVersion: "semantic-contract-baseline",
+    portfolio: {
+      projectCount: 1,
+      taskCount: tasks.length,
+      evidenceCount: 0,
+      queueCounts: {
+        reviewNeeded: 0,
+        reviewBlocked: 0,
+        blocked: 0,
+        missingMaterials: 0,
+        lessonCandidate: 0,
+        active: 0,
+        closed: 0,
+        archived: 0,
+      },
+    },
+    projects: [
+      {
+        id: "contract-project",
+        displayName: "Contract Project",
+        path: target,
+        dataClass: "local-path",
+        health: { status: "unknown", warnings: 0, failures: 0, summary: "contract fixture" },
+        queueCounts: {
+          reviewNeeded: 0,
+          reviewBlocked: 0,
+          blocked: 0,
+          missingMaterials: 0,
+          lessonCandidate: 0,
+          active: 0,
+          closed: 0,
+          archived: 0,
+        },
+        moduleSummary: {},
+        lastScanAt: new Date(0).toISOString(),
+        staleState: "fresh",
+        taskCount: tasks.length,
+        evidenceCount: 0,
+      },
+    ],
+    queues: tasks.flatMap((task) => mapGuiQueues(task).map((queue) => ({
+      id: `${task.id}:${queue}`,
+      queue,
+      projectId: "contract-project",
+      taskKey: task.shortId || task.id,
+      title: task.title || task.id,
+      reason: queueReasonMessage(task) || task.reviewWorkbenchQueueView?.reasonCodes?.[0] || "contract projection",
+      exitCondition: "contract projection must stay fail-closed",
+      priority: queue === "review-blocked" || queue === "blocked" ? "high" : "normal",
+      sourceSnapshotHash: `contract-${task.id}`,
+      staleState: "fresh",
+      generatedAt: new Date(0).toISOString(),
+    }))),
+    tasks: tasks.map((task) => ({
+      id: task.id,
+      taskKey: task.shortId || task.id,
+      title: task.title || task.id,
+      projectId: "contract-project",
+      projectPath: target,
+      currentPath: task.currentPath || task.path || "",
+      moduleKey: task.module || task.inferredModule || "",
+      lifecycleState: task.lifecycleState,
+      reviewStatus: task.reviewStatus || "",
+      materialsReady: task.materialsReady,
+      queues: mapGuiQueues(task),
+      queueReasons: (task.queueReasons || []).map((reason) => reason.message || reason.code || "contract projection"),
+      repairPrompt: task.repairPrompt || "",
+      sourceFileHashes: {},
+      sourceSnapshotHash: `contract-${task.id}`,
+      scannerVersion: "semantic-contract-baseline",
+      generatedAt: new Date(0).toISOString(),
+      staleState: "fresh",
+      evidenceCount: 0,
+      dataClass: "local-path",
+      archiveState: guiArchiveState(task),
+      archiveBucket: task.deletionState === "archived" ? "contract-baseline" : undefined,
+    })),
+    evidence: [],
+    actions: [
+      {
+        id: "contract-review-confirm-preview",
+        projectId: "contract-project",
+        kind: "review-confirm",
+        label: "Review Confirm",
+        enabled: false,
+        previewOnly: true,
+        status: "preview-only",
+        reason: "Disabled as a real write until Harness CLI/core confirm action exists.",
+      },
+    ],
+  };
+  assertGuiSnapshotShape(snapshot);
+  const model = fs.readFileSync(path.join(repoRoot(), "harness-gui/src/model/harnessGui.ts"), "utf8");
+  for (const field of ["sourceSnapshotHash", "scannerVersion", "staleState", "previewOnly", "queueReasons", "archiveState"]) {
+    assert(model.includes(field), `GUi model should declare ${field} consumed by the compatibility fixture`);
+  }
+}
+
+function assertGuiSnapshotShape(snapshot: {
+  schemaVersion: string;
+  projects: Array<Record<string, unknown>>;
+  queues: Array<Record<string, unknown>>;
+  tasks: Array<Record<string, unknown>>;
+  evidence: Array<Record<string, unknown>>;
+  actions: Array<Record<string, unknown>>;
+}): void {
+  assert(snapshot.schemaVersion === "harness-gui/v1", "GUi compatibility fixture should use harness-gui/v1");
+  assert(Array.isArray(snapshot.projects), "GUi compatibility fixture should expose projects array");
+  assert(Array.isArray(snapshot.queues), "GUi compatibility fixture should expose queues array");
+  assert(Array.isArray(snapshot.tasks), "GUi compatibility fixture should expose tasks array");
+  assert(Array.isArray(snapshot.evidence), "GUi compatibility fixture should expose evidence array");
+  assert(Array.isArray(snapshot.actions), "GUi compatibility fixture should expose actions array");
+  for (const task of snapshot.tasks) {
+    assert(task.projectId, `GUi task ${String(task.id || "")} missing projectId`);
+    assert(task.sourceSnapshotHash, `GUi task ${String(task.id || "")} missing sourceSnapshotHash`);
+    assert(task.scannerVersion, `GUi task ${String(task.id || "")} missing scannerVersion`);
+    assert(task.staleState, `GUi task ${String(task.id || "")} missing staleState`);
+    assert(Array.isArray(task.queues), `GUi task ${String(task.id || "")} missing queues array`);
+  }
+  for (const item of snapshot.queues) {
+    assert(item.reason, `GUi queue item ${String(item.id || "")} missing reason`);
+    assert(item.exitCondition, `GUi queue item ${String(item.id || "")} missing exitCondition`);
+    assert(item.sourceSnapshotHash, `GUi queue item ${String(item.id || "")} missing sourceSnapshotHash`);
+  }
+  for (const action of snapshot.actions) {
+    assert(action.previewOnly === true, `GUi action ${String(action.id || "")} must remain previewOnly in P01`);
+  }
+}
+
+function queueReasonMessage(task: ContractTask): string {
+  const [first] = task.queueReasons || [];
+  return first?.message || first?.code || "";
+}
+
+function mapGuiQueues(task: ContractTask): string[] {
+  if (task.deletionState === "archived" || task.deletionState === "superseded") return ["archived"];
+  const queues = new Set<string>();
+  for (const queue of task.taskQueues || []) {
+    if (queue === "review") queues.add(task.reviewWorkbenchQueueView?.blocked ? "review-blocked" : "review-needed");
+    else if (queue === "missing-materials") queues.add("missing-materials");
+    else if (queue === "blocked") queues.add("blocked");
+    else if (queue === "lessons") queues.add("lesson-candidate");
+    else if (queue === "finalized") queues.add("closed");
+    else if (queue === "active" || queue === "planned") queues.add("active");
+  }
+  if (!queues.size) queues.add("active");
+  return [...queues];
+}
+
+function guiArchiveState(task: ContractTask): "active" | "archived" | "soft-deleted" | "superseded" {
+  if (task.deletionState === "archived") return "archived";
+  if (task.deletionState === "superseded") return "superseded";
+  if (task.deletionState === "soft-deleted") return "soft-deleted";
+  return "active";
 }
 
 function repoRoot(): string {
