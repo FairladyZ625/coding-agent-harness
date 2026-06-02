@@ -118,15 +118,21 @@ writeFixture(fixtureRoot, "scripts/application/task/bad-use-case.mts", 'import {
 writeFixture(fixtureRoot, "scripts/lib/task-scanner.mts", "export const scan = 1;\n");
 writeFixture(fixtureRoot, "scripts/application/task/bad-legacy-use-case.mts", 'import { scan } from "../../lib/task-scanner.mjs";\nexport const badLegacy = scan;\n');
 writeFixture(fixtureRoot, "scripts/lib/task-lifecycle/review-confirm.mts", "export type ReviewConfirm = { id: string };\nexport const confirm = 1;\n");
+writeFixture(fixtureRoot, "scripts/lib/task-lifecycle/internal.mts", "export const internal = 1;\n");
 writeFixture(fixtureRoot, "scripts/application/task/bad-legacy-internal-use-case.mts", 'import { confirm } from "../../lib/task-lifecycle/review-confirm.mjs";\nexport const badInternal = confirm;\n');
 writeFixture(fixtureRoot, "scripts/application/task/bad-legacy-internal-type-use-case.mts", 'import type { ReviewConfirm } from "../../lib/task-lifecycle/review-confirm.mjs";\nexport const badInternalType: ReviewConfirm = { id: "bad" };\n');
-writeFixture(fixtureRoot, "scripts/lib/dashboard-data.mts", 'import { scan } from "./task-scanner.mjs";\nexport const dashboard = scan;\n');
+writeFixture(fixtureRoot, "scripts/commands/bad-lifecycle-internal-command.mts", 'import { confirm } from "../lib/task-lifecycle/review-confirm.mjs";\nexport const badCommand = confirm;\n');
+writeFixture(fixtureRoot, "scripts/adapters/cli/bad-lifecycle-internal-adapter.mts", 'import { confirm } from "../../lib/task-lifecycle/review-confirm.mjs";\nexport const badAdapter = confirm;\n');
+writeFixture(fixtureRoot, "scripts/lib/dashboard-data.mts", 'import { scan } from "./task-scanner.mjs";\nimport { internal } from "./task-lifecycle/internal.mjs";\nexport const dashboard = scan + internal;\n');
 writeFixture(fixtureRoot, "scripts/lib/task-lifecycle.mts", "export const lifecycle = 1;\n");
-writeFixture(fixtureRoot, "scripts/lib/dashboard-workbench.mts", 'import { lifecycle } from "./task-lifecycle.mjs";\nexport const workbench = lifecycle;\n');
+writeFixture(fixtureRoot, "scripts/lib/dashboard-workbench.mts", 'import { lifecycle } from "./task-lifecycle.mjs";\nimport { internal } from "./task-lifecycle/internal.mjs";\nexport const workbench = lifecycle + internal;\n');
+writeFixture(fixtureRoot, "scripts/commands/bad-repository-command.mts", 'import { create } from "../lib/task-repository.mjs";\nexport const badRepositoryCommand = create;\n');
+writeFixture(fixtureRoot, "scripts/adapters/cli/bad-repository-adapter.mts", 'import { create } from "../../lib/task-repository.mjs";\nexport const badRepositoryAdapter = create;\n');
 writeFixture(fixtureRoot, "scripts/lib/governance-index-generator.mts", 'import { scan } from "./task-scanner.mjs";\nexport const generated = scan;\n');
 writeFixture(fixtureRoot, "scripts/lib/governance-sync.mts", "export const sync = 1;\n");
 writeFixture(fixtureRoot, "scripts/lib/preset-runner.mts", 'import { sync } from "./governance-sync.mjs";\nexport const preset = sync;\n');
 writeFixture(fixtureRoot, "scripts/commands/module-command.mts", 'import { sync } from "../lib/governance-sync.mjs";\nexport const command = sync;\n');
+writeFixture(fixtureRoot, "scripts/lib/task-repository.mts", "export const create = 1;\n");
 writeFixture(fixtureRoot, "scripts/lib/task-operations.mts", "export const operations = 1;\n");
 writeFixture(fixtureRoot, "scripts/commands/task-command.mts", 'import { operations } from "../lib/task-operations.mjs";\nexport const commandTask = operations;\n');
 
@@ -145,6 +151,12 @@ assert(failed.violations.some((violation) => violation.code === "dashboard-data-
 assert(failed.violations.some((violation) => violation.code === "dashboard-workbench-imports-task-internal"), "gate should report dashboard-workbench imports from task internals");
 assert(failed.violations.some((violation) => violation.code === "generated-governance-imports-task-scanner"), "gate should report generated governance imports from task scanner internals");
 assert(failed.violations.some((violation) => violation.code === "command-imports-task-internal"), "gate should report command adapters importing task internals");
+assert(failed.violations.some((violation) => violation.code === "command-imports-task-internal" && violation.message.includes("task-lifecycle/review-confirm")), "gate should reject command imports from task lifecycle internal modules");
+assert(failed.violations.some((violation) => violation.code === "command-imports-task-internal" && violation.message.includes("task-repository")), "gate should reject command imports from task repository legacy surface");
+assert(failed.violations.some((violation) => violation.code === "adapter-imports-task-internal" && violation.message.includes("task-lifecycle/review-confirm")), "gate should reject adapter imports from task lifecycle internal modules");
+assert(failed.violations.some((violation) => violation.code === "adapter-imports-task-internal" && violation.message.includes("task-repository")), "gate should reject adapter imports from task repository legacy surface");
+assert(failed.violations.some((violation) => violation.code === "dashboard-data-imports-task-internal" && violation.message.includes("task-lifecycle/internal")), "gate should reject dashboard-data imports from unregistered task lifecycle internal modules");
+assert(failed.violations.some((violation) => violation.code === "dashboard-workbench-imports-task-internal" && violation.message.includes("task-lifecycle/internal")), "gate should reject dashboard-workbench imports from unregistered task lifecycle internal modules");
 assert(failed.violations.some((violation) => violation.code === "runtime-imports-task-operations-facade"), "gate should report runtime callers importing the TaskOperations compatibility facade");
 assert(failed.violations.some((violation) => violation.code === "preset-runtime-imports-governance-sync"), "gate should report preset runtime direct governance sync imports");
 

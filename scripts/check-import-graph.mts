@@ -234,6 +234,51 @@ export const architectureImportContract: ArchitectureImportContract = {
       reason: "Deferred review-confirm finalization remains legacy lifecycle behavior until workbench confirmation moves behind application contracts.",
       evidence: "import graph check plus P08 review-confirm workbench fixtures",
     },
+    {
+      id: "P06-dashboard-data-repository-bridge",
+      source: "scripts/lib/dashboard-data.mts",
+      target: "scripts/lib/task-repository.mts",
+      ownerPhase: "P06-dashboard-projection-consumer-cutover",
+      expiryPhase: "P06-dashboard-projection-consumer-cutover",
+      reason: "Dashboard bundle generation still consumes the scanner-backed repository until dashboard data is fully derived from stable projection outputs.",
+      evidence: "import graph check plus P06 dashboard generation/schema fixtures",
+    },
+    {
+      id: "P08-dashboard-workbench-lesson-bridge",
+      source: "scripts/lib/dashboard-workbench.mts",
+      target: "scripts/lib/task-lesson-sedimentation.mts",
+      ownerPhase: "P08-dashboard-workbench-consumer-cutover",
+      expiryPhase: "P08-dashboard-workbench-consumer-cutover",
+      reason: "Workbench lesson-sedimentation action remains a legacy bridge until workbench actions use application command contracts.",
+      evidence: "import graph check plus P08 workbench action fixtures",
+    },
+    {
+      id: "P08-dashboard-workbench-repository-bridge",
+      source: "scripts/lib/dashboard-workbench.mts",
+      target: "scripts/lib/task-repository.mts",
+      ownerPhase: "P08-dashboard-workbench-consumer-cutover",
+      expiryPhase: "P08-dashboard-workbench-consumer-cutover",
+      reason: "Workbench still creates the scanner-backed repository until its read paths consume stable task repository/projection ports.",
+      evidence: "import graph check plus P08 workbench smoke fixtures",
+    },
+    {
+      id: "P08-dashboard-workbench-review-confirm-internal-bridge",
+      source: "scripts/lib/dashboard-workbench.mts",
+      target: "scripts/lib/task-lifecycle/review-confirm.mts",
+      ownerPhase: "P08-dashboard-workbench-consumer-cutover",
+      expiryPhase: "P08-dashboard-workbench-consumer-cutover",
+      reason: "Workbench still calls review-confirm internals directly until review confirmation is fully routed through application workbench contracts.",
+      evidence: "import graph check plus P08 review-confirm workbench fixtures",
+    },
+    {
+      id: "P08-dashboard-workbench-projection-bridge",
+      source: "scripts/lib/dashboard-workbench.mts",
+      target: "scripts/lib/task-semantic-projection.mts",
+      ownerPhase: "P08-dashboard-workbench-consumer-cutover",
+      expiryPhase: "P08-dashboard-workbench-consumer-cutover",
+      reason: "Workbench still builds semantic projection responses directly until it consumes stable projection service ports.",
+      evidence: "import graph check plus P08 workbench schema fixtures",
+    },
   ],
   sharedFileLocks: [
     { path: "scripts/lib/harness-transaction.mts", ownerPhase: "P04-transaction-cutover", reason: "Transaction/ChangeSet write contract." },
@@ -700,16 +745,16 @@ function architectureBoundaryCode(file: string, target: string): string {
   if ((file.startsWith("scripts/commands/") || file === "scripts/lib/dashboard-workbench.mts") && target === "scripts/lib/task-operations.mts") {
     return "runtime-imports-task-operations-facade";
   }
-  if (file.startsWith("scripts/adapters/") && isTaskSourceOfTruthInternal(target)) {
+  if (file.startsWith("scripts/adapters/") && isTaskSourceOfTruthInternal(target) && !isArchitecturePhaseOpenException(file, target)) {
     return "adapter-imports-task-internal";
   }
-  if (file.startsWith("scripts/commands/") && isTaskSourceOfTruthInternal(target)) {
+  if (file.startsWith("scripts/commands/") && isTaskSourceOfTruthInternal(target) && !isArchitecturePhaseOpenException(file, target)) {
     return "command-imports-task-internal";
   }
-  if (file === "scripts/lib/dashboard-workbench.mts" && isTaskSourceOfTruthInternal(target)) {
+  if (file === "scripts/lib/dashboard-workbench.mts" && isTaskSourceOfTruthInternal(target) && !isArchitecturePhaseOpenException(file, target)) {
     return "dashboard-workbench-imports-task-internal";
   }
-  if (file === "scripts/lib/dashboard-data.mts" && isTaskSourceOfTruthInternal(target)) {
+  if (file === "scripts/lib/dashboard-data.mts" && isTaskSourceOfTruthInternal(target) && !isArchitecturePhaseOpenException(file, target)) {
     return "dashboard-data-imports-task-internal";
   }
   if (file === "scripts/lib/governance-index-generator.mts" && target === "scripts/lib/task-scanner.mts") {
@@ -753,11 +798,7 @@ function isLegacyTaskRuntimeSurface(target: string): boolean {
 }
 
 function isTaskSourceOfTruthInternal(target: string): boolean {
-  return [
-    "scripts/lib/task-scanner.mts",
-    "scripts/lib/task-lifecycle.mts",
-    "scripts/lib/governance-sync.mts",
-  ].includes(target);
+  return isLegacyTaskRuntimeSurface(target);
 }
 
 function isPresetRuntimePath(file: string): boolean {
