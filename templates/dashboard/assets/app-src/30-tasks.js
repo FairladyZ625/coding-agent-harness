@@ -64,17 +64,16 @@ function sortTasksByTime(tasks) {
   return [...tasks].sort(compareTasksByTime);
 }
 
-function isArchivedTask(task) {
-  const archiveState = String(task?.archiveMetadata?.state || "").toLowerCase();
-  return task?.deletionState === "archived" || archiveState === "archived";
+function normalCycleTasks() {
+  return (bundle.status?.tasks || []).filter((task) => taskInVisibilityScope(task, "active-cycle"));
 }
 
-function normalCycleTasks() {
-  return (bundle.status?.tasks || []).filter((task) => !isArchivedTask(task));
+function reviewWorkbenchTasks() {
+  return (bundle.status?.tasks || []).filter((task) => taskInVisibilityScope(task, "review-workbench"));
 }
 
 function archivedTasks() {
-  return (bundle.status?.tasks || []).filter(isArchivedTask);
+  return (bundle.status?.tasks || []).filter((task) => taskInVisibilityScope(task, "archive-history"));
 }
 
 function archiveBucket(task) {

@@ -49,6 +49,9 @@ assert(needsMaterialReview.dashboardTaskView.materials.visualMapReady === true, 
 assert(needsMaterialReview.dashboardTaskView.materials.blockingReasonCodes.includes("missing-lesson-decision"), "material projection should expose blocking reason codes");
 assert(needsMaterialReview.reviewWorkbenchQueueView.reasonCodes.includes("missing-lesson-decision"), "review workbench projection should expose queue reason codes");
 assert(needsMaterialReview.reviewWorkbenchQueueView.reasonSummaries[0]?.message === "Lesson decision required.", "review workbench projection should expose queue reason summaries for UI display");
+assert(needsMaterialReview.visibility.scopes.includes("active-cycle"), "active review tasks should be visible in the active-cycle scope");
+assert(needsMaterialReview.visibility.scopes.includes("review-workbench"), "active review tasks should be visible in the review-workbench scope");
+assert(needsMaterialReview.visibility.scopes.includes("task-index-default"), "active review tasks should be visible in the default task index scope");
 
 const readyToConfirm = buildTaskSemanticProjection({
   state: "review",
@@ -234,6 +237,32 @@ const archivedConfirmedTombstone = buildTaskSemanticProjection({
 assert(archivedConfirmedTombstone.reviewWorkbenchQueueView.primaryQueue === "soft-deleted-superseded", "archived tombstones must stay in archive history queue even when review was confirmed");
 assert(archivedConfirmedTombstone.reviewWorkbenchQueueView.finalized === false, "archived tombstones must not project finalized workbench state");
 assert(!archivedConfirmedTombstone.reviewWorkbenchQueueView.queues.includes("finalized"), "archived tombstones must not carry finalized queue");
+assert(archivedConfirmedTombstone.visibility.scopes.includes("archive-history"), "archived tombstones should be visible in archive-history scope");
+assert(archivedConfirmedTombstone.visibility.scopes.includes("tombstone-history"), "archived tombstones should be visible in tombstone-history scope");
+assert(archivedConfirmedTombstone.visibility.scopes.includes("review-workbench"), "archived tombstones should remain visible to the workbench history tab");
+assert(!archivedConfirmedTombstone.visibility.scopes.includes("active-cycle"), "archived tombstones must be hidden from active-cycle scope");
+assert(!archivedConfirmedTombstone.visibility.scopes.includes("task-index-default"), "archived tombstones must be hidden from task-index-default scope");
+
+const softDeletedTombstone = buildTaskSemanticProjection({
+  state: "done",
+  lifecycleState: "closed",
+  reviewStatus: "required",
+  reviewQueueState: "not-in-queue",
+  closeoutStatus: "closed",
+  budget: "standard",
+  completion: 100,
+  taskQueues: ["soft-deleted-superseded"],
+  materialsReady: true,
+  reviewSubmitted: false,
+  lessonCandidateDecisionComplete: true,
+  deletionState: "soft-deleted",
+  hiddenByDefault: true,
+});
+
+assert(softDeletedTombstone.visibility.hiddenReason === "soft-deleted", "soft-deleted tombstones should expose hiddenReason");
+assert(softDeletedTombstone.visibility.scopes.includes("tombstone-history"), "soft-deleted tombstones should be visible in tombstone-history scope");
+assert(!softDeletedTombstone.visibility.scopes.includes("archive-history"), "soft-deleted tombstones must not be conflated with archive-history");
+assert(!softDeletedTombstone.visibility.scopes.includes("active-cycle"), "soft-deleted tombstones must be hidden from active-cycle scope");
 
 assert(
   deriveLifecycleState({

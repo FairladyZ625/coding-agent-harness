@@ -320,8 +320,9 @@ assert(dashboardCss.includes(".phase-step.other"), "dashboard CSS should style u
 assert(dashboardApp.includes("data-render-toggle"), "dashboard missing render/source toggle");
 assert(dashboardApp.includes("data-search"), "dashboard missing task search control");
 assert(dashboardApp.includes("function archiveView()"), "dashboard missing archive view implementation");
-assert(dashboardApp.includes("function isArchivedTask("), "dashboard missing archived task filter helper");
-assert(dashboardApp.includes("normalCycleTasks()"), "dashboard normal cycle views should hide archived tasks by default");
+assert(dashboardApp.includes("function taskInVisibilityScope("), "dashboard missing visibility scope filter helper");
+assert(dashboardApp.includes('taskInVisibilityScope(task, "archive-history")'), "dashboard archive views should consume archive-history scope");
+assert(dashboardApp.includes('taskInVisibilityScope(task, "active-cycle")'), "dashboard normal cycle views should consume active-cycle scope by default");
 assert(dashboardApp.includes("function archiveBucket("), "dashboard missing archive bucket grouping helper");
 assert(dashboardApp.includes("archiveMetadata?.[\"archived by\"]"), "dashboard archive view should expose accountable archive actor");
 assert(dashboardApp.includes("archiveMetadata?.[\"review confirmed by\"]"), "dashboard archive view should expose human review confirmation actor");

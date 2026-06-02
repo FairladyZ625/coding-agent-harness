@@ -457,6 +457,26 @@ function generatedBrief(task) {
   </div>`;
 }
 
+function taskVisibilityScopes(task) {
+  const direct = Array.isArray(task?.visibilityScopes) ? task.visibilityScopes : null;
+  const nested = Array.isArray(task?.semanticProjection?.visibility?.scopes) ? task.semanticProjection.visibility.scopes : null;
+  return direct || nested || [];
+}
+
+function taskInVisibilityScope(task, scope) {
+  const scopes = taskVisibilityScopes(task);
+  if (scopes.length) return scopes.includes(scope);
+  const archiveState = String(task?.archiveMetadata?.state || "").toLowerCase();
+  const deletionState = String(task?.deletionState || "active").toLowerCase();
+  const hidden = task?.hiddenByDefault === true;
+  if (scope === "all") return true;
+  if (scope === "active-cycle" || scope === "task-index-default") return deletionState === "active" && !hidden;
+  if (scope === "archive-history") return deletionState === "archived" || archiveState === "archived";
+  if (scope === "tombstone-history") return deletionState !== "active" || hidden;
+  if (scope === "review-workbench") return (deletionState === "active" && !hidden) || deletionState !== "active" || hidden;
+  return false;
+}
+
 function clampCompletion(value) {
   const number = Number(value) || 0;
   return Math.max(0, Math.min(100, Math.round(number)));
@@ -523,17 +543,16 @@ function sortTasksByTime(tasks) {
   return [...tasks].sort(compareTasksByTime);
 }
 
-function isArchivedTask(task) {
-  const archiveState = String(task?.archiveMetadata?.state || "").toLowerCase();
-  return task?.deletionState === "archived" || archiveState === "archived";
+function normalCycleTasks() {
+  return (bundle.status?.tasks || []).filter((task) => taskInVisibilityScope(task, "active-cycle"));
 }
 
-function normalCycleTasks() {
-  return (bundle.status?.tasks || []).filter((task) => !isArchivedTask(task));
+function reviewWorkbenchTasks() {
+  return (bundle.status?.tasks || []).filter((task) => taskInVisibilityScope(task, "review-workbench"));
 }
 
 function archivedTasks() {
-  return (bundle.status?.tasks || []).filter(isArchivedTask);
+  return (bundle.status?.tasks || []).filter((task) => taskInVisibilityScope(task, "archive-history"));
 }
 
 function archiveBucket(task) {
@@ -2150,7 +2169,7 @@ function reviewSortOptions() {
 }
 
 function reviewQueueBaseTasks(tab) {
-  return normalCycleTasks().filter((task) => taskMatchesReviewTab(task, tab));
+  return reviewWorkbenchTasks().filter((task) => taskMatchesReviewTab(task, tab));
 }
 
 function taskMatchesReviewTab(task, tab) {

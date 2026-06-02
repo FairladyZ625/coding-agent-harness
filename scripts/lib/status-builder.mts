@@ -4,6 +4,7 @@ import { capabilityDefinitions, readCapabilityRegistry } from "./capability-regi
 import { summarizeGitState } from "./git-status-summary.mjs";
 import { createScannerTaskRepository, taskCutoverCounters } from "./task-repository.mjs";
 import { readHarnessModules } from "./module-registry.mjs";
+import { taskMatchesVisibilityScope } from "./task-semantic-projection.mjs";
 
 type HarnessTarget = {
   projectRoot: string;
@@ -161,6 +162,14 @@ export function buildStatusData(targetInput: HarnessTarget | string | undefined,
     git: gitState.summary,
     summary: {
       tasks: tasks.length,
+      taskScopes: {
+        all: tasks.length,
+        activeCycle: tasks.filter((task) => taskMatchesVisibilityScope(task, "active-cycle")).length,
+        reviewWorkbench: tasks.filter((task) => taskMatchesVisibilityScope(task, "review-workbench")).length,
+        archiveHistory: tasks.filter((task) => taskMatchesVisibilityScope(task, "archive-history")).length,
+        tombstoneHistory: tasks.filter((task) => taskMatchesVisibilityScope(task, "tombstone-history")).length,
+        taskIndexDefault: tasks.filter((task) => taskMatchesVisibilityScope(task, "task-index-default")).length,
+      },
       modules: modules.length,
       briefCoverage: {
         ready: briefReady,

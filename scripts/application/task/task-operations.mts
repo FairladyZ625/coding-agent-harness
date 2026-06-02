@@ -384,10 +384,12 @@ function taskQueues(task: OperationTask): string[] {
 function taskOperationProjection(task: OperationTask): TaskSemanticProjection {
   if (task.semanticProjection) return task.semanticProjection;
   if (task.taskLifecycleProjection && task.reviewWorkbenchQueueView) {
+    const projection = buildTaskSemanticProjection(task);
     return {
       taskLifecycleProjection: task.taskLifecycleProjection,
+      visibility: projection.visibility,
       reviewWorkbenchQueueView: task.reviewWorkbenchQueueView,
-      dashboardTaskView: buildTaskSemanticProjection(task).dashboardTaskView,
+      dashboardTaskView: projection.dashboardTaskView,
     };
   }
   return buildTaskSemanticProjection(task);
