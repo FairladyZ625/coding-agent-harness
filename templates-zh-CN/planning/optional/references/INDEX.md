@@ -2,7 +2,7 @@
 
 仅在任务需要外部资料、跨仓上下文、reviewer 输入包或生成参考材料时使用。不要把无关背景资料堆进来。
 
-| ID | 类型 | 路径 | 摘要 | Used By |
+| ID | Type | Path | Summary | Used By |
 | --- | --- | --- | --- | --- |
 | REF-001 | public-doc / private-plan / external / code | PUBLIC:path 或 PRIVATE:path 或 TARGET:path 或 EXTERNAL:path 或 URL:https://example.com | [这份资料为什么影响本任务] | coordinator |
 

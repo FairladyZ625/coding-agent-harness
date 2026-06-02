@@ -103,6 +103,10 @@ assert(chineseModuleRegistryTemplate.includes("不要直接编辑此视图"), "C
 assert(!chineseModuleRegistryTemplate.includes("共享范围 / 锁"), "Chinese Module Registry template should not keep the retired hand-maintained registry sections");
 const chinesePlanningIndex = fs.readFileSync(path.join(repoRoot, "templates-zh-CN/planning/INDEX.md"), "utf8");
 assert(chinesePlanningIndex.includes("`walkthrough.md` | 任务本地 closeout 摘要"), "Chinese planning index should list walkthrough.md in core contract files");
+const chineseReferenceIndexTemplate = fs.readFileSync(path.join(repoRoot, "templates-zh-CN/planning/optional/references/INDEX.md"), "utf8");
+const chineseArtifactIndexTemplate = fs.readFileSync(path.join(repoRoot, "templates-zh-CN/planning/optional/artifacts/INDEX.md"), "utf8");
+assert(chineseReferenceIndexTemplate.includes("| ID | Type | Path | Summary | Used By |"), "Chinese reference index template should use machine-readable English table headers");
+assert(chineseArtifactIndexTemplate.includes("| ID | Type | Path | Summary | Produced By |"), "Chinese artifact index template should use machine-readable English table headers");
 assertTemplateHeadingParity({
   englishPath: "templates/planning/optional/slices/_slice-template/brief.md",
   chinesePath: "templates-zh-CN/planning/optional/slices/_slice-template/brief.md",
