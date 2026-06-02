@@ -21,7 +21,7 @@ type TaskSemanticProjectionInput = {
   visualMapStatus?: string;
   briefSource?: string;
   phases?: Array<{ evidenceStatus?: string }>;
-  taskQueues?: string[];
+  taskQueues?: unknown[];
   queueReasons?: QueueReason[];
   materialsReady?: boolean;
   reviewConfirmation?: Record<string, unknown> | null;
@@ -29,11 +29,21 @@ type TaskSemanticProjectionInput = {
   lessonCandidateStatus?: string;
   lessonCandidatePromotionState?: string;
   lessonCandidateDecisionComplete?: boolean;
-  lessonCandidateRows?: Array<Record<string, unknown>>;
+  lessonCandidateRows?: unknown[];
   walkthroughPath?: string;
-  risks?: Array<{ severity?: string; open?: boolean; blocksRelease?: boolean }>;
+  risks?: unknown[];
   deletionState?: string;
+  hiddenByDefault?: boolean;
+  archiveMetadata?: Record<string, unknown>;
 };
+
+export type TaskVisibilityScope =
+  | "all"
+  | "active-cycle"
+  | "review-workbench"
+  | "archive-history"
+  | "tombstone-history"
+  | "task-index-default";
 
 export type TaskLifecycleProjection = {
   state: string;
@@ -46,6 +56,17 @@ export type TaskLifecycleProjection = {
   reviewSubmitted: boolean;
   lessonCandidateDecisionComplete: boolean;
   deletionState: string;
+};
+
+export type TaskVisibilityProjection = {
+  scopes: TaskVisibilityScope[];
+  defaultVisible: boolean;
+  activeCycle: boolean;
+  reviewWorkbench: boolean;
+  archiveHistory: boolean;
+  tombstoneHistory: boolean;
+  taskIndexDefault: boolean;
+  hiddenReason: string;
 };
 
 export type DashboardTaskView = {
@@ -92,6 +113,7 @@ export type ReviewWorkbenchQueueView = {
 
 export type TaskSemanticProjection = {
   taskLifecycleProjection: TaskLifecycleProjection;
+  visibility: TaskVisibilityProjection;
   dashboardTaskView: DashboardTaskView;
   reviewWorkbenchQueueView: ReviewWorkbenchQueueView;
 };
@@ -110,21 +132,24 @@ const swimlaneColumnLabelKeys: Record<string, string> = {
 export function buildTaskSemanticProjection(task: TaskSemanticProjectionInput): TaskSemanticProjection {
   const taskQueues = normalizedTaskQueues(task);
   const lifecycle = buildTaskLifecycleProjection(task, taskQueues);
+  const visibility = buildTaskVisibilityProjection(task, lifecycle);
   const reviewWorkbenchQueueView = buildReviewWorkbenchQueueView(task, lifecycle, taskQueues);
   const dashboardTaskView = buildDashboardTaskView(task, lifecycle, reviewWorkbenchQueueView);
   return {
     taskLifecycleProjection: lifecycle,
+    visibility,
     dashboardTaskView,
     reviewWorkbenchQueueView,
   };
 }
 
-export function attachTaskSemanticProjection<T extends TaskSemanticProjectionInput>(task: T): T & TaskSemanticProjection & { semanticProjection: TaskSemanticProjection } {
+export function attachTaskSemanticProjection<T extends TaskSemanticProjectionInput>(task: T): T & TaskSemanticProjection & { semanticProjection: TaskSemanticProjection; visibilityScopes: TaskVisibilityScope[] } {
   const semanticProjection = buildTaskSemanticProjection(task);
   return {
     ...task,
     semanticProjection,
     ...semanticProjection,
+    visibilityScopes: semanticProjection.visibility.scopes,
   };
 }
 
@@ -141,6 +166,50 @@ export function buildTaskLifecycleProjection(task: TaskSemanticProjectionInput, 
     lessonCandidateDecisionComplete: task.lessonCandidateDecisionComplete === true,
     deletionState: stringValue(task.deletionState, "active"),
   };
+}
+
+export function buildTaskVisibilityProjection(
+  task: TaskSemanticProjectionInput,
+  lifecycle = buildTaskLifecycleProjection(task),
+): TaskVisibilityProjection {
+  const deletionState = stringValue(lifecycle.deletionState, "active");
+  const hidden = task.hiddenByDefault === true;
+  const archiveState = stringValue(task.archiveMetadata?.state, "");
+  const archived = deletionState === "archived" || archiveState === "archived";
+  const tombstone = hidden || deletionState !== "active";
+  const activeCycle = deletionState === "active" && !hidden;
+  const archiveHistory = archived;
+  const tombstoneHistory = tombstone;
+  const reviewWorkbench = activeCycle || tombstoneHistory;
+  const taskIndexDefault = activeCycle;
+  const scopes: TaskVisibilityScope[] = ["all"];
+  if (activeCycle) scopes.push("active-cycle");
+  if (reviewWorkbench) scopes.push("review-workbench");
+  if (archiveHistory) scopes.push("archive-history");
+  if (tombstoneHistory) scopes.push("tombstone-history");
+  if (taskIndexDefault) scopes.push("task-index-default");
+  return {
+    scopes,
+    defaultVisible: activeCycle,
+    activeCycle,
+    reviewWorkbench,
+    archiveHistory,
+    tombstoneHistory,
+    taskIndexDefault,
+    hiddenReason: hiddenReason(deletionState, hidden, archiveState),
+  };
+}
+
+export function taskVisibilityScopes(task: TaskSemanticProjectionInput & { visibilityScopes?: unknown; semanticProjection?: { visibility?: { scopes?: unknown } } }): TaskVisibilityScope[] {
+  const direct = Array.isArray(task.visibilityScopes) ? task.visibilityScopes : null;
+  const nested = Array.isArray(task.semanticProjection?.visibility?.scopes) ? task.semanticProjection.visibility.scopes : null;
+  const scopes = (direct || nested) as unknown[] | null;
+  if (scopes) return scopes.map((scope) => stringValue(scope, "") as TaskVisibilityScope).filter(Boolean);
+  return buildTaskVisibilityProjection(task).scopes;
+}
+
+export function taskMatchesVisibilityScope(task: TaskSemanticProjectionInput, scope: TaskVisibilityScope): boolean {
+  return taskVisibilityScopes(task).includes(scope);
 }
 
 export function buildDashboardTaskView(
@@ -268,7 +337,7 @@ function primaryReviewQueue(queues: string[]): string {
 }
 
 function taskVisibleInSwimlane(task: TaskSemanticProjectionInput, lifecycle: TaskLifecycleProjection, reviewView: ReviewWorkbenchQueueView): boolean {
-  if (lifecycle.deletionState !== "active") return false;
+  if (!buildTaskVisibilityProjection(task, lifecycle).activeCycle) return false;
   if (["done", "closed", "finalized"].includes(lifecycle.state)) return false;
   if (["closed", "finalized"].includes(lifecycle.closeoutStatus)) return false;
   if (reviewView.finalized && !reviewView.hasPendingLessonWork) return false;
@@ -322,7 +391,7 @@ function taskHasPendingLessonSignal(task: TaskSemanticProjectionInput): boolean 
   const candidates = Array.isArray(task.lessonCandidateRows) ? task.lessonCandidateRows : [];
   return task.lessonCandidateStatus === "needs-promotion"
     || task.lessonCandidatePromotionState === "queued"
-    || candidates.some((candidate) => ["ready-for-review", "needs-promotion"].includes(stringValue(candidate.status, "")));
+    || candidates.some((candidate) => ["ready-for-review", "needs-promotion"].includes(stringValue((candidate as Record<string, unknown>)?.status, "")));
 }
 
 function firstQueueReason(task: TaskSemanticProjectionInput): QueueReason {
@@ -331,7 +400,10 @@ function firstQueueReason(task: TaskSemanticProjectionInput): QueueReason {
 }
 
 function blockingRiskCount(task: TaskSemanticProjectionInput): number {
-  return (task.risks || []).filter((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease)).length;
+  return (task.risks || []).filter((risk) => {
+    const record = risk as Record<string, unknown>;
+    return /^P[0-2]$/i.test(stringValue(record.severity, "")) && (record.open === true || record.blocksRelease === true);
+  }).length;
 }
 
 function clampCompletion(value: unknown): number {
@@ -343,4 +415,12 @@ function clampCompletion(value: unknown): number {
 function stringValue(value: unknown, fallback: string): string {
   const text = String(value || "").trim();
   return text || fallback;
+}
+
+function hiddenReason(deletionState: string, hidden: boolean, archiveState: string): string {
+  if (deletionState === "archived" || archiveState === "archived") return "archived";
+  if (deletionState === "soft-deleted") return "soft-deleted";
+  if (deletionState === "superseded") return "superseded";
+  if (hidden) return "hidden";
+  return "";
 }

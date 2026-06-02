@@ -8,6 +8,7 @@ import {
 } from "./core-shared.mjs";
 import { createScannerTaskRepository } from "./task-repository.mjs";
 import { taskScannerVersion } from "./task-review-model.mjs";
+import { taskMatchesVisibilityScope, taskVisibilityScopes } from "./task-semantic-projection.mjs";
 
 type TaskIndexTarget = ReturnType<typeof normalizeTarget> & {
   projectRoot: string;
@@ -32,6 +33,7 @@ type TaskIndexTask = {
   executionStrategyPath?: string;
   findingsPath?: string;
   hiddenByDefault?: boolean;
+  visibilityScopes?: string[];
   id: string;
   identitySource?: string;
   inferredModule?: string;
@@ -93,6 +95,15 @@ export function buildTaskIndex(targetInput: string | undefined) {
     generatedRoot: `TARGET:${toPosix(path.relative(target.projectRoot, target.harness.generatedRoot))}`,
     generatedAt: new Date().toISOString(),
     sourceFileHashes: Object.fromEntries(tasks.map((task) => [task.taskKey || task.id, hashTaskSources(target, task)])),
+    scope: "all",
+    taskScopes: {
+      all: tasks.length,
+      activeCycle: tasks.filter((task) => taskMatchesVisibilityScope(task, "active-cycle")).length,
+      reviewWorkbench: tasks.filter((task) => taskMatchesVisibilityScope(task, "review-workbench")).length,
+      archiveHistory: tasks.filter((task) => taskMatchesVisibilityScope(task, "archive-history")).length,
+      tombstoneHistory: tasks.filter((task) => taskMatchesVisibilityScope(task, "tombstone-history")).length,
+      taskIndexDefault: tasks.filter((task) => taskMatchesVisibilityScope(task, "task-index-default")).length,
+    },
     tasks: tasks.map((task) => ({
       taskKey: task.taskKey || task.id,
       id: task.id,
@@ -135,6 +146,7 @@ export function buildTaskIndex(targetInput: string | undefined) {
       supersedes: task.supersedes || [],
       supersededBy: task.supersededBy || "",
       deletionState: task.deletionState || "active",
+      visibilityScopes: taskVisibilityScopes(task),
       deleteReason: task.deleteReason || "",
       archiveMetadata: task.archiveMetadata || {},
       hiddenByDefault: task.hiddenByDefault === true,

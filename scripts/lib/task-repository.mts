@@ -21,6 +21,7 @@ import {
   readVisualMapContractFile,
 } from "./task-scanner.mjs";
 import { taskIdFromArchiveStoragePath } from "./task-archive-storage.mjs";
+import { taskMatchesVisibilityScope } from "./task-semantic-projection.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import type { CollectTasksOptions, TaskContractFile, TaskScannerTarget, VisualMapContractFile } from "./types/task-scanner.js";
 
@@ -154,7 +155,7 @@ function normalizeRepositoryTarget(targetInput: TaskScannerTarget | string | und
 function applyTaskQuery(tasks: TaskRecord[], query: TaskQuery): TaskRecord[] {
   let result = [...tasks];
   if (query.includeArchived === false) {
-    result = result.filter((task) => task.deletionState === "active" && task.hiddenByDefault !== true);
+    result = result.filter((task) => taskMatchesVisibilityScope(task, "active-cycle"));
   }
   if (query.state) result = result.filter((task) => task.state === String(query.state).toLowerCase().replaceAll("-", "_"));
   if (query.module) result = result.filter((task) => task.module === query.module);

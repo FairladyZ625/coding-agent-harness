@@ -114,7 +114,7 @@ function reviewSortOptions() {
 }
 
 function reviewQueueBaseTasks(tab) {
-  return normalCycleTasks().filter((task) => taskMatchesReviewTab(task, tab));
+  return reviewWorkbenchTasks().filter((task) => taskMatchesReviewTab(task, tab));
 }
 
 function taskMatchesReviewTab(task, tab) {

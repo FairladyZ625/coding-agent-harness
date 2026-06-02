@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import vm from "node:vm";
 import type { SpawnSyncReturns } from "node:child_process";
 import { confirmTaskReview } from "../scripts/lib/task-lifecycle.mjs";
 import type { HarnessTestLooseJson, HarnessTestLooseTask } from "./helpers/harness-test-types.js";
@@ -12,10 +13,13 @@ import { acceptNoLessonCandidate, assert, expectJson, expectPass, run, sanitizeT
 type ContractTask = HarnessTestLooseTask & {
   semanticProjection?: {
     taskLifecycleProjection?: Record<string, unknown>;
+    visibility?: { scopes?: string[] };
     dashboardTaskView?: Record<string, unknown>;
     reviewWorkbenchQueueView?: Record<string, unknown>;
   };
   taskLifecycleProjection?: Record<string, unknown>;
+  visibility?: { scopes?: string[] };
+  visibilityScopes?: string[];
   dashboardTaskView?: Record<string, unknown>;
   reviewWorkbenchQueueView?: {
     queues?: string[];
@@ -30,7 +34,7 @@ type ContractTask = HarnessTestLooseTask & {
 
 type DashboardBundle = {
   schemaVersion: string;
-  status: { tasks: ContractTask[] };
+  status: { tasks: ContractTask[]; summary?: { taskScopes?: Record<string, number> } };
 };
 
 const target = path.join(tmpRoot, "semantic-contract-baseline-target");
@@ -83,9 +87,11 @@ expectJson(["task-archive", archived.task.id, "--reason", "contract archive fixt
 const replacement = expectJson(["new-task", "contract-superseding", "--title", "Contract Superseding", "--locale", "en-US", target]);
 const superseded = expectJson(["new-task", "contract-superseded", "--title", "Contract Superseded", "--locale", "en-US", target]);
 expectJson(["task-supersede", superseded.task.id, "--by", replacement.task.id, "--reason", "contract supersede fixture", target]);
+const softDeleted = expectJson(["new-task", "contract-soft-deleted", "--title", "Contract Soft Deleted", "--locale", "en-US", target]);
+expectJson(["task-delete", softDeleted.task.id, "--soft", "--reason", "contract soft-delete fixture", target]);
 
-const status = expectJsonAllowingValidationFailure(["status", "--json", target]);
-const taskIndex = expectJsonAllowingValidationFailure(["task-index", "--json", target]);
+const status = expectJsonAllowingValidationFailure(["status", "--json", target]) as HarnessTestLooseJson & { summary?: { taskScopes?: Record<string, number> } };
+const taskIndex = expectJsonAllowingValidationFailure(["task-index", "--json", target]) as HarnessTestLooseJson & { scope?: string; taskScopes?: Record<string, number> };
 assert(Array.isArray(status.tasks), "status --json tasks must be an array for the contract baseline");
 assert(Array.isArray(taskIndex.tasks), "task-index --json tasks must be an array for the contract baseline");
 const statusTasks: ContractTask[] = status.tasks.map((task) => task);
@@ -107,6 +113,7 @@ const requiredIds = [
   archived.task.id,
   replacement.task.id,
   superseded.task.id,
+  softDeleted.task.id,
 ];
 for (const id of requiredIds) {
   assert(statusTasks.some((task) => task.id === id), `status --json lost contract task ${id}`);
@@ -116,9 +123,12 @@ for (const id of requiredIds) {
 for (const task of statusTasks.filter((item) => requiredIds.includes(item.id))) {
   assertContractFields(task, `status task ${task.id}`);
   assert(task.semanticProjection?.taskLifecycleProjection, `status task ${task.id} missing semanticProjection.taskLifecycleProjection`);
+  assert(task.semanticProjection?.visibility, `status task ${task.id} missing semanticProjection.visibility`);
   assert(task.semanticProjection?.dashboardTaskView, `status task ${task.id} missing semanticProjection.dashboardTaskView`);
   assert(task.semanticProjection?.reviewWorkbenchQueueView, `status task ${task.id} missing semanticProjection.reviewWorkbenchQueueView`);
   assert(JSON.stringify(task.taskLifecycleProjection) === JSON.stringify(task.semanticProjection.taskLifecycleProjection), `status task ${task.id} direct lifecycle projection drifted from nested projection`);
+  assert(JSON.stringify(task.visibility) === JSON.stringify(task.semanticProjection.visibility), `status task ${task.id} direct visibility projection drifted from nested projection`);
+  assert(JSON.stringify(task.visibilityScopes) === JSON.stringify(task.semanticProjection.visibility.scopes), `status task ${task.id} direct visibilityScopes drifted from nested visibility projection`);
   assert(JSON.stringify(task.dashboardTaskView) === JSON.stringify(task.semanticProjection.dashboardTaskView), `status task ${task.id} direct dashboard projection drifted from nested projection`);
   assert(JSON.stringify(task.reviewWorkbenchQueueView) === JSON.stringify(task.semanticProjection.reviewWorkbenchQueueView), `status task ${task.id} direct workbench projection drifted from nested projection`);
 }
@@ -170,6 +180,21 @@ const supersededStatus = findTask(statusTasks, superseded.task.id);
 assert(supersededStatus.deletionState === "superseded", "superseded fixture should expose superseded deletionState");
 assert(supersededStatus.supersededBy === replacement.task.id, "superseded fixture should expose replacement task id");
 assert(supersededStatus.reviewQueueState === "not-in-queue", "superseded fixture must not enter review queue");
+assert(supersededStatus.visibilityScopes?.includes("tombstone-history"), "superseded fixture should enter tombstone-history scope");
+assert(!supersededStatus.visibilityScopes?.includes("active-cycle"), "superseded fixture must not enter active-cycle scope");
+
+const softDeletedStatus = findTask(statusTasks, softDeleted.task.id);
+assert(softDeletedStatus.deletionState === "soft-deleted", "soft-deleted fixture should expose soft-deleted deletionState");
+assert(softDeletedStatus.visibilityScopes?.includes("tombstone-history"), "soft-deleted fixture should enter tombstone-history scope");
+assert(!softDeletedStatus.visibilityScopes?.includes("archive-history"), "soft-deleted fixture must not enter archive-history scope");
+assert(!softDeletedStatus.visibilityScopes?.includes("active-cycle"), "soft-deleted fixture must not enter active-cycle scope");
+
+assert(status.summary?.taskScopes?.all === statusTasks.length, "status summary taskScopes.all must match full status task count");
+assert(status.summary?.taskScopes?.activeCycle === statusTasks.filter((task) => task.visibilityScopes?.includes("active-cycle")).length, "status summary activeCycle scope count must match task visibility projections");
+assert(status.summary?.taskScopes?.archiveHistory === statusTasks.filter((task) => task.visibilityScopes?.includes("archive-history")).length, "status summary archiveHistory scope count must match task visibility projections");
+assert(status.summary?.taskScopes?.tombstoneHistory === statusTasks.filter((task) => task.visibilityScopes?.includes("tombstone-history")).length, "status summary tombstoneHistory scope count must match task visibility projections");
+assert(taskIndex.scope === "all", "task-index should declare its explicit all-task audit scope");
+assert(taskIndex.taskScopes?.taskIndexDefault === indexTasks.filter((task) => task.visibilityScopes?.includes("task-index-default")).length, "task-index scope summary must match task visibility projections");
 
 const dashboardDir = path.join(target, "tmp-dashboard");
 expectPass(["dashboard", "--out-dir", dashboardDir, target]);
@@ -195,9 +220,14 @@ for (const id of requiredIds) {
 }
 for (const task of dashboardBundle.status.tasks.filter((item) => requiredIds.includes(item.id))) {
   assertContractFields(task, `dashboard bundle task ${task.id}`);
+  assert(task.visibilityScopes, `dashboard bundle task ${task.id} missing visibilityScopes`);
   assert(task.reviewWorkbenchQueueView, `dashboard bundle task ${task.id} missing direct reviewWorkbenchQueueView`);
   assert(task.dashboardTaskView, `dashboard bundle task ${task.id} missing direct dashboardTaskView`);
 }
+assert(dashboardBundle.status.summary?.taskScopes?.activeCycle === dashboardBundle.status.tasks.filter((task) => task.visibilityScopes?.includes("active-cycle")).length, "dashboard bundle activeCycle scope count must match task visibility projections");
+
+assertDashboardTemplateConsumesVisibilityScopes();
+assertDashboardScopeRuntimeBehavior();
 
 assertGuiPreviewOnlyBaseline();
 assertGuiSchemaCompatibility(statusTasks.filter((item) => requiredIds.includes(item.id)));
@@ -306,6 +336,7 @@ function assertContractFields(task: ContractTask, label: string): void {
     "materialsReady",
     "materialIssues",
     "taskQueues",
+    "visibilityScopes",
     "queueReasons",
     "repairPrompt",
     "closeoutStatus",
@@ -318,6 +349,7 @@ function assertContractFields(task: ContractTask, label: string): void {
     assert(Object.hasOwn(task, field), `${label} missing required contract field ${field}`);
   }
   assert(Array.isArray(task.taskQueues), `${label} taskQueues must be an array`);
+  assert(Array.isArray(task.visibilityScopes), `${label} visibilityScopes must be an array`);
   assert(Array.isArray(task.queueReasons), `${label} queueReasons must be an array`);
   assert(Array.isArray(task.materialIssues), `${label} materialIssues must be an array`);
   assert(typeof task.materialsReady === "boolean", `${label} materialsReady must be boolean`);
@@ -341,7 +373,92 @@ function assertGuiPreviewOnlyBaseline(): void {
   assert(model.includes("previewOnly: boolean"), "GUi action schema must keep previewOnly as an explicit contract field");
   assert(scanner.includes("previewOnly: true"), "GUi review-confirm action must remain preview-only until P08 consumes stable CLI projection");
   assert(scanner.includes("Disabled as a real write until Harness CLI/core confirm action exists."), "GUi preview-only action must explain why it is not runtime truth");
-  assert(scanner.includes("inferQueues("), "P01 baseline should still detect the current independent GUi raw queue inference for P08 routing");
+  assert(!scanner.includes("inferQueues("), "GUi scanner must not keep independent raw queue inference after semantic projection parity repair");
+  assert(scanner.includes("projectCanonicalTaskSemantics("), "GUi scanner should adapt raw public docs into canonical task semantics before mapping UI queues");
+  assert(scanner.includes("projectGuiQueuesFromCanonicalProjection("), "GUi scanner should map canonical task semantics into GUi queue labels through a dedicated adapter");
+}
+
+function assertDashboardTemplateConsumesVisibilityScopes(): void {
+  const visibilityPath = path.join(repoRoot(), "templates/dashboard/assets/app-src/25-task-visibility.js");
+  const tasksPath = path.join(repoRoot(), "templates/dashboard/assets/app-src/30-tasks.js");
+  const reviewPath = path.join(repoRoot(), "templates/dashboard/assets/app-src/45-review.js");
+  const visibilitySource = fs.readFileSync(visibilityPath, "utf8");
+  const tasksSource = fs.readFileSync(tasksPath, "utf8");
+  const reviewSource = fs.readFileSync(reviewPath, "utf8");
+  assert(visibilitySource.includes("function taskInVisibilityScope"), "Dashboard should centralize task visibility scope checks in a dedicated helper source");
+  assert(tasksSource.includes('taskInVisibilityScope(task, "active-cycle")'), "Dashboard task index should consume the active-cycle visibility scope");
+  assert(tasksSource.includes('taskInVisibilityScope(task, "archive-history")'), "Dashboard archive page should consume the archive-history visibility scope");
+  assert(reviewSource.includes("reviewWorkbenchTasks().filter"), "Review workbench should consume review-workbench scope instead of normal-cycle tasks");
+}
+
+function assertDashboardScopeRuntimeBehavior(): void {
+  const context = vm.createContext({
+    window: {
+      __HARNESS_DASHBOARD__: {
+        schemaVersion: "dashboard-bundle/v1",
+        status: {
+          tasks: [
+            dashboardScopeTask("active-task", ["all", "active-cycle", "review-workbench", "task-index-default"], ["active"]),
+            dashboardScopeTask("archived-task", ["all", "review-workbench", "archive-history", "tombstone-history"], ["soft-deleted-superseded"], "archived"),
+            dashboardScopeTask("soft-deleted-task", ["all", "review-workbench", "tombstone-history"], ["soft-deleted-superseded"], "soft-deleted"),
+            dashboardScopeTask("superseded-task", ["all", "review-workbench", "tombstone-history"], ["soft-deleted-superseded"], "superseded"),
+          ],
+        },
+        documents: { documents: [] },
+        graph: { nodes: [], edges: [] },
+      },
+      __HARNESS_LOCALE__: "en",
+      HarnessI18n: { en: {} },
+    },
+    navigator: { language: "en-US" },
+    localStorage: { getItem: () => null, setItem: () => undefined },
+    console,
+  });
+  for (const relative of [
+    "templates/dashboard/assets/app-src/00-state.js",
+    "templates/dashboard/assets/app-src/25-task-visibility.js",
+    "templates/dashboard/assets/app-src/35-task-detail.js",
+    "templates/dashboard/assets/app-src/30-tasks.js",
+    "templates/dashboard/assets/app-src/45-review.js",
+  ]) {
+    vm.runInContext(fs.readFileSync(path.join(repoRoot(), relative), "utf8"), context, { filename: relative });
+  }
+  const activeIds = vm.runInContext("normalCycleTasks().map((task) => task.id)", context) as string[];
+  const archiveIds = vm.runInContext("archivedTasks().map((task) => task.id)", context) as string[];
+  const tombstoneWorkbenchIds = vm.runInContext('reviewQueueBaseTasks({ queues: ["soft-deleted-superseded"] }).map((task) => task.id)', context) as string[];
+  assert(JSON.stringify(activeIds) === JSON.stringify(["active-task"]), "Dashboard active-cycle runtime scope should include only active tasks");
+  assert(JSON.stringify(archiveIds) === JSON.stringify(["archived-task"]), "Dashboard archive-history runtime scope should exclude soft-deleted and superseded tombstones");
+  assert(
+    JSON.stringify(tombstoneWorkbenchIds) === JSON.stringify(["archived-task", "soft-deleted-task", "superseded-task"]),
+    "Dashboard review-workbench runtime scope should keep all tombstones in the soft-deleted/superseded workbench tab",
+  );
+}
+
+function dashboardScopeTask(id: string, visibilityScopes: string[], taskQueues: string[], deletionState = "active"): ContractTask {
+  return {
+    id,
+    shortId: id,
+    title: id,
+    state: deletionState === "active" ? "in_progress" : "done",
+    lifecycleState: deletionState === "active" ? "active" : "closed",
+    reviewStatus: "agent-reviewed",
+    reviewQueueState: "not-in-queue",
+    reviewSubmitted: false,
+    materialsReady: true,
+    materialIssues: [],
+    queueReasons: [],
+    taskQueues,
+    visibilityScopes,
+    semanticProjection: {
+      taskLifecycleProjection: { taskQueues, lifecycleState: deletionState === "active" ? "active" : "closed", reviewStatus: "agent-reviewed", closeoutStatus: "missing" },
+      visibility: { scopes: visibilityScopes },
+      dashboardTaskView: {},
+      reviewWorkbenchQueueView: { queues: taskQueues, primaryQueue: taskQueues[0] },
+    },
+    reviewWorkbenchQueueView: { queues: taskQueues, primaryQueue: taskQueues[0] },
+    deletionState,
+    supersededBy: "",
+  } as unknown as ContractTask;
 }
 
 function assertGuiSchemaCompatibility(tasks: ContractTask[]): void {
@@ -362,6 +479,7 @@ function assertGuiSchemaCompatibility(tasks: ContractTask[]): void {
         active: 0,
         closed: 0,
         archived: 0,
+        softDeletedSuperseded: 0,
       },
     },
     projects: [
@@ -380,6 +498,7 @@ function assertGuiSchemaCompatibility(tasks: ContractTask[]): void {
           active: 0,
           closed: 0,
           archived: 0,
+          softDeletedSuperseded: 0,
         },
         moduleSummary: {},
         lastScanAt: new Date(0).toISOString(),
@@ -495,7 +614,8 @@ function queueReasonMessage(task: ContractTask): string {
 }
 
 function mapGuiQueues(task: ContractTask): string[] {
-  if (task.deletionState === "archived" || task.deletionState === "superseded") return ["archived"];
+  if (task.deletionState === "archived") return ["archived"];
+  if (task.deletionState === "superseded" || task.deletionState === "soft-deleted") return ["soft-deleted-superseded"];
   const queues = new Set<string>();
   for (const queue of task.taskQueues || []) {
     if (queue === "review") queues.add(task.reviewWorkbenchQueueView?.blocked ? "review-blocked" : "review-needed");
