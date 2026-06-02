@@ -1,13 +1,11 @@
 import path from "node:path";
+import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../../domain/task/task-subjects.mjs";
 import { normalizeTarget } from "../../lib/core-shared.mjs";
 import { collectTasks } from "../../lib/task-scanner.mjs";
 import type {
-  TaskOperationBlockingRisk,
-  TaskOperationSemanticProjection,
   TaskOperationSubject,
   TaskOperationSubjectReader,
   TaskRef,
-  TaskTombstonePolicyFacts,
   TaskTombstoneSubject,
   TombstoneSubjectReader,
 } from "../../lib/types/task-repository.js";
@@ -131,24 +129,14 @@ function normalizeRawTaskRef(rawRef: string): string {
 }
 
 function operationSubjectFromScannerTask(task: ScannerTaskRecord): TaskOperationSubject {
-  return {
-    id: task.id,
-    budget: String(task.budget || ""),
-    lessonCandidateStatus: String(task.lessonCandidateStatus || ""),
-    lessonCandidatePromotionState: String(task.lessonCandidatePromotionState || ""),
-    repairPrompt: String(task.repairPrompt || ""),
-    queueReasons: Array.isArray(task.queueReasons) ? task.queueReasons : [],
-    blockingReviewRisks: operationBlockingReviewRisks(task),
-    semanticProjection: operationSemanticProjectionFromScannerTask(task),
-  };
+  return buildTaskOperationSubject(task);
 }
 
 function tombstoneSubjectFromScannerTask(target: TaskScannerTarget, task: ScannerTaskRecord): TaskTombstoneSubject {
   const directory = taskDirectoryFromScannerTask(target, task);
   const taskPlanPath = taskPlanPathFromScannerTask(target, task, directory);
   const progressPath = absoluteTargetPath(target, String(task.progressPath || path.join(directory, "progress.md")));
-  return {
-    id: task.id,
+  return buildTaskTombstoneSubject(task, {
     location: {
       id: task.id,
       directory,
@@ -162,20 +150,7 @@ function tombstoneSubjectFromScannerTask(target: TaskScannerTarget, task: Scanne
       relativeTaskPlanPath: path.relative(target.projectRoot, taskPlanPath).split(path.sep).join("/"),
       relativeProgressPath: path.relative(target.projectRoot, progressPath).split(path.sep).join("/"),
     },
-    policy: {
-      state: task.state,
-      budget: task.budget,
-      closeoutStatus: task.closeoutStatus,
-      reviewSubmitted: task.reviewSubmitted,
-      reviewStatus: task.reviewStatus,
-      reviewConfirmation: normalizeReviewConfirmation(task.reviewConfirmation),
-      materialsReady: task.materialsReady,
-      evidence: task.evidence,
-      taskQueues: task.taskQueues,
-      risks: task.risks,
-      deletionState: task.deletionState,
-    },
-  };
+  });
 }
 
 function taskDirectoryFromScannerTask(target: TaskScannerTarget, task: ScannerTaskRecord): string {
@@ -193,31 +168,4 @@ function taskPlanPathFromScannerTask(target: TaskScannerTarget, task: ScannerTas
 function absoluteTargetPath(target: TaskScannerTarget, rawPath: string): string {
   const withoutPrefix = rawPath.replace(/^TARGET:/, "");
   return path.isAbsolute(withoutPrefix) ? withoutPrefix : path.join(target.projectRoot, withoutPrefix);
-}
-
-function operationSemanticProjectionFromScannerTask(task: ScannerTaskRecord): TaskOperationSemanticProjection {
-  const semanticProjection = task.semanticProjection as Partial<TaskOperationSemanticProjection> | undefined;
-  const taskLifecycleProjection = semanticProjection?.taskLifecycleProjection || task.taskLifecycleProjection;
-  const reviewWorkbenchQueueView = semanticProjection?.reviewWorkbenchQueueView || task.reviewWorkbenchQueueView;
-  if (!taskLifecycleProjection || !reviewWorkbenchQueueView) throw new Error(`Task operation subject missing semantic projection: ${task.id}`);
-  return { taskLifecycleProjection, reviewWorkbenchQueueView };
-}
-
-function normalizeReviewConfirmation(value: unknown): TaskTombstonePolicyFacts["reviewConfirmation"] {
-  if (!value || typeof value !== "object") return null;
-  return value as TaskTombstonePolicyFacts["reviewConfirmation"];
-}
-
-function operationBlockingReviewRisks(task: ScannerTaskRecord): TaskOperationBlockingRisk[] {
-  const risks = Array.isArray(task.risks) ? task.risks : [];
-  return risks.filter((risk) => operationReviewBoolean(risk.open) !== "no" && (operationReviewBoolean(risk.blocksRelease) === "yes" || ["P0", "P1", "P2"].includes(String(risk.severity))));
-}
-
-function operationReviewBoolean(value: unknown): "yes" | "no" | "" {
-  if (value === true) return "yes";
-  if (value === false) return "no";
-  const normalized = String(value || "").trim().toLowerCase();
-  if (["yes", "y", "true", "open"].includes(normalized)) return "yes";
-  if (["no", "n", "false", "closed"].includes(normalized)) return "no";
-  return "";
 }
