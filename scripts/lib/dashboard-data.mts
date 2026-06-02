@@ -574,7 +574,7 @@ function accumulateModuleTask(module: DashboardModuleSummary, task: Record<strin
   const state = dashboardTaskStateValue(task);
   module.counts.total += 1;
   module.counts[state] = (module.counts[state] || 0) + 1;
-  if (["active", "missing-materials", "blocked", "review", "lessons", "confirmed", "confirmed-finalization-pending"].includes(state)) module.counts.active += 1;
+  if (["active", "missing-materials", "blocked", "review", "lessons"].includes(state)) module.counts.active += 1;
   if (dashboardTaskHasRisk(task)) module.counts.risk += 1;
   if (dashboardTaskMissingDocs(task)) module.counts.missingDocs += 1;
   if (module.tasks.length < 16) {
@@ -785,7 +785,7 @@ export function collectAdoption(status: DashboardStatus) {
         category: "Visibility Layer",
         type: "missing-brief",
         scope: "task",
-        priority: ["active", "missing-materials", "blocked", "review", "lessons", "confirmed", "confirmed-finalization-pending"].includes(state) ? "P2" : "P3",
+        priority: ["active", "missing-materials", "blocked", "review", "lessons"].includes(state) ? "P2" : "P3",
         phase: "active-task-contracts",
         fixability: "guided",
         status: "open",

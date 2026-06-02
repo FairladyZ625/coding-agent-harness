@@ -57,7 +57,7 @@ function task(overrides: Record<string, unknown> = {}) {
   } as Record<string, unknown>;
   const fallbackQueue = item.state === "in_progress" ? "active" : ["planned", "not_started"].includes(String(item.state)) ? "planned" : item.state === "done" ? "done" : "unknown";
   const queues = Array.isArray(item.taskQueues) && item.taskQueues.length ? item.taskQueues as string[] : [fallbackQueue];
-  const primaryQueue = queues.find((queue) => ["blocked", "missing-materials", "review", "lessons", "confirmed", "confirmed-finalization-pending", "finalized", "soft-deleted-superseded", "active", "planned", "done", "unknown"].includes(queue)) || queues[0] || "unknown";
+  const primaryQueue = queues.find((queue) => ["blocked", "missing-materials", "review", "lessons", "finalized", "soft-deleted-superseded", "active", "planned", "done", "unknown"].includes(queue)) || queues[0] || "unknown";
   const rawState = String(item.state || "");
   const lifecycleState = rawState === "in_progress" ? "active" : ["planned", "not_started"].includes(rawState) ? "ready" : rawState === "done" ? "closed" : rawState;
   item.taskLifecycleProjection ??= {
@@ -77,10 +77,10 @@ function task(overrides: Record<string, unknown> = {}) {
     humanConfirmable: item.reviewQueueState === "ready-to-confirm" && primaryQueue === "review",
     blocked: primaryQueue === "blocked",
     needsMaterials: primaryQueue === "missing-materials",
-    confirmed: primaryQueue === "confirmed",
+    confirmed: primaryQueue === "finalized" && item.reviewStatus === "confirmed",
     finalized: primaryQueue === "finalized",
     hasPendingLessonWork: primaryQueue === "lessons",
-    readyForCloseout: primaryQueue === "confirmed-finalization-pending",
+    readyForCloseout: false,
     reasonCodes: [],
     reasonSummaries: [],
   };

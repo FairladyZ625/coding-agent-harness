@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { buildTaskSemanticProjection } from "../scripts/lib/task-semantic-projection.mjs";
+import { deriveLifecycleState } from "../scripts/lib/task-review-model.mjs";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -100,13 +101,13 @@ assert(agentReviewedUnknown.dashboardTaskView.swimlane.visible === false, "unkno
 
 const confirmedLessonWork = buildTaskSemanticProjection({
   state: "review",
-  lifecycleState: "lesson-finalization-pending",
+  lifecycleState: "finalized",
   reviewStatus: "confirmed",
-  reviewQueueState: "confirmed",
+  reviewQueueState: "not-in-queue",
   closeoutStatus: "missing",
   budget: "standard",
   completion: 100,
-  taskQueues: ["lessons"],
+  taskQueues: ["finalized", "lessons"],
   materialsReady: true,
   reviewSubmitted: true,
   lessonCandidateStatus: "needs-promotion",
@@ -115,7 +116,8 @@ const confirmedLessonWork = buildTaskSemanticProjection({
 });
 
 assert(confirmedLessonWork.reviewWorkbenchQueueView.hasPendingLessonWork === true, "lesson queue should project pending lesson work");
-assert(confirmedLessonWork.reviewWorkbenchQueueView.readyForCloseout === false, "pending lesson work blocks closeout readiness");
+assert(confirmedLessonWork.reviewWorkbenchQueueView.finalized === true, "confirmed tasks with lesson work should still be terminal finalized work");
+assert(confirmedLessonWork.reviewWorkbenchQueueView.readyForCloseout === false, "confirmed tasks should not require a separate closeout action");
 assert(confirmedLessonWork.dashboardTaskView.swimlane.columnKey === "lessons", "confirmed tasks with lesson work should project into the lessons swimlane column");
 
 const closedHistorical = buildTaskSemanticProjection({
@@ -154,6 +156,30 @@ const confirmedByAudit = buildTaskSemanticProjection({
 });
 
 assert(confirmedByAudit.reviewWorkbenchQueueView.confirmed === true, "native review confirmation audit should project confirmed workbench state");
-assert(confirmedByAudit.reviewWorkbenchQueueView.readyForCloseout === true, "native review confirmation audit should make no-lesson tasks closeout-ready");
+assert(confirmedByAudit.reviewWorkbenchQueueView.finalized === true, "native review confirmation audit should project terminal finalized state");
+assert(confirmedByAudit.reviewWorkbenchQueueView.readyForCloseout === false, "native review confirmation audit should not require a second closeout action");
+assert(confirmedByAudit.reviewWorkbenchQueueView.primaryQueue === "finalized", "confirmed no-lesson tasks should not remain in the review or confirmed-finalization-pending queues");
+assert(confirmedByAudit.dashboardTaskView.visibleInSwimlane === false, "confirmed no-lesson tasks should leave active swimlane views");
+
+assert(
+  deriveLifecycleState({
+    state: "review",
+    reviewStatus: "confirmed",
+    closeoutStatus: "pending",
+    budget: "standard",
+    lessonCandidates: { status: "no-candidate-accepted" } as never,
+  }) === "finalized",
+  "confirmed no-lesson tasks should derive a finalized lifecycle even when closeoutStatus is pending",
+);
+assert(
+  deriveLifecycleState({
+    state: "review",
+    reviewStatus: "confirmed",
+    closeoutStatus: "pending",
+    budget: "standard",
+    lessonCandidates: { status: "needs-promotion" } as never,
+  }) === "finalized",
+  "confirmed tasks with pending lesson follow-up should still derive finalized lifecycle",
+);
 
 console.log("Task semantic projection tests passed");

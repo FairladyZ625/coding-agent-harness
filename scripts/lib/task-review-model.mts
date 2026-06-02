@@ -419,11 +419,7 @@ export function deriveTaskQueues({
     if (hasLessonWork) taskQueues.push("lessons");
     if (budget === "simple" && state === "done" && closeoutStatus === "closed") taskQueues.push("finalized");
     if (reviewStatus === "confirmed") {
-      if (closeoutStatus === "closed") taskQueues.push("finalized");
-      else {
-        taskQueues.push("confirmed");
-        if (!hasLessonWork) taskQueues.push("confirmed-finalization-pending");
-      }
+      taskQueues.push("finalized");
     }
   }
   const normalizedTaskQueues = [...new Set(taskQueues)];
@@ -516,7 +512,7 @@ export function deriveLifecycleState({ state = "unknown", reviewStatus = "missin
   if (budget === "simple" && closeoutStatus === "closed") return "closed";
   if (closeoutStatus === "closed" && reviewStatus !== "confirmed") return "closed-review-pending";
   if (closeoutStatus === "closed") return "closed";
-  if (reviewStatus === "confirmed") return hasPendingLessonWork(lessonCandidates) ? "lesson-finalization-pending" : "confirmed-finalization-pending";
+  if (reviewStatus === "confirmed") return "finalized";
   if (state === "blocked") return "blocked";
   if (state === "done") return "closing";
   if (state === "review") return "in_review";
@@ -531,7 +527,7 @@ export function deriveReviewQueueState({ state = "unknown", lifecycleState = "un
   if (["not_started", "planned", "in_progress"].includes(state)) return "not-in-queue";
   const reviewSurface = requiresReviewMaterials({ state, lifecycleState, closeoutStatus });
   if (!reviewSurface) return "not-in-queue";
-  if (reviewStatus === "confirmed") return closeoutStatus === "closed" ? "not-in-queue" : "confirmed";
+  if (reviewStatus === "confirmed") return "not-in-queue";
   if (budget === "simple" && reviewStatus === "missing") return "not-in-queue";
   const missingWalkthrough = budget !== "simple" && !walkthroughPath;
   const missingCandidateDecision = budget !== "simple" && !lessonCandidateDecisionComplete;
@@ -542,7 +538,7 @@ export function deriveReviewQueueState({ state = "unknown", lifecycleState = "un
 
 export function collectStateConflicts({ state, reviewStatus, closeoutStatus, lifecycleState, budget = "standard" }: { state: string; reviewStatus: string; closeoutStatus: string; lifecycleState: string; budget?: TaskBudget }): StateConflict[] {
   const conflicts: StateConflict[] = [];
-  if (state === "done" && closeoutStatus !== "closed") {
+  if (state === "done" && closeoutStatus !== "closed" && reviewStatus !== "confirmed") {
     conflicts.push({ code: "done-without-closeout", severity: "warn", message: "Task state is done, but closeout is still missing or pending." });
   }
   if (closeoutStatus === "closed" && reviewStatus !== "confirmed" && budget !== "simple") {

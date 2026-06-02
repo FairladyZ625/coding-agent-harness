@@ -407,7 +407,7 @@ function taskCountsAsCompleted(task) {
 
 function taskIsNonActiveQueueWork(task) {
   const stateValue = taskStateValue(task);
-  return ["missing-materials", "blocked", "review", "lessons", "confirmed", "confirmed-finalization-pending"].includes(stateValue);
+  return ["missing-materials", "blocked", "review", "lessons"].includes(stateValue);
 }
 
 function taskBriefCard(task, { compact = true } = {}) {
@@ -479,8 +479,6 @@ function taskStatRows(tasks) {
     { state: "blocked", label: t("queueBlocked"), className: "blocked" },
     { state: "review", label: t("queueReview"), className: "review" },
     { state: "lessons", label: t("queueLessons"), className: "lessons" },
-    { state: "confirmed", label: label("confirmed"), className: "confirmed" },
-    { state: "confirmed-finalization-pending", label: label("confirmed-finalization-pending"), className: "confirmed-finalization-pending" },
     { state: "finalized", label: label("finalized"), className: "finalized" },
     { state: "soft-deleted-superseded", label: t("queueSoftDeletedSuperseded"), className: "soft-deleted-superseded" },
     { state: "planned", label: t("planned"), className: "planned" },
@@ -883,7 +881,7 @@ function taskCard(task) {
 
 function taskGroupLabel(group) {
   if (group === "active") return t("activeCurrent");
-  if (["missing-materials", "blocked", "review", "lessons", "confirmed", "confirmed-finalization-pending", "finalized", "soft-deleted-superseded"].includes(group)) return taskQueueFilterLabel(group);
+  if (["missing-materials", "blocked", "review", "lessons", "finalized", "soft-deleted-superseded"].includes(group)) return taskQueueFilterLabel(group);
   if (group === "brief-ready") return t("briefReadyGroup");
   if (group.startsWith("legacy:")) return `${t("legacyMonth")} ${group.slice("legacy:".length)}`;
   if (group.startsWith("module:")) return taskGroupContext(group, []).title;
@@ -983,8 +981,6 @@ const swimlaneStageOrder = [
   ["blocked", "queueBlocked"],
   ["review", "queueReview"],
   ["lessons", "queueLessons"],
-  ["confirmed", "state_confirmed"],
-  ["confirmed-finalization-pending", "state_confirmed-finalization-pending"],
   ["finalized", "state_finalized"],
   ["soft-deleted-superseded", "queueSoftDeletedSuperseded"],
 ];
@@ -1298,7 +1294,7 @@ function taskReviewProjection(task) {
   return task?.reviewWorkbenchQueueView || task?.semanticProjection?.reviewWorkbenchQueueView || {};
 }
 
-const taskPrimaryQueueOrder = ["blocked", "missing-materials", "review", "lessons", "confirmed", "confirmed-finalization-pending", "finalized", "soft-deleted-superseded", "active", "planned"];
+const taskPrimaryQueueOrder = ["blocked", "missing-materials", "review", "lessons", "finalized", "soft-deleted-superseded", "active", "planned"];
 
 function taskQueueFilterLabel(queue) {
   const labels = {
@@ -1307,8 +1303,6 @@ function taskQueueFilterLabel(queue) {
     blocked: t("queueBlocked"),
     review: t("queueReview"),
     lessons: t("queueLessons"),
-    confirmed: label("confirmed"),
-    "confirmed-finalization-pending": label("confirmed-finalization-pending"),
     finalized: label("finalized"),
     "soft-deleted-superseded": t("queueSoftDeletedSuperseded"),
     planned: t("planned"),

@@ -100,8 +100,8 @@ flowchart TB
 | 有 open P0-P2 finding、非法状态转换、审计失败或人审门禁失败 | `blocked` | 不能进入人工确认，必须先修 blocker 或记录 waiver。 |
 | 标准/复杂任务缺必需文件、章节、证据、lesson decision 或 review submission | `missing-materials` | 需要 Agent 补材料，不属于人审队列。 |
 | 已执行 `task-review`，材料齐全，且 `INDEX.md` 尚未显示人工确认 | `review-submitted` | 真正等待人审。 |
-| `INDEX.md` 已显示人工确认，但 post-confirmation finalization / ledger / lessons 仍未全部收口 | `confirmed-finalization-pending` | 责任已转移给确认人，但最终生命周期结项仍待完成。 |
-| `INDEX.md` 已显示人工确认，且 post-confirmation finalization / ledger / lesson routing 完成 | `finalized` | 真正完成，可只读追溯。 |
+| `INDEX.md` 已显示人工确认，且没有待处理 Lesson 债务 | `finalized` | 人审是任务生命周期终点；任务进入只读追溯。 |
+| `INDEX.md` 已显示人工确认，但 Lesson candidate 仍需判定或沉淀 | `lesson-finalization-pending` | 任务已被人确认；只剩独立 Lesson follow-up，不再回到人审或 closeout-ready 队列。 |
 | `task.state = blocked` 但没有 review blocker | `active-blocked` | 执行阻塞。 |
 | `task.state = in_progress` | `active` | 执行中。 |
 | `task.state = planned/not_started` | `ready` | 准备中，默认不进入人审队列。 |
@@ -134,9 +134,7 @@ flowchart TD
   Missing -->|no| Submitted{"Agent Review Submission exists?"}
   Submitted -->|yes + not human confirmed| QReview["Review"]
   Submitted -->|no| Out["not in human review queue"]
-  Submitted -->|yes + human confirmed| Confirmed{"finalization complete?"}
-  Confirmed -->|no| QConfirmed["Confirmed / Finalized"]
-  Confirmed -->|yes| QFinal["Confirmed / Finalized"]
+  Submitted -->|yes + human confirmed| QFinal["Confirmed / Finalized"]
   Task --> Lessons{"lesson candidate needs decision or sedimentation?"}
   Lessons -->|yes| QLessons["Lessons"]
 ```
@@ -147,10 +145,10 @@ flowchart TD
 | Missing Materials | 缺文件、缺章节、缺证据、缺 lesson decision、缺 review submission 或 phase 未完成。 | agent | 补齐材料并重新提交 review。 |
 | Blocked | 有 blocking finding、状态矛盾、Git 审计失败、完成门禁失败或需要 human waiver。 | agent + human | 修复、关闭、或人工豁免。 |
 | Lessons | lesson candidate 需要判定、保留、拒绝、dry-run promotion 或创建沉淀任务。 | human + agent | 决策完成，或创建可追踪沉淀任务。 |
-| Confirmed / Finalized | 已人工确认，或已结项需要只读追溯。 | coordinator | `task-complete` / finalization、ledger、lesson routing 全部完成；之后只读。 |
+| Confirmed / Finalized | 已人工确认，或已结项需要只读追溯。 | coordinator | 默认只读；若有 Lesson 债务，按 Lessons 队列独立追踪。 |
 | Soft-deleted / Superseded | 任务被软删除、替代、合并、归档或废弃。 | coordinator | 只读追溯；必要时 reopen。 |
 
-Review 队列只等人确认。缺材料、阻塞、lesson 沉淀、已确认待结项、历史替代任务都不应伪装成 Review 队列项。
+Review 队列只等人确认。缺材料、阻塞、lesson 沉淀、已确认任务、历史替代任务都不应伪装成 Review 队列项。
 
 ## 全局表边界
 

@@ -67,4 +67,4 @@ Not decided yet. Fill this only when review accepts that the task produced no re
 | --- | --- | --- |
 | Lessons | Any candidate is `ready-for-review` or `needs-promotion`. | Human rejects it, keeps it task-local, creates a sedimentation task, or approves promotion. |
 | Missing Materials | The file is absent, has invalid status, or lacks a required no-candidate reason. | Agent repairs the candidate file. |
-| Confirmed / Finalized | Human review is confirmed but a candidate still has deferred governance work. | Follow-up task or dry-run decision is recorded. |
+| Confirmed / Finalized | Human review is confirmed; any candidate follow-up remains independent Lesson work. | Follow-up task or dry-run decision is recorded. |
