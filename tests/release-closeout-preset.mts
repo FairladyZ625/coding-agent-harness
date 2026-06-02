@@ -508,6 +508,21 @@ fs.writeFileSync(batchTaskListPath, JSON.stringify({
   release: "1.0.5",
   taskIds: [`TASKS/${todayLocal}-release-batch-root`, `MODULES/life-circle/${todayLocal}-release-module-done`],
 }, null, 2));
+const batchRootActiveDir = path.join(target, "coding-agent-harness/planning/tasks", `${todayLocal}-release-batch-root`);
+const batchModuleActiveDir = path.join(target, "coding-agent-harness/planning/modules/life-circle/tasks", `${todayLocal}-release-module-done`);
+const batchRootPlanBefore = fs.readFileSync(path.join(batchRootActiveDir, "task_plan.md"), "utf8");
+const batchModulePlanBefore = fs.readFileSync(path.join(batchModuleActiveDir, "task_plan.md"), "utf8");
+const batchCollisionArchiveDir = path.join(target, "coding-agent-harness/governance/archive/releases/1.0.5/tasks/MODULES/life-circle", `${todayLocal}-release-module-done`);
+fs.mkdirSync(batchCollisionArchiveDir, { recursive: true });
+fs.writeFileSync(path.join(batchCollisionArchiveDir, "existing.txt"), "existing release archive collision\n");
+const batchArchiveCollision = run(["task-archive-batch", "--release", "1.0.5", "--task-list", batchTaskListPath, "--reason", "release closeout batch", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "retention bucket=release:1.0.5", target], { env });
+assert(batchArchiveCollision.status !== 0, "task-archive-batch should reject release archive destination collisions before mutating source tasks");
+assert(`${batchArchiveCollision.stdout}\n${batchArchiveCollision.stderr}`.includes("Tombstone destination already exists"), "batch archive collision failure should explain the destination conflict");
+assert(fs.existsSync(batchRootActiveDir), "failed batch archive collision should keep root task in the active planning tree");
+assert(fs.existsSync(batchModuleActiveDir), "failed batch archive collision should keep module task in the active planning tree");
+assert(fs.readFileSync(path.join(batchRootActiveDir, "task_plan.md"), "utf8") === batchRootPlanBefore, "failed batch archive collision must not write root tombstone before moving");
+assert(fs.readFileSync(path.join(batchModuleActiveDir, "task_plan.md"), "utf8") === batchModulePlanBefore, "failed batch archive collision must not write module tombstone before moving");
+fs.rmSync(batchCollisionArchiveDir, { recursive: true, force: true });
 expectJson(["task-archive-batch", "--release", "1.0.5", "--task-list", batchTaskListPath, "--reason", "release closeout batch", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "retention bucket=release:1.0.5", target], { env });
 const batchArchiveCommit = git(target, ["rev-parse", "HEAD"]).stdout.trim();
 const batchArchiveSubject = git(target, ["show", "-s", "--format=%s", batchArchiveCommit]).stdout.trim();
