@@ -40,6 +40,25 @@ type CliArgs = DetectorOptions & {
 };
 
 const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+export const legacyFallbackScanManifest = [
+  "scripts",
+  "tests",
+  "templates",
+  "templates-zh-CN",
+  "docs-release",
+  "examples",
+  "presets",
+  "references",
+  ".github",
+  "harness-gui",
+  "README.md",
+  "README.en-US.md",
+  "README.zh-CN.md",
+  "SKILL.md",
+  "package.json",
+  "postinstall.mjs",
+  "run-dist.mjs",
+];
 
 const textFilePattern = /\.(cjs|js|json|md|mjs|mts|template|ts|txt|yaml|yml)$/;
 const allowedRegistryClasses = new Set([
@@ -58,6 +77,11 @@ const retiredFacadePatterns = [
   /(?:^|[/\\])scripts[/\\]lib[/\\]task-operations\.mts$/,
   /(?:^|[/\\])dist[/\\]lib[/\\]task-operations\.mjs$/,
 ];
+const retiredFacadeImportPattern = /(?:from\s+|import\s*\(\s*|import\s+|require\s*\(\s*)["'][^"']*(?:scripts\/lib\/task-operations|dist\/lib\/task-operations)/;
+const rawInferencePattern = /\binfer(?:Lifecycle|ReviewStatus|Queues|MaterialsReady|CloseoutStatus)\s*\(/;
+const legacyRuntimeFallbackToken = ["LEGACY", "RUNTIME", "FALLBACK"].join("_");
+const rawFactDecisionPattern = /(?:\b(?:if|switch|return)\b|[?]|&&|\|\|).*?\b(?:task|item|raw|record|entry)\.(?:state|lifecycleState|reviewStatus|reviewQueueState|taskQueues|materialsReady|closeoutStatus|lessonCandidateStatus|lessonCandidateReviewDecision|lessonCandidatePromotionState)\b/;
+const compatExemptionPattern = /\bmigration-only\b|runtimeTruth["']?\s*:\s*false|legacy-migration-input\/v1|\bstable-kernel\b|pure helper|\btest-only-compat\b|test only compat/i;
 
 export function analyzeLegacyFallbackSurfaces(options: DetectorOptions = {}): LegacyFallbackReport {
   const repoRoot = path.resolve(options.repoRoot || defaultRepoRoot);
@@ -79,13 +103,10 @@ export function analyzeLegacyFallbackSurfaces(options: DetectorOptions = {}): Le
 function scanSourceText(relativeFile: string, content: string): LegacyFallbackFinding[] {
   const findings: LegacyFallbackFinding[] = [];
   const lines = content.split(/\r?\n/);
-  const migrationOnly = /\bmigration-only\b|runtimeTruth["']?\s*:\s*false|legacy-migration-input\/v1/.test(content);
-  const stableKernel = /\bstable-kernel\b|pure helper/i.test(content);
-  const testOnlyCompat = /\btest-only-compat\b|test only compat/i.test(content);
-  const exemptCompat = migrationOnly || stableKernel || testOnlyCompat;
 
   for (const [index, line] of lines.entries()) {
-    if (!exemptCompat && /\binfer(?:Lifecycle|ReviewStatus|Queues|MaterialsReady|CloseoutStatus)\s*\(/.test(line)) {
+    const exemptCompat = isCompatExemptLine(lines, index);
+    if (!exemptCompat && rawInferencePattern.test(line)) {
       findings.push({
         code: "legacy-raw-runtime-fallback",
         file: relativeFile,
@@ -94,7 +115,7 @@ function scanSourceText(relativeFile: string, content: string): LegacyFallbackFi
         text: line.trim(),
       });
     }
-    if (/\bLEGACY_RUNTIME_FALLBACK\b/.test(line) && !exemptCompat) {
+    if (line.includes(legacyRuntimeFallbackToken) && !exemptCompat) {
       findings.push({
         code: "legacy-raw-runtime-fallback",
         file: relativeFile,
@@ -103,7 +124,16 @@ function scanSourceText(relativeFile: string, content: string): LegacyFallbackFi
         text: line.trim(),
       });
     }
-    if (/from\s+["'][^"']*(?:scripts\/lib\/task-operations|dist\/lib\/task-operations)/.test(line)) {
+    if (!exemptCompat && rawFactDecisionPattern.test(line)) {
+      findings.push({
+        code: "legacy-raw-runtime-fallback",
+        file: relativeFile,
+        line: index + 1,
+        message: "Raw task fact field decision must be routed through the stable semantic contract.",
+        text: line.trim(),
+      });
+    }
+    if (retiredFacadeImportPattern.test(line)) {
       findings.push({
         code: "retired-facade-import",
         file: relativeFile,
@@ -131,12 +161,21 @@ function scanRegistry(repoRoot: string, registryPath: string, finalAudit: boolea
   const relativePath = toPosix(path.relative(repoRoot, absolutePath));
   const content = fs.readFileSync(absolutePath, "utf8");
   const findings: LegacyFallbackFinding[] = [];
+  let headerMap: Map<string, number> | undefined;
   for (const [index, line] of content.split(/\r?\n/).entries()) {
-    if (!line.startsWith("|") || line.includes("---")) continue;
-    const cells = line.split("|").map((cell) => cell.trim()).filter(Boolean);
-    if (cells.length < 3 || cells[0] === "Surface") continue;
-    const registryClass = stripInlineCode(cells[1]);
-    const reviewState = stripInlineCode(cells[2]);
+    if (!line.startsWith("|")) continue;
+    const cells = parseMarkdownTableCells(line);
+    if (cells.length === 0) continue;
+    if (isMarkdownTableDivider(cells)) continue;
+    if (!headerMap) {
+      headerMap = buildHeaderMap(cells);
+      continue;
+    }
+    const classIndex = headerMap.get("class");
+    const reviewStateIndex = headerMap.get("review state");
+    if (classIndex === undefined || reviewStateIndex === undefined) continue;
+    const registryClass = stripInlineCode(cells[classIndex] || "");
+    const reviewState = stripInlineCode(cells[reviewStateIndex] || "");
     if (!allowedRegistryClasses.has(registryClass)) {
       findings.push({
         code: "registry-class-out-of-range",
@@ -171,17 +210,16 @@ function scanRegistry(repoRoot: string, registryPath: string, finalAudit: boolea
 function scanPackageSurface(repoRoot: string, packageJsonPath: string): LegacyFallbackFinding[] {
   const absolutePath = path.resolve(repoRoot, packageJsonPath);
   const relativePath = toPosix(path.relative(repoRoot, absolutePath));
-  const parsed = JSON.parse(fs.readFileSync(absolutePath, "utf8")) as { files?: Array<{ path?: string } | string> };
-  const files = Array.isArray(parsed.files) ? parsed.files : [];
+  const parsed = JSON.parse(fs.readFileSync(absolutePath, "utf8")) as unknown;
+  const entries = collectPackageSurfaceEntries(parsed);
   const findings: LegacyFallbackFinding[] = [];
-  for (const [index, entry] of files.entries()) {
-    const filePath = typeof entry === "string" ? entry : String(entry.path || "");
-    const normalized = toPosix(filePath);
+  for (const entry of entries) {
+    const normalized = toPosix(entry.value);
     if (normalized.startsWith(".harness-private/") || normalized.includes("/.harness-private/")) {
       findings.push({
         code: "private-package-leak",
         file: relativePath,
-        line: index + 1,
+        line: entry.line,
         message: "Package surface must not include private harness files.",
         text: normalized,
       });
@@ -190,7 +228,7 @@ function scanPackageSurface(repoRoot: string, packageJsonPath: string): LegacyFa
       findings.push({
         code: "stale-package-export",
         file: relativePath,
-        line: index + 1,
+        line: entry.line,
         message: "Package surface includes a retired legacy facade.",
         text: normalized,
       });
@@ -200,7 +238,7 @@ function scanPackageSurface(repoRoot: string, packageJsonPath: string): LegacyFa
 }
 
 function collectScanFiles(repoRoot: string, scanRoots?: string[]): string[] {
-  const roots = scanRoots && scanRoots.length > 0 ? scanRoots : ["scripts", "tests", "templates", "templates-zh-CN", "docs-release", "examples", "presets", "README.md", "README.en-US.md", "README.zh-CN.md", "SKILL.md", "package.json"];
+  const roots = scanRoots && scanRoots.length > 0 ? scanRoots : legacyFallbackScanManifest;
   const files: string[] = [];
   for (const root of roots) {
     const absolute = path.resolve(repoRoot, root);
@@ -219,8 +257,67 @@ function walkTextFiles(current: string, repoRoot: string): string[] {
   return files;
 }
 
+function isCompatExemptLine(lines: string[], index: number): boolean {
+  const start = Math.max(0, index - 2);
+  return compatExemptionPattern.test(lines.slice(start, index + 1).join("\n"));
+}
+
 function isPublishedText(relativeFile: string): boolean {
   return /^(README|SKILL|docs-release\/|examples\/|templates\/|templates-zh-CN\/|presets\/|references\/)/.test(relativeFile);
+}
+
+function parseMarkdownTableCells(line: string): string[] {
+  return line.split("|").slice(1, -1).map((cell) => cell.trim());
+}
+
+function buildHeaderMap(cells: string[]): Map<string, number> {
+  return new Map(cells.map((cell, index) => [normalizeHeader(cell), index]));
+}
+
+function normalizeHeader(value: string): string {
+  return stripInlineCode(value).toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function isMarkdownTableDivider(cells: string[]): boolean {
+  return cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+type PackageSurfaceEntry = {
+  value: string;
+  line: number;
+};
+
+function collectPackageSurfaceEntries(parsed: unknown): PackageSurfaceEntry[] {
+  if (Array.isArray(parsed)) return parsed.flatMap((entry) => collectPackManifestEntries(entry));
+  if (!isRecord(parsed)) return [];
+  const entries: PackageSurfaceEntry[] = [];
+  entries.push(...collectStringEntries(parsed.main, 1));
+  entries.push(...collectStringEntries(parsed.types, 1));
+  entries.push(...collectStringEntries(parsed.bin, 1));
+  entries.push(...collectStringEntries(parsed.exports, 1));
+  entries.push(...collectStringEntries(parsed.files, 1));
+  return entries;
+}
+
+function collectPackManifestEntries(entry: unknown): PackageSurfaceEntry[] {
+  if (!isRecord(entry)) return [];
+  return collectStringEntries(entry.files, 1);
+}
+
+function collectStringEntries(value: unknown, line: number): PackageSurfaceEntry[] {
+  if (typeof value === "string") return [{ value, line }];
+  if (Array.isArray(value)) return value.flatMap((entry, index) => collectStringEntries(entry, index + 1));
+  if (!isRecord(value)) return [];
+  const pathValue = value.path;
+  const ownEntry = typeof pathValue === "string" ? [{ value: pathValue, line }] : [];
+  return [
+    ...ownEntry,
+    ...Object.values(value).flatMap((entry, index) => collectStringEntries(entry, index + 1)),
+  ];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
 }
 
 function stripInlineCode(value: string): string {
