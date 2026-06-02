@@ -82,6 +82,8 @@ writeFixture(
 );
 
 const graph = buildImportGraph({ repoRoot: fixtureRoot });
+const harnessCoreSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/harness-core.mts"), "utf8");
+assert(!harnessCoreSource.includes("./task-operation-subjects.mjs"), "scanner-backed TaskOperationSubjectReader helper should not be re-exported from the broad harness-core barrel");
 assert(graph.summary.fileCount === 11, `expected 11 graph files, got ${graph.summary.fileCount}`);
 assert(graph.summary.localEdgeCount === 9, `expected 9 local edges, got ${graph.summary.localEdgeCount}`);
 assert(graph.summary.unresolvedLocalEdges === 0, "valid graph should have no unresolved local edges");
@@ -92,13 +94,18 @@ assert(graph.summary.architectureBoundaryViolations === 0, "valid layered fixtur
 assert(graph.architectureContract.version === "architecture-import-contract/2026-06-02-p03", "graph should expose the P03 architecture import contract version");
 assert(graph.architectureContract.layers.some((layer) => layer.id === "application" && layer.mayImport.includes("phase-open-exceptions")), "contract should expose application phase-open exception policy");
 assert(graph.architectureContract.layers.some((layer) => layer.id === "commands" && layer.owns.includes("scripts/commands/**")), "contract should expose a dedicated commands ownership layer");
-assert(graph.architectureContract.phaseOpenExceptions.some((exception) => exception.source === "scripts/application/task/task-operations.mts" && exception.target === "scripts/lib/task-repository.mts"), "contract should list current TaskOperations repository bridge as a phase-open exception");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-application-task-operations-repository-bridge"), "contract should not keep the retired TaskOperations repository bridge exception");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P06-application-task-operations-projection-bridge"), "contract should not keep the retired TaskOperations projection bridge exception");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.source === "scripts/application/task/task-operations.mts" && exception.target === "scripts/lib/task-repository.mts"), "contract should not re-register the retired TaskOperations repository bridge under a new id");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.source === "scripts/application/task/task-operations.mts" && exception.target === "scripts/lib/task-semantic-projection.mts"), "contract should not re-register the retired TaskOperations projection bridge under a new id");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P04-application-task-operations-tombstone-bridge"), "contract should not keep the retired TaskOperations tombstone bridge exception");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P04-application-module-governance-sync-bridge"), "contract should not keep the retired module governance sync bridge exception");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P04-application-tombstone-resolution-bridge"), "contract should not keep the retired tombstone lifecycle resolver bridge exception");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-application-tombstone-repository-resolution-bridge"), "contract should not keep the retired tombstone repository resolver exception");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-application-tombstone-scanner-bridge"), "contract should not keep the retired tombstone scanner bridge exception");
+assert(graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-command-task-operations-subject-composition-bridge" && exception.source === "scripts/commands/task-command.mts" && exception.target === "scripts/lib/task-operation-subjects.mts"), "contract should track the command composition bridge for the scanner-backed TaskOperationSubjectReader");
 assert(graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "scripts/lib/task-scanner.mts" && lock.ownerPhase === "P05-repository-scanner-strangler"), "contract should expose scanner shared-file lock ownership");
+assert(graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "scripts/lib/task-operation-subjects.mts" && lock.ownerPhase === "P05-repository-scanner-strangler"), "contract should expose TaskOperationSubjectReader composition helper ownership");
 assert(graph.architectureContract.boundaryRules.includes("application-imports-unregistered-legacy-surface"), "contract should expose fail-closed application legacy import rule");
 
 assert(nodeByPath(graph, "scripts/harness.mjs").reachableFromBin === true, "bin entry should be bin-reachable");

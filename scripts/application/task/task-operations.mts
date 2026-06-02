@@ -2,33 +2,11 @@ import { normalizeTarget } from "../../lib/core-shared.mjs";
 import { createTask, confirmTaskReview, updateTaskLifecycle } from "../../lib/task-lifecycle.mjs";
 import { createLessonSedimentationTask } from "../../lib/task-lesson-sedimentation.mjs";
 import { createTombstoneOperations } from "./tombstone-operations.mjs";
-import { createScannerTaskRepository } from "../../lib/task-repository.mjs";
-import type { TaskRecord, TaskRepository } from "../../lib/task-repository.mjs";
-import { buildTaskSemanticProjection } from "../../lib/task-semantic-projection.mjs";
-import type { ReviewWorkbenchQueueView, TaskLifecycleProjection, TaskSemanticProjection } from "../../lib/task-semantic-projection.mjs";
+import type { TaskOperationSubject, TaskOperationSubjectReader } from "../../lib/types/task-repository.js";
 import type { CreateTaskOptions, LifecycleUpdateOptions, ReviewConfirmOptions } from "../../lib/types/task-lifecycle.js";
 
 type JsonPayload = Record<string, unknown>;
-type OperationTask = TaskRecord & {
-  budget?: string;
-  closeoutStatus?: string;
-  id?: string;
-  lessonCandidatePromotionState?: string;
-  lessonCandidateRows?: Array<Record<string, unknown>>;
-  lessonCandidateStatus?: string;
-  lifecycleState?: string;
-  queueReasons?: unknown[];
-  repairPrompt?: string;
-  reviewConfirmation?: { confirmed?: boolean } | null;
-  reviewQueueState?: string;
-  reviewStatus?: string;
-  risks?: Array<{ id?: string; open?: unknown; blocksRelease?: unknown; severity?: unknown }>;
-  reviewWorkbenchQueueView?: ReviewWorkbenchQueueView;
-  semanticProjection?: TaskSemanticProjection;
-  state?: string;
-  taskLifecycleProjection?: TaskLifecycleProjection;
-  taskQueues?: string[];
-};
+type OperationTask = TaskOperationSubject;
 
 export type OperationSuccess<TData = unknown> = {
   success: true;
@@ -49,7 +27,7 @@ export type OperationFailure = {
 export type OperationResult<TData = unknown> = OperationSuccess<TData> | OperationFailure;
 
 export type TaskOperationsOptions = {
-  repository?: TaskRepository;
+  subjects?: TaskOperationSubjectReader;
 };
 
 export type CreateTaskInput = CreateTaskOptions & {
@@ -148,9 +126,10 @@ export class TaskOperationError extends Error {
 export function createTaskOperations(targetInput: string = ".", options: TaskOperationsOptions = {}): TaskOperations {
   const rawTargetInput = targetInput || ".";
   const target = normalizeTarget(rawTargetInput);
-  const repository = options.repository || createScannerTaskRepository(target);
+  const subjects = options.subjects;
+  if (!subjects) throw new Error("TaskOperations requires a TaskOperationSubjectReader.");
   const targetRoot = target.projectRoot;
-  const tombstones = createTombstoneOperations(targetRoot, { subjects: repository });
+  const tombstones = createTombstoneOperations(targetRoot, { subjects });
 
   return {
     create(input) {
@@ -171,7 +150,7 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
       return this.updateLifecycle({ ...input, event: "task-review", state: "review" });
     },
     complete(input) {
-      const task = getOperationTask(repository, input.taskId);
+      const task = getOperationTask(subjects, input.taskId);
       if (!task.success) return task;
       const blocked = taskCompleteBlock(task.data);
       if (blocked) return blocked;
@@ -183,7 +162,7 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
       }));
     },
     confirmReview(input) {
-      const task = getOperationTask(repository, input.taskId);
+      const task = getOperationTask(subjects, input.taskId);
       if (!task.success) return task;
       const blocked = reviewConfirmationBlock(task.data);
       if (blocked) return blocked;
@@ -230,7 +209,7 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
       }));
     },
     lessonSediment(input) {
-      const task = getOperationTask(repository, input.taskId);
+      const task = getOperationTask(subjects, input.taskId);
       if (!task.success) return task;
       if (!String(input.candidateId || "").trim()) return failure("Missing lesson candidate id", { status: 400 });
       return runOperation(() => createLessonSedimentationTask(targetRoot, input.taskId, input.candidateId, {
@@ -260,10 +239,10 @@ function runOperation<TData>(operation: () => TData): OperationResult<TData> {
   }
 }
 
-function getOperationTask(repository: TaskRepository, taskId: string): OperationResult<OperationTask> {
+function getOperationTask(subjects: TaskOperationSubjectReader, taskId: string): OperationResult<OperationTask> {
   if (!String(taskId || "").trim()) return failure("Missing task id", { status: 400 });
   try {
-    return { success: true, status: 200, data: repository.get({ id: taskId }) as OperationTask };
+    return { success: true, status: 200, data: subjects.getOperationSubject({ id: taskId }) };
   } catch (error) {
     const reason = errorMessage(error);
     return failure(reason, { status: reason.startsWith("Task not found") ? 404 : 400 });
@@ -283,7 +262,7 @@ function reviewConfirmationBlock(task: OperationTask): OperationFailure | null {
       payload: {
         reviewQueueState: lifecycle.reviewQueueState || "unknown",
         taskQueues: reviewView.queues,
-        queueReasons: Array.isArray(task.queueReasons) ? task.queueReasons : [],
+        queueReasons: task.queueReasons,
         repairPrompt: task.repairPrompt || "",
         reviewStatus: lifecycle.reviewStatus || "unknown",
         taskId: task.id || "",
@@ -306,7 +285,7 @@ function taskCompleteBlock(task: OperationTask): OperationFailure | null {
   if (budget !== "simple" && state !== "review") {
     return closeoutFailure(task, `task-complete for ${budget || "standard"} tasks requires current state review. Run task-review first.`);
   }
-  const blockingRisks = openBlockingReviewRisks(task);
+  const blockingRisks = task.blockingReviewRisks;
   if (blockingRisks.length > 0) {
     const ids = blockingRisks.map((risk) => risk.id || risk.severity || "blocking-risk").join(", ");
     return closeoutFailure(task, `Open blocking review findings must be closed before task-complete: ${ids}`);
@@ -322,19 +301,6 @@ function taskCompleteBlock(task: OperationTask): OperationFailure | null {
     return closeoutFailure(task, `Lesson candidate decision must be complete before task-complete; current status is ${lessonStatus || "missing"}.`);
   }
   return null;
-}
-
-function taskHasPendingLessonWork(task: OperationTask): boolean {
-  const queues = taskQueues(task);
-  const candidateRows = Array.isArray(task.lessonCandidateRows) ? task.lessonCandidateRows : [];
-  return queues.includes("lessons") ||
-    task.lessonCandidateStatus === "needs-promotion" ||
-    task.lessonCandidatePromotionState === "queued" ||
-    candidateRows.some((candidate) => ["ready-for-review", "needs-promotion"].includes(String(candidate.status || "")));
-}
-
-function openBlockingReviewRisks(task: OperationTask): Array<{ id?: string; open?: unknown; blocksRelease?: unknown; severity?: unknown }> {
-  return (task.risks || []).filter((risk) => reviewBoolean(risk.open) !== "no" && (reviewBoolean(risk.blocksRelease) === "yes" || ["P0", "P1", "P2"].includes(String(risk.severity))));
 }
 
 function closeoutFailure(task: OperationTask, reason: string): OperationFailure {
@@ -382,27 +348,8 @@ function taskQueues(task: OperationTask): string[] {
   return taskOperationProjection(task).reviewWorkbenchQueueView.queues;
 }
 
-function taskOperationProjection(task: OperationTask): TaskSemanticProjection {
-  if (task.semanticProjection) return task.semanticProjection;
-  if (task.taskLifecycleProjection && task.reviewWorkbenchQueueView) {
-    const projection = buildTaskSemanticProjection(task);
-    return {
-      taskLifecycleProjection: task.taskLifecycleProjection,
-      visibility: projection.visibility,
-      reviewWorkbenchQueueView: task.reviewWorkbenchQueueView,
-      dashboardTaskView: projection.dashboardTaskView,
-    };
-  }
-  return buildTaskSemanticProjection(task);
-}
-
-function reviewBoolean(value: unknown): "yes" | "no" | "" {
-  if (value === true) return "yes";
-  if (value === false) return "no";
-  const normalized = String(value || "").trim().toLowerCase();
-  if (["yes", "y", "true", "open"].includes(normalized)) return "yes";
-  if (["no", "n", "false", "closed"].includes(normalized)) return "no";
-  return "";
+function taskOperationProjection(task: OperationTask): OperationTask["semanticProjection"] {
+  return task.semanticProjection;
 }
 
 function errorMessage(error: unknown): string {

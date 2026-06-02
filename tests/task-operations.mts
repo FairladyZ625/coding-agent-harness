@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createTaskOperations } from "../scripts/application/task/task-operations.mjs";
+import { createScannerTaskOperationSubjectReader } from "../scripts/lib/task-operation-subjects.mjs";
 import {
   assert,
   repoRoot,
@@ -20,7 +21,15 @@ type FailureResult = {
 const target = path.join(tmpRoot, "task-operations-target");
 fs.cpSync(path.join(repoRoot, "examples/minimal-project"), target, { recursive: true });
 
-const operations = createTaskOperations(target);
+let missingSubjectsError = "";
+try {
+  createTaskOperations(target);
+} catch (error) {
+  missingSubjectsError = error instanceof Error ? error.message : String(error);
+}
+assert(missingSubjectsError.includes("TaskOperations requires a TaskOperationSubjectReader"), "TaskOperations should fail fast instead of creating a scanner-backed repository inside the application module");
+
+const operations = createTaskOperations(target, { subjects: createScannerTaskOperationSubjectReader(target) });
 
 const reviewResult = operations.confirmReview({
   taskId: "demo-task",
@@ -52,7 +61,7 @@ const sourceTaskDir = path.join(ambiguousTarget, "coding-agent-harness/planning/
 const moduleTaskDir = path.join(ambiguousTarget, "coding-agent-harness/planning/modules/auth/tasks/demo-task");
 fs.mkdirSync(path.dirname(moduleTaskDir), { recursive: true });
 fs.cpSync(sourceTaskDir, moduleTaskDir, { recursive: true });
-const ambiguousResult = createTaskOperations(ambiguousTarget).complete({
+const ambiguousResult = createTaskOperations(ambiguousTarget, { subjects: createScannerTaskOperationSubjectReader(ambiguousTarget) }).complete({
   taskId: "demo-task",
   message: "try ambiguous closeout",
 });
@@ -64,19 +73,16 @@ assert(String(ambiguousResult.payload.error).includes("TASKS/demo-task"), "ambig
 assert(String(ambiguousResult.payload.error).includes("MODULES/auth/demo-task"), "ambiguous payload should list the module candidate");
 
 const projectionQueueOperations = createTaskOperations(target, {
-  repository: {
-    list: () => [],
-    resolve: () => { throw new Error("not used"); },
-    readMaterials: () => { throw new Error("not used"); },
+  subjects: {
     getTombstoneSubject: () => { throw new Error("not used"); },
-    get: () => ({
+    getOperationSubject: () => ({
       id: "projection-queue-task",
-      taskKey: "projection-queue-task",
-      state: "not_started",
-      lifecycleState: "ready",
-      reviewStatus: "agent-reviewed",
-      reviewQueueState: "ready-to-confirm",
-      taskQueues: ["review"],
+      budget: "standard",
+      lessonCandidateStatus: "no-candidate-accepted",
+      lessonCandidatePromotionState: "not-promoted",
+      queueReasons: [],
+      repairPrompt: "",
+      blockingReviewRisks: [],
       semanticProjection: {
         taskLifecycleProjection: {
           state: "not_started",
@@ -127,7 +133,7 @@ const projectionQueueOperations = createTaskOperations(target, {
           reasonSummaries: [],
         },
       },
-    }) as never,
+    }),
   },
 });
 
@@ -141,21 +147,16 @@ assert(Array.isArray(projectionQueueReview.payload.taskQueues), "projection queu
 assert((projectionQueueReview.payload.taskQueues as unknown[]).includes("planned"), "TaskOperations should expose projected task queues, not stale raw review queues");
 
 const projectionFirstOperations = createTaskOperations(target, {
-  repository: {
-    list: () => [],
-    resolve: () => { throw new Error("not used"); },
-    readMaterials: () => { throw new Error("not used"); },
+  subjects: {
     getTombstoneSubject: () => { throw new Error("not used"); },
-    get: () => ({
+    getOperationSubject: () => ({
       id: "projection-first-task",
-      taskKey: "projection-first-task",
-      state: "review",
-      lifecycleState: "in_review",
-      reviewStatus: "agent-reviewed",
-      reviewQueueState: "ready-to-confirm",
-      closeoutStatus: "missing",
-      taskQueues: ["review"],
-      reviewConfirmation: { confirmed: false },
+      budget: "standard",
+      lessonCandidateStatus: "no-candidate-accepted",
+      lessonCandidatePromotionState: "not-promoted",
+      queueReasons: [],
+      repairPrompt: "",
+      blockingReviewRisks: [],
       semanticProjection: {
         taskLifecycleProjection: {
           state: "review",
@@ -206,7 +207,7 @@ const projectionFirstOperations = createTaskOperations(target, {
           reasonSummaries: [],
         },
       },
-    }) as never,
+    }),
   },
 });
 
@@ -219,8 +220,97 @@ assertFailure(projectionFirstReview, "TaskOperations should honor semantic proje
 assert(projectionFirstReview.reason.includes("already confirmed"), "projection-confirmed tasks should reject duplicate confirmation");
 assert(projectionFirstReview.payload.reviewStatus === "confirmed", "duplicate confirmation payload should come from projection lifecycle status");
 
+const blockingRiskOperations = createTaskOperations(target, {
+  subjects: {
+    getTombstoneSubject: () => { throw new Error("not used"); },
+    getOperationSubject: () => operationSubjectFixture({
+      id: "blocking-risk-task",
+      blockingReviewRisks: [{ id: "risk-1", open: "yes", blocksRelease: "yes" }],
+    }),
+  },
+});
+const blockingRiskComplete = blockingRiskOperations.complete({
+  taskId: "blocking-risk-task",
+  message: "try closeout with open blocking risk",
+});
+assertFailure(blockingRiskComplete, "TaskOperations should reject closeout when operation subject exposes blocking review risks");
+assert(blockingRiskComplete.reason.includes("risk-1"), "blocking review risk rejection should name the blocking risk id");
+
+const pendingLessonOperations = createTaskOperations(target, {
+  subjects: {
+    getTombstoneSubject: () => { throw new Error("not used"); },
+    getOperationSubject: () => operationSubjectFixture({
+      id: "pending-lesson-task",
+      lessonCandidateStatus: "needs-promotion",
+      lessonCandidatePromotionState: "queued",
+      hasPendingLessonWork: true,
+      queues: ["lessons"],
+    }),
+  },
+});
+const pendingLessonComplete = pendingLessonOperations.complete({
+  taskId: "pending-lesson-task",
+  message: "try closeout with pending lesson work",
+});
+assertFailure(pendingLessonComplete, "TaskOperations should reject closeout when projected workbench view has pending lesson work");
+assert(pendingLessonComplete.reason.includes("Lesson candidate promotion"), "pending lesson rejection should preserve lesson-work guidance");
+
 console.log("TaskOperations use-case tests passed");
 
 function assertFailure(result: unknown, message: string): asserts result is FailureResult {
   assert(Boolean(result) && typeof result === "object" && (result as { success?: unknown }).success === false, message);
+}
+
+function operationSubjectFixture({
+  id,
+  blockingReviewRisks = [],
+  lessonCandidateStatus = "no-candidate-accepted",
+  lessonCandidatePromotionState = "not-promoted",
+  hasPendingLessonWork = false,
+  queues = ["review"],
+}: {
+  id: string;
+  blockingReviewRisks?: Array<{ id?: string; open?: unknown; blocksRelease?: unknown; severity?: unknown }>;
+  lessonCandidateStatus?: string;
+  lessonCandidatePromotionState?: string;
+  hasPendingLessonWork?: boolean;
+  queues?: string[];
+}) {
+  return {
+    id,
+    budget: "standard",
+    lessonCandidateStatus,
+    lessonCandidatePromotionState,
+    queueReasons: [],
+    repairPrompt: "",
+    blockingReviewRisks,
+    semanticProjection: {
+      taskLifecycleProjection: {
+        state: "review",
+        lifecycleState: "in_review",
+        reviewStatus: "confirmed",
+        reviewQueueState: "not-in-queue",
+        closeoutStatus: "missing",
+        taskQueues: queues,
+        materialsReady: true,
+        reviewSubmitted: true,
+        lessonCandidateDecisionComplete: lessonCandidateStatus === "no-candidate-accepted",
+        deletionState: "active",
+      },
+      reviewWorkbenchQueueView: {
+        queues,
+        primaryQueue: queues[0] || "review",
+        inQueue: queues.includes("review"),
+        humanConfirmable: false,
+        blocked: false,
+        needsMaterials: false,
+        confirmed: true,
+        finalized: false,
+        hasPendingLessonWork,
+        readyForCloseout: !hasPendingLessonWork,
+        reasonCodes: [],
+        reasonSummaries: [],
+      },
+    },
+  };
 }

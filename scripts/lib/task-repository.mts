@@ -22,10 +22,14 @@ import {
   readVisualMapContractFile,
 } from "./task-scanner.mjs";
 import { taskIdFromArchiveStoragePath } from "./task-archive-storage.mjs";
-import { taskMatchesVisibilityScope } from "./task-semantic-projection.mjs";
+import { buildTaskSemanticProjection, taskMatchesVisibilityScope } from "./task-semantic-projection.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import type { CollectTasksOptions, TaskContractFile, TaskScannerTarget, VisualMapContractFile } from "./types/task-scanner.js";
 import type {
+  TaskOperationBlockingRisk as TaskRepositoryOperationBlockingRisk,
+  TaskOperationSemanticProjection as TaskRepositoryOperationSemanticProjection,
+  TaskOperationSubject as TaskRepositoryOperationSubject,
+  TaskOperationSubjectReader as TaskRepositoryOperationSubjectReader,
   TaskLocation as TaskRepositoryLocation,
   TaskRef as TaskRepositoryRef,
   TaskTombstonePolicyFacts as TaskRepositoryTombstonePolicyFacts,
@@ -51,6 +55,10 @@ export type TaskLocation = TaskRepositoryLocation;
 export type TaskTombstonePolicyFacts = TaskRepositoryTombstonePolicyFacts;
 export type TaskTombstoneSubject = TaskRepositoryTombstoneSubject;
 export type TombstoneSubjectReader = TaskRepositoryTombstoneSubjectReader;
+export type TaskOperationBlockingRisk = TaskRepositoryOperationBlockingRisk;
+export type TaskOperationSemanticProjection = TaskRepositoryOperationSemanticProjection;
+export type TaskOperationSubject = TaskRepositoryOperationSubject;
+export type TaskOperationSubjectReader = TaskRepositoryOperationSubjectReader;
 
 export type TaskQuery = {
   state?: string;
@@ -87,7 +95,7 @@ export type TaskMaterials = {
   walkthrough: TaskMaterial;
 };
 
-export type TaskRepository = TaskRepositoryTombstoneSubjectReader & {
+export type TaskRepository = TaskRepositoryTombstoneSubjectReader & TaskRepositoryOperationSubjectReader & {
   list(query?: TaskQuery): TaskRecord[];
   get(ref: TaskRef): TaskRecord;
   resolve(ref: TaskRef): TaskLocation;
@@ -143,6 +151,11 @@ export function createScannerTaskRepository(targetInput: TaskScannerTarget | str
       const location = resolveRepositoryTaskLocation(target, ref);
       const task = readRepositoryTask(target, defaults, location, ref);
       return tombstoneSubjectFromRecord(target, location, task);
+    },
+    getOperationSubject(ref: TaskRef) {
+      const location = resolveRepositoryTaskLocation(target, ref);
+      const task = readRepositoryTask(target, defaults, location, ref);
+      return operationSubjectFromRecord(task);
     },
   };
 }
@@ -202,6 +215,50 @@ function tombstoneSubjectFromRecord(target: TaskScannerTarget, location: TaskLoc
       deletionState: task.deletionState,
     },
   };
+}
+
+function operationSubjectFromRecord(task: TaskRecord): TaskOperationSubject {
+  const semanticProjection = operationSemanticProjectionFromRecord(task);
+  return {
+    id: task.id,
+    budget: String(task.budget || ""),
+    lessonCandidateStatus: String(task.lessonCandidateStatus || ""),
+    lessonCandidatePromotionState: String(task.lessonCandidatePromotionState || ""),
+    repairPrompt: String(task.repairPrompt || ""),
+    queueReasons: Array.isArray(task.queueReasons) ? task.queueReasons : [],
+    blockingReviewRisks: operationBlockingReviewRisks(task),
+    semanticProjection,
+  };
+}
+
+function operationSemanticProjectionFromRecord(task: TaskRecord): TaskOperationSemanticProjection {
+  if (task.semanticProjection) return {
+    taskLifecycleProjection: task.semanticProjection.taskLifecycleProjection,
+    reviewWorkbenchQueueView: task.semanticProjection.reviewWorkbenchQueueView,
+  };
+  if (task.taskLifecycleProjection && task.reviewWorkbenchQueueView) return {
+    taskLifecycleProjection: task.taskLifecycleProjection,
+    reviewWorkbenchQueueView: task.reviewWorkbenchQueueView,
+  };
+  const projection = buildTaskSemanticProjection(task);
+  return {
+    taskLifecycleProjection: projection.taskLifecycleProjection,
+    reviewWorkbenchQueueView: projection.reviewWorkbenchQueueView,
+  };
+}
+
+function operationBlockingReviewRisks(task: TaskRecord): TaskOperationBlockingRisk[] {
+  const risks = Array.isArray(task.risks) ? task.risks : [];
+  return risks.filter((risk) => operationReviewBoolean(risk.open) !== "no" && (operationReviewBoolean(risk.blocksRelease) === "yes" || ["P0", "P1", "P2"].includes(String(risk.severity))));
+}
+
+function operationReviewBoolean(value: unknown): "yes" | "no" | "" {
+  if (value === true) return "yes";
+  if (value === false) return "no";
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["yes", "y", "true", "open"].includes(normalized)) return "yes";
+  if (["no", "n", "false", "closed"].includes(normalized)) return "no";
+  return "";
 }
 
 function normalizeReviewConfirmation(value: unknown): TaskTombstonePolicyFacts["reviewConfirmation"] {
