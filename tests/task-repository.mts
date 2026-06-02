@@ -8,6 +8,7 @@ import {
   createScannerTaskOperationSubjectReader,
   createScannerTaskTombstoneSubjectReader,
 } from "../scripts/adapters/cli/task-operation-subject-reader.mjs";
+import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../scripts/domain/task/task-subjects.mjs";
 import { buildStatusData } from "../scripts/lib/status-builder.mjs";
 import { collectTasks, listTaskPlanPaths } from "../scripts/lib/task-scanner.mjs";
 import { createScannerTaskRepository } from "../scripts/lib/task-repository.mjs";
@@ -99,6 +100,49 @@ assertJsonEqual(adapterOperationSubject, operationSubject, "operation subject CL
 assertJsonEqual(adapterPlanningPathOperationSubject, operationSubject, "operation subject CLI adapter should preserve repository planning path task references");
 assertJsonEqual(adapterShortPlanningPathOperationSubject, operationSubject, "operation subject CLI adapter should preserve repository short planning path task references");
 assertJsonEqual(adapterTaskPlanPathOperationSubject, operationSubject, "operation subject CLI adapter should preserve repository task_plan path references passed as ids");
+const scannerTaskWithoutAttachedProjection = {
+  ...task,
+  semanticProjection: undefined,
+  taskLifecycleProjection: undefined,
+  reviewWorkbenchQueueView: undefined,
+};
+assertJsonEqual(
+  buildTaskOperationSubject(scannerTaskWithoutAttachedProjection),
+  operationSubject,
+  "task subject domain mapper should preserve repository fallback semantics when scanner records do not have attached projections",
+);
+const partialProjectionSubject = buildTaskOperationSubject({
+  id: "partial-projection",
+  budget: "standard",
+  semanticProjection: {
+    taskLifecycleProjection: operationSubject.semanticProjection.taskLifecycleProjection,
+  },
+  reviewWorkbenchQueueView: operationSubject.semanticProjection.reviewWorkbenchQueueView,
+  risks: [
+    { id: "closed-risk", open: "no", blocksRelease: "yes", severity: "P1" },
+    { id: "blocking-risk", open: "yes", blocksRelease: "yes", severity: "P3" },
+    { id: "p2-risk", open: "open", blocksRelease: "no", severity: "P2" },
+    { id: "nonblocking-risk", open: "yes", blocksRelease: "no", severity: "P3" },
+  ],
+});
+assertJsonEqual(partialProjectionSubject.semanticProjection, operationSubject.semanticProjection, "task subject domain mapper should combine partial semanticProjection with direct projection fields");
+assertJsonEqual(partialProjectionSubject.blockingReviewRisks.map((risk) => risk.id), ["blocking-risk", "p2-risk"], "task subject domain mapper should filter blocking review risks consistently");
+const invalidReviewConfirmationSubject = buildTaskTombstoneSubject(
+  { id: "review-confirmation-fixture", reviewConfirmation: null, risks: [] },
+  {
+    location: tombstoneSubject.location,
+    paths: tombstoneSubject.paths,
+  },
+);
+const validReviewConfirmationSubject = buildTaskTombstoneSubject(
+  { id: "review-confirmation-fixture", reviewConfirmation: { confirmed: true, reviewer: "Human Reviewer" }, risks: [] },
+  {
+    location: tombstoneSubject.location,
+    paths: tombstoneSubject.paths,
+  },
+);
+assert(invalidReviewConfirmationSubject.policy.reviewConfirmation === null, "task subject domain mapper should normalize missing reviewConfirmation to null");
+assert(validReviewConfirmationSubject.policy.reviewConfirmation?.confirmed === true, "task subject domain mapper should preserve object reviewConfirmation facts");
 
 const materials = repository.readMaterials({ id: "demo-task" });
 assert(materials.taskPlan.content.includes("Task Contract: harness-task/v1"), "repository materials should read task_plan.md");

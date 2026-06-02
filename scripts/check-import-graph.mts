@@ -186,8 +186,17 @@ export const architectureImportContract: ArchitectureImportContract = {
       target: "scripts/lib/task-scanner.mts",
       ownerPhase: "P05-repository-scanner-strangler",
       expiryPhase: "P13-deletion-and-package-surface",
-      reason: "The CLI adapter reads scanner output directly to build the narrow TaskOperationSubjectReader without depending on the broad TaskRepository port.",
-      evidence: "import graph check plus P05 TaskOperations subject-reader fixtures",
+      reason: "The CLI adapter reads scanner output as infrastructure-only input; subject business semantics are delegated to the shared task subject domain module instead of being interpreted in the adapter.",
+      evidence: "import graph check plus P05 adapter/repository subject parity fixtures and domain subject fallback tests",
+    },
+    {
+      id: "P05-domain-task-subject-semantic-projection-bridge",
+      source: "scripts/domain/task/task-subjects.mts",
+      target: "scripts/lib/task-semantic-projection.mts",
+      ownerPhase: "P05-repository-scanner-strangler",
+      expiryPhase: "P06-dashboard-projection-consumer-cutover",
+      reason: "Task subject domain mapping temporarily reuses the existing CLI/Dashboard semantic projection builder for fallback parity until the projection contract is moved behind a domain/port-owned module.",
+      evidence: "import graph check plus P05 domain subject fallback tests; residual must stay open until P06 projection ownership is resolved",
     },
     {
       id: "P08-application-workbench-review-confirmation-sync-bridge",
@@ -258,6 +267,7 @@ export const architectureImportContract: ArchitectureImportContract = {
     { path: "scripts/lib/task-lifecycle.mts", ownerPhase: "P04-transaction-cutover", reason: "Current lifecycle write facade and legacy bridge." },
     { path: "scripts/lib/governance-sync.mts", ownerPhase: "P04-transaction-cutover", reason: "Current low-level write/lock implementation." },
     { path: "scripts/lib/task-repository.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "TaskRepository port and scanner-backed implementation." },
+    { path: "scripts/domain/task/task-subjects.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Task operation/tombstone subject domain mapping and raw fact selection." },
     { path: "scripts/adapters/cli/task-operation-subject-reader.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Narrow scanner-backed TaskOperationSubjectReader CLI adapter for command wiring; not a harness-core package barrel surface." },
     { path: "scripts/lib/task-scanner.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Legacy scanner adapter and migration-only boundary." },
     { path: "scripts/lib/task-semantic-projection.mts", ownerPhase: "P06-dashboard-projection-consumer-cutover", reason: "Shared CLI/Dashboard/Test semantic contract." },
@@ -271,6 +281,7 @@ export const architectureImportContract: ArchitectureImportContract = {
   boundaryRules: [
     "kernel-imports-outer-layer",
     "domain-imports-outer-layer",
+    "domain-imports-legacy-runtime",
     "domain-imports-infrastructure",
     "application-imports-adapter",
     "application-imports-unregistered-legacy-surface",
@@ -707,6 +718,9 @@ function architectureBoundaryCode(file: string, target: string): string {
   if (file.startsWith("scripts/domain/") && (target.startsWith("scripts/adapters/") || target.startsWith("scripts/application/"))) {
     return "domain-imports-outer-layer";
   }
+  if (file.startsWith("scripts/domain/") && target.startsWith("scripts/lib/") && !target.startsWith("scripts/lib/types/") && !isArchitecturePhaseOpenException(file, target)) {
+    return "domain-imports-legacy-runtime";
+  }
   if (file.startsWith("scripts/domain/") && target.startsWith("scripts/infrastructure/") && !target.startsWith("scripts/infrastructure/kernel/")) {
     return "domain-imports-infrastructure";
   }
@@ -743,6 +757,7 @@ function architectureBoundaryCode(file: string, target: string): string {
 function architectureBoundaryMessage(code: string, file: string, target: string): string {
   if (code === "kernel-imports-outer-layer") return `${file} is infrastructure/kernel and must not import outer layer module ${target}`;
   if (code === "domain-imports-outer-layer") return `${file} is domain code and must not import outer layer module ${target}`;
+  if (code === "domain-imports-legacy-runtime") return `${file} is domain code and may import legacy runtime surface ${target} only through a phase-open architecture contract exception`;
   if (code === "domain-imports-infrastructure") return `${file} is domain code and may only import infrastructure/kernel, not ${target}`;
   if (code === "application-imports-adapter") return `${file} is application code and must not import adapter module ${target}`;
   if (code === "application-imports-unregistered-legacy-surface") return `${file} is application code and may import legacy task runtime surface ${target} only through a phase-open architecture contract exception`;

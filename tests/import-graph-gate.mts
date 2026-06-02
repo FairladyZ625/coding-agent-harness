@@ -17,7 +17,7 @@ type ImportGraph = {
   architectureContract: {
     version: string;
     layers: { id: string; owns: string[]; mayImport: string[] }[];
-    phaseOpenExceptions: { id: string; source: string; target: string; ownerPhase: string; expiryPhase: string }[];
+    phaseOpenExceptions: { id: string; source: string; target: string; ownerPhase: string; expiryPhase: string; reason?: string; evidence?: string }[];
     sharedFileLocks: { path: string; ownerPhase: string; reason: string }[];
     boundaryRules: string[];
   };
@@ -84,6 +84,7 @@ writeFixture(
 const graph = buildImportGraph({ repoRoot: fixtureRoot });
 const harnessCoreSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/harness-core.mts"), "utf8");
 assert(!harnessCoreSource.includes("./task-operation-subjects.mjs"), "scanner-backed TaskOperationSubjectReader helper should not be re-exported from the broad harness-core barrel");
+assert(!harnessCoreSource.includes("../domain/task/task-subjects.mjs"), "task subject domain mapper should not be re-exported from the broad harness-core barrel");
 assert(!fs.existsSync(path.join(repoRoot, "scripts/lib/task-operation-subjects.mts")), "scanner-backed TaskOperationSubjectReader helper should not live in scripts/lib");
 assert(graph.summary.fileCount === 11, `expected 11 graph files, got ${graph.summary.fileCount}`);
 assert(graph.summary.localEdgeCount === 9, `expected 9 local edges, got ${graph.summary.localEdgeCount}`);
@@ -110,10 +111,20 @@ assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => excep
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-adapter-task-operation-subject-repository-bridge"), "contract should not keep the broad TaskRepository-backed operation subject adapter bridge");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.source === "scripts/adapters/cli/task-operation-subject-reader.mts" && exception.target === "scripts/lib/task-repository.mts"), "contract should not re-register the operation subject adapter through the broad TaskRepository port");
 assert(graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-adapter-task-operation-subject-scanner-bridge" && exception.source === "scripts/adapters/cli/task-operation-subject-reader.mts" && exception.target === "scripts/lib/task-scanner.mts"), "contract should track the scanner-backed TaskOperationSubjectReader CLI adapter bridge");
+const subjectScannerBridge = graph.architectureContract.phaseOpenExceptions.find((exception) => exception.id === "P05-adapter-task-operation-subject-scanner-bridge");
+assert(subjectScannerBridge?.reason?.includes("infrastructure-only"), "scanner adapter exception should classify scanner reads as infrastructure-only");
+assert(subjectScannerBridge?.reason?.includes("task subject domain module"), "scanner adapter exception should route subject semantics to the domain mapper");
+assert(subjectScannerBridge?.evidence?.includes("adapter/repository subject parity"), "scanner adapter exception should require adapter/repository subject parity evidence");
+const subjectProjectionBridge = graph.architectureContract.phaseOpenExceptions.find((exception) => exception.id === "P05-domain-task-subject-semantic-projection-bridge");
+assert(subjectProjectionBridge?.source === "scripts/domain/task/task-subjects.mts" && subjectProjectionBridge.target === "scripts/lib/task-semantic-projection.mts", "contract should track the task subject domain mapper's temporary projection bridge");
+assert(subjectProjectionBridge?.expiryPhase === "P06-dashboard-projection-consumer-cutover", "task subject projection bridge should expire at the projection ownership phase");
+assert(subjectProjectionBridge?.reason?.includes("temporarily reuses"), "task subject projection bridge should not be presented as final domain ownership");
 assert(graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "scripts/lib/task-scanner.mts" && lock.ownerPhase === "P05-repository-scanner-strangler"), "contract should expose scanner shared-file lock ownership");
+assert(graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "scripts/domain/task/task-subjects.mts" && lock.ownerPhase === "P05-repository-scanner-strangler"), "contract should expose task subject domain mapper ownership");
 assert(!graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "scripts/lib/task-operation-subjects.mts"), "contract should not keep a shared-file lock for the retired lib TaskOperationSubjectReader helper");
 assert(graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "scripts/adapters/cli/task-operation-subject-reader.mts" && lock.ownerPhase === "P05-repository-scanner-strangler"), "contract should expose TaskOperationSubjectReader CLI adapter ownership");
 assert(graph.architectureContract.boundaryRules.includes("application-imports-unregistered-legacy-surface"), "contract should expose fail-closed application legacy import rule");
+assert(graph.architectureContract.boundaryRules.includes("domain-imports-legacy-runtime"), "contract should expose fail-closed domain legacy runtime import rule");
 
 assert(nodeByPath(graph, "scripts/harness.mjs").reachableFromBin === true, "bin entry should be bin-reachable");
 assert(nodeByPath(graph, "scripts/lib/harness-core.mjs").reachableFromBin === true, "harness-core should be bin-reachable");
@@ -133,6 +144,7 @@ writeFixture(fixtureRoot, "scripts/b.mjs", 'import "./a.mjs";\n');
 writeFixture(fixtureRoot, "scripts/value-consumer.ts", 'import { Protocol } from "./lib/' + 'types/protocol' + '.js";\nconsole.log(Protocol);\n');
 writeFixture(fixtureRoot, "scripts/infrastructure/kernel/bad-kernel.mts", 'import { leaf } from "../../lib/leaf.mjs";\nexport const bad = leaf;\n');
 writeFixture(fixtureRoot, "scripts/domain/task/bad-domain.mts", 'import { adapter } from "../../adapters/cli/task-adapter.mjs";\nexport const bad = adapter;\n');
+writeFixture(fixtureRoot, "scripts/domain/task/bad-domain-legacy-runtime.mts", 'import { scan } from "../../lib/task-scanner.mjs";\nexport const badLegacyRuntime = scan;\n');
 writeFixture(fixtureRoot, "scripts/application/task/bad-use-case.mts", 'import { adapter } from "../../adapters/cli/task-adapter.mjs";\nexport const bad = adapter;\n');
 writeFixture(fixtureRoot, "scripts/lib/task-scanner.mts", "export const scan = 1;\n");
 writeFixture(fixtureRoot, "scripts/application/task/bad-legacy-use-case.mts", 'import { scan } from "../../lib/task-scanner.mjs";\nexport const badLegacy = scan;\n');
@@ -148,6 +160,7 @@ writeFixture(fixtureRoot, "scripts/adapters/cli/bad-lifecycle-internal-adapter.m
 writeFixture(fixtureRoot, "scripts/lib/dashboard-data.mts", 'import { scan } from "./task-scanner.mjs";\nimport { internal } from "./task-lifecycle/internal.mjs";\nexport const dashboard = scan + internal;\n');
 writeFixture(fixtureRoot, "scripts/lib/task-lifecycle.mts", "export const lifecycle = 1;\n");
 writeFixture(fixtureRoot, "scripts/lib/dashboard-workbench.mts", 'import { lifecycle } from "./task-lifecycle.mjs";\nimport { internal } from "./task-lifecycle/internal.mjs";\nexport const workbench = lifecycle + internal;\n');
+writeFixture(fixtureRoot, "scripts/adapters/cli/bad-scanner-adapter.mts", 'import { scan } from "../../lib/task-scanner.mjs";\nexport const badScannerAdapter = scan;\n');
 writeFixture(fixtureRoot, "scripts/commands/bad-repository-command.mts", 'import { create } from "../lib/task-repository.mjs";\nexport const badRepositoryCommand = create;\n');
 writeFixture(fixtureRoot, "scripts/adapters/cli/bad-repository-adapter.mts", 'import { create } from "../../lib/task-repository.mjs";\nexport const badRepositoryAdapter = create;\n');
 writeFixture(fixtureRoot, "scripts/lib/governance-index-generator.mts", 'import { scan } from "./task-scanner.mjs";\nexport const generated = scan;\n');
@@ -166,6 +179,7 @@ assert(failed.violations.some((violation) => violation.code === "mjs-imports-ts"
 assert(failed.violations.some((violation) => violation.code === "types-value-import"), "gate should report value imports from scripts/lib/types");
 assert(failed.violations.some((violation) => violation.code === "kernel-imports-outer-layer"), "gate should report kernel imports from outer layers");
 assert(failed.violations.some((violation) => violation.code === "domain-imports-outer-layer"), "gate should report domain imports from adapters/application");
+assert(failed.violations.some((violation) => violation.code === "domain-imports-legacy-runtime" && violation.message.includes("task-scanner")), "gate should reject unregistered domain imports from legacy runtime surfaces");
 assert(failed.violations.some((violation) => violation.code === "application-imports-adapter"), "gate should report application imports from adapters");
 assert(failed.violations.some((violation) => violation.code === "application-imports-unregistered-legacy-surface"), "gate should reject unregistered application imports from legacy task runtime surfaces");
 assert(failed.violations.some((violation) => violation.code === "application-imports-unregistered-legacy-surface" && violation.message.includes("task-tombstone-commands")), "gate should reject application imports from the legacy tombstone command surface");
@@ -179,6 +193,7 @@ assert(failed.violations.some((violation) => violation.code === "command-imports
 assert(failed.violations.some((violation) => violation.code === "command-imports-task-internal" && violation.message.includes("task-repository")), "gate should reject command imports from task repository legacy surface");
 assert(failed.violations.some((violation) => violation.code === "adapter-imports-task-internal" && violation.message.includes("task-lifecycle/review-confirm")), "gate should reject adapter imports from task lifecycle internal modules");
 assert(failed.violations.some((violation) => violation.code === "adapter-imports-task-internal" && violation.message.includes("task-repository")), "gate should reject adapter imports from task repository legacy surface");
+assert(failed.violations.some((violation) => violation.code === "adapter-imports-task-internal" && violation.message.includes("task-scanner")), "gate should reject unregistered adapter imports from task scanner internals");
 assert(failed.violations.some((violation) => violation.code === "dashboard-data-imports-task-internal" && violation.message.includes("task-lifecycle/internal")), "gate should reject dashboard-data imports from unregistered task lifecycle internal modules");
 assert(failed.violations.some((violation) => violation.code === "dashboard-workbench-imports-task-internal" && violation.message.includes("task-lifecycle/internal")), "gate should reject dashboard-workbench imports from unregistered task lifecycle internal modules");
 assert(failed.violations.some((violation) => violation.code === "runtime-imports-task-operations-facade"), "gate should report runtime callers importing the TaskOperations compatibility facade");
