@@ -22,6 +22,7 @@ const suites: string[] = [
   "tests/source-package-boundary.mjs",
   "tests/architecture-health.mjs",
   "tests/task-semantic-projection.mjs",
+  "tests/semantic-contract-baseline.mjs",
   "tests/task-archive-eligibility.mjs",
   "tests/task-repository.mjs",
   "tests/task-operations.mjs",

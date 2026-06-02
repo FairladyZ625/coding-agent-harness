@@ -52,6 +52,9 @@ type TaskIndexTask = {
   queueReasons?: TaskIndexIssue[];
   repairPrompt?: string;
   reviewPath?: string;
+  reviewQueueState?: string;
+  lessonCandidateReviewDecision?: string;
+  lessonCandidatePromotionState?: string;
   reviewStatus?: string;
   reviewSubmitted?: boolean;
   risks?: unknown[];
@@ -105,6 +108,7 @@ export function buildTaskIndex(targetInput: string | undefined) {
       presetVersion: task.presetVersion || "",
       evidenceBundle: task.evidenceBundle || "",
       reviewStatus: task.reviewStatus,
+      reviewQueueState: task.reviewQueueState || "",
       reviewSubmitted: task.reviewSubmitted === true,
       reviewPath: task.reviewPath || "",
       closeoutStatus: task.closeoutStatus || "",
@@ -117,12 +121,15 @@ export function buildTaskIndex(targetInput: string | undefined) {
       shortId: task.shortId || "",
       completion: task.completion || 0,
       lessonCandidateStatus: task.lessonCandidateStatus || "",
+      lessonCandidateReviewDecision: task.lessonCandidateReviewDecision || "",
+      lessonCandidatePromotionState: task.lessonCandidatePromotionState || "",
       lessonCandidateRows: task.lessonCandidateRows || [],
       lessonCandidateIssues: task.lessonCandidateIssues || [],
       risks: task.risks || [],
       residual: residual(task),
       materialsReady: task.materialsReady === true,
       materialIssues: task.materialIssues || [],
+      taskQueues: task.taskQueues || [],
       queues: task.taskQueues || [],
       queueReasons: task.queueReasons || [],
       supersedes: task.supersedes || [],
