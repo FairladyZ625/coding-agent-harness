@@ -10,9 +10,10 @@ import {
 import { removeHeadingSectionOutsideFences } from "./markdown-utils.mjs";
 import { collectTasks } from "./task-scanner.mjs";
 import { resolveTaskDirectory } from "./task-lifecycle.mjs";
-import { taskIdFromDirectory } from "./harness-paths.mjs";
+import { taskIdFromDirectory, taskRefPath } from "./harness-paths.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import { assessArchiveEligibility, normalizeArchiveActor } from "./task-archive-eligibility.mjs";
+import { taskIdFromArchiveStoragePath, tombstoneStorageRoot } from "./task-archive-storage.mjs";
 import { normalizeReviewBoolean } from "./task-review-model.mjs";
 import {
   beginGovernanceSync,
@@ -120,8 +121,8 @@ export function archiveTasks(targetInput: string, { release = "", taskIds = [], 
   const normalizedArchiveFields = normalizeArchiveFields(archiveFields);
   assertNoReservedArchiveFields(normalizedArchiveFields);
   const releaseLabel = String(release || "").trim();
-  const archiveMoves = tasks.map((task) => archiveMovePlan(target, task, releaseLabel));
-  const allowedPaths = archiveAllowedPaths(target, archiveMoves);
+  const archiveMoves = tasks.map((task) => tombstoneMovePlan(target, task, { deletionState: "archived", release: releaseLabel }));
+  const allowedPaths = tombstoneMoveAllowedPaths(target, archiveMoves);
   const governanceContext = beginGovernanceSync(target, {
     operation: `task-archive-batch ${releaseLabel || `${tasks.length} tasks`}`,
     allowDirtyWorktree: true,
@@ -161,14 +162,21 @@ export function archiveTasks(targetInput: string, { release = "", taskIds = [], 
 export function reopenTask(targetInput: string, taskRef: string, { reason = "" }: TombstoneOptions = {}) {
   const target = normalizeTarget(targetInput);
   const task = resolveTask(target, taskRef);
-  const governanceContext = beginGovernanceSync(target, { operation: `task-reopen ${task.id}` });
+  const reopenMove = reopenMovePlan(target, task);
+  const allowedPaths = reopenMove ? tombstoneMoveAllowedPaths(target, [reopenMove]) : taskPaths(target, task);
+  const governanceContext = beginGovernanceSync(target, {
+    operation: `task-reopen ${task.id}`,
+    allowDirtyWorktree: Boolean(reopenMove),
+    allowedRelativePaths: allowedPaths,
+  });
   try {
     const taskPlanPath = path.join(target.projectRoot, task.taskPlanPath.replace(/^TARGET:/, ""));
     const content = readFileSafe(taskPlanPath);
     const next = removeHeadingSectionOutsideFences(content, /^##\s*(?:Task Tombstone|任务墓碑)\s*$/i);
     fs.writeFileSync(taskPlanPath, next.endsWith("\n") ? next : `${next}\n`);
     appendProgress(target, task, "task-reopen", reason || "reopened");
-    const commit = commitGovernanceSync(governanceContext, taskPaths(target, task), {
+    if (reopenMove) moveTaskDirectory(reopenMove);
+    const commit = commitGovernanceSync(governanceContext, allowedPaths, {
       message: `chore(harness): reopen task ${task.id}`,
     });
     return { taskId: task.id, deletionState: "active", reason: reason || "reopened", governance: { commit } };
@@ -179,8 +187,8 @@ export function reopenTask(targetInput: string, taskRef: string, { reason = "" }
 
 function writeDeletionState(target: TombstoneTarget, task: TombstoneTask, deletionState: string, reason: string, action: string, archiveFields: TombstoneFields = {}) {
   const normalizedArchiveFields = normalizeArchiveFields(archiveFields);
-  const archiveMove = deletionState === "archived" ? archiveMovePlan(target, task, "") : null;
-  const allowedPaths = archiveMove ? archiveAllowedPaths(target, [archiveMove]) : taskPaths(target, task);
+  const tombstoneMove = shouldMoveTombstoneState(deletionState) ? tombstoneMovePlan(target, task, { deletionState, release: "" }) : null;
+  const allowedPaths = tombstoneMove ? tombstoneMoveAllowedPaths(target, [tombstoneMove]) : taskPaths(target, task);
   const governanceContext = beginGovernanceSync(target, {
     operation: `${action} ${task.id}`,
     allowDirtyWorktree: true,
@@ -194,10 +202,14 @@ function writeDeletionState(target: TombstoneTarget, task: TombstoneTask, deleti
       Timestamp: nowTimestamp(),
       "Reopen Eligible": "yes",
       "Archive Eligible": deletionState === "archived" ? "yes" : "no",
+      ...(tombstoneMove ? {
+        "Original Path": toPosix(path.relative(target.projectRoot, tombstoneMove.sourceDir)),
+        "Storage Path": toPosix(path.relative(target.projectRoot, tombstoneMove.destinationDir)),
+      } : {}),
       ...normalizedArchiveFields,
     });
     appendProgress(target, task, action, reason);
-    if (archiveMove) moveTaskDirectory(archiveMove);
+    if (tombstoneMove) moveTaskDirectory(tombstoneMove);
     const commit = commitGovernanceSync(governanceContext, allowedPaths, {
       message: `chore(harness): ${action.replace(/\s+/g, " ")} ${task.id}`,
     });
@@ -218,12 +230,14 @@ type ArchiveMovePlan = {
   destinationRelativeFiles: string[];
 };
 
-function archiveMovePlan(target: TombstoneTarget, task: TombstoneTask, release: string): ArchiveMovePlan {
+function shouldMoveTombstoneState(deletionState: string): boolean {
+  return ["archived", "soft-deleted"].includes(deletionState);
+}
+
+function tombstoneMovePlan(target: TombstoneTarget, task: TombstoneTask, { deletionState, release = "" }: { deletionState: string; release?: string }): ArchiveMovePlan {
   const sourceDir = path.join(target.projectRoot, task.path.replace(/^TARGET:/, ""));
   const taskIdParts = task.id.split("/").filter(Boolean);
-  const archiveRoot = release
-    ? path.join(target.projectRoot, "coding-agent-harness/governance/archive/releases", release, "tasks")
-    : path.join(target.projectRoot, "coding-agent-harness/governance/archive/tasks");
+  const archiveRoot = tombstoneStorageRoot((target as ResolvedTombstoneTarget).harness, deletionState, release);
   const destinationDir = path.join(archiveRoot, ...taskIdParts);
   const sourceRelativeFiles = collectRelativeFiles(target, sourceDir);
   const destinationRelativeFiles = sourceRelativeFiles.map((sourceRelative) => {
@@ -233,7 +247,23 @@ function archiveMovePlan(target: TombstoneTarget, task: TombstoneTask, release: 
   return { sourceDir, destinationDir, sourceRelativeFiles, destinationRelativeFiles };
 }
 
-function archiveAllowedPaths(target: TombstoneTarget, moves: ArchiveMovePlan[]): string[] {
+function reopenMovePlan(target: TombstoneTarget, task: TombstoneTask): ArchiveMovePlan | null {
+  const sourceDir = path.join(target.projectRoot, task.path.replace(/^TARGET:/, ""));
+  const sourceRelative = toPosix(path.relative(target.projectRoot, sourceDir));
+  if (!sourceRelative.includes("/governance/archive/")) return null;
+  const resolvedTarget = target as ResolvedTombstoneTarget;
+  const destinationDir = taskRefPath(resolvedTarget.harness, task.id);
+  if (!destinationDir) throw new Error(`Cannot resolve active task path for reopened task: ${task.id}`);
+  if (path.resolve(sourceDir) === path.resolve(destinationDir)) return null;
+  const sourceRelativeFiles = collectRelativeFiles(target, sourceDir);
+  const destinationRelativeFiles = sourceRelativeFiles.map((sourceRelativeFile) => {
+    const absolute = path.join(target.projectRoot, sourceRelativeFile);
+    return toPosix(path.relative(target.projectRoot, path.join(destinationDir, path.relative(sourceDir, absolute))));
+  });
+  return { sourceDir, destinationDir, sourceRelativeFiles, destinationRelativeFiles };
+}
+
+function tombstoneMoveAllowedPaths(target: TombstoneTarget, moves: ArchiveMovePlan[]): string[] {
   return [...new Set(moves.flatMap((move) => [
     ...move.sourceRelativeFiles,
     ...move.destinationRelativeFiles,
@@ -243,7 +273,7 @@ function archiveAllowedPaths(target: TombstoneTarget, moves: ArchiveMovePlan[]):
 function moveTaskDirectory(move: ArchiveMovePlan): void {
   if (!fs.existsSync(move.sourceDir)) return;
   if (fs.existsSync(move.destinationDir)) {
-    throw new Error(`Archive destination already exists: ${toPosix(move.destinationDir)}`);
+    throw new Error(`Tombstone destination already exists: ${toPosix(move.destinationDir)}`);
   }
   fs.mkdirSync(path.dirname(move.destinationDir), { recursive: true });
   fs.renameSync(move.sourceDir, move.destinationDir);
@@ -275,10 +305,14 @@ function resolveTask(target: TombstoneTarget, ref: string): TombstoneTask {
   const normalized = String(ref || "").trim();
   const resolvedTarget = target as ResolvedTombstoneTarget;
   const taskDir = resolveTaskDirectory(resolvedTarget, normalized);
-  const taskId = taskIdFromDirectory(resolvedTarget.harness, taskDir);
-  const task = collectTasks(target).find((candidate) => candidate.id === taskId);
+  const taskId = tombstoneTaskIdFromDirectory(resolvedTarget.harness, taskDir);
+  const task = collectTasks(target, { includeArchived: true }).find((candidate) => candidate.id === taskId);
   if (task) return task;
   throw new Error(`Task not found: ${ref}`);
+}
+
+function tombstoneTaskIdFromDirectory(harnessPaths: ResolvedHarnessPaths, directory: string): string {
+  return taskIdFromArchiveStoragePath(harnessPaths.projectRoot, directory) || taskIdFromDirectory(harnessPaths, directory);
 }
 
 function assertArchiveEligible(task: TombstoneTask, { archivedBy = "" }: { archivedBy?: string } = {}): Record<string, string> {

@@ -20,6 +20,7 @@ import {
   readTaskContractFile,
   readVisualMapContractFile,
 } from "./task-scanner.mjs";
+import { taskIdFromArchiveStoragePath } from "./task-archive-storage.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import type { CollectTasksOptions, TaskContractFile, TaskScannerTarget, VisualMapContractFile } from "./types/task-scanner.js";
 
@@ -194,13 +195,13 @@ function resolveRepositoryTaskLocation(target: TaskScannerTarget, ref: TaskRef):
   if (direct && fs.existsSync(path.join(direct, "task_plan.md"))) return taskLocationFromDirectory(harnessPaths, direct);
   const normalized = normalizeTaskId(raw);
   const candidates = taskDirectories(target).filter((taskDir) => {
-    const id = taskIdFromDirectory(harnessPaths, taskDir);
+    const id = repositoryTaskIdFromDirectory(harnessPaths, taskDir);
     const dirName = path.basename(taskDir);
     return id === raw || id.endsWith(`/${raw}`) || dirName === normalized;
   });
   if (candidates.length === 1) return taskLocationFromDirectory(harnessPaths, candidates[0]);
   if (candidates.length > 1) {
-    const options = candidates.map((taskDir) => `- ${taskIdFromDirectory(harnessPaths, taskDir)}`).join("\n");
+    const options = candidates.map((taskDir) => `- ${repositoryTaskIdFromDirectory(harnessPaths, taskDir)}`).join("\n");
     throw new Error(`Ambiguous task reference: ${ref.id || ref.path}\n${options}`);
   }
   if (!datePrefix.test(normalized)) {
@@ -210,7 +211,7 @@ function resolveRepositoryTaskLocation(target: TaskScannerTarget, ref: TaskRef):
     });
     if (datedCandidates.length === 1) return taskLocationFromDirectory(harnessPaths, datedCandidates[0]);
     if (datedCandidates.length > 1) {
-      const options = datedCandidates.map((taskDir) => `- ${taskIdFromDirectory(harnessPaths, taskDir)}`).join("\n");
+      const options = datedCandidates.map((taskDir) => `- ${repositoryTaskIdFromDirectory(harnessPaths, taskDir)}`).join("\n");
       throw new Error(`Ambiguous task reference: ${ref.id || ref.path}\n${options}`);
     }
   }
@@ -253,10 +254,14 @@ function taskDirectories(target: TaskScannerTarget): string[] {
 
 function taskLocationFromDirectory(harnessPaths: ResolvedHarnessPaths, directory: string): TaskLocation {
   return {
-    id: taskIdFromDirectory(harnessPaths, directory),
+    id: repositoryTaskIdFromDirectory(harnessPaths, directory),
     directory,
     taskPlanPath: path.join(directory, "task_plan.md"),
   };
+}
+
+function repositoryTaskIdFromDirectory(harnessPaths: ResolvedHarnessPaths, directory: string): string {
+  return taskIdFromArchiveStoragePath(harnessPaths.projectRoot, directory) || taskIdFromDirectory(harnessPaths, directory);
 }
 
 function readMaterialFile(filePath: string): TaskMaterial {

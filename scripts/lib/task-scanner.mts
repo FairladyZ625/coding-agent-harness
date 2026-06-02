@@ -65,6 +65,7 @@ import {
   taskIdFromDirectory,
   taskLocalWalkthrough,
 } from "./harness-paths.mjs";
+import { archiveTaskRoots, taskIdFromArchiveStoragePath } from "./task-archive-storage.mjs";
 import { isExcludedTaskPlanPath } from "./task-discovery-contract.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import type {
@@ -200,10 +201,7 @@ export function listTaskPlanPaths(target: TaskScannerTarget, { includeArchived =
     .filter((file) => !isExcludedTaskPlanPath(file, harnessPaths))
     .filter((file) => !isArchivedHarnessPath(file));
   if (!includeArchived) return activePaths;
-  const archiveRoot = path.join(harnessPaths.governanceRoot, "archive");
-  const releaseRoot = path.join(archiveRoot, "releases");
-  const archiveTaskRoots = [path.join(archiveRoot, "tasks"), ...(fs.existsSync(releaseRoot) ? fs.readdirSync(releaseRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => path.join(releaseRoot, entry.name, "tasks")) : [])].filter((root) => fs.existsSync(root));
-  return [...activePaths, ...archiveTaskRoots.flatMap((root) => walkFiles(root)).filter((file) => file.endsWith("task_plan.md"))].sort();
+  return [...activePaths, ...archiveTaskRoots(harnessPaths).flatMap((root) => walkFiles(root)).filter((file) => file.endsWith("task_plan.md"))].sort();
 }
 
 export function taskIdForDirectory(target: TaskScannerTarget, taskDir: string): string { return taskIdFromDirectory((target.harness || resolveHarnessPaths(target)) as ResolvedHarnessPaths, taskDir); }
@@ -320,7 +318,7 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
     const completion = phaseCompletionAverage(phases);
     const relative = toPosix(path.relative(target.projectRoot, taskDir));
     const directoryId = taskIdForDirectory(target, taskDir);
-    const id = relative.match(/^coding-agent-harness\/governance\/archive\/(?:releases\/[^/]+\/)?tasks\/((?:TASKS|MODULES|EXTERNAL)\/.+)$/)?.[1] || directoryId;
+    const id = taskIdFromArchiveStoragePath(target.projectRoot, taskDir) || directoryId;
     const identity = parseTaskIdentity(taskPlan, id);
     const tombstone = parseTaskTombstone(taskPlan);
     const title = titleFromMarkdown(brief.content || taskPlan, path.basename(taskDir));
