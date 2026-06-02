@@ -17,4 +17,3 @@ function taskInVisibilityScope(task, scope) {
   if (scope === "review-workbench") return (deletionState === "active" && !hidden) || deletionState !== "active" || hidden;
   return false;
 }
-
