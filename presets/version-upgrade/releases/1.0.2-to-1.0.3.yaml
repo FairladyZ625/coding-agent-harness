@@ -7,13 +7,13 @@ safeActions:
     title: Capture review material readiness for git-backed confirmation checks
     mode: report-only
     command: harness task-index --json
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: review queue evidence includes current review tasks
   - id: inspect-governance-check
     title: Run source package governance checks after 1.0.3 adoption
     mode: report-only
     command: harness check --profile source-package .
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: check output reviewed
 manualConfirmations:
   - id: confirm-review-confirmation-boundary

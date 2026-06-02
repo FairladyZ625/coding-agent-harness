@@ -7,13 +7,13 @@ safeActions:
     title: Capture package version metadata after 1.0.6 bump
     mode: report-only
     command: npm pkg get version
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: package version evidence reviewed
   - id: inspect-runtime-build
     title: Rebuild runtime dist before publish readiness review
     mode: report-only
     command: node scripts/build-dist.mts --quiet
-    writeGlobs: [dist/**, coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: dist build evidence reviewed
 manualConfirmations:
   - id: confirm-publish-line

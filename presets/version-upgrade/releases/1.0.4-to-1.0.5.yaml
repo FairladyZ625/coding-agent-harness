@@ -7,13 +7,13 @@ safeActions:
     title: Capture package license metadata for 1.0.5 compliance review
     mode: report-only
     command: npm pkg get license
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: package license evidence reviewed
   - id: inspect-generated-material-boundary
     title: Capture generated material boundary docs for review
     mode: report-only
     command: harness check --profile source-package .
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: source package check reviewed
 manualConfirmations:
   - id: confirm-license-change-understood

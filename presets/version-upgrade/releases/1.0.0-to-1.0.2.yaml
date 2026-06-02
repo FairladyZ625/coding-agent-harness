@@ -7,13 +7,13 @@ safeActions:
     title: Capture current status before adopting 1.0.2 task surfaces
     mode: report-only
     command: harness status --json
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: review captured status evidence
   - id: inspect-task-index
     title: Capture task index for dashboard and review queue adoption
     mode: report-only
     command: harness task-index --json
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: review task index evidence
 manualConfirmations:
   - id: confirm-current-work-routed

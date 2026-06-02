@@ -7,13 +7,13 @@ safeActions:
     title: Capture generated npm script commands for npx-based harness execution
     mode: report-only
     command: harness init --add-npm-scripts --dry-run
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: generated command evidence reviewed
   - id: inspect-dist-bin-executable
     title: Verify committed dist CLI remains executable
     mode: report-only
     command: test -x dist/harness.mjs
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: executable check reviewed
 manualConfirmations:
   - id: confirm-npx-script-policy

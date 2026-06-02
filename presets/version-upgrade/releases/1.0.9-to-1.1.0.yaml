@@ -7,13 +7,13 @@ safeActions:
     title: Capture Node.js runtime version for 1.1.0 baseline review
     mode: report-only
     command: node --version
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: runtime version evidence reviewed
   - id: inspect-prepublish-gate
     title: Run source-safe release gate before publish readiness
     mode: report-only
     command: npm run prepublishOnly
-    writeGlobs: [dist/**, coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: prepublish gate evidence reviewed
 manualConfirmations:
   - id: confirm-node-24-baseline

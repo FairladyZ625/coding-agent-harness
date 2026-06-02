@@ -13,7 +13,7 @@ safeActions:
     title: Capture task-local upgrade evidence
     mode: report-only
     command: harness preset run version-upgrade check
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: review upgrade-verify.json
 manualConfirmations:
   - id: confirm-human-review-boundary

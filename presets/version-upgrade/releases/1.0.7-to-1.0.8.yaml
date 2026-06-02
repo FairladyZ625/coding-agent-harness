@@ -7,13 +7,13 @@ safeActions:
     title: Capture pack dry-run evidence for executable harness bin
     mode: report-only
     command: npm pack --dry-run --json
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: pack report reviewed
   - id: inspect-migrate-structure-plan
     title: Run migrate-structure plan smoke evidence
     mode: report-only
     command: harness migrate-structure --plan
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: smoke output reviewed
 manualConfirmations:
   - id: confirm-bin-mode-preserved

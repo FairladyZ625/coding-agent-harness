@@ -13,7 +13,7 @@ safeActions:
     title: Audit project presets for stale or missing bundled presets
     mode: report-only
     command: harness preset audit --project
-    writeGlobs: [coding-agent-harness/planning/tasks/**/artifacts/version-upgrade/**]
+    writeGlobs: [{{paths.tasksRoot}}/**/artifacts/version-upgrade/**]
     verify: audit output reviewed
 manualConfirmations:
   - id: confirm-project-preset-overrides
