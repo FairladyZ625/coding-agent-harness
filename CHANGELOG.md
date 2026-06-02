@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.1
+
+- Align lifecycle completion around the human-reviewed terminal state so
+  confirmed review tasks can be finalized through the current task lifecycle.
+- Route task operations and task index behavior through the application and
+  repository layers, removing legacy facade/parser fallback paths.
+- Make dashboard task semantics fail closed on missing projections and align
+  active-task, review-material, accessibility, typography, and hot-refresh
+  behavior with the projection-first model.
+- Strengthen release-facing governance gates for walkthrough material checks,
+  transaction-backed lifecycle writes, and projection-first task operations.
+
 ## 1.1.0
 
 - Document the Node.js 24+ runtime baseline as a release-significant change and
