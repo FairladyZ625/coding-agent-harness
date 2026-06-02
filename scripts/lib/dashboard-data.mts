@@ -64,6 +64,9 @@ type DashboardOptions = {
 
 type DashboardDocumentPath = {
   file: string;
+  virtualPath?: string;
+  virtualContent?: string;
+  virtualTitle?: string;
   partial?: boolean;
   partialReason?: string;
   taskId?: string;
@@ -142,12 +145,12 @@ export function collectMarkdownDocuments(target: DashboardTarget, options: Dashb
   const docs = collectDashboardDocumentPaths(target, options);
   return docs.map((entry, index) => {
     const file = entry.file;
-    const content = sanitizeText(readFileSafe(file));
-    const source = prefixedPath(target, file);
+    const content = sanitizeText(entry.virtualContent ?? readFileSafe(file));
+    const source = entry.virtualPath || prefixedPath(target, file);
     return {
       id: `doc-${String(index + 1).padStart(4, "0")}-${slug(path.basename(file, ".md"))}`,
       path: source,
-      title: titleFromMarkdown(content, path.basename(file)),
+      title: entry.virtualTitle || titleFromMarkdown(content, path.basename(file)),
       type: documentKind(source),
       content,
       ...(entry.partial ? { partial: true, partialReason: entry.partialReason || "partial", taskId: entry.taskId || "" } : {}),
@@ -226,10 +229,9 @@ function collectDashboardDocumentPaths(target: DashboardTarget, options: Dashboa
       }
     }
     if (!historicalClosed) {
-      for (const indexFile of ["references/INDEX.md", "artifacts/INDEX.md"]) {
-        const file = path.join(taskDir, indexFile);
-        if (fs.existsSync(file)) selected.add(file);
-      }
+      for (const file of collectTaskLocalMaterialMarkdown(taskDir)) selected.add(file);
+      const artifactManifest = taskArtifactManifestDocument(target, taskDir);
+      if (artifactManifest) selected.add(JSON.stringify(artifactManifest));
     }
   }
   for (const file of walkFiles(harnessPaths.modulesRoot)) {
@@ -243,11 +245,66 @@ function collectDashboardDocumentPaths(target: DashboardTarget, options: Dashboa
     if (file.endsWith(".md")) selected.add(file);
   }
   return [...selected]
-    .filter((file) => !isArchivedHarnessPath(file))
-    .filter((file) => !file.includes(`${path.sep}_task-template${path.sep}`))
-    .filter((file) => !file.includes(`${path.sep}_optional-structures${path.sep}`))
-    .sort()
-    .map((file) => ({ file, ...(partial.get(file) || {}) }));
+    .map((entry) => parseSelectedDocumentEntry(entry))
+    .filter((entry) => !isArchivedHarnessPath(entry.file))
+    .filter((entry) => !entry.file.includes(`${path.sep}_task-template${path.sep}`))
+    .filter((entry) => !entry.file.includes(`${path.sep}_optional-structures${path.sep}`))
+    .sort((a, b) => (a.virtualPath || a.file).localeCompare(b.virtualPath || b.file))
+    .map((entry) => ({ ...entry, ...(partial.get(entry.file) || {}) }));
+}
+
+function parseSelectedDocumentEntry(entry: string): DashboardDocumentPath {
+  if (!entry.startsWith("{")) return { file: entry };
+  try {
+    const parsed = JSON.parse(entry) as DashboardDocumentPath;
+    if (parsed.file && parsed.virtualPath && parsed.virtualContent) return parsed;
+  } catch {
+    return { file: entry };
+  }
+  return { file: entry };
+}
+
+function collectTaskLocalMaterialMarkdown(taskDir: string): string[] {
+  const files: string[] = [];
+  for (const folderName of ["references", "artifacts"]) {
+    const folder = path.join(taskDir, folderName);
+    for (const file of walkFiles(folder)) {
+      if (file.endsWith(".md")) files.push(file);
+    }
+  }
+  return files;
+}
+
+function taskArtifactManifestDocument(target: DashboardTarget, taskDir: string): DashboardDocumentPath | null {
+  const artifactsRoot = path.join(taskDir, "artifacts");
+  if (!fs.existsSync(artifactsRoot)) return null;
+  const artifactFiles = walkFiles(artifactsRoot)
+    .filter((file) => !file.endsWith(".md"))
+    .filter((file) => !path.basename(file).startsWith("."))
+    .sort();
+  if (!artifactFiles.length) return null;
+  const taskPath = prefixedPath(target, taskDir);
+  const virtualPath = `${taskPath}/artifacts/__dashboard_artifacts.md`;
+  const rows = artifactFiles.map((file, index) => {
+    const relative = toPosix(path.relative(taskDir, file));
+    const stat = fs.statSync(file);
+    return `| ART-${String(index + 1).padStart(3, "0")} | \`${relative}\` | ${stat.size} |`;
+  });
+  return {
+    file: path.join(artifactsRoot, "__dashboard_artifacts.md"),
+    virtualPath,
+    virtualTitle: "Artifacts",
+    virtualContent: [
+      "# Artifacts",
+      "",
+      "Task-local artifact files discovered by the Dashboard bundle. Non-markdown files are listed here so task evidence is not hidden when `artifacts/INDEX.md` is missing.",
+      "",
+      "| ID | Path | Bytes |",
+      "| --- | --- | ---: |",
+      ...rows,
+      "",
+    ].join("\n"),
+  };
 }
 
 function documentKind(source: string): string {
@@ -264,6 +321,9 @@ function documentKind(source: string): string {
   if (lower.endsWith("/long-running-task-contract.md")) return "long-running-contract";
   if (lower.endsWith("/references/index.md")) return "task-references";
   if (lower.endsWith("/artifacts/index.md")) return "task-artifacts";
+  if (lower.endsWith("/artifacts/__dashboard_artifacts.md")) return "task-artifacts";
+  if (lower.includes("/references/")) return "task-references";
+  if (lower.includes("/artifacts/")) return "task-artifacts";
   if (lower.endsWith("/execution_strategy.md")) return "execution-strategy";
   if (lower.endsWith("/visual_map.md")) return "visual-map";
   if (lower.endsWith("/visual_roadmap.md")) return "legacy-visual-roadmap";
@@ -930,7 +990,7 @@ function attachDocumentProjection(status: DashboardStatus, documents: DashboardD
 function documentKeyForTaskPath(taskPath: string, documentPath: string): string {
   const relative = documentPath.slice(taskPath.length).replace(/^\/+/, "");
   if (!relative) return "";
-  return relative.split("/").pop() || "";
+  return relative;
 }
 
 function runDashboardCompatibilityCheck(target: DashboardTarget) {

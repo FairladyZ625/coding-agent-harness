@@ -1,8 +1,16 @@
 function taskDocument(task, fileName) {
   const projected = task?.documentsByKey?.[fileName] || task?.documentProjection?.byKey?.[fileName];
   if (projected) return projected;
-  if (fileName === "__walkthrough__" && task.walkthroughPath) return findDocument(task.walkthroughPath);
+  if (fileName === "__walkthrough__") {
+    const walkthrough = task?.documentsByKey?.["walkthrough.md"] || task?.documentProjection?.byKey?.["walkthrough.md"];
+    if (walkthrough) return walkthrough;
+    if (task.walkthroughPath) return findDocument(task.walkthroughPath);
+  }
   return findDocument(`${task.path}/${fileName}`);
+}
+
+function taskDocumentProjection(task) {
+  return task?.documentsByKey || task?.documentProjection?.byKey || {};
 }
 
 function findDocument(pathSuffix) {

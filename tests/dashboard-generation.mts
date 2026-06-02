@@ -11,7 +11,7 @@ import { buildDashboardBundle } from "../scripts/lib/dashboard-data.mjs";
 type TestRunOptions = Omit<SpawnSyncOptionsWithStringEncoding, "encoding"> & {
   encoding?: BufferEncoding;
 };
-type DashboardDocument = { path: string };
+type DashboardDocument = { path: string; title?: string; content?: string };
 type DashboardDocuments = { documents: DashboardDocument[] };
 type DashboardSemanticTask = {
   id?: string;
@@ -258,6 +258,38 @@ const demoTask = siblingStatus.tasks.find((task) => task.id === "TASKS/demo-task
 assert(demoTask, "sibling-prefix fixture should include demo-task");
 assert(String(demoTask.documentsByKey?.["brief.md"] && (demoTask.documentsByKey["brief.md"] as DashboardDocument).path).endsWith("/demo-task/brief.md"), "document projection must not attach sibling-prefix task documents to the current task");
 assert(!JSON.stringify(demoTask.documentProjection?.byKey || {}).includes("demo-task-extra"), "documentProjection.byKey should be scoped by task directory boundary");
+
+const materialProject = path.join(tmpRoot, "material-library-project");
+fs.cpSync(path.join(repoRoot, "examples/minimal-project"), materialProject, { recursive: true });
+const materialTaskDir = path.join(materialProject, "coding-agent-harness/planning/tasks/demo-task");
+fs.mkdirSync(path.join(materialTaskDir, "references"), { recursive: true });
+fs.writeFileSync(path.join(materialTaskDir, "references/INDEX.md"), "# References Index\n\n| ID | Path |\n| --- | --- |\n| REF-001 | `references/operator-runbook.md` |\n");
+fs.writeFileSync(path.join(materialTaskDir, "references/operator-runbook.md"), "# Operator Runbook\n\nReference detail should render in Dashboard.\n");
+fs.mkdirSync(path.join(materialTaskDir, "artifacts/preset/run-001"), { recursive: true });
+fs.writeFileSync(path.join(materialTaskDir, "artifacts/preset/run-001/evidence.json"), JSON.stringify({ ok: true }, null, 2));
+const indexedTaskDir = path.join(materialProject, "coding-agent-harness/planning/tasks/indexed-artifact-task");
+fs.cpSync(materialTaskDir, indexedTaskDir, { recursive: true });
+fs.mkdirSync(path.join(indexedTaskDir, "artifacts"), { recursive: true });
+fs.writeFileSync(path.join(indexedTaskDir, "artifacts/INDEX.md"), "# Artifacts Index\n\n| ID | Path |\n| --- | --- |\n| ART-001 | `artifacts/report.md` |\n");
+fs.writeFileSync(path.join(indexedTaskDir, "artifacts/report.md"), "# Artifact Report\n\nIndexed artifact markdown.\n");
+const materialDashboardDir = path.join(tmpRoot, "dashboard-material-library");
+expectPass(["dashboard", "--out-dir", materialDashboardDir, materialProject]);
+const materialBundle = JSON.parse(fs.readFileSync(path.join(materialDashboardDir, "assets/dashboard-data.js"), "utf8").match(/window\.__HARNESS_DASHBOARD__\s*=\s*([\s\S]*);\s*$/)?.[1] || "{}") as DashboardGeneratedBundle;
+const materialTask = materialBundle.status.tasks.find((task) => task.id === "TASKS/demo-task");
+assert(materialTask, "material fixture should include demo-task");
+const materialKeys = Object.keys(materialTask.documentsByKey || {});
+assert(materialKeys.includes("references/INDEX.md"), "document projection should expose references index with stable relative key");
+assert(materialKeys.includes("references/operator-runbook.md"), "document projection should expose nested reference markdown with stable relative key");
+assert(materialKeys.includes("artifacts/__dashboard_artifacts.md"), "document projection should expose generated artifact manifest when artifacts index is missing");
+assert(!materialKeys.includes("INDEX.md"), "nested material index must not collapse to basename INDEX.md");
+const artifactManifest = materialTask.documentsByKey?.["artifacts/__dashboard_artifacts.md"] as DashboardDocument | undefined;
+assert(artifactManifest?.content?.includes("artifacts/preset/run-001/evidence.json"), "generated artifact manifest should list non-markdown artifact files");
+const indexedTask = materialBundle.status.tasks.find((task) => task.id === "TASKS/indexed-artifact-task");
+assert(indexedTask?.documentsByKey?.["artifacts/INDEX.md"], "document projection should expose artifacts/INDEX.md when present");
+assert(indexedTask.documentsByKey?.["artifacts/report.md"], "document projection should expose nested artifact markdown");
+const materialDocuments = JSON.parse(fs.readFileSync(path.join(materialDashboardDir, "data/documents.json"), "utf8")) as DashboardDocuments;
+assert(materialDocuments.documents.some((doc) => doc.path.endsWith("/references/operator-runbook.md")), "documents bundle should include nested reference markdown");
+assert(materialDocuments.documents.some((doc) => doc.path.endsWith("/artifacts/__dashboard_artifacts.md")), "documents bundle should include generated artifact manifest");
 
 const tables = JSON.parse(fs.readFileSync(path.join(dashboardDir, "data/tables.json"), "utf8")) as DashboardTables;
 assert(tables.tables.some((table) => table.kind === "harness-ledger"), "documents missing harness ledger table");

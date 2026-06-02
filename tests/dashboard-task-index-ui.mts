@@ -278,6 +278,57 @@ assert(!projectionResult.stats.some(([state]) => state === "done"), "task stats 
 assert(projectionResult.filtered.includes("TASKS/projection-conflict"), "task filter/search should match projected state and queues");
 assert(projectionResult.row.includes("agent reviewed"), "task rows should display projected review lifecycle");
 
+const documentOrderSandbox = createSandbox();
+vm.runInContext(`
+  window.HarnessMarkdown = { render: (content) => String(content || "") };
+  const docsByKey = {
+    "brief.md": { path: "TARGET:coding-agent-harness/planning/tasks/doc-order/brief.md", content: "# Brief" },
+    "task_plan.md": { path: "TARGET:coding-agent-harness/planning/tasks/doc-order/task_plan.md", content: "# Plan" },
+    "progress.md": { path: "TARGET:coding-agent-harness/planning/tasks/doc-order/progress.md", content: "# Progress" },
+    "review.md": { path: "TARGET:coding-agent-harness/planning/tasks/doc-order/review.md", content: "# Review" },
+    "lesson_candidates.md": { path: "TARGET:coding-agent-harness/planning/tasks/doc-order/lesson_candidates.md", content: "# Lessons" },
+    "walkthrough.md": { path: "TARGET:coding-agent-harness/planning/tasks/doc-order/walkthrough.md", content: "# Walkthrough" },
+    "references/INDEX.md": { path: "TARGET:coding-agent-harness/planning/tasks/doc-order/references/INDEX.md", content: "# References" },
+    "references/operator-runbook.md": { path: "TARGET:coding-agent-harness/planning/tasks/doc-order/references/operator-runbook.md", title: "Operator Runbook", content: "# Operator Runbook" },
+    "artifacts/__dashboard_artifacts.md": { path: "TARGET:coding-agent-harness/planning/tasks/doc-order/artifacts/__dashboard_artifacts.md", content: "# Artifacts" },
+  };
+  function orderedKeysFor(overrides) {
+    const item = {
+      id: "TASKS/doc-order",
+      path: "TARGET:coding-agent-harness/planning/tasks/doc-order",
+      state: overrides.state || "planned",
+      completion: 0,
+      documentsByKey: docsByKey,
+      documentProjection: { byKey: docsByKey },
+      reviewWorkbenchQueueView: {
+        queues: overrides.taskQueues || [],
+        primaryQueue: (overrides.taskQueues || [])[0] || "planned",
+      },
+      ...overrides,
+    };
+    return orderedTaskDocuments(item).map((doc) => doc.key);
+  }
+  __result = JSON.stringify({
+    missing: orderedKeysFor({ state: "review", taskQueues: ["missing-materials"], taskLifecycleProjection: { state: "review", lifecycleState: "in_review", taskQueues: ["missing-materials"] } }).slice(0, 4),
+    active: orderedKeysFor({ state: "in_progress", taskQueues: ["active"], taskLifecycleProjection: { state: "in_progress", lifecycleState: "active", taskQueues: ["active"] } }).slice(0, 4),
+    review: orderedKeysFor({ state: "review", taskQueues: ["review"], taskLifecycleProjection: { state: "review", lifecycleState: "in_review", taskQueues: ["review"] } }).slice(0, 5),
+    done: orderedKeysFor({ state: "done", taskQueues: ["finalized"], taskLifecycleProjection: { state: "done", lifecycleState: "closed", taskQueues: ["finalized"] } }).slice(0, 6),
+    allReview: orderedKeysFor({ state: "review", taskQueues: ["review"], taskLifecycleProjection: { state: "review", lifecycleState: "in_review", taskQueues: ["review"] } }),
+    projectedSelected: selectedSourceDocument({ path: "TARGET:coding-agent-harness/planning/tasks/doc-order", documentsByKey: docsByKey, documentProjection: { byKey: docsByKey } }, "references/operator-runbook.md"),
+    unprojectedSelected: selectedSourceDocument({ path: "TARGET:coding-agent-harness/planning/tasks/doc-order", documentsByKey: {}, documentProjection: { byKey: {} } }, "references/operator-runbook.md"),
+  });
+`, documentOrderSandbox);
+const documentOrderResult = JSON.parse(String(documentOrderSandbox.__result)) as { missing: string[]; active: string[]; review: string[]; done: string[]; allReview: string[]; projectedSelected: string; unprojectedSelected: string };
+assert(documentOrderResult.missing[0] === "brief", "missing-materials/early tasks should open brief first");
+assert(documentOrderResult.active[0] === "progress", "in-progress tasks should open progress first");
+assert(documentOrderResult.review[0] === "walkthrough", "review tasks should open walkthrough first");
+assert(documentOrderResult.review[1] === "lessonCandidates", "review tasks should prioritize lesson candidates after walkthrough");
+assert(documentOrderResult.done[0] === "walkthrough", "closed tasks should open walkthrough first");
+assert(documentOrderResult.allReview.includes("references/operator-runbook.md"), "task detail should include nested reference documents");
+assert(documentOrderResult.allReview.includes("artifacts/__dashboard_artifacts.md"), "task detail should include generated artifact manifests");
+assert(documentOrderResult.projectedSelected.includes("Operator Runbook"), "manual material doc route should render projected documents");
+assert(documentOrderResult.unprojectedSelected === "", "manual material doc route must not bypass task documentProjection");
+
 const lifecycleQueueSandbox = createSandbox();
 vm.runInContext(`
   bundle.status.tasks = [{

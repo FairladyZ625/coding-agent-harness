@@ -1496,7 +1496,7 @@ function taskDocumentLibrary(task, selectedTab) {
 }
 
 function orderedTaskDocuments(task) {
-  const docs = taskDocTabs
+  const coreDocs = taskDocTabs
     .map(([key, file]) => {
       const doc = taskDocument(task, file);
       if (doc) return { key, file, title: t(key), path: doc.path, content: doc.content };
@@ -1504,23 +1504,65 @@ function orderedTaskDocuments(task) {
       return null;
     })
     .filter(Boolean);
+  const seen = new Set(coreDocs.map((doc) => doc.path));
+  const materialDocs = taskMaterialDocuments(task).filter((doc) => {
+    if (seen.has(doc.path)) return false;
+    seen.add(doc.path);
+    return true;
+  });
+  const docs = [...coreDocs, ...materialDocs];
   const priority = taskDocumentPriority(task);
   const rank = new Map(priority.map((key, index) => [key, index]));
-  return docs.sort((a, b) => (rank.get(a.key) ?? 99) - (rank.get(b.key) ?? 99));
+  return docs.sort((a, b) => {
+    const rankDelta = (rank.get(documentPriorityKey(a)) ?? 99) - (rank.get(documentPriorityKey(b)) ?? 99);
+    if (rankDelta) return rankDelta;
+    return String(a.key).localeCompare(String(b.key));
+  });
+}
+
+function taskMaterialDocuments(task) {
+  const projection = taskDocumentProjection(task);
+  return Object.entries(projection)
+    .filter(([key]) => key.startsWith("references/") || key.startsWith("artifacts/"))
+    .map(([key, doc]) => ({
+      key,
+      file: key,
+      title: taskMaterialTitle(key, doc),
+      path: doc.path,
+      content: doc.content,
+    }));
+}
+
+function taskMaterialTitle(key, doc) {
+  if (key === "references/INDEX.md") return t("references");
+  if (key === "artifacts/INDEX.md" || key === "artifacts/__dashboard_artifacts.md") return t("artifacts");
+  const group = key.startsWith("references/") ? t("references") : t("artifacts");
+  const name = String(doc?.title || key.split("/").pop() || key).replace(/\.md$/i, "");
+  return `${group} · ${name}`;
+}
+
+function documentPriorityKey(doc) {
+  if (doc.key?.startsWith("references/")) return "references";
+  if (doc.key?.startsWith("artifacts/")) return "artifacts";
+  return doc.key;
 }
 
 function taskDocumentPriority(task) {
   const projection = taskLifecycleProjection(task);
+  const primaryQueue = taskPrimaryQueueValue(task);
   const stateName = projection.state || "";
   const lifecycle = projection.lifecycleState || "";
-  if (stateName === "review" || ["in_review", "review-blocked"].includes(lifecycle)) {
-    return ["walkthrough", "lessonCandidates", "review", "findings", "visualMap", "progress", "brief", "taskPlan", "strategy", "longRunningContract", "legacyRoadmap", "references", "artifacts"];
+  if (primaryQueue === "missing-materials" || ["planned", "not_started"].includes(stateName) || lifecycle === "ready") {
+    return ["brief", "taskPlan", "visualMap", "strategy", "references", "artifacts", "progress", "findings", "review", "walkthrough", "legacyRoadmap"];
   }
-  if (stateName === "in_progress" || lifecycle === "active" || stateName === "blocked") {
+  if (primaryQueue === "review" || primaryQueue === "lessons" || stateName === "review" || ["in_review", "review-blocked"].includes(lifecycle)) {
+    return ["walkthrough", "lessonCandidates", "review", "findings", "visualMap", "progress", "artifacts", "references", "brief", "taskPlan", "strategy", "longRunningContract", "legacyRoadmap"];
+  }
+  if (primaryQueue === "active" || primaryQueue === "blocked" || stateName === "in_progress" || lifecycle === "active" || stateName === "blocked" || lifecycle === "blocked") {
     return ["progress", "visualMap", "brief", "taskPlan", "strategy", "findings", "review", "walkthrough", "references", "artifacts", "legacyRoadmap"];
   }
-  if (stateName === "done" || ["closing", "closed"].includes(lifecycle)) {
-    return ["walkthrough", "progress", "review", "findings", "visualMap", "brief", "taskPlan", "strategy", "references", "artifacts", "legacyRoadmap"];
+  if (primaryQueue === "finalized" || stateName === "done" || ["closing", "closed", "finalized"].includes(lifecycle)) {
+    return ["walkthrough", "lessonCandidates", "review", "artifacts", "references", "progress", "findings", "visualMap", "brief", "taskPlan", "strategy", "legacyRoadmap"];
   }
   return ["brief", "taskPlan", "visualMap", "strategy", "progress", "findings", "review", "walkthrough", "references", "artifacts", "legacyRoadmap"];
 }
@@ -1551,11 +1593,10 @@ function documentTabs(task) {
 function selectedSourceDocument(task, tab) {
   if (!tab) return "";
   const match = taskDocTabs.find(([key]) => key === tab);
-  if (!match) return "";
-  const doc = taskDocument(task, match[1]);
+  const doc = match ? taskDocument(task, match[1]) : taskDocumentProjection(task)[tab];
   if (!doc) return "";
   return `<section class="doc-section selected-source">
-    <div class="section-head"><h2>${t("selectedSource")} · ${t(match[0])}</h2><button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button></div>
+    <div class="section-head"><h2>${t("selectedSource")} · ${escapeHtml(match ? t(match[0]) : taskMaterialTitle(tab, doc))}</h2><button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button></div>
     <div class="markdown">${window.HarnessMarkdown.render(doc.content, state.renderMode)}</div>
   </section>`;
 }
@@ -3031,8 +3072,16 @@ function presetActionResult() {
 function taskDocument(task, fileName) {
   const projected = task?.documentsByKey?.[fileName] || task?.documentProjection?.byKey?.[fileName];
   if (projected) return projected;
-  if (fileName === "__walkthrough__" && task.walkthroughPath) return findDocument(task.walkthroughPath);
+  if (fileName === "__walkthrough__") {
+    const walkthrough = task?.documentsByKey?.["walkthrough.md"] || task?.documentProjection?.byKey?.["walkthrough.md"];
+    if (walkthrough) return walkthrough;
+    if (task.walkthroughPath) return findDocument(task.walkthroughPath);
+  }
   return findDocument(`${task.path}/${fileName}`);
+}
+
+function taskDocumentProjection(task) {
+  return task?.documentsByKey || task?.documentProjection?.byKey || {};
 }
 
 function findDocument(pathSuffix) {
