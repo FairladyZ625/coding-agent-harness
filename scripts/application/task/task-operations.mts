@@ -2,7 +2,7 @@ import { normalizeTarget } from "../../lib/core-shared.mjs";
 import { createTask, confirmTaskReview, updateTaskLifecycle } from "../../lib/task-lifecycle.mjs";
 import { createLessonSedimentationTask } from "../../lib/task-lesson-sedimentation.mjs";
 import { createTombstoneOperations } from "./tombstone-operations.mjs";
-import type { TaskOperationSubject, TaskOperationSubjectReader } from "../../lib/types/task-repository.js";
+import type { TaskOperationSubject, TaskOperationSubjectReader, TombstoneSubjectReader } from "../../lib/types/task-repository.js";
 import type { CreateTaskOptions, LifecycleUpdateOptions, ReviewConfirmOptions } from "../../lib/types/task-lifecycle.js";
 
 type JsonPayload = Record<string, unknown>;
@@ -28,6 +28,7 @@ export type OperationResult<TData = unknown> = OperationSuccess<TData> | Operati
 
 export type TaskOperationsOptions = {
   subjects?: TaskOperationSubjectReader;
+  tombstoneSubjects?: TombstoneSubjectReader;
 };
 
 export type CreateTaskInput = CreateTaskOptions & {
@@ -129,7 +130,9 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
   const subjects = options.subjects;
   if (!subjects) throw new Error("TaskOperations requires a TaskOperationSubjectReader.");
   const targetRoot = target.projectRoot;
-  const tombstones = createTombstoneOperations(targetRoot, { subjects });
+  const tombstoneSubjects = options.tombstoneSubjects || combinedTombstoneSubjectReader(subjects);
+  if (!tombstoneSubjects) throw new Error("TaskOperations requires a TombstoneSubjectReader.");
+  const tombstones = createTombstoneOperations(targetRoot, { subjects: tombstoneSubjects });
 
   return {
     create(input) {
@@ -220,6 +223,11 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
       }));
     },
   };
+}
+
+function combinedTombstoneSubjectReader(subjects: TaskOperationSubjectReader): TombstoneSubjectReader | null {
+  if ("getTombstoneSubject" in subjects && typeof subjects.getTombstoneSubject === "function") return subjects as TaskOperationSubjectReader & TombstoneSubjectReader;
+  return null;
 }
 
 export function unwrapTaskOperation<TData>(result: OperationResult<TData>): TData {

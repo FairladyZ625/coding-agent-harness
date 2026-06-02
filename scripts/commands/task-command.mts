@@ -9,7 +9,10 @@ import {
 import fs from "node:fs";
 import { takeRepeatedOptionsFromArgs } from "../lib/command-registry.mjs";
 import { createTaskOperations, unwrapTaskOperation } from "../application/task/task-operations.mjs";
-import { createScannerTaskOperationSubjectReader } from "../adapters/cli/task-operation-subject-reader.mjs";
+import {
+  createScannerTaskOperationSubjectReader,
+  createScannerTaskTombstoneSubjectReader,
+} from "../adapters/cli/task-operation-subject-reader.mjs";
 
 type FlagReader = (name: string, fallback?: boolean) => boolean;
 type OptionReader = (name: string, fallback?: string) => string;
@@ -65,7 +68,10 @@ type CreateTaskCliOptions = {
 };
 
 function taskOperations(target: string) {
-  return createTaskOperations(target, { subjects: createScannerTaskOperationSubjectReader(target) });
+  return createTaskOperations(target, {
+    subjects: createScannerTaskOperationSubjectReader(target),
+    tombstoneSubjects: createScannerTaskTombstoneSubjectReader(target),
+  });
 }
 
 export function runTaskCommand(command: string, { args, takeFlag, takeOption, targetArg }: CommandContext) {

@@ -4,6 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { normalizeTarget } from "../scripts/lib/core-shared.mjs";
+import {
+  createScannerTaskOperationSubjectReader,
+  createScannerTaskTombstoneSubjectReader,
+} from "../scripts/adapters/cli/task-operation-subject-reader.mjs";
 import { buildStatusData } from "../scripts/lib/status-builder.mjs";
 import { collectTasks, listTaskPlanPaths } from "../scripts/lib/task-scanner.mjs";
 import { createScannerTaskRepository } from "../scripts/lib/task-repository.mjs";
@@ -72,19 +76,29 @@ assert(location.directory.endsWith("coding-agent-harness/planning/tasks/demo-tas
 assert(location.taskPlanPath.endsWith("coding-agent-harness/planning/tasks/demo-task/task_plan.md"), "repository resolve should return the task plan path");
 
 const tombstoneSubject = repository.getTombstoneSubject({ id: "demo-task" });
+const adapterTombstoneSubject = createScannerTaskTombstoneSubjectReader(target).getTombstoneSubject({ id: "demo-task" });
 assert(tombstoneSubject.id === "TASKS/demo-task", "repository tombstone subject should preserve canonical task id");
 assert(tombstoneSubject.paths.relativeDirectory === "coding-agent-harness/planning/tasks/demo-task", "repository tombstone subject should expose normalized relative directory");
 assert(tombstoneSubject.paths.relativeTaskPlanPath === "coding-agent-harness/planning/tasks/demo-task/task_plan.md", "repository tombstone subject should expose normalized task_plan path");
 assert(tombstoneSubject.paths.relativeProgressPath === "coding-agent-harness/planning/tasks/demo-task/progress.md", "repository tombstone subject should expose normalized progress path");
 assert(tombstoneSubject.policy.state === task.state, "repository tombstone subject should expose lifecycle state as policy facts");
 assertJsonEqual(tombstoneSubject.policy.taskQueues, task.taskQueues, "repository tombstone subject should preserve projected queue policy facts");
+assertJsonEqual(adapterTombstoneSubject, tombstoneSubject, "tombstone subject CLI adapter should preserve repository tombstone subject semantics without exposing TaskRepository to commands");
 
 const operationSubject = repository.getOperationSubject({ id: "demo-task" });
+const adapterOperationSubject = createScannerTaskOperationSubjectReader(target).getOperationSubject({ id: "demo-task" });
+const adapterPlanningPathOperationSubject = createScannerTaskOperationSubjectReader(target).getOperationSubject({ id: "coding-agent-harness/planning/tasks/demo-task" });
+const adapterShortPlanningPathOperationSubject = createScannerTaskOperationSubjectReader(target).getOperationSubject({ id: "planning/tasks/demo-task" });
+const adapterTaskPlanPathOperationSubject = createScannerTaskOperationSubjectReader(target).getOperationSubject({ id: path.join(targetPath, "coding-agent-harness/planning/tasks/demo-task/task_plan.md") });
 assert(operationSubject.id === "TASKS/demo-task", "repository operation subject should preserve canonical task id");
 assert(!("taskPlanPath" in operationSubject), "repository operation subject should not expose raw scanner taskPlanPath");
 assert(!("path" in operationSubject), "repository operation subject should not expose raw scanner path");
 assertJsonEqual(operationSubject.semanticProjection.taskLifecycleProjection.taskQueues, task.taskLifecycleProjection.taskQueues, "repository operation subject should expose projected lifecycle queues");
 assertJsonEqual(operationSubject.semanticProjection.reviewWorkbenchQueueView.queues, task.reviewWorkbenchQueueView.queues, "repository operation subject should expose projected workbench queues");
+assertJsonEqual(adapterOperationSubject, operationSubject, "operation subject CLI adapter should preserve repository operation subject semantics without importing TaskRepository");
+assertJsonEqual(adapterPlanningPathOperationSubject, operationSubject, "operation subject CLI adapter should preserve repository planning path task references");
+assertJsonEqual(adapterShortPlanningPathOperationSubject, operationSubject, "operation subject CLI adapter should preserve repository short planning path task references");
+assertJsonEqual(adapterTaskPlanPathOperationSubject, operationSubject, "operation subject CLI adapter should preserve repository task_plan path references passed as ids");
 
 const materials = repository.readMaterials({ id: "demo-task" });
 assert(materials.taskPlan.content.includes("Task Contract: harness-task/v1"), "repository materials should read task_plan.md");

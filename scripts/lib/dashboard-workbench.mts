@@ -91,7 +91,7 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
   if (host !== "127.0.0.1") throw new Error("dashboard workbench only supports --host 127.0.0.1");
   const target = normalizeTarget(targetInput) as WorkbenchTarget;
   const taskRepository = createScannerTaskRepository(target);
-  const taskOperations = createTaskOperations(target.projectRoot, { subjects: taskRepository });
+  const taskOperations = createTaskOperations(target.projectRoot, { subjects: taskRepository, tombstoneSubjects: taskRepository });
   const outputDir = path.resolve(outDir);
   const csrfToken = crypto.randomBytes(24).toString("hex");
   const options = localeOverride ? { localeOverride } : {};

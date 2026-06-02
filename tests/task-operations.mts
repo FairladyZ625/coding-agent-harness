@@ -3,7 +3,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createTaskOperations } from "../scripts/application/task/task-operations.mjs";
-import { createScannerTaskOperationSubjectReader } from "../scripts/adapters/cli/task-operation-subject-reader.mjs";
+import {
+  createScannerTaskOperationSubjectReader,
+  createScannerTaskTombstoneSubjectReader,
+} from "../scripts/adapters/cli/task-operation-subject-reader.mjs";
+import { createScannerTaskRepository } from "../scripts/lib/task-repository.mjs";
 import {
   assert,
   repoRoot,
@@ -29,7 +33,10 @@ try {
 }
 assert(missingSubjectsError.includes("TaskOperations requires a TaskOperationSubjectReader"), "TaskOperations should fail fast instead of creating a scanner-backed repository inside the application module");
 
-const operations = createTaskOperations(target, { subjects: createScannerTaskOperationSubjectReader(target) });
+const operations = createTaskOperations(target, {
+  subjects: createScannerTaskOperationSubjectReader(target),
+  tombstoneSubjects: createScannerTaskTombstoneSubjectReader(target),
+});
 
 const reviewResult = operations.confirmReview({
   taskId: "demo-task",
@@ -55,13 +62,24 @@ const cliComplete = run(["task-complete", "demo-task", "--message", "try closeou
 assert(cliComplete.status !== 0, "CLI task-complete should reject the same closeout precondition");
 assert(cliComplete.stderr.includes(completeResult.reason), "CLI task-complete should surface the TaskOperations closeout reason");
 
+const combinedReaderOperations = createTaskOperations(target, { subjects: createScannerTaskRepository(target) });
+const combinedReaderComplete = combinedReaderOperations.complete({
+  taskId: "demo-task",
+  message: "try closeout through legacy combined reader",
+});
+assertFailure(combinedReaderComplete, "combined TaskRepository readers should remain compatible with TaskOperations construction");
+assert(combinedReaderComplete.reason.includes("task-review"), "combined reader closeout rejection should preserve TaskOperations semantics");
+
 const ambiguousTarget = path.join(tmpRoot, "task-operations-ambiguous-target");
 fs.cpSync(path.join(repoRoot, "examples/minimal-project"), ambiguousTarget, { recursive: true });
 const sourceTaskDir = path.join(ambiguousTarget, "coding-agent-harness/planning/tasks/demo-task");
 const moduleTaskDir = path.join(ambiguousTarget, "coding-agent-harness/planning/modules/auth/tasks/demo-task");
 fs.mkdirSync(path.dirname(moduleTaskDir), { recursive: true });
 fs.cpSync(sourceTaskDir, moduleTaskDir, { recursive: true });
-const ambiguousResult = createTaskOperations(ambiguousTarget, { subjects: createScannerTaskOperationSubjectReader(ambiguousTarget) }).complete({
+const ambiguousResult = createTaskOperations(ambiguousTarget, {
+  subjects: createScannerTaskOperationSubjectReader(ambiguousTarget),
+  tombstoneSubjects: createScannerTaskTombstoneSubjectReader(ambiguousTarget),
+}).complete({
   taskId: "demo-task",
   message: "try ambiguous closeout",
 });
@@ -74,7 +92,6 @@ assert(String(ambiguousResult.payload.error).includes("MODULES/auth/demo-task"),
 
 const projectionQueueOperations = createTaskOperations(target, {
   subjects: {
-    getTombstoneSubject: () => { throw new Error("not used"); },
     getOperationSubject: () => ({
       id: "projection-queue-task",
       budget: "standard",
@@ -135,6 +152,7 @@ const projectionQueueOperations = createTaskOperations(target, {
       },
     }),
   },
+  tombstoneSubjects: { getTombstoneSubject: () => { throw new Error("not used"); } },
 });
 
 const projectionQueueReview = projectionQueueOperations.confirmReview({
@@ -148,7 +166,6 @@ assert((projectionQueueReview.payload.taskQueues as unknown[]).includes("planned
 
 const projectionFirstOperations = createTaskOperations(target, {
   subjects: {
-    getTombstoneSubject: () => { throw new Error("not used"); },
     getOperationSubject: () => ({
       id: "projection-first-task",
       budget: "standard",
@@ -209,6 +226,7 @@ const projectionFirstOperations = createTaskOperations(target, {
       },
     }),
   },
+  tombstoneSubjects: { getTombstoneSubject: () => { throw new Error("not used"); } },
 });
 
 const projectionFirstReview = projectionFirstOperations.confirmReview({
@@ -222,12 +240,12 @@ assert(projectionFirstReview.payload.reviewStatus === "confirmed", "duplicate co
 
 const blockingRiskOperations = createTaskOperations(target, {
   subjects: {
-    getTombstoneSubject: () => { throw new Error("not used"); },
     getOperationSubject: () => operationSubjectFixture({
       id: "blocking-risk-task",
       blockingReviewRisks: [{ id: "risk-1", open: "yes", blocksRelease: "yes" }],
     }),
   },
+  tombstoneSubjects: { getTombstoneSubject: () => { throw new Error("not used"); } },
 });
 const blockingRiskComplete = blockingRiskOperations.complete({
   taskId: "blocking-risk-task",
@@ -238,7 +256,6 @@ assert(blockingRiskComplete.reason.includes("risk-1"), "blocking review risk rej
 
 const pendingLessonOperations = createTaskOperations(target, {
   subjects: {
-    getTombstoneSubject: () => { throw new Error("not used"); },
     getOperationSubject: () => operationSubjectFixture({
       id: "pending-lesson-task",
       lessonCandidateStatus: "needs-promotion",
@@ -247,6 +264,7 @@ const pendingLessonOperations = createTaskOperations(target, {
       queues: ["lessons"],
     }),
   },
+  tombstoneSubjects: { getTombstoneSubject: () => { throw new Error("not used"); } },
 });
 const pendingLessonComplete = pendingLessonOperations.complete({
   taskId: "pending-lesson-task",

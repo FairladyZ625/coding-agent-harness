@@ -99,6 +99,6 @@ export type TaskOperationSubject = {
   semanticProjection: TaskOperationSemanticProjection;
 };
 
-export type TaskOperationSubjectReader = TombstoneSubjectReader & {
+export type TaskOperationSubjectReader = {
   getOperationSubject(ref: TaskRef): TaskOperationSubject;
 };
