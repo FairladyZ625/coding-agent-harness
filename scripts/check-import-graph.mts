@@ -138,7 +138,7 @@ export const architectureImportContract: ArchitectureImportContract = {
     {
       id: "commands",
       owns: ["scripts/commands/**"],
-      mayImport: ["scripts/application/**", "scripts/ports/**", "scripts/domain/**", "scripts/lib/types/**"],
+      mayImport: ["scripts/application/**", "scripts/adapters/**", "scripts/ports/**", "scripts/domain/**", "scripts/lib/types/**"],
     },
     {
       id: "dashboard-data",
@@ -181,12 +181,12 @@ export const architectureImportContract: ArchitectureImportContract = {
       evidence: "import graph check plus P04 lesson-routing fixtures",
     },
     {
-      id: "P05-command-task-operations-subject-composition-bridge",
-      source: "scripts/commands/task-command.mts",
-      target: "scripts/lib/task-operation-subjects.mts",
+      id: "P05-adapter-task-operation-subject-repository-bridge",
+      source: "scripts/adapters/cli/task-operation-subject-reader.mts",
+      target: "scripts/lib/task-repository.mts",
       ownerPhase: "P05-repository-scanner-strangler",
       expiryPhase: "P13-deletion-and-package-surface",
-      reason: "The command adapter still composes the scanner-backed TaskOperationSubjectReader until the scanner adapter identity and package surface are retired.",
+      reason: "The CLI adapter composes the scanner-backed TaskOperationSubjectReader until the scanner adapter identity and package surface are retired.",
       evidence: "import graph check plus P05 TaskOperations subject-reader fixtures",
     },
     {
@@ -258,7 +258,7 @@ export const architectureImportContract: ArchitectureImportContract = {
     { path: "scripts/lib/task-lifecycle.mts", ownerPhase: "P04-transaction-cutover", reason: "Current lifecycle write facade and legacy bridge." },
     { path: "scripts/lib/governance-sync.mts", ownerPhase: "P04-transaction-cutover", reason: "Current low-level write/lock implementation." },
     { path: "scripts/lib/task-repository.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "TaskRepository port and scanner-backed implementation." },
-    { path: "scripts/lib/task-operation-subjects.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Scanner-backed TaskOperationSubjectReader composition adapter for command wiring; not a harness-core package barrel surface." },
+    { path: "scripts/adapters/cli/task-operation-subject-reader.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Scanner-backed TaskOperationSubjectReader CLI adapter for command wiring; not a harness-core package barrel surface." },
     { path: "scripts/lib/task-scanner.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Legacy scanner adapter and migration-only boundary." },
     { path: "scripts/lib/task-semantic-projection.mts", ownerPhase: "P06-dashboard-projection-consumer-cutover", reason: "Shared CLI/Dashboard/Test semantic contract." },
     { path: "scripts/lib/dashboard-data.mts", ownerPhase: "P06-dashboard-projection-consumer-cutover", reason: "Dashboard projection consumer." },
@@ -765,7 +765,6 @@ function isLegacyTaskRuntimeSurface(target: string): boolean {
     || target === "scripts/lib/task-lifecycle.mts"
     || target.startsWith("scripts/lib/task-lifecycle/")
     || target === "scripts/lib/task-lesson-sedimentation.mts"
-    || target === "scripts/lib/task-operation-subjects.mts"
     || target === "scripts/lib/task-repository.mts"
     || target === "scripts/lib/task-scanner.mts"
     || target === "scripts/lib/task-semantic-projection.mts"

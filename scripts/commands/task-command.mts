@@ -9,7 +9,7 @@ import {
 import fs from "node:fs";
 import { takeRepeatedOptionsFromArgs } from "../lib/command-registry.mjs";
 import { createTaskOperations, unwrapTaskOperation } from "../application/task/task-operations.mjs";
-import { createScannerTaskOperationSubjectReader } from "../lib/task-operation-subjects.mjs";
+import { createScannerTaskOperationSubjectReader } from "../adapters/cli/task-operation-subject-reader.mjs";
 
 type FlagReader = (name: string, fallback?: boolean) => boolean;
 type OptionReader = (name: string, fallback?: string) => string;

@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createTaskOperations } from "../scripts/application/task/task-operations.mjs";
-import { createScannerTaskOperationSubjectReader } from "../scripts/lib/task-operation-subjects.mjs";
+import { createScannerTaskOperationSubjectReader } from "../scripts/adapters/cli/task-operation-subject-reader.mjs";
 import {
   assert,
   repoRoot,
