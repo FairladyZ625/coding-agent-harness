@@ -231,7 +231,7 @@ function taskCountsAsCompleted(task) {
 
 function taskIsNonActiveQueueWork(task) {
   const stateValue = taskStateValue(task);
-  return ["missing-materials", "blocked", "review", "lessons", "confirmed", "confirmed-finalization-pending"].includes(stateValue);
+  return ["missing-materials", "blocked", "review", "lessons"].includes(stateValue);
 }
 
 function taskBriefCard(task, { compact = true } = {}) {

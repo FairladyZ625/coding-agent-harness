@@ -100,8 +100,6 @@ const swimlaneColumnLabelKeys: Record<string, string> = {
   blocked: "queueBlocked",
   review: "queueReview",
   lessons: "queueLessons",
-  confirmed: "state_confirmed",
-  "confirmed-finalization-pending": "state_confirmed-finalization-pending",
   finalized: "state_finalized",
   "soft-deleted-superseded": "queueSoftDeletedSuperseded",
   planned: "planned",
@@ -205,7 +203,8 @@ export function buildReviewWorkbenchQueueView(
   const hasPendingLessonWork = taskHasPendingLessonWork(task, taskQueues);
   const humanConfirmable = lifecycle.reviewQueueState === "ready-to-confirm" && taskQueues.includes("review");
   const confirmed = lifecycle.reviewStatus === "confirmed" || task.reviewConfirmation?.confirmed === true || taskQueues.includes("confirmed");
-  const readyForCloseout = confirmed && lifecycle.closeoutStatus !== "closed" && !hasPendingLessonWork && ["no-candidate-accepted", "promoted", "rejected"].includes(stringValue(task.lessonCandidateStatus, ""));
+  const finalized = confirmed || lifecycle.closeoutStatus === "closed" || taskQueues.includes("finalized");
+  const readyForCloseout = false;
   const primaryQueue = primaryReviewQueue(taskQueues);
   const reasonSummaries = normalizedQueueReasons(task);
   return {
@@ -216,7 +215,7 @@ export function buildReviewWorkbenchQueueView(
     blocked: lifecycle.reviewStatus === "blocked-open-findings" || taskQueues.includes("blocked") || blockingRiskCount(task) > 0,
     needsMaterials: lifecycle.reviewQueueState === "needs-material" || taskQueues.includes("missing-materials"),
     confirmed,
-    finalized: lifecycle.closeoutStatus === "closed" || taskQueues.includes("finalized"),
+    finalized,
     hasPendingLessonWork,
     readyForCloseout,
     reasonCodes: reasonSummaries.map((reason) => stringValue(reason.code || reason.queue, "")).filter(Boolean),
@@ -226,7 +225,12 @@ export function buildReviewWorkbenchQueueView(
 
 function normalizedTaskQueues(task: TaskSemanticProjectionInput): string[] {
   const queues = Array.isArray(task.taskQueues) ? task.taskQueues.map((queue) => stringValue(queue, "")).filter(Boolean) : [];
-  const normalized = queues.filter((queue) => queue !== "active" || taskIsCurrentlyActive(task));
+  const confirmed = stringValue(task.reviewStatus, "") === "confirmed" || task.reviewConfirmation?.confirmed === true;
+  const terminalQueues = new Set(["review", "confirmed", "confirmed-finalization-pending"]);
+  const sourceQueues = confirmed ? queues.filter((queue) => !terminalQueues.has(queue)) : queues;
+  if (confirmed && !sourceQueues.includes("finalized")) sourceQueues.push("finalized");
+  if (confirmed && taskHasPendingLessonSignal(task) && !sourceQueues.includes("lessons")) sourceQueues.push("lessons");
+  const normalized = sourceQueues.filter((queue) => queue !== "active" || taskIsCurrentlyActive(task));
   if (queues.includes("active") && !taskIsCurrentlyActive(task)) normalized.push(nonActiveLifecycleQueue(task));
   return normalized.length ? [...new Set(normalized.filter(Boolean))] : [taskIsCurrentlyActive(task) ? "active" : nonActiveLifecycleQueue(task)];
 }
@@ -245,7 +249,7 @@ function normalizedQueueReasons(task: TaskSemanticProjectionInput): QueueReason[
 }
 
 function primaryReviewQueue(queues: string[]): string {
-  const order = ["blocked", "missing-materials", "review", "lessons", "confirmed", "confirmed-finalization-pending", "finalized", "soft-deleted-superseded", "active", "planned", "done", "unknown"];
+  const order = ["blocked", "missing-materials", "review", "lessons", "finalized", "soft-deleted-superseded", "active", "planned", "done", "unknown"];
   return order.find((queue) => queues.includes(queue)) || queues[0] || "active";
 }
 
@@ -253,6 +257,7 @@ function taskVisibleInSwimlane(task: TaskSemanticProjectionInput, lifecycle: Tas
   if (lifecycle.deletionState !== "active") return false;
   if (["done", "closed", "finalized"].includes(lifecycle.state)) return false;
   if (["closed", "finalized"].includes(lifecycle.closeoutStatus)) return false;
+  if (reviewView.finalized && !reviewView.hasPendingLessonWork) return false;
   if (clampCompletion(task.completion) >= 100 && !["review", "blocked", "reopened", "current-evidence"].includes(lifecycle.state)) return false;
   return ["active", "planned", "not_started", "in_progress", "review", "blocked", "reopened", "current-evidence"].includes(lifecycle.state)
     || reviewView.inQueue
@@ -273,8 +278,7 @@ function nonActiveLifecycleQueue(task: TaskSemanticProjectionInput): string {
   const lifecycleState = stringValue(task.lifecycleState, "unknown");
   const closeoutStatus = stringValue(task.closeoutStatus, "missing");
   const reviewStatus = stringValue(task.reviewStatus, "missing");
-  if (closeoutStatus === "closed" || ["closed", "finalized"].includes(lifecycleState)) return "finalized";
-  if (reviewStatus === "confirmed") return "confirmed";
+  if (closeoutStatus === "closed" || ["closed", "finalized"].includes(lifecycleState) || reviewStatus === "confirmed") return "finalized";
   if (state === "blocked" || lifecycleState === "blocked") return "blocked";
   if (state === "review" || lifecycleState === "in_review") return "review";
   if (["planned", "not_started"].includes(state) || lifecycleState === "ready") return "planned";
@@ -291,14 +295,17 @@ function taskNeedsEvidence(task: TaskSemanticProjectionInput): boolean {
 function swimlaneTone(columnKey: string): string {
   if (["blocked"].includes(columnKey)) return "fail";
   if (["missing-materials", "active"].includes(columnKey)) return "warn";
-  if (["review", "lessons", "confirmed", "confirmed-finalization-pending", "finalized"].includes(columnKey)) return "pass";
+  if (["review", "lessons", "finalized"].includes(columnKey)) return "pass";
   return "muted";
 }
 
 function taskHasPendingLessonWork(task: TaskSemanticProjectionInput, taskQueues: string[]): boolean {
+  return taskQueues.includes("lessons") || taskHasPendingLessonSignal(task);
+}
+
+function taskHasPendingLessonSignal(task: TaskSemanticProjectionInput): boolean {
   const candidates = Array.isArray(task.lessonCandidateRows) ? task.lessonCandidateRows : [];
-  return taskQueues.includes("lessons")
-    || task.lessonCandidateStatus === "needs-promotion"
+  return task.lessonCandidateStatus === "needs-promotion"
     || task.lessonCandidatePromotionState === "queued"
     || candidates.some((candidate) => ["ready-for-review", "needs-promotion"].includes(stringValue(candidate.status, "")));
 }

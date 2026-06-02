@@ -338,6 +338,11 @@ writeTaskFixture(`${todayLocal}-release-done-path`, {
 `,
 });
 writeTaskFixture(`${todayLocal}-release-unconfirmed`, { title: "Done task without human review confirmation", state: "done" });
+writeTaskFixture(`${todayLocal}-release-review-confirmed`, {
+  title: "Review-state task with human review confirmation",
+  state: "review",
+  confirmedReview: true,
+});
 writeTaskFixture(`${todayLocal}-release-blocked`, { title: "Blocked task must stay active", state: "blocked" });
 const nestedArtifactTaskDir = writeTaskFixture(`${todayLocal}-release-nested-artifact-carrier`, {
   title: "Release nested artifact carrier",
@@ -424,7 +429,7 @@ const taskListPath = path.join(tmpRoot, "release-closeout-task-list.json");
 fs.writeFileSync(taskListPath, JSON.stringify({
   schemaVersion: "release-closeout-task-list/v1",
   release: "1.0.5",
-  taskIds: [`TASKS/${todayLocal}-release-done-path`, `TASKS/${todayLocal}-release-unconfirmed`, `MODULES/life-circle/${todayLocal}-release-module-done`],
+  taskIds: [`TASKS/${todayLocal}-release-done-path`, `TASKS/${todayLocal}-release-unconfirmed`, `TASKS/${todayLocal}-release-review-confirmed`, `MODULES/life-circle/${todayLocal}-release-module-done`],
 }, null, 2));
 const releaseTask = expectJson(["new-task", "release-closeout-1-0-5", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.5", "--task-list", taskListPath, target], { env });
 const releaseTaskPlanPath = path.join(target, releaseTask.task.path.replace(/^TARGET:/, ""), "task_plan.md");
@@ -443,15 +448,16 @@ const publicRedactionReport = JSON.parse(fs.readFileSync(path.join(releaseRoot, 
 const aggregate = JSON.parse(fs.readFileSync(path.join(releaseRoot, "task-aggregate.json"), "utf8")) as ReleaseTaskAggregate;
 assert(releaseIndex.includes("Release Closeout Package") && releaseIndex.includes("1.0.5"), "release package should include a version index");
 assert(aggregate.selector?.type === "task-list", "task-list release aggregation should record selector type");
-assert(aggregate.summary.totalTasks === 3, "task-list release aggregation should include only the selected tasks");
+assert(aggregate.summary.totalTasks === 4, "task-list release aggregation should include only the selected tasks");
 assert(
-  aggregate.matched.map((task) => task.id).sort().join(",") === `MODULES/life-circle/${todayLocal}-release-module-done,TASKS/${todayLocal}-release-done-path,TASKS/${todayLocal}-release-unconfirmed`,
+  aggregate.matched.map((task) => task.id).sort().join(",") === `MODULES/life-circle/${todayLocal}-release-module-done,TASKS/${todayLocal}-release-done-path,TASKS/${todayLocal}-release-review-confirmed,TASKS/${todayLocal}-release-unconfirmed`,
   "task-list release aggregation should match requested root and module task IDs",
 );
 assert(aggregate.excluded.some((task) => task.id.endsWith("release-blocked") && task.reason === "not-selected"), "task-list release aggregation should record unselected tasks as excluded");
 assert(archivePlan.includes("task-archive") && archivePlan.includes("--archived-by \"Release Reviewer\"") && archivePlan.includes("--archive-field \"retention bucket=release:1.0.5\""), "release archive plan should emit executable generic archive-field commands with an accountable archive actor");
 assert(archivePlan.includes("--archive-field \"release package=coding-agent-harness/governance/releases/1.0.5/INDEX.md\""), "release archive plan should include release package archive metadata");
 assert(archivePlan.includes("release-done-path"), "release archive plan should include completed eligible tasks");
+assert(archivePlan.includes("release-review-confirmed"), "release archive plan should include human-confirmed review-state tasks");
 assert(archivePlan.includes(`task-archive "MODULES/life-circle/${todayLocal}-release-module-done"`), "release archive plan should emit full module task IDs");
 const eligibleSection = archivePlan.split("## Not Eligible")[0];
 assert(!eligibleSection.includes("release-blocked"), "release archive plan should not emit archive commands for blocked tasks");

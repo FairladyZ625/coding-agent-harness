@@ -112,7 +112,7 @@ function fixtureTask(overrides: Partial<DashboardTask> = {}): DashboardTask {
   const reasonSummaries = (Array.isArray(item.queueReasons) ? item.queueReasons : [])
     .map((reason) => typeof reason === "string" ? { code: reason, message: reason } : reason)
     .filter(Boolean);
-  const primaryQueue = queues.find((queue) => ["blocked", "missing-materials", "review", "lessons", "confirmed", "confirmed-finalization-pending", "finalized", "soft-deleted-superseded", "active"].includes(queue)) || queues[0] || "active";
+  const primaryQueue = queues.find((queue) => ["blocked", "missing-materials", "review", "lessons", "finalized", "soft-deleted-superseded", "active"].includes(queue)) || queues[0] || "active";
   item.taskLifecycleProjection ||= {
     state: item.state,
     lifecycleState: item.state,
@@ -132,10 +132,10 @@ function fixtureTask(overrides: Partial<DashboardTask> = {}): DashboardTask {
     humanConfirmable: item.reviewQueueState === "ready-to-confirm" && primaryQueue === "review",
     blocked: primaryQueue === "blocked",
     needsMaterials: primaryQueue === "missing-materials",
-    confirmed: primaryQueue === "confirmed",
+    confirmed: primaryQueue === "finalized" && item.reviewStatus === "confirmed",
     finalized: primaryQueue === "finalized",
     hasPendingLessonWork: primaryQueue === "lessons",
-    readyForCloseout: primaryQueue === "confirmed-finalization-pending",
+    readyForCloseout: false,
     reasonCodes: reasonSummaries.map((reason) => String((reason as Record<string, unknown>).code || "")),
     reasonSummaries,
   };
@@ -188,7 +188,7 @@ function renderTasks(mutator: string): RenderedSwimlane {
             fixtureTask({ id: "TASKS/2026-05-28-core-evidence-3", shortId: "2026-05-28-core-evidence-3", title: "Core evidence 3", module: "core", state: "in_progress", visualMapStatus: "missing" }),
             fixtureTask({ id: "TASKS/2026-05-28-core-evidence-4", shortId: "2026-05-28-core-evidence-4", title: "Core evidence 4", module: "core", state: "in_progress", visualMapStatus: "missing" }),
             fixtureTask({ id: "TASKS/2026-05-28-review", shortId: "2026-05-28-review", title: "Confirm review", module: "governance", state: "review", reviewStatus: "agent-reviewed", reviewQueueState: "ready-to-confirm", taskQueues: ["review"] }),
-            fixtureTask({ id: "TASKS/2026-05-28-confirmed-closeout", shortId: "2026-05-28-confirmed-closeout", title: "Confirmed closeout", module: "governance", state: "review", reviewStatus: "confirmed", reviewQueueState: "not-in-queue", closeoutStatus: "missing", taskQueues: ["confirmed-finalization-pending"] }),
+            fixtureTask({ id: "TASKS/2026-05-28-confirmed-closeout", shortId: "2026-05-28-confirmed-closeout", title: "Confirmed closeout", module: "governance", state: "review", reviewStatus: "confirmed", reviewQueueState: "not-in-queue", closeoutStatus: "missing", taskQueues: ["finalized"] }),
             fixtureTask({ id: "TASKS/2026-05-28-agent-reviewed-not-started", shortId: "2026-05-28-agent-reviewed-not-started", title: "Agent reviewed not started", module: "governance", state: "not_started", reviewStatus: "agent-reviewed", reviewQueueState: "not-in-queue", taskQueues: ["active"] }),
             fixtureTask({ id: "TASKS/2026-05-28-blocked", shortId: "2026-05-28-blocked", title: "Blocked follow-up", module: "dashboard", state: "blocked", reviewStatus: "blocked-open-findings", visualMapStatus: "missing", briefSource: "missing", taskQueues: ["blocked"], queueReasons: ["Open P1 finding"] }),
             fixtureTask({ id: "TASKS/2026-05-28-root-base", shortId: "2026-05-28-root-base", title: "Root base task", module: "", inferredModule: "base", state: "planned", completion: 0 }),
@@ -265,7 +265,7 @@ assert(rendered.html.includes('data-swimlane-row="qa"'), "swimlane should includ
 assert(rendered.html.includes('data-swimlane-row="qa" data-swimlane-row-total="0"'), "registered modules with no active swimlane tasks should render a zero-total heatmap row");
 assert(rendered.html.includes('data-swimlane-row-total="6"'), "swimlane should render row totals");
 assert(rendered.html.includes('data-swimlane-stage-total="review" data-total="2"'), "swimlane should render review stage totals in headers");
-assert(rendered.html.includes('data-swimlane-stage-total="confirmed-finalization-pending" data-total="1"'), "swimlane should render confirmed finalization queue totals in headers");
+assert(!rendered.html.includes('data-swimlane-stage-total="confirmed-finalization-pending"'), "swimlane should not render a post-confirmation closeout queue");
 assert(rendered.html.includes('data-swimlane-stage="active" data-count="5"'), "swimlane heatmap cells should expose lifecycle queue counts");
 assert(rendered.html.includes("heat-2"), "swimlane heatmap should classify 4-7 tasks into the middle heat band");
 assert(rendered.html.includes('data-swimlane-expand="cell"'), "heatmap cells should be expandable controls");
@@ -281,7 +281,7 @@ assert(rendered.model.lanes.some((lane) => lane.key === "core"), "swimlane model
 assert(rendered.model.lanes.some((lane) => lane.key === "base"), "swimlane model should group project-root tasks into base");
 assert(rendered.model.stages.some((stage) => stage.key === "review"), "swimlane model should include a review stage");
 assert(rendered.model.cards.some((card) => card.stage === "blocked" && card.lane === "dashboard"), "blocked tasks should project into a blocked swimlane stage");
-assert(rendered.model.cards.some((card) => card.title === "Confirmed closeout" && card.stage === "confirmed-finalization-pending"), "confirmed tasks with missing closeout should project into the confirmed finalization queue");
+assert(!rendered.model.cards.some((card) => card.title === "Confirmed closeout"), "confirmed no-lesson tasks should stay out of the active swimlane");
 assert(rendered.model.cards.some((card) => card.title === "Agent reviewed not started" && card.stage === "active"), "agent-reviewed evidence alone must not inflate the review queue");
 assert(!rendered.model.cards.some((card) => card.title === "Agent reviewed not started" && card.stage === "review"), "agent-reviewed evidence outside the review queue must not appear as current review work");
 assert(!rendered.model.cards.some((card) => card.title === "Historical task"), "closed historical tasks should stay hidden when the dashboard swimlane projection marks them invisible");

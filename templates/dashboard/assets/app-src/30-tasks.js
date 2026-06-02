@@ -20,8 +20,6 @@ function taskStatRows(tasks) {
     { state: "blocked", label: t("queueBlocked"), className: "blocked" },
     { state: "review", label: t("queueReview"), className: "review" },
     { state: "lessons", label: t("queueLessons"), className: "lessons" },
-    { state: "confirmed", label: label("confirmed"), className: "confirmed" },
-    { state: "confirmed-finalization-pending", label: label("confirmed-finalization-pending"), className: "confirmed-finalization-pending" },
     { state: "finalized", label: label("finalized"), className: "finalized" },
     { state: "soft-deleted-superseded", label: t("queueSoftDeletedSuperseded"), className: "soft-deleted-superseded" },
     { state: "planned", label: t("planned"), className: "planned" },
@@ -424,7 +422,7 @@ function taskCard(task) {
 
 function taskGroupLabel(group) {
   if (group === "active") return t("activeCurrent");
-  if (["missing-materials", "blocked", "review", "lessons", "confirmed", "confirmed-finalization-pending", "finalized", "soft-deleted-superseded"].includes(group)) return taskQueueFilterLabel(group);
+  if (["missing-materials", "blocked", "review", "lessons", "finalized", "soft-deleted-superseded"].includes(group)) return taskQueueFilterLabel(group);
   if (group === "brief-ready") return t("briefReadyGroup");
   if (group.startsWith("legacy:")) return `${t("legacyMonth")} ${group.slice("legacy:".length)}`;
   if (group.startsWith("module:")) return taskGroupContext(group, []).title;

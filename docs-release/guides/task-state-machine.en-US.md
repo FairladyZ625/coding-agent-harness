@@ -100,8 +100,8 @@ flowchart TB
 | Open P0-P2 finding, invalid transition, audit failure, or failed human-review gate | `blocked` | Cannot enter human confirmation until the blocker is fixed or waived. |
 | Standard / complex task is missing required files, sections, evidence, lesson decision, or review submission | `missing-materials` | Needs agent repair; not part of the human review queue. |
 | `task-review` was submitted, materials are ready, and `INDEX.md` does not show human confirmation | `review-submitted` | Truly waiting for human review. |
-| `INDEX.md` shows human confirmation, but post-confirmation finalization / ledger / lessons are not fully closed | `confirmed-finalization-pending` | Accountability moved to the reviewer, but final lifecycle closeout remains. |
-| `INDEX.md` shows human confirmation, and post-confirmation finalization / ledger / lesson routing are complete | `finalized` | Truly complete and traceable. |
+| `INDEX.md` shows human confirmation and no pending Lesson debt remains | `finalized` | Human review is the task lifecycle endpoint; the task becomes read-only traceable history. |
+| `INDEX.md` shows human confirmation, but a Lesson candidate still needs decision or sedimentation | `lesson-finalization-pending` | The task is human-confirmed; only independent Lesson follow-up remains, and it does not re-enter human review or a closeout-ready queue. |
 | `task.state = blocked` without a review blocker | `active-blocked` | Execution is blocked. |
 | `task.state = in_progress` | `active` | Work is active. |
 | `task.state = planned/not_started` | `ready` | Work has not started; not in human review by default. |
@@ -134,9 +134,7 @@ flowchart TD
   Missing -->|no| Submitted{"Agent Review Submission exists?"}
   Submitted -->|yes + not human confirmed| QReview["Review"]
   Submitted -->|no| Out["not in human review queue"]
-  Submitted -->|yes + human confirmed| Confirmed{"finalization complete?"}
-  Confirmed -->|no| QConfirmed["Confirmed / Finalized"]
-  Confirmed -->|yes| QFinal["Confirmed / Finalized"]
+  Submitted -->|yes + human confirmed| QFinal["Confirmed / Finalized"]
   Task --> Lessons{"lesson candidate needs decision or sedimentation?"}
   Lessons -->|yes| QLessons["Lessons"]
 ```
@@ -147,10 +145,10 @@ flowchart TD
 | Missing Materials | Missing file, section, evidence, lesson decision, review submission, or incomplete phase. | agent | Agent repairs materials and resubmits review. |
 | Blocked | Blocking finding, state conflict, Git audit failure, completion gate failure, or human waiver required. | agent + human | Fixed, closed, or explicitly waived. |
 | Lessons | Lesson candidate needs decision, task-local retention, rejection, dry-run promotion, or a sedimentation task. | human + agent | Decision is complete, or a traceable sedimentation task exists. |
-| Confirmed / Finalized | Human-confirmed, or finalized and ready for read-only tracing. | coordinator | `task-complete` / finalization, ledger, and lesson routing are complete; then read-only. |
+| Confirmed / Finalized | Human-confirmed, or finalized and ready for read-only tracing. | coordinator | Read-only by default; pending Lesson debt is tracked independently in Lessons. |
 | Soft-deleted / Superseded | Task was soft-deleted, replaced, merged, or archived; abandoned / duplicate / requirement-change semantics are tombstone reasons. | coordinator | Read-only tracing; reopen only when needed. |
 
-The Review queue only waits for human confirmation. Missing materials, blockers, lesson sedimentation, confirmed-but-not-finalized work, and historical superseded tasks must not masquerade as Review queue items.
+The Review queue only waits for human confirmation. Missing materials, blockers, lesson sedimentation, human-confirmed tasks, and historical superseded tasks must not masquerade as Review queue items.
 
 ## Global Table Boundary
 

@@ -45,8 +45,9 @@ export function archiveBlockReason(task: ArchiveEligibilityTask, { archivedBy = 
   }
   const blockingRisks = (task.risks || []).filter((risk) => normalizeReviewBoolean(risk.open) !== "no" && (normalizeReviewBoolean(risk.blocksRelease) === "yes" || ["P0", "P1", "P2"].includes(String(risk.severity))));
   if (blockingRisks.length) return "tasks with open blocking review findings cannot be archived without an explicit human waiver";
-  if (task.state !== "done") return `state:${task.state || "unknown"}`;
-  if (task.budget !== "simple" && task.closeoutStatus !== "closed") return "tasks must have closed closeout materials before archive";
+  const reviewFinalized = task.reviewStatus === "confirmed" || task.reviewConfirmation?.confirmed === true || (task.taskQueues || []).includes("finalized");
+  if (!reviewFinalized && task.state !== "done") return `state:${task.state || "unknown"}`;
+  if (!reviewFinalized && task.budget !== "simple" && task.closeoutStatus !== "closed") return "tasks must have closed closeout materials before archive";
   if (task.materialsReady === false && task.reviewStatus !== "confirmed") {
     return "tasks with incomplete closeout materials cannot be archived without an explicit human waiver";
   }

@@ -254,8 +254,8 @@ assert(!fs.readFileSync(reviewPath, "utf8").includes("## Human Review Confirmati
 const confirmedReadyStatus = expectJson(["status", "--json", target]);
 const confirmedReadyTask = confirmedReadyStatus.tasks.find((task) => task.id === taskId);
 assert(confirmedReadyTask.reviewStatus === "confirmed", "confirmed review should stay visible as confirmed status");
-assert(confirmedReadyTask.lifecycleState === "confirmed-finalization-pending", "confirmed review without lesson debt should be ready for closeout, not in_review");
-assert(confirmedReadyTask.taskQueues.includes("confirmed-finalization-pending"), "confirmed review without lesson debt should enter the closeout-ready queue");
+assert(confirmedReadyTask.lifecycleState === "finalized", "confirmed review without lesson debt should be terminal, not in_review");
+assert(confirmedReadyTask.taskQueues.includes("finalized"), "confirmed review without lesson debt should enter the finalized queue");
 assert(!confirmedReadyTask.taskQueues.includes("review"), "confirmed review should not stay in the Review queue");
 
 const lessonTask = expectJson(["new-task", "queue-lesson", "--title", "Queue Lesson", "--locale", "en-US", "--long-running", target]);
@@ -396,8 +396,9 @@ sanitizeTemplateFixtureMaterials(confirmedLessonRoutingDir);
 const confirmedLessonRoutingStatus = expectJson(["status", "--json", target]);
 const confirmedLessonRoutingTask = confirmedLessonRoutingStatus.tasks.find((task) => task.id === confirmedLessonRouting.task.id);
 assert(confirmedLessonRoutingTask.reviewStatus === "confirmed", "git-audited native confirmation should mark the routing fixture as human-confirmed");
-assert(confirmedLessonRoutingTask.lifecycleState === "lesson-finalization-pending", "confirmed review with accepted lesson debt should wait for Lesson sedimentation");
-assert(confirmedLessonRoutingTask.taskQueues.includes("lessons"), "confirmed review with accepted lesson debt should remain in Lessons queue");
+assert(confirmedLessonRoutingTask.lifecycleState === "finalized", "confirmed review with accepted lesson debt should still finalize the task lifecycle");
+assert(confirmedLessonRoutingTask.taskQueues.includes("lessons"), "confirmed review with accepted lesson debt should remain in Lessons queue for independent follow-up");
+assert(confirmedLessonRoutingTask.taskQueues.includes("finalized"), "confirmed review with accepted lesson debt should also stay finalized");
 assert(!confirmedLessonRoutingTask.taskQueues.includes("confirmed-finalization-pending"), "confirmed review with lesson debt should not be directly closeout-ready");
 
 writeLessonRoutingCandidate(confirmedLessonRoutingDir, {
@@ -408,9 +409,9 @@ writeLessonRoutingCandidate(confirmedLessonRoutingDir, {
 });
 const promotedLessonRoutingStatus = expectJson(["status", "--json", target]);
 const promotedLessonRoutingTask = promotedLessonRoutingStatus.tasks.find((task) => task.id === confirmedLessonRouting.task.id);
-assert(promotedLessonRoutingTask.lifecycleState === "confirmed-finalization-pending", "promoted lessons should make confirmed tasks closeout-ready");
+assert(promotedLessonRoutingTask.lifecycleState === "finalized", "promoted lessons should finalize confirmed tasks");
 assert(!promotedLessonRoutingTask.taskQueues.includes("lessons"), "promoted lessons should leave the Lessons queue");
-assert(promotedLessonRoutingTask.taskQueues.includes("confirmed-finalization-pending"), "promoted lessons should enter the closeout-ready queue");
+assert(promotedLessonRoutingTask.taskQueues.includes("finalized"), "promoted lessons should enter the finalized queue");
 
 writeLessonRoutingCandidate(confirmedLessonRoutingDir, {
   taskStatus: "rejected",
@@ -420,9 +421,9 @@ writeLessonRoutingCandidate(confirmedLessonRoutingDir, {
 });
 const rejectedLessonRoutingStatus = expectJson(["status", "--json", target]);
 const rejectedLessonRoutingTask = rejectedLessonRoutingStatus.tasks.find((task) => task.id === confirmedLessonRouting.task.id);
-assert(rejectedLessonRoutingTask.lifecycleState === "confirmed-finalization-pending", "rejected lessons should make confirmed tasks closeout-ready");
+assert(rejectedLessonRoutingTask.lifecycleState === "finalized", "rejected lessons should finalize confirmed tasks");
 assert(!rejectedLessonRoutingTask.taskQueues.includes("lessons"), "rejected lessons should leave the Lessons queue");
-assert(rejectedLessonRoutingTask.taskQueues.includes("confirmed-finalization-pending"), "rejected lessons should enter the closeout-ready queue");
+assert(rejectedLessonRoutingTask.taskQueues.includes("finalized"), "rejected lessons should enter the finalized queue");
 
 fs.appendFileSync(path.join(confirmedLessonRoutingDir, "walkthrough.md"), "\nCloseout Status: closed\n");
 const closedLessonRoutingStatus = expectJson(["status", "--json", target]);
@@ -545,7 +546,7 @@ const indexedReady = taskIndex.tasks.find((task) => task.taskKey === taskId);
 assert(taskIndex.schemaVersion === "task-index/v2", "task-index should expose generated index schema");
 assert(taskIndex.scannerVersion, "task-index should record scanner version");
 assert(taskIndex.sourceFileHashes[taskId], "task-index should hash source task files");
-assert(indexedReady.queues.includes("confirmed"), "task-index should include normalized queues");
+assert(indexedReady.queues.includes("finalized"), "task-index should include normalized terminal queues");
 assert(taskIndex.tasks.find((task) => task.taskKey === superseded.task.id).deletionState === "superseded", "task-index should include tombstone state");
 assert(taskIndex.tasks.find((task) => task.taskKey === superseded.task.id).deleteReason === "merged-duplicate-scope", "task-index should expose tombstone reason for low-entropy disposition semantics");
 assert(!taskIndex.tasks.some((task) => task.id.includes("/artifacts/") || task.id.includes("/references/")), "task-index must not treat nested artifact/reference task_plan.md files as tasks");

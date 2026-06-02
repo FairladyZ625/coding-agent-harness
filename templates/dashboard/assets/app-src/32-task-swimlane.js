@@ -5,8 +5,6 @@ const swimlaneStageOrder = [
   ["blocked", "queueBlocked"],
   ["review", "queueReview"],
   ["lessons", "queueLessons"],
-  ["confirmed", "state_confirmed"],
-  ["confirmed-finalization-pending", "state_confirmed-finalization-pending"],
   ["finalized", "state_finalized"],
   ["soft-deleted-superseded", "queueSoftDeletedSuperseded"],
 ];

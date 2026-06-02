@@ -897,7 +897,7 @@ try {
   const closeoutStatus = expectJson(["status", "--json", lifecycleTarget]);
   const closedWorkbenchTask = closeoutStatus.tasks.find((task) => task.id === `TASKS/${todayLocal}-workbench-review`);
   assert(closedWorkbenchTask?.closeoutStatus === "closed", "workbench task-complete should mark walkthrough closeout closed");
-  assert(closedWorkbenchTask?.lifecycleState === "closed", "workbench task-complete should move the task out of confirmed-finalization-pending");
+  assert(closedWorkbenchTask?.lifecycleState === "closed", "workbench task-complete should mark the task closed");
   const lessonCloseoutResponse = await fetch(new URL("api/tasks/task-complete", runtime.url), {
     method: "POST",
     headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
