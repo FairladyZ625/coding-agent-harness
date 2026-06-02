@@ -181,15 +181,6 @@ export const architectureImportContract: ArchitectureImportContract = {
       evidence: "import graph check plus P04 tombstone no-data-loss fixtures and P05 repository parity fixtures",
     },
     {
-      id: "P05-application-tombstone-scanner-bridge",
-      source: "scripts/application/task/tombstone-operations.mts",
-      target: "scripts/lib/task-scanner.mts",
-      ownerPhase: "P05-repository-scanner-strangler",
-      expiryPhase: "P07-task-operations-facade-removal",
-      reason: "Tombstone operations still scan task records to preserve include-archived semantics until the TaskRepository port owns scanner-backed resolution.",
-      evidence: "import graph check plus P04 tombstone no-data-loss fixtures and P05 repository parity fixtures",
-    },
-    {
       id: "P04-application-task-operations-lesson-bridge",
       source: "scripts/application/task/task-operations.mts",
       target: "scripts/lib/task-lesson-sedimentation.mts",

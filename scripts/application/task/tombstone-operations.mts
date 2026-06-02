@@ -8,9 +8,8 @@ import {
   datePrefix,
 } from "../../lib/core-shared.mjs";
 import { removeHeadingSectionOutsideFences } from "../../lib/markdown-utils.mjs";
-import { collectTasks } from "../../lib/task-scanner.mjs";
-import { resolveTaskDirectory } from "../../lib/task-repository.mjs";
-import { taskIdFromDirectory, taskRefPath } from "../../lib/harness-paths.mjs";
+import { createScannerTaskRepository } from "../../lib/task-repository.mjs";
+import { taskRefPath } from "../../lib/harness-paths.mjs";
 import type { ResolvedHarnessPaths } from "../../lib/harness-paths.mjs";
 import { assessArchiveEligibility, normalizeArchiveActor } from "../../domain/task/archive-eligibility.mjs";
 import {
@@ -19,15 +18,16 @@ import {
   isDraftTaskState,
   isRiskyTombstoneMutationTask,
 } from "../../domain/task/tombstone-policy.mjs";
-import { taskIdFromArchiveStoragePath, tombstoneStorageRoot } from "../../lib/task-archive-storage.mjs";
+import { tombstoneStorageRoot } from "../../lib/task-archive-storage.mjs";
 import {
   assertTransactionSucceeded,
   createGovernanceHarnessTransaction,
 } from "../../lib/harness-transaction.mjs";
+import type { TaskTombstoneSubject } from "../../lib/task-repository.mjs";
 
 type TombstoneTarget = ReturnType<typeof normalizeTarget>;
 type ResolvedTombstoneTarget = TombstoneTarget & { harness: ResolvedHarnessPaths };
-type TombstoneTask = ReturnType<typeof collectTasks>[number];
+type TombstoneTask = TaskTombstoneSubject;
 type TombstoneOptions = {
   reason?: string;
   deletedBy?: string;
@@ -88,7 +88,7 @@ export function deleteTask(targetInput: string, taskRef: string, { hard = false,
     });
   }
   assertHardDeleteEligible(target, task, { reason, deletedBy, confirm });
-  const taskDir = path.join(target.projectRoot, task.path.replace(/^TARGET:/, ""));
+  const taskDir = task.paths.directory;
   const allowedPaths = collectTaskDirectoryFiles(taskDir).map((file) => toPosix(path.relative(target.projectRoot, file)));
   const commit = runTombstoneTransaction(target, {
     operation: `task-delete --hard ${task.id}`,
@@ -170,7 +170,7 @@ export function reopenTask(targetInput: string, taskRef: string, { reason = "" }
     message: `chore(harness): reopen task ${task.id}`,
     allowDirtyWorktree: Boolean(reopenMove),
   }, () => {
-    const taskPlanPath = path.join(target.projectRoot, task.taskPlanPath.replace(/^TARGET:/, ""));
+    const taskPlanPath = task.paths.taskPlanPath;
     const content = readFileSafe(taskPlanPath);
     const next = removeHeadingSectionOutsideFences(content, /^##\s*(?:Task Tombstone|任务墓碑)\s*$/i);
     fs.writeFileSync(taskPlanPath, next.endsWith("\n") ? next : `${next}\n`);
@@ -229,7 +229,7 @@ function runTombstoneTransaction(target: TombstoneTarget, { operation, allowedPa
 }
 
 function taskPaths(target: TombstoneTarget, ...tasks: TombstoneTask[]): string[] {
-  return [...new Set(tasks.flatMap((task) => [task.taskPlanPath, task.progressPath]).filter(Boolean).map((item) => toPosix(item.replace(/^TARGET:/, ""))))];
+  return [...new Set(tasks.flatMap((task) => [task.paths.relativeTaskPlanPath, task.paths.relativeProgressPath]).filter(Boolean))];
 }
 
 type ArchiveMovePlan = {
@@ -244,7 +244,7 @@ function shouldMoveTombstoneState(deletionState: string): boolean {
 }
 
 function tombstoneMovePlan(target: TombstoneTarget, task: TombstoneTask, { deletionState, release = "" }: { deletionState: string; release?: string }): ArchiveMovePlan {
-  const sourceDir = path.join(target.projectRoot, task.path.replace(/^TARGET:/, ""));
+  const sourceDir = task.paths.directory;
   const taskIdParts = task.id.split("/").filter(Boolean);
   const archiveRoot = tombstoneStorageRoot((target as ResolvedTombstoneTarget).harness, deletionState, release);
   const destinationDir = path.join(archiveRoot, ...taskIdParts);
@@ -257,7 +257,7 @@ function tombstoneMovePlan(target: TombstoneTarget, task: TombstoneTask, { delet
 }
 
 function reopenMovePlan(target: TombstoneTarget, task: TombstoneTask): ArchiveMovePlan | null {
-  const sourceDir = path.join(target.projectRoot, task.path.replace(/^TARGET:/, ""));
+  const sourceDir = task.paths.directory;
   const sourceRelative = toPosix(path.relative(target.projectRoot, sourceDir));
   if (!sourceRelative.includes("/governance/archive/")) return null;
   const resolvedTarget = target as ResolvedTombstoneTarget;
@@ -316,34 +316,25 @@ function collectRelativeFiles(target: TombstoneTarget, directory: string): strin
 
 function resolveTask(target: TombstoneTarget, ref: string): TombstoneTask {
   const normalized = String(ref || "").trim();
-  const resolvedTarget = target as ResolvedTombstoneTarget;
-  const taskDir = resolveTaskDirectory(resolvedTarget, normalized);
-  const taskId = tombstoneTaskIdFromDirectory(resolvedTarget.harness, taskDir);
-  const task = collectTasks(target, { includeArchived: true }).find((candidate) => candidate.id === taskId);
-  if (task) return task;
-  throw new Error(`Task not found: ${ref}`);
-}
-
-function tombstoneTaskIdFromDirectory(harnessPaths: ResolvedHarnessPaths, directory: string): string {
-  return taskIdFromArchiveStoragePath(harnessPaths.projectRoot, directory) || taskIdFromDirectory(harnessPaths, directory);
+  return createScannerTaskRepository(target).getTombstoneSubject({ id: normalized });
 }
 
 function assertArchiveEligible(task: TombstoneTask, { archivedBy = "" }: { archivedBy?: string } = {}): Record<string, string> {
-  const result = assessArchiveEligibility(task, { archivedBy, now: nowTimestamp() });
+  const result = assessArchiveEligibility(task.policy, { archivedBy, now: nowTimestamp() });
   if (!result.eligible) throw new Error(result.reason);
   return result.auditFields;
 }
 
 function writeTombstone(target: TombstoneTarget, task: TombstoneTask, fields: TombstoneFields): void {
-  const taskPlanPath = path.join(target.projectRoot, task.taskPlanPath.replace(/^TARGET:/, ""));
+  const taskPlanPath = task.paths.taskPlanPath;
   const content = removeHeadingSectionOutsideFences(readFileSafe(taskPlanPath), /^##\s*(?:Task Tombstone|任务墓碑)\s*$/i);
   const block = ["", "## Task Tombstone", "", "| Field | Value |", "| --- | --- |", ...Object.entries(fields).map(([key, value]) => `| ${key} | ${escapeCell(value)} |`), ""].join("\n");
   fs.writeFileSync(taskPlanPath, `${content.trimEnd()}\n${block}`);
 }
 
 function assertSoftDeleteEligible(task: TombstoneTask, { reason = "", deletedBy = "", confirm = "", allowOpenFindings = false, action = "task-delete" }: TombstoneOptions & { action?: string } = {}): void {
-  const risky = isRiskyTombstoneMutationTask(task);
-  const hasOpenFindings = !isDraftTaskState(task.state) && hasOpenBlockingTombstoneFindings(task);
+  const risky = isRiskyTombstoneMutationTask(task.policy);
+  const hasOpenFindings = !isDraftTaskState(task.policy.state) && hasOpenBlockingTombstoneFindings(task.policy);
   if (!risky && !hasOpenFindings) return;
   const missing: string[] = [];
   if (!String(reason || "").trim()) missing.push("--reason");
@@ -361,8 +352,8 @@ export function assertHardDeleteEligible(target: TombstoneTarget, task: Tombston
   if (!normalizeTombstoneActor(deletedBy)) missing.push("--deleted-by");
   if (String(confirm || "").trim() !== task.id) missing.push(`--confirm ${task.id}`);
   if (missing.length) throw new Error(`task-delete --hard requires accountable safe draft confirmation: ${missing.join(", ")}`);
-  const blockers = hardDeleteLifecycleBlockers(task);
-  const taskDir = path.join(target.projectRoot, task.path.replace(/^TARGET:/, ""));
+  const blockers = hardDeleteLifecycleBlockers(task.policy);
+  const taskDir = task.paths.directory;
   const disallowedFiles = collectTaskDirectoryFiles(taskDir).filter((file) => !isSafeDraftFile(taskDir, file));
   if (disallowedFiles.length) blockers.push(`non-scaffold files: ${disallowedFiles.map((file) => toPosix(path.relative(taskDir, file))).join(", ")}`);
   if (blockers.length) throw new Error(`task-delete --hard only supports safe draft tasks; ${blockers.join("; ")}`);
@@ -404,7 +395,7 @@ function isSafeDraftFile(taskDir: string, file: string): boolean {
 }
 
 function appendSupersedes(target: TombstoneTarget, task: TombstoneTask, oldId: string): void {
-  const taskPlanPath = path.join(target.projectRoot, task.taskPlanPath.replace(/^TARGET:/, ""));
+  const taskPlanPath = task.paths.taskPlanPath;
   const content = readFileSafe(taskPlanPath);
   if (/^Supersedes\s*[:：]/im.test(content)) {
     fs.writeFileSync(taskPlanPath, content.replace(/^Supersedes\s*[:：]\s*(.*)$/im, (_m, current) => `Supersedes: ${[current, oldId].filter(Boolean).join(", ")}`));
@@ -414,7 +405,7 @@ function appendSupersedes(target: TombstoneTarget, task: TombstoneTask, oldId: s
 }
 
 function appendProgress(target: TombstoneTarget, task: TombstoneTask, action: string, reason: string): void {
-  const progressPath = path.join(target.projectRoot, task.progressPath.replace(/^TARGET:/, ""));
+  const progressPath = task.paths.progressPath;
   const relative = toPosix(path.relative(target.projectRoot, progressPath));
   fs.appendFileSync(progressPath, `\n\n## Tombstone Log\n\n- ${nowTimestamp()} ${action}: ${escapeCell(reason)} (${relative})\n`);
 }

@@ -7,6 +7,7 @@ import {
   normalizeTarget,
   normalizeTaskId,
   readFileSafe,
+  toPosix,
   visualMapFile,
 } from "./core-shared.mjs";
 import {
@@ -85,11 +86,40 @@ export type TaskMaterials = {
   walkthrough: TaskMaterial;
 };
 
+export type TaskTombstonePolicyFacts = {
+  state?: string;
+  budget?: string;
+  closeoutStatus?: string;
+  reviewSubmitted?: unknown;
+  reviewStatus?: string;
+  reviewConfirmation?: ({ confirmed?: unknown } & Record<string, unknown>) | null;
+  materialsReady?: boolean;
+  evidence?: unknown[];
+  taskQueues?: string[];
+  risks?: Array<{ id?: string; open?: unknown; blocksRelease?: unknown; severity?: unknown }>;
+  deletionState?: string;
+};
+
+export type TaskTombstoneSubject = {
+  id: string;
+  location: TaskLocation;
+  paths: {
+    directory: string;
+    taskPlanPath: string;
+    progressPath: string;
+    relativeDirectory: string;
+    relativeTaskPlanPath: string;
+    relativeProgressPath: string;
+  };
+  policy: TaskTombstonePolicyFacts;
+};
+
 export type TaskRepository = {
   list(query?: TaskQuery): TaskRecord[];
   get(ref: TaskRef): TaskRecord;
   resolve(ref: TaskRef): TaskLocation;
   readMaterials(ref: TaskRef): TaskMaterials;
+  getTombstoneSubject(ref: TaskRef): TaskTombstoneSubject;
 };
 
 type ScannerRepositoryOptions = Pick<CollectTasksOptions, "requireGeneratedScaffoldProvenance" | "closeoutContent">;
@@ -137,6 +167,11 @@ export function createScannerTaskRepository(targetInput: TaskScannerTarget | str
         walkthrough: readMaterialFile(path.join(taskDir, "walkthrough.md")),
       };
     },
+    getTombstoneSubject(ref: TaskRef) {
+      const location = resolveRepositoryTaskLocation(target, ref);
+      const task = readRepositoryTask(target, defaults, location, ref);
+      return tombstoneSubjectFromRecord(target, location, task);
+    },
   };
 }
 
@@ -154,6 +189,52 @@ export function resolveTaskDirectory(targetInput: TaskScannerTarget | string | u
 function normalizeRepositoryTarget(targetInput: TaskScannerTarget | string | undefined): TaskScannerTarget {
   if (targetInput && typeof targetInput === "object" && "projectRoot" in targetInput) return targetInput;
   return normalizeTarget(typeof targetInput === "string" ? targetInput : ".") as TaskScannerTarget;
+}
+
+function readRepositoryTask(target: TaskScannerTarget, defaults: ScannerRepositoryOptions, location: TaskLocation, ref: TaskRef): TaskRecord {
+  const task = collectTasks(target, {
+    requireGeneratedScaffoldProvenance: defaults.requireGeneratedScaffoldProvenance,
+    includeArchived: true,
+    closeoutContent: defaults.closeoutContent,
+  }).find((candidate) => candidate.id === location.id);
+  if (!task) throw new Error(`Task not found: ${ref.id || ref.path || ""}`);
+  return task;
+}
+
+function tombstoneSubjectFromRecord(target: TaskScannerTarget, location: TaskLocation, task: TaskRecord): TaskTombstoneSubject {
+  const directory = location.directory;
+  const taskPlanPath = absoluteTargetPath(target, task.taskPlanPath || location.taskPlanPath);
+  const progressPath = absoluteTargetPath(target, task.progressPath || path.join(directory, "progress.md"));
+  return {
+    id: task.id,
+    location,
+    paths: {
+      directory,
+      taskPlanPath,
+      progressPath,
+      relativeDirectory: toPosix(path.relative(target.projectRoot, directory)),
+      relativeTaskPlanPath: toPosix(path.relative(target.projectRoot, taskPlanPath)),
+      relativeProgressPath: toPosix(path.relative(target.projectRoot, progressPath)),
+    },
+    policy: {
+      state: task.state,
+      budget: task.budget,
+      closeoutStatus: task.closeoutStatus,
+      reviewSubmitted: task.reviewSubmitted,
+      reviewStatus: task.reviewStatus,
+      reviewConfirmation: normalizeReviewConfirmation(task.reviewConfirmation),
+      materialsReady: task.materialsReady,
+      evidence: task.evidence,
+      taskQueues: task.taskQueues,
+      risks: task.risks,
+      deletionState: task.deletionState,
+    },
+  };
+}
+
+function normalizeReviewConfirmation(value: unknown): TaskTombstonePolicyFacts["reviewConfirmation"] {
+  if (!value || typeof value !== "object") return null;
+  return value as TaskTombstonePolicyFacts["reviewConfirmation"];
 }
 
 function applyTaskQuery(tasks: TaskRecord[], query: TaskQuery): TaskRecord[] {

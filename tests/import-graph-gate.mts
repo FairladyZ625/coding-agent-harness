@@ -101,7 +101,7 @@ assert(tombstoneRepositoryResolver?.source === "scripts/application/task/tombsto
 assert(tombstoneRepositoryResolver?.target === "scripts/lib/task-repository.mts", "tombstone repository resolver exception should point at the TaskRepository Module");
 assert(tombstoneRepositoryResolver?.ownerPhase === "P05-repository-scanner-strangler", "tombstone repository resolver exception should be owned by P05");
 assert(tombstoneRepositoryResolver?.expiryPhase === "P07-task-operations-facade-removal", "tombstone repository resolver exception should expire by P07");
-assert(graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-application-tombstone-scanner-bridge"), "contract should disclose the remaining tombstone scanner bridge");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-application-tombstone-scanner-bridge"), "contract should not keep the retired tombstone scanner bridge exception");
 assert(graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "scripts/lib/task-scanner.mts" && lock.ownerPhase === "P05-repository-scanner-strangler"), "contract should expose scanner shared-file lock ownership");
 assert(graph.architectureContract.boundaryRules.includes("application-imports-unregistered-legacy-surface"), "contract should expose fail-closed application legacy import rule");
 

@@ -71,6 +71,14 @@ assert(location.id === "TASKS/demo-task", "repository resolve should return cano
 assert(location.directory.endsWith("coding-agent-harness/planning/tasks/demo-task"), "repository resolve should return the task directory");
 assert(location.taskPlanPath.endsWith("coding-agent-harness/planning/tasks/demo-task/task_plan.md"), "repository resolve should return the task plan path");
 
+const tombstoneSubject = repository.getTombstoneSubject({ id: "demo-task" });
+assert(tombstoneSubject.id === "TASKS/demo-task", "repository tombstone subject should preserve canonical task id");
+assert(tombstoneSubject.paths.relativeDirectory === "coding-agent-harness/planning/tasks/demo-task", "repository tombstone subject should expose normalized relative directory");
+assert(tombstoneSubject.paths.relativeTaskPlanPath === "coding-agent-harness/planning/tasks/demo-task/task_plan.md", "repository tombstone subject should expose normalized task_plan path");
+assert(tombstoneSubject.paths.relativeProgressPath === "coding-agent-harness/planning/tasks/demo-task/progress.md", "repository tombstone subject should expose normalized progress path");
+assert(tombstoneSubject.policy.state === task.state, "repository tombstone subject should expose lifecycle state as policy facts");
+assertJsonEqual(tombstoneSubject.policy.taskQueues, task.taskQueues, "repository tombstone subject should preserve projected queue policy facts");
+
 const materials = repository.readMaterials({ id: "demo-task" });
 assert(materials.taskPlan.content.includes("Task Contract: harness-task/v1"), "repository materials should read task_plan.md");
 assert(materials.brief.content.includes("Minimal example task"), "repository materials should read brief.md");

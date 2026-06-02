@@ -68,6 +68,7 @@ const projectionQueueOperations = createTaskOperations(target, {
     list: () => [],
     resolve: () => { throw new Error("not used"); },
     readMaterials: () => { throw new Error("not used"); },
+    getTombstoneSubject: () => { throw new Error("not used"); },
     get: () => ({
       id: "projection-queue-task",
       taskKey: "projection-queue-task",
@@ -144,6 +145,7 @@ const projectionFirstOperations = createTaskOperations(target, {
     list: () => [],
     resolve: () => { throw new Error("not used"); },
     readMaterials: () => { throw new Error("not used"); },
+    getTombstoneSubject: () => { throw new Error("not used"); },
     get: () => ({
       id: "projection-first-task",
       taskKey: "projection-first-task",
