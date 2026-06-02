@@ -44,9 +44,40 @@ type ImportGraphViolation = {
   actual?: number;
 };
 
+type ArchitectureContractLayer = {
+  id: string;
+  owns: string[];
+  mayImport: string[];
+};
+
+type ArchitecturePhaseOpenException = {
+  id: string;
+  source: string;
+  target: string;
+  ownerPhase: string;
+  expiryPhase: string;
+  reason: string;
+  evidence: string;
+};
+
+type ArchitectureSharedFileLock = {
+  path: string;
+  ownerPhase: string;
+  reason: string;
+};
+
+type ArchitectureImportContract = {
+  version: string;
+  layers: ArchitectureContractLayer[];
+  phaseOpenExceptions: ArchitecturePhaseOpenException[];
+  sharedFileLocks: ArchitectureSharedFileLock[];
+  boundaryRules: string[];
+};
+
 type ImportGraph = {
   schemaVersion: 1;
   sourceRoots: string[];
+  architectureContract: ArchitectureImportContract;
   summary: {
     fileCount: number;
     mjsCount: number;
@@ -74,6 +105,209 @@ type ImportGraphOptions = {
 type CheckImportGraphOptions = ImportGraphOptions & {
   expectNodes?: number;
   expectEdges?: number;
+};
+
+export const architectureImportContract: ArchitectureImportContract = {
+  version: "architecture-import-contract/2026-06-02-p03",
+  layers: [
+    {
+      id: "kernel",
+      owns: ["scripts/infrastructure/kernel/**"],
+      mayImport: ["scripts/infrastructure/kernel/**", "scripts/lib/types/**"],
+    },
+    {
+      id: "domain",
+      owns: ["scripts/domain/**"],
+      mayImport: ["scripts/domain/**", "scripts/infrastructure/kernel/**", "scripts/lib/types/**"],
+    },
+    {
+      id: "ports",
+      owns: ["scripts/ports/**"],
+      mayImport: ["scripts/domain/**", "scripts/lib/types/**"],
+    },
+    {
+      id: "application",
+      owns: ["scripts/application/**"],
+      mayImport: ["scripts/application/**", "scripts/domain/**", "scripts/ports/**", "scripts/infrastructure/kernel/**", "phase-open-exceptions"],
+    },
+    {
+      id: "adapters",
+      owns: ["scripts/adapters/**"],
+      mayImport: ["scripts/application/**", "scripts/ports/**", "scripts/domain/**", "scripts/lib/types/**"],
+    },
+    {
+      id: "commands",
+      owns: ["scripts/commands/**"],
+      mayImport: ["scripts/application/**", "scripts/ports/**", "scripts/domain/**", "scripts/lib/types/**"],
+    },
+    {
+      id: "dashboard-data",
+      owns: ["scripts/lib/dashboard-data.mts"],
+      mayImport: ["semantic projection/repository outputs", "phase-open-exceptions"],
+    },
+    {
+      id: "dashboard-workbench",
+      owns: ["scripts/lib/dashboard-workbench.mts"],
+      mayImport: ["scripts/application/workbench/**", "scripts/application/task/**", "semantic projection/repository outputs", "phase-open-exceptions"],
+    },
+    {
+      id: "preset-runtime",
+      owns: ["scripts/lib/preset-runner.mts", "scripts/lib/preset-engine.mts", "scripts/lib/preset-registry.mts", "scripts/domain/preset/**"],
+      mayImport: ["HarnessTransaction/OperationPlan boundaries", "phase-open-exceptions"],
+    },
+    {
+      id: "generated-governance",
+      owns: ["scripts/lib/governance-index-generator.mts"],
+      mayImport: ["TaskRepository/projection records", "phase-open-exceptions"],
+    },
+  ],
+  phaseOpenExceptions: [
+    {
+      id: "P04-application-task-operations-legacy-bridge",
+      source: "scripts/application/task/task-operations.mts",
+      target: "scripts/lib/task-lifecycle.mts",
+      ownerPhase: "P04-transaction-cutover",
+      expiryPhase: "P07-task-operations-facade-removal",
+      reason: "TaskOperations is the current application seam while lifecycle writes move behind HarnessTransaction and stable use-case ports.",
+      evidence: "import graph check plus P04 no-data-loss lifecycle fixtures",
+    },
+    {
+      id: "P04-application-task-operations-lesson-bridge",
+      source: "scripts/application/task/task-operations.mts",
+      target: "scripts/lib/task-lesson-sedimentation.mts",
+      ownerPhase: "P04-transaction-cutover",
+      expiryPhase: "P07-task-operations-facade-removal",
+      reason: "Lesson task creation remains a legacy command bridge until lifecycle writes are expressed as application changesets.",
+      evidence: "import graph check plus P04 lesson-routing fixtures",
+    },
+    {
+      id: "P04-application-task-operations-tombstone-bridge",
+      source: "scripts/application/task/task-operations.mts",
+      target: "scripts/lib/task-tombstone-commands.mts",
+      ownerPhase: "P04-transaction-cutover",
+      expiryPhase: "P07-task-operations-facade-removal",
+      reason: "Archive/delete/reopen/supersede writes remain behind TaskOperations until tombstone commands are expressed as application changesets.",
+      evidence: "import graph check plus P04 tombstone no-data-loss fixtures",
+    },
+    {
+      id: "P05-application-task-operations-repository-bridge",
+      source: "scripts/application/task/task-operations.mts",
+      target: "scripts/lib/task-repository.mts",
+      ownerPhase: "P05-repository-scanner-strangler",
+      expiryPhase: "P07-task-operations-facade-removal",
+      reason: "TaskOperations still creates the scanner-backed repository until the TaskRepository port is owned outside legacy scripts/lib.",
+      evidence: "import graph check plus P05 repository/scanner parity fixtures",
+    },
+    {
+      id: "P06-application-task-operations-projection-bridge",
+      source: "scripts/application/task/task-operations.mts",
+      target: "scripts/lib/task-semantic-projection.mts",
+      ownerPhase: "P06-dashboard-projection-consumer-cutover",
+      expiryPhase: "P08-dashboard-workbench-consumer-cutover",
+      reason: "TaskOperations still exposes the shared semantic projection until Dashboard/Test consumers fully depend on the stable projection contract.",
+      evidence: "import graph check plus P06 Dashboard/Test schema/no-data-loss fixtures",
+    },
+    {
+      id: "P04-application-module-governance-sync-bridge",
+      source: "scripts/application/module/module-governance.mts",
+      target: "scripts/lib/governance-sync.mts",
+      ownerPhase: "P04-transaction-cutover",
+      expiryPhase: "P04-transaction-cutover",
+      reason: "Module governance still writes through governance-sync until module operations use HarnessTransaction changesets.",
+      evidence: "import graph check plus P04 module-step no-data-loss fixtures",
+    },
+    {
+      id: "P08-application-workbench-review-confirmation-sync-bridge",
+      source: "scripts/application/workbench/review-confirmation.mts",
+      target: "scripts/lib/governance-sync.mts",
+      ownerPhase: "P08-dashboard-workbench-consumer-cutover",
+      expiryPhase: "P08-dashboard-workbench-consumer-cutover",
+      reason: "Workbench review confirmation still needs governance lock/write helpers until the workbench adapter consumes application changesets.",
+      evidence: "import graph check plus P08 workbench smoke and no-data-loss fixtures",
+    },
+    {
+      id: "P08-application-workbench-review-confirmation-lifecycle-bridge",
+      source: "scripts/application/workbench/review-confirmation.mts",
+      target: "scripts/lib/task-lifecycle.mts",
+      ownerPhase: "P08-dashboard-workbench-consumer-cutover",
+      expiryPhase: "P08-dashboard-workbench-consumer-cutover",
+      reason: "Deferred review-confirm finalization remains legacy lifecycle behavior until workbench confirmation moves behind application contracts.",
+      evidence: "import graph check plus P08 review-confirm workbench fixtures",
+    },
+    {
+      id: "P06-dashboard-data-repository-bridge",
+      source: "scripts/lib/dashboard-data.mts",
+      target: "scripts/lib/task-repository.mts",
+      ownerPhase: "P06-dashboard-projection-consumer-cutover",
+      expiryPhase: "P06-dashboard-projection-consumer-cutover",
+      reason: "Dashboard bundle generation still consumes the scanner-backed repository until dashboard data is fully derived from stable projection outputs.",
+      evidence: "import graph check plus P06 dashboard generation/schema fixtures",
+    },
+    {
+      id: "P08-dashboard-workbench-lesson-bridge",
+      source: "scripts/lib/dashboard-workbench.mts",
+      target: "scripts/lib/task-lesson-sedimentation.mts",
+      ownerPhase: "P08-dashboard-workbench-consumer-cutover",
+      expiryPhase: "P08-dashboard-workbench-consumer-cutover",
+      reason: "Workbench lesson-sedimentation action remains a legacy bridge until workbench actions use application command contracts.",
+      evidence: "import graph check plus P08 workbench action fixtures",
+    },
+    {
+      id: "P08-dashboard-workbench-repository-bridge",
+      source: "scripts/lib/dashboard-workbench.mts",
+      target: "scripts/lib/task-repository.mts",
+      ownerPhase: "P08-dashboard-workbench-consumer-cutover",
+      expiryPhase: "P08-dashboard-workbench-consumer-cutover",
+      reason: "Workbench still creates the scanner-backed repository until its read paths consume stable task repository/projection ports.",
+      evidence: "import graph check plus P08 workbench smoke fixtures",
+    },
+    {
+      id: "P08-dashboard-workbench-review-confirm-internal-bridge",
+      source: "scripts/lib/dashboard-workbench.mts",
+      target: "scripts/lib/task-lifecycle/review-confirm.mts",
+      ownerPhase: "P08-dashboard-workbench-consumer-cutover",
+      expiryPhase: "P08-dashboard-workbench-consumer-cutover",
+      reason: "Workbench still calls review-confirm internals directly until review confirmation is fully routed through application workbench contracts.",
+      evidence: "import graph check plus P08 review-confirm workbench fixtures",
+    },
+    {
+      id: "P08-dashboard-workbench-projection-bridge",
+      source: "scripts/lib/dashboard-workbench.mts",
+      target: "scripts/lib/task-semantic-projection.mts",
+      ownerPhase: "P08-dashboard-workbench-consumer-cutover",
+      expiryPhase: "P08-dashboard-workbench-consumer-cutover",
+      reason: "Workbench still builds semantic projection responses directly until it consumes stable projection service ports.",
+      evidence: "import graph check plus P08 workbench schema fixtures",
+    },
+  ],
+  sharedFileLocks: [
+    { path: "scripts/lib/harness-transaction.mts", ownerPhase: "P04-transaction-cutover", reason: "Transaction/ChangeSet write contract." },
+    { path: "scripts/lib/task-lifecycle.mts", ownerPhase: "P04-transaction-cutover", reason: "Current lifecycle write facade and legacy bridge." },
+    { path: "scripts/lib/governance-sync.mts", ownerPhase: "P04-transaction-cutover", reason: "Current low-level write/lock implementation." },
+    { path: "scripts/lib/task-repository.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "TaskRepository port and scanner-backed implementation." },
+    { path: "scripts/lib/task-scanner.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Legacy scanner adapter and migration-only boundary." },
+    { path: "scripts/lib/task-semantic-projection.mts", ownerPhase: "P06-dashboard-projection-consumer-cutover", reason: "Shared CLI/Dashboard/Test semantic contract." },
+    { path: "scripts/lib/dashboard-data.mts", ownerPhase: "P06-dashboard-projection-consumer-cutover", reason: "Dashboard projection consumer." },
+    { path: "scripts/lib/dashboard-workbench.mts", ownerPhase: "P08-dashboard-workbench-consumer-cutover", reason: "Workbench command adapter and review-confirm consumer." },
+    { path: "scripts/lib/preset-runner.mts", ownerPhase: "P09-preset-runtime-cutover", reason: "Preset runtime transaction boundary." },
+    { path: "scripts/lib/preset-engine.mts", ownerPhase: "P09-preset-runtime-cutover", reason: "Preset runtime package and template boundary." },
+    { path: "scripts/lib/preset-registry.mts", ownerPhase: "P09-preset-runtime-cutover", reason: "Preset discovery and package surface boundary." },
+    { path: "package.json", ownerPhase: "P13-deletion-and-package-surface", reason: "Package export/bin/files surface." },
+  ],
+  boundaryRules: [
+    "kernel-imports-outer-layer",
+    "domain-imports-outer-layer",
+    "domain-imports-infrastructure",
+    "application-imports-adapter",
+    "application-imports-unregistered-legacy-surface",
+    "runtime-imports-task-operations-facade",
+    "adapter-imports-task-internal",
+    "command-imports-task-internal",
+    "dashboard-workbench-imports-task-internal",
+    "dashboard-data-imports-task-internal",
+    "generated-governance-imports-task-scanner",
+    "preset-runtime-imports-governance-sync",
+  ],
 };
 
 type CliArgs = {
@@ -172,6 +406,7 @@ export function buildImportGraph({ repoRoot = defaultRepoRoot }: ImportGraphOpti
   return {
     schemaVersion: 1,
     sourceRoots,
+    architectureContract: architectureImportContract,
     summary: {
       fileCount: nodes.length,
       mjsCount: nodes.filter((node) => node.path.endsWith(".mjs")).length,
@@ -504,19 +739,22 @@ function architectureBoundaryCode(file: string, target: string): string {
   if (file.startsWith("scripts/application/") && target.startsWith("scripts/adapters/")) {
     return "application-imports-adapter";
   }
+  if (file.startsWith("scripts/application/") && isLegacyTaskRuntimeSurface(target) && !isArchitecturePhaseOpenException(file, target)) {
+    return "application-imports-unregistered-legacy-surface";
+  }
   if ((file.startsWith("scripts/commands/") || file === "scripts/lib/dashboard-workbench.mts") && target === "scripts/lib/task-operations.mts") {
     return "runtime-imports-task-operations-facade";
   }
-  if (file.startsWith("scripts/adapters/") && isTaskSourceOfTruthInternal(target)) {
+  if (file.startsWith("scripts/adapters/") && isTaskSourceOfTruthInternal(target) && !isArchitecturePhaseOpenException(file, target)) {
     return "adapter-imports-task-internal";
   }
-  if (file.startsWith("scripts/commands/") && isTaskSourceOfTruthInternal(target)) {
+  if (file.startsWith("scripts/commands/") && isTaskSourceOfTruthInternal(target) && !isArchitecturePhaseOpenException(file, target)) {
     return "command-imports-task-internal";
   }
-  if (file === "scripts/lib/dashboard-workbench.mts" && isTaskSourceOfTruthInternal(target)) {
+  if (file === "scripts/lib/dashboard-workbench.mts" && isTaskSourceOfTruthInternal(target) && !isArchitecturePhaseOpenException(file, target)) {
     return "dashboard-workbench-imports-task-internal";
   }
-  if (file === "scripts/lib/dashboard-data.mts" && isTaskSourceOfTruthInternal(target)) {
+  if (file === "scripts/lib/dashboard-data.mts" && isTaskSourceOfTruthInternal(target) && !isArchitecturePhaseOpenException(file, target)) {
     return "dashboard-data-imports-task-internal";
   }
   if (file === "scripts/lib/governance-index-generator.mts" && target === "scripts/lib/task-scanner.mts") {
@@ -533,6 +771,7 @@ function architectureBoundaryMessage(code: string, file: string, target: string)
   if (code === "domain-imports-outer-layer") return `${file} is domain code and must not import outer layer module ${target}`;
   if (code === "domain-imports-infrastructure") return `${file} is domain code and may only import infrastructure/kernel, not ${target}`;
   if (code === "application-imports-adapter") return `${file} is application code and must not import adapter module ${target}`;
+  if (code === "application-imports-unregistered-legacy-surface") return `${file} is application code and may import legacy task runtime surface ${target} only through a phase-open architecture contract exception`;
   if (code === "runtime-imports-task-operations-facade") return `${file} must import TaskOperations from scripts/application/task, not the scripts/lib compatibility facade`;
   if (code === "adapter-imports-task-internal") return `${file} adapter must go through application/repository boundaries, not task internal ${target}`;
   if (code === "command-imports-task-internal") return `${file} command adapter must go through application/repository boundaries, not task internal ${target}`;
@@ -543,12 +782,23 @@ function architectureBoundaryMessage(code: string, file: string, target: string)
   return `${file} violates architecture boundary by importing ${target}`;
 }
 
+function isArchitecturePhaseOpenException(file: string, target: string): boolean {
+  return architectureImportContract.phaseOpenExceptions.some((exception) => exception.source === file && exception.target === target);
+}
+
+function isLegacyTaskRuntimeSurface(target: string): boolean {
+  return target === "scripts/lib/governance-sync.mts"
+    || target === "scripts/lib/task-lifecycle.mts"
+    || target.startsWith("scripts/lib/task-lifecycle/")
+    || target === "scripts/lib/task-lesson-sedimentation.mts"
+    || target === "scripts/lib/task-repository.mts"
+    || target === "scripts/lib/task-scanner.mts"
+    || target === "scripts/lib/task-semantic-projection.mts"
+    || target === "scripts/lib/task-tombstone-commands.mts";
+}
+
 function isTaskSourceOfTruthInternal(target: string): boolean {
-  return [
-    "scripts/lib/task-scanner.mts",
-    "scripts/lib/task-lifecycle.mts",
-    "scripts/lib/governance-sync.mts",
-  ].includes(target);
+  return isLegacyTaskRuntimeSurface(target);
 }
 
 function isPresetRuntimePath(file: string): boolean {
