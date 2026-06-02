@@ -2,7 +2,7 @@
 
 仅在任务产生较多证据或大体量产物时使用，例如命令输出、截图、fixture、生成报告、review transcript、导出的数据文件等。核心任务文件只引用这里的 ID，不粘贴长输出。
 
-| ID | 类型 | 路径 | 摘要 | Produced By |
+| ID | Type | Path | Summary | Produced By |
 | --- | --- | --- | --- | --- |
 | ART-001 | command / diff / fixture / screenshot / review / report | PUBLIC:path 或 PRIVATE:path 或 TARGET:path 或 EXTERNAL:path 或 URL:https://example.com | [该产物证明了什么] | coordinator |
 
