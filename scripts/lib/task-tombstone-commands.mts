@@ -37,6 +37,10 @@ type ArchiveOptions = TombstoneOptions & {
   archivedBy?: string;
   archiveFields?: Record<string, unknown>;
 };
+type ArchiveBatchOptions = ArchiveOptions & {
+  release?: string;
+  taskIds?: string[];
+};
 type TombstoneFields = Record<string, unknown>;
 
 export function supersedeTask(targetInput: string, oldRef: string, { by = "", reason = "", deletedBy = "", confirm = "", allowOpenFindings = false }: SupersedeOptions = {}) {
@@ -107,6 +111,51 @@ export function archiveTask(targetInput: string, taskRef: string, { reason = "",
   });
 }
 
+export function archiveTasks(targetInput: string, { release = "", taskIds = [], reason = "", archivedBy = "", archiveFields = {} }: ArchiveBatchOptions = {}) {
+  const target = normalizeTarget(targetInput);
+  const normalizedTaskIds = [...new Set((taskIds || []).map((taskId) => String(taskId || "").trim()).filter(Boolean))];
+  if (normalizedTaskIds.length === 0) throw new Error("task-archive-batch requires at least one task id");
+  const tasks = normalizedTaskIds.map((taskId) => resolveTask(target, taskId));
+  const archiveAudits = tasks.map((task) => assertArchiveEligible(task, { archivedBy }));
+  const normalizedArchiveFields = normalizeArchiveFields(archiveFields);
+  assertNoReservedArchiveFields(normalizedArchiveFields);
+  const allowedPaths = taskPaths(target, ...tasks);
+  const releaseLabel = String(release || "").trim();
+  const governanceContext = beginGovernanceSync(target, {
+    operation: `task-archive-batch ${releaseLabel || `${tasks.length} tasks`}`,
+    allowDirtyWorktree: true,
+    allowedRelativePaths: allowedPaths,
+  });
+  try {
+    tasks.forEach((task, index) => {
+      writeTombstone(target, task, {
+        State: "archived",
+        Reason: reason || "archive",
+        Operator: "coordinator",
+        Timestamp: nowTimestamp(),
+        "Reopen Eligible": "yes",
+        "Archive Eligible": "yes",
+        ...normalizedArchiveFields,
+        ...archiveAudits[index],
+      });
+      appendProgress(target, task, "task-archive-batch", reason || "archive");
+    });
+    const message = releaseLabel
+      ? `chore(harness): archive release ${releaseLabel} tasks`
+      : `chore(harness): archive ${tasks.length} tasks`;
+    const commit = commitGovernanceSync(governanceContext, allowedPaths, { message });
+    return {
+      taskIds: tasks.map((task) => task.id),
+      deletionState: "archived",
+      reason: reason || "archive",
+      release: releaseLabel,
+      governance: { commit },
+    };
+  } finally {
+    releaseGovernanceSync(governanceContext);
+  }
+}
+
 export function reopenTask(targetInput: string, taskRef: string, { reason = "" }: TombstoneOptions = {}) {
   const target = normalizeTarget(targetInput);
   const task = resolveTask(target, taskRef);
@@ -128,7 +177,12 @@ export function reopenTask(targetInput: string, taskRef: string, { reason = "" }
 
 function writeDeletionState(target: TombstoneTarget, task: TombstoneTask, deletionState: string, reason: string, action: string, archiveFields: TombstoneFields = {}) {
   const normalizedArchiveFields = normalizeArchiveFields(archiveFields);
-  const governanceContext = beginGovernanceSync(target, { operation: `${action} ${task.id}` });
+  const allowedPaths = taskPaths(target, task);
+  const governanceContext = beginGovernanceSync(target, {
+    operation: `${action} ${task.id}`,
+    allowDirtyWorktree: true,
+    allowedRelativePaths: allowedPaths,
+  });
   try {
     writeTombstone(target, task, {
       State: deletionState,
@@ -140,7 +194,7 @@ function writeDeletionState(target: TombstoneTarget, task: TombstoneTask, deleti
       ...normalizedArchiveFields,
     });
     appendProgress(target, task, action, reason);
-    const commit = commitGovernanceSync(governanceContext, taskPaths(target, task), {
+    const commit = commitGovernanceSync(governanceContext, allowedPaths, {
       message: `chore(harness): ${action.replace(/\s+/g, " ")} ${task.id}`,
     });
     return { taskId: task.id, deletionState, reason, governance: { commit } };

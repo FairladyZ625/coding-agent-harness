@@ -513,7 +513,7 @@ function assertDirtyCompatibleWithWriteScope(
   const allowed = new Set(allowedPaths);
   const overlapping = entries.filter((entry) => allowed.has(entry.path));
   if (overlapping.length > 0 && !allowDirtyWriteScope) {
-    throw new GovernanceSyncError("Governance sync write scope overlaps existing dirty files; refusing to overwrite user-owned changes.", {
+    throw new GovernanceSyncError("Governance sync owned path in write scope is already dirty; refusing to overwrite user-owned changes.", {
       code: "governance-write-scope-dirty",
       details: { overlapping, allowedPaths },
       recovery: ["Commit, move, or remove the overlapping files before retrying this lifecycle command."],

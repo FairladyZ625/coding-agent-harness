@@ -416,6 +416,11 @@ writeTaskFixture(`${todayLocal}-release-module-done`, {
   moduleKey: "life-circle",
   confirmedReview: true,
 });
+writeTaskFixture(`${todayLocal}-release-batch-root`, {
+  title: "Batch root done task with review confirmation",
+  state: "done",
+  confirmedReview: true,
+});
 writeTaskFixture(`${todayLocal}-release-external-done`, {
   title: "External done task with review confirmation",
   state: "done",
@@ -468,6 +473,10 @@ assert(reservedArchiveField.status !== 0, "task-archive should reject archive-fi
 assert(`${reservedArchiveField.stdout}\n${reservedArchiveField.stderr}`.includes("Reserved archive field"), "reserved archive field failure should explain the audit field boundary");
 
 expectJson(["task-archive", "release-done-path", "--reason", "release closeout", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "retention bucket=release:1.0.5", "--archive-field", "release package=coding-agent-harness/governance/releases/1.0.5/INDEX.md", target], { env });
+const archiveCommit = git(target, ["rev-parse", "HEAD"]).stdout.trim();
+const archiveCommittedFiles = git(target, ["show", "--name-only", "--format=", archiveCommit]).stdout.trim().split(/\r?\n/).filter(Boolean);
+assert(archiveCommittedFiles.length === 2, `single task archive should commit only task-local tombstone/progress files, got ${archiveCommittedFiles.join(", ")}`);
+assert(archiveCommittedFiles.every((file) => file.includes(`${todayLocal}-release-done-path/`)), "single task archive commit should not include unrelated files");
 const taskIndexWithArchiveFields = expectJson(["task-index", "--json", target], { env });
 const releaseArchivedTask = taskIndexWithArchiveFields.tasks.find((task) => task.id.endsWith("release-done-path"));
 assert(releaseArchivedTask, "task index should include archived release-done-path fixture");
@@ -476,6 +485,37 @@ assert(releaseArchivedTask.archiveMetadata?.["release package"] === "coding-agen
 assert(releaseArchivedTask.archiveMetadata?.["archived by"] === "Release Manager <release@example.invalid>", "task index should expose the accountable archive actor");
 assert(releaseArchivedTask.archiveMetadata?.["review confirmed by"] === "Release Reviewer", "task index should expose the review confirmation actor");
 assert(releaseArchivedTask.archiveMetadata?.["review confirmation id"] === "HRC-20260528101010", "task index should expose the review confirmation id");
+
+fs.writeFileSync(path.join(target, "README.md"), "unrelated dirty state\n");
+expectJson(["task-archive", "release-review-confirmed", "--reason", "release closeout with unrelated dirty", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "retention bucket=release:1.0.5", target], { env });
+const unrelatedDirtyArchiveCommit = git(target, ["rev-parse", "HEAD"]).stdout.trim();
+const unrelatedDirtyCommittedFiles = git(target, ["show", "--name-only", "--format=", unrelatedDirtyArchiveCommit]).stdout.trim().split(/\r?\n/).filter(Boolean);
+assert(unrelatedDirtyCommittedFiles.length === 2, `archive with unrelated dirty should commit only task-local files, got ${unrelatedDirtyCommittedFiles.join(", ")}`);
+assert(unrelatedDirtyCommittedFiles.every((file) => file.includes(`${todayLocal}-release-review-confirmed/`)), "archive with unrelated dirty should not commit unrelated files");
+assert(git(target, ["status", "--porcelain"]).stdout.includes("README.md"), "unrelated dirty file should remain dirty after task-archive");
+fs.rmSync(path.join(target, "README.md"));
+
+const ownedDirtyTaskPlan = path.join(target, "coding-agent-harness/planning/modules/life-circle/tasks", `${todayLocal}-release-module-done`, "task_plan.md");
+fs.appendFileSync(ownedDirtyTaskPlan, "\n<!-- user-owned archive edit -->\n");
+const ownedDirtyArchive = run(["task-archive", `MODULES/life-circle/${todayLocal}-release-module-done`, "--reason", "should reject owned dirty", "--archived-by", "Release Manager <release@example.invalid>", target], { env });
+assert(ownedDirtyArchive.status !== 0, "task-archive should reject pre-existing dirty state in owned task paths");
+assert(`${ownedDirtyArchive.stdout}\n${ownedDirtyArchive.stderr}`.includes("owned path"), "owned dirty archive failure should identify the owned path boundary");
+git(target, ["checkout", "--", path.relative(target, ownedDirtyTaskPlan)]);
+
+const batchTaskListPath = path.join(tmpRoot, "release-archive-batch-task-list.json");
+fs.writeFileSync(batchTaskListPath, JSON.stringify({
+  schemaVersion: "release-closeout-task-list/v1",
+  release: "1.0.5",
+  taskIds: [`TASKS/${todayLocal}-release-batch-root`, `MODULES/life-circle/${todayLocal}-release-module-done`],
+}, null, 2));
+expectJson(["task-archive-batch", "--release", "1.0.5", "--task-list", batchTaskListPath, "--reason", "release closeout batch", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "retention bucket=release:1.0.5", target], { env });
+const batchArchiveCommit = git(target, ["rev-parse", "HEAD"]).stdout.trim();
+const batchArchiveSubject = git(target, ["show", "-s", "--format=%s", batchArchiveCommit]).stdout.trim();
+const batchArchiveCommittedFiles = git(target, ["show", "--name-only", "--format=", batchArchiveCommit]).stdout.trim().split(/\r?\n/).filter(Boolean);
+assert(batchArchiveSubject === "chore(harness): archive release 1.0.5 tasks", "batch archive should use one release-scoped commit subject");
+assert(batchArchiveCommittedFiles.length === 4, `batch archive should commit two files per task in one commit, got ${batchArchiveCommittedFiles.join(", ")}`);
+assert(batchArchiveCommittedFiles.some((file) => file.includes(`${todayLocal}-release-batch-root/`)), "batch archive should include root task files");
+assert(batchArchiveCommittedFiles.some((file) => file.includes(`${todayLocal}-release-module-done/`)), "batch archive should include module task files");
 
 expectJson(["new-task", "release-closeout-no-selector", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.4", target], { env });
 const noSelector = run(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-no-selector", "--allow-scripts", "--json", target], { env });
