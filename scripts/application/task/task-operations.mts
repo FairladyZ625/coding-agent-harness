@@ -1,7 +1,7 @@
 import { normalizeTarget } from "../../lib/core-shared.mjs";
 import { createTask, confirmTaskReview, updateTaskLifecycle } from "../../lib/task-lifecycle.mjs";
 import { createLessonSedimentationTask } from "../../lib/task-lesson-sedimentation.mjs";
-import { archiveTask, archiveTasks, deleteTask, reopenTask, supersedeTask } from "./tombstone-operations.mjs";
+import { createTombstoneOperations } from "./tombstone-operations.mjs";
 import { createScannerTaskRepository } from "../../lib/task-repository.mjs";
 import type { TaskRecord, TaskRepository } from "../../lib/task-repository.mjs";
 import { buildTaskSemanticProjection } from "../../lib/task-semantic-projection.mjs";
@@ -150,6 +150,7 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
   const target = normalizeTarget(rawTargetInput);
   const repository = options.repository || createScannerTaskRepository(target);
   const targetRoot = target.projectRoot;
+  const tombstones = createTombstoneOperations(targetRoot, { subjects: repository });
 
   return {
     create(input) {
@@ -190,7 +191,7 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
       return runOperation(() => confirmTaskReview(targetRoot, taskId, reviewOptions));
     },
     delete(input) {
-      return runOperation(() => deleteTask(targetRoot, input.taskId, {
+      return runOperation(() => tombstones.delete(input.taskId, {
         hard: input.hard === true,
         reason: input.reason || "",
         deletedBy: input.deletedBy || "",
@@ -199,14 +200,14 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
       }));
     },
     archive(input) {
-      return runOperation(() => archiveTask(targetRoot, input.taskId, {
+      return runOperation(() => tombstones.archive(input.taskId, {
         reason: input.reason || "",
         archivedBy: input.archivedBy || "",
         archiveFields: input.archiveFields || {},
       }));
     },
     archiveBatch(input) {
-      return runOperation(() => archiveTasks(targetRoot, {
+      return runOperation(() => tombstones.archiveBatch({
         release: input.release || "",
         taskIds: input.taskIds || [],
         reason: input.reason || "",
@@ -215,7 +216,7 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
       }));
     },
     supersede(input) {
-      return runOperation(() => supersedeTask(targetRoot, input.taskId, {
+      return runOperation(() => tombstones.supersede(input.taskId, {
         by: input.by || "",
         reason: input.reason || "",
         deletedBy: input.deletedBy || "",
@@ -224,7 +225,7 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
       }));
     },
     reopen(input) {
-      return runOperation(() => reopenTask(targetRoot, input.taskId, {
+      return runOperation(() => tombstones.reopen(input.taskId, {
         reason: input.reason || "",
       }));
     },

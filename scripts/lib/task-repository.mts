@@ -25,6 +25,13 @@ import { taskIdFromArchiveStoragePath } from "./task-archive-storage.mjs";
 import { taskMatchesVisibilityScope } from "./task-semantic-projection.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import type { CollectTasksOptions, TaskContractFile, TaskScannerTarget, VisualMapContractFile } from "./types/task-scanner.js";
+import type {
+  TaskLocation as TaskRepositoryLocation,
+  TaskRef as TaskRepositoryRef,
+  TaskTombstonePolicyFacts as TaskRepositoryTombstonePolicyFacts,
+  TaskTombstoneSubject as TaskRepositoryTombstoneSubject,
+  TombstoneSubjectReader as TaskRepositoryTombstoneSubjectReader,
+} from "./types/task-repository.js";
 
 export {
   isActiveTaskState,
@@ -39,11 +46,11 @@ export {
 export { readVisualMapContractFile } from "./task-scanner.mjs";
 
 export type TaskRecord = ReturnType<typeof collectTasks>[number];
-
-export type TaskRef = {
-  id?: string;
-  path?: string;
-};
+export type TaskRef = TaskRepositoryRef;
+export type TaskLocation = TaskRepositoryLocation;
+export type TaskTombstonePolicyFacts = TaskRepositoryTombstonePolicyFacts;
+export type TaskTombstoneSubject = TaskRepositoryTombstoneSubject;
+export type TombstoneSubjectReader = TaskRepositoryTombstoneSubjectReader;
 
 export type TaskQuery = {
   state?: string;
@@ -57,12 +64,6 @@ export type TaskQuery = {
   missingMaterials?: boolean;
   requireGeneratedScaffoldProvenance?: boolean;
   closeoutContent?: string;
-};
-
-export type TaskLocation = {
-  id: string;
-  directory: string;
-  taskPlanPath: string;
 };
 
 export type TaskMaterial = {
@@ -86,40 +87,11 @@ export type TaskMaterials = {
   walkthrough: TaskMaterial;
 };
 
-export type TaskTombstonePolicyFacts = {
-  state?: string;
-  budget?: string;
-  closeoutStatus?: string;
-  reviewSubmitted?: unknown;
-  reviewStatus?: string;
-  reviewConfirmation?: ({ confirmed?: unknown } & Record<string, unknown>) | null;
-  materialsReady?: boolean;
-  evidence?: unknown[];
-  taskQueues?: string[];
-  risks?: Array<{ id?: string; open?: unknown; blocksRelease?: unknown; severity?: unknown }>;
-  deletionState?: string;
-};
-
-export type TaskTombstoneSubject = {
-  id: string;
-  location: TaskLocation;
-  paths: {
-    directory: string;
-    taskPlanPath: string;
-    progressPath: string;
-    relativeDirectory: string;
-    relativeTaskPlanPath: string;
-    relativeProgressPath: string;
-  };
-  policy: TaskTombstonePolicyFacts;
-};
-
-export type TaskRepository = {
+export type TaskRepository = TaskRepositoryTombstoneSubjectReader & {
   list(query?: TaskQuery): TaskRecord[];
   get(ref: TaskRef): TaskRecord;
   resolve(ref: TaskRef): TaskLocation;
   readMaterials(ref: TaskRef): TaskMaterials;
-  getTombstoneSubject(ref: TaskRef): TaskTombstoneSubject;
 };
 
 type ScannerRepositoryOptions = Pick<CollectTasksOptions, "requireGeneratedScaffoldProvenance" | "closeoutContent">;

@@ -96,11 +96,7 @@ assert(graph.architectureContract.phaseOpenExceptions.some((exception) => except
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P04-application-task-operations-tombstone-bridge"), "contract should not keep the retired TaskOperations tombstone bridge exception");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P04-application-module-governance-sync-bridge"), "contract should not keep the retired module governance sync bridge exception");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P04-application-tombstone-resolution-bridge"), "contract should not keep the retired tombstone lifecycle resolver bridge exception");
-const tombstoneRepositoryResolver = graph.architectureContract.phaseOpenExceptions.find((exception) => exception.id === "P05-application-tombstone-repository-resolution-bridge");
-assert(tombstoneRepositoryResolver?.source === "scripts/application/task/tombstone-operations.mts", "tombstone repository resolver exception should name the tombstone operation source");
-assert(tombstoneRepositoryResolver?.target === "scripts/lib/task-repository.mts", "tombstone repository resolver exception should point at the TaskRepository Module");
-assert(tombstoneRepositoryResolver?.ownerPhase === "P05-repository-scanner-strangler", "tombstone repository resolver exception should be owned by P05");
-assert(tombstoneRepositoryResolver?.expiryPhase === "P07-task-operations-facade-removal", "tombstone repository resolver exception should expire by P07");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-application-tombstone-repository-resolution-bridge"), "contract should not keep the retired tombstone repository resolver exception");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-application-tombstone-scanner-bridge"), "contract should not keep the retired tombstone scanner bridge exception");
 assert(graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "scripts/lib/task-scanner.mts" && lock.ownerPhase === "P05-repository-scanner-strangler"), "contract should expose scanner shared-file lock ownership");
 assert(graph.architectureContract.boundaryRules.includes("application-imports-unregistered-legacy-surface"), "contract should expose fail-closed application legacy import rule");

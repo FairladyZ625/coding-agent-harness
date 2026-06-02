@@ -8,7 +8,6 @@ import {
   datePrefix,
 } from "../../lib/core-shared.mjs";
 import { removeHeadingSectionOutsideFences } from "../../lib/markdown-utils.mjs";
-import { createScannerTaskRepository } from "../../lib/task-repository.mjs";
 import { taskRefPath } from "../../lib/harness-paths.mjs";
 import type { ResolvedHarnessPaths } from "../../lib/harness-paths.mjs";
 import { assessArchiveEligibility, normalizeArchiveActor } from "../../domain/task/archive-eligibility.mjs";
@@ -23,35 +22,71 @@ import {
   assertTransactionSucceeded,
   createGovernanceHarnessTransaction,
 } from "../../lib/harness-transaction.mjs";
-import type { TaskTombstoneSubject } from "../../lib/task-repository.mjs";
+import type { TaskTombstoneSubject, TombstoneSubjectReader } from "../../lib/types/task-repository.js";
 
 type TombstoneTarget = ReturnType<typeof normalizeTarget>;
 type ResolvedTombstoneTarget = TombstoneTarget & { harness: ResolvedHarnessPaths };
 type TombstoneTask = TaskTombstoneSubject;
-type TombstoneOptions = {
+export type TombstoneOptions = {
   reason?: string;
   deletedBy?: string;
   confirm?: string;
   allowOpenFindings?: boolean;
 };
-type SupersedeOptions = TombstoneOptions & {
+export type SupersedeOptions = TombstoneOptions & {
   by?: string;
 };
-type ArchiveOptions = TombstoneOptions & {
+export type ArchiveOptions = TombstoneOptions & {
   archivedBy?: string;
   archiveFields?: Record<string, unknown>;
 };
-type ArchiveBatchOptions = ArchiveOptions & {
+export type ArchiveBatchOptions = ArchiveOptions & {
   release?: string;
   taskIds?: string[];
 };
 type TombstoneFields = Record<string, unknown>;
 
-export function supersedeTask(targetInput: string, oldRef: string, { by = "", reason = "", deletedBy = "", confirm = "", allowOpenFindings = false }: SupersedeOptions = {}) {
-  if (!by) throw new Error("task-supersede requires --by <new-task-id>");
+export type TombstoneOperationsOptions = {
+  subjects: TombstoneSubjectReader;
+};
+
+export type TombstoneOperations = {
+  supersede(oldRef: string, options?: SupersedeOptions): ReturnType<typeof supersedeTask>;
+  softDelete(taskRef: string, options?: TombstoneOptions): ReturnType<typeof softDeleteTask>;
+  delete(taskRef: string, options?: TombstoneOptions & { hard?: boolean }): ReturnType<typeof deleteTask>;
+  archive(taskRef: string, options?: ArchiveOptions): ReturnType<typeof archiveTask>;
+  archiveBatch(options?: ArchiveBatchOptions): ReturnType<typeof archiveTasks>;
+  reopen(taskRef: string, options?: TombstoneOptions): ReturnType<typeof reopenTask>;
+};
+
+export function createTombstoneOperations(targetInput: string, { subjects }: TombstoneOperationsOptions): TombstoneOperations {
   const target = normalizeTarget(targetInput);
-  const oldTask = resolveTask(target, oldRef);
-  const newTask = resolveTask(target, by);
+  return {
+    supersede(oldRef, options = {}) {
+      return supersedeTask(target, subjects, oldRef, options);
+    },
+    softDelete(taskRef, options = {}) {
+      return softDeleteTask(target, subjects, taskRef, options);
+    },
+    delete(taskRef, options = {}) {
+      return deleteTask(target, subjects, taskRef, options);
+    },
+    archive(taskRef, options = {}) {
+      return archiveTask(target, subjects, taskRef, options);
+    },
+    archiveBatch(options = {}) {
+      return archiveTasks(target, subjects, options);
+    },
+    reopen(taskRef, options = {}) {
+      return reopenTask(target, subjects, taskRef, options);
+    },
+  };
+}
+
+function supersedeTask(target: TombstoneTarget, subjects: TombstoneSubjectReader, oldRef: string, { by = "", reason = "", deletedBy = "", confirm = "", allowOpenFindings = false }: SupersedeOptions = {}) {
+  if (!by) throw new Error("task-supersede requires --by <new-task-id>");
+  const oldTask = resolveTask(subjects, oldRef);
+  const newTask = resolveTask(subjects, by);
   assertSoftDeleteEligible(oldTask, { reason, deletedBy, confirm, allowOpenFindings, action: "task-supersede" });
   const allowedPaths = taskPaths(target, oldTask, newTask);
   const commit = runTombstoneTransaction(target, {
@@ -74,13 +109,12 @@ export function supersedeTask(targetInput: string, oldRef: string, { by = "", re
   return { taskId: oldTask.id, supersededBy: newTask.id, reason: reason || "superseded", governance: { commit } };
 }
 
-export function softDeleteTask(targetInput: string, taskRef: string, options: TombstoneOptions = {}) {
-  return deleteTask(targetInput, taskRef, { ...options, hard: false });
+function softDeleteTask(target: TombstoneTarget, subjects: TombstoneSubjectReader, taskRef: string, options: TombstoneOptions = {}) {
+  return deleteTask(target, subjects, taskRef, { ...options, hard: false });
 }
 
-export function deleteTask(targetInput: string, taskRef: string, { hard = false, reason = "", deletedBy = "", confirm = "", allowOpenFindings = false }: TombstoneOptions & { hard?: boolean } = {}) {
-  const target = normalizeTarget(targetInput);
-  const task = resolveTask(target, taskRef);
+function deleteTask(target: TombstoneTarget, subjects: TombstoneSubjectReader, taskRef: string, { hard = false, reason = "", deletedBy = "", confirm = "", allowOpenFindings = false }: TombstoneOptions & { hard?: boolean } = {}) {
+  const task = resolveTask(subjects, taskRef);
   if (!hard) {
     assertSoftDeleteEligible(task, { reason, deletedBy, confirm, allowOpenFindings, action: "task-delete" });
     return writeDeletionState(target, task, "soft-deleted", reason || "soft-delete", "task-delete --soft", {
@@ -100,9 +134,8 @@ export function deleteTask(targetInput: string, taskRef: string, { hard = false,
   return { taskId: task.id, deletionState: "hard-deleted", reason, governance: { commit } };
 }
 
-export function archiveTask(targetInput: string, taskRef: string, { reason = "", archivedBy = "", archiveFields = {} }: ArchiveOptions = {}) {
-  const target = normalizeTarget(targetInput);
-  const task = resolveTask(target, taskRef);
+function archiveTask(target: TombstoneTarget, subjects: TombstoneSubjectReader, taskRef: string, { reason = "", archivedBy = "", archiveFields = {} }: ArchiveOptions = {}) {
+  const task = resolveTask(subjects, taskRef);
   const archiveAudit = assertArchiveEligible(task, { archivedBy });
   const normalizedArchiveFields = normalizeArchiveFields(archiveFields);
   assertNoReservedArchiveFields(normalizedArchiveFields);
@@ -112,11 +145,10 @@ export function archiveTask(targetInput: string, taskRef: string, { reason = "",
   });
 }
 
-export function archiveTasks(targetInput: string, { release = "", taskIds = [], reason = "", archivedBy = "", archiveFields = {} }: ArchiveBatchOptions = {}) {
-  const target = normalizeTarget(targetInput);
+function archiveTasks(target: TombstoneTarget, subjects: TombstoneSubjectReader, { release = "", taskIds = [], reason = "", archivedBy = "", archiveFields = {} }: ArchiveBatchOptions = {}) {
   const normalizedTaskIds = [...new Set((taskIds || []).map((taskId) => String(taskId || "").trim()).filter(Boolean))];
   if (normalizedTaskIds.length === 0) throw new Error("task-archive-batch requires at least one task id");
-  const tasks = normalizedTaskIds.map((taskId) => resolveTask(target, taskId));
+  const tasks = normalizedTaskIds.map((taskId) => resolveTask(subjects, taskId));
   const archiveAudits = tasks.map((task) => assertArchiveEligible(task, { archivedBy }));
   const normalizedArchiveFields = normalizeArchiveFields(archiveFields);
   assertNoReservedArchiveFields(normalizedArchiveFields);
@@ -158,9 +190,8 @@ export function archiveTasks(targetInput: string, { release = "", taskIds = [], 
   };
 }
 
-export function reopenTask(targetInput: string, taskRef: string, { reason = "" }: TombstoneOptions = {}) {
-  const target = normalizeTarget(targetInput);
-  const task = resolveTask(target, taskRef);
+function reopenTask(target: TombstoneTarget, subjects: TombstoneSubjectReader, taskRef: string, { reason = "" }: TombstoneOptions = {}) {
+  const task = resolveTask(subjects, taskRef);
   const reopenMove = reopenMovePlan(target, task);
   if (reopenMove) assertTombstoneMoveDestinationsAvailable([reopenMove]);
   const allowedPaths = reopenMove ? tombstoneMoveAllowedPaths(target, [reopenMove]) : taskPaths(target, task);
@@ -314,9 +345,9 @@ function collectRelativeFiles(target: TombstoneTarget, directory: string): strin
   return result.sort();
 }
 
-function resolveTask(target: TombstoneTarget, ref: string): TombstoneTask {
+function resolveTask(subjects: TombstoneSubjectReader, ref: string): TombstoneTask {
   const normalized = String(ref || "").trim();
-  return createScannerTaskRepository(target).getTombstoneSubject({ id: normalized });
+  return subjects.getTombstoneSubject({ id: normalized });
 }
 
 function assertArchiveEligible(task: TombstoneTask, { archivedBy = "" }: { archivedBy?: string } = {}): Record<string, string> {
