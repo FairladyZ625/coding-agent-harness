@@ -9,7 +9,7 @@ import {
 } from "../../lib/core-shared.mjs";
 import { removeHeadingSectionOutsideFences } from "../../lib/markdown-utils.mjs";
 import { collectTasks } from "../../lib/task-scanner.mjs";
-import { resolveTaskDirectory } from "../../lib/task-lifecycle.mjs";
+import { resolveTaskDirectory } from "../../lib/task-repository.mjs";
 import { taskIdFromDirectory, taskRefPath } from "../../lib/harness-paths.mjs";
 import type { ResolvedHarnessPaths } from "../../lib/harness-paths.mjs";
 import { assessArchiveEligibility, normalizeArchiveActor } from "../../domain/task/archive-eligibility.mjs";

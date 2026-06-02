@@ -5,7 +5,7 @@ import { visualMapFile, legacyVisualRoadmapFile, allowedTaskStates, allowedTaskB
 import { readCapabilityRegistry } from "./capability-registry.mjs";
 import { readPresetPackage } from "./preset-registry.mjs";
 import { parseTaskBudget } from "./task-metadata.mjs";
-import { createScannerTaskRepository } from "./task-repository.mjs";
+import { createScannerTaskRepository, resolveTaskDirectory as resolveRepositoryTaskDirectory } from "./task-repository.mjs";
 import { getColumn, firstColumn, updateMarkdownTableRow } from "./markdown-utils.mjs";
 import { validateLifecycleTransition, validateReviewEntryGate } from "./task-lifecycle/review-gates.mjs";
 import { advanceLifecyclePhase, autoRecordNoLessonCandidateDecision } from "./task-lifecycle/phase-sync.mjs";
@@ -55,7 +55,7 @@ function taskRoot(target: LifecycleTarget, taskId: string, { moduleKey = "" }: {
 }
 
 export function resolveTaskDirectory(target: LifecycleTarget, taskRef: string): string {
-  return createScannerTaskRepository(target).resolve({ id: taskRef }).directory;
+  return resolveRepositoryTaskDirectory(target, taskRef);
 }
 
 function taskIdForDirectory(target: LifecycleTarget, taskDir: string): string {

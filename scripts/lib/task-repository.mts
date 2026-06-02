@@ -147,6 +147,10 @@ export function taskPlanPathFromRecord(target: { projectRoot: string }, task: { 
   return path.join(taskDir, "task_plan.md");
 }
 
+export function resolveTaskDirectory(targetInput: TaskScannerTarget | string | undefined, taskRef: string): string {
+  return createScannerTaskRepository(targetInput).resolve({ id: taskRef }).directory;
+}
+
 function normalizeRepositoryTarget(targetInput: TaskScannerTarget | string | undefined): TaskScannerTarget {
   if (targetInput && typeof targetInput === "object" && "projectRoot" in targetInput) return targetInput;
   return normalizeTarget(typeof targetInput === "string" ? targetInput : ".") as TaskScannerTarget;

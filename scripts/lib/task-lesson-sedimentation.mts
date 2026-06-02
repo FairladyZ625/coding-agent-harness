@@ -10,7 +10,8 @@ import {
 } from "./core-shared.mjs";
 import { parseLessonCandidateStatus } from "./task-lesson-candidates.mjs";
 import { readCapabilityRegistry } from "./capability-registry.mjs";
-import { createTask, resolveTaskDirectory } from "./task-lifecycle.mjs";
+import { createTask } from "./task-lifecycle.mjs";
+import { resolveTaskDirectory } from "./task-repository.mjs";
 import { readPresetPackage, buildPresetAudit, renderPresetTemplate } from "./preset-registry.mjs";
 import { firstColumn, updateMarkdownTableRow } from "./markdown-utils.mjs";
 import { listTaskPlanPaths, taskIdForDirectory } from "./task-scanner.mjs";
