@@ -45,6 +45,7 @@ export function run(args: string[], options: TestRunOptions = {}): SpawnSyncRetu
     cwd: repoRoot,
     encoding: "utf8",
     env: { ...humanControlledTestEnv(), ...(options.env || {}) },
+    maxBuffer: 16 * 1024 * 1024,
     ...options,
   });
 }
