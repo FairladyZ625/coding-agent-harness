@@ -17,6 +17,7 @@ import { buildCreationTaskAudit } from "./task-audit-metadata.mjs";
 import { renderAgentReviewSubmission, replaceAgentReviewSubmission } from "./task-lifecycle/review-submission.mjs";
 import { appendLongRunningContractFile, moduleTemplateFiles, taskFilesForBudget } from "./task-lifecycle/template-files.mjs";
 import { planCreateTaskChanges, refreshPresetCommandAudit, resolveImplicitCreateTarget } from "./task-lifecycle/create-task-helpers.mjs";
+import { plannedLifecycleAllowedPaths } from "./task-lifecycle/planned-write-scope.mjs";
 import { beginGovernanceSync, commitGovernanceSync, governanceRelativePaths, releaseGovernanceSync, syncModuleStepGovernance, syncTaskGovernance } from "./governance-sync.mjs";
 import { assertTransactionSucceeded, createGovernanceHarnessTransaction } from "./harness-transaction.mjs";
 import { normalizeHarnessModuleKey, prepareModuleRegistration, prepareModuleStepRegistrationUpdate, readHarnessModules, registeredHarnessModule } from "./module-registry.mjs";
@@ -398,10 +399,28 @@ export function updateTaskLifecycle(targetInput: string, taskId: string, { event
     governance: ReturnType<typeof syncTaskGovernance>;
   };
   const lifecycleResultBox: { current: LifecycleTransactionPayload | null } = { current: null };
+  const plannedAllowedPaths = plannedLifecycleAllowedPaths(target, taskDir, normalizedEvent);
+  const currentTaskForGovernance =
+    currentTask ||
+    {
+      id: canonicalTaskId,
+      shortId: path.basename(taskDir),
+      title: canonicalTaskId,
+      path: `TARGET:${toPosix(path.relative(target.projectRoot, taskDir))}`,
+      state: normalizedState || "unknown",
+    };
+  const plannedGovernanceState = normalizedState || currentTaskForGovernance.state || "planned";
+  const plannedGovernance = syncTaskGovernance(target, currentTaskForGovernance, { event, state: plannedGovernanceState, message, dryRun: true });
+  const plannedGovernancePaths = governanceRelativePaths(plannedGovernance.changes);
   const transaction = createGovernanceHarnessTransaction(target);
   const plan = transaction.plan({
     operation: `${event} ${canonicalTaskId}`,
-    commit: { message: `chore(harness): advance task ${canonicalTaskId}` },
+    allowedPaths: [...plannedAllowedPaths, ...plannedGovernancePaths],
+    generatedSurfaces: plannedGovernance.changes.map((change) => ({ surface: change.surface, paths: [change.destination] })),
+    commit: {
+      message: `chore(harness): advance task ${canonicalTaskId}`,
+      allowDirtyWorktree: true,
+    },
     apply() {
       let content = readFileSafe(progressPath);
       if (normalizedState) content = updateProgressState(content, normalizedState, registry.locale || "en-US");
@@ -452,7 +471,10 @@ export function updateTaskLifecycle(targetInput: string, taskId: string, { event
       return {
         allowedPaths: [...allowedPaths, ...governancePaths],
         generatedSurfaces: governance.changes.map((change) => ({ surface: change.surface, paths: [change.destination] })),
-        commit: { message: `chore(harness): advance task ${canonicalTaskId} to ${governanceState}` },
+        commit: {
+          message: `chore(harness): advance task ${canonicalTaskId} to ${governanceState}`,
+          allowDirtyWorktree: true,
+        },
       };
     },
   });
@@ -522,7 +544,10 @@ export function updateTaskPhase(targetInput: string, taskId: string, phaseId: st
   const plan = transaction.plan({
     operation: `task-phase ${taskId} ${phaseId}`,
     allowedPaths: [visualMapRelative],
-    commit: { message: `chore(harness): update task phase ${taskId} ${phaseId}` },
+    commit: {
+      message: `chore(harness): update task phase ${taskId} ${phaseId}`,
+      allowDirtyWorktree: true,
+    },
     apply() {
       content = phaseUpdate.content;
       fs.writeFileSync(visualMapPath, content);
@@ -570,7 +595,10 @@ export function updateModuleStep(targetInput: string, moduleKey: string, stepId:
     operation: `module-step ${normalizedModuleKey} ${stepId}`,
     allowedPaths,
     generatedSurfaces: plannedGeneratedSurfaces,
-    commit: { message: `chore(harness): update module ${normalizedModuleKey} step ${stepId}` },
+    commit: {
+      message: `chore(harness): update module ${normalizedModuleKey} step ${stepId}`,
+      allowDirtyWorktree: true,
+    },
     apply() {
       content = stepUpdate.content;
       fs.writeFileSync(modulePlanPath, content);

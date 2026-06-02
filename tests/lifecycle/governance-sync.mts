@@ -61,6 +61,17 @@ assert(fs.readFileSync(registryPath, "utf8").includes("coding-agent-harness/plan
 assert(fs.readFileSync(modulePlanPath, "utf8").includes(ownedTaskPlan), "new-task --module should regenerate module plan index");
 assert(!fs.existsSync(path.join(target, "coding-agent-harness/planning/modules/sync/visual_map.md")), "new-task --module should not create a module-root visual map index");
 
+fs.writeFileSync(
+  modulePlanPath,
+  `# Sync Module Plan\n\n## 步骤\n\n| 步骤 ID | 名称 | 状态 | 任务计划 | 依赖 |\n| --- | --- | --- | --- | --- |\n| SYNC-OLD | Old row | planned | old/task_plan.md | none |\n`,
+);
+git(target, ["add", path.relative(target, modulePlanPath).replaceAll(path.sep, "/")]);
+git(target, ["commit", "-m", "test fixture zh module plan header"]);
+expectJson(["task-log", created.task.shortId || "governance-owned", "--message", "sync zh module plan header", target]);
+const zhModulePlanContent = fs.readFileSync(modulePlanPath, "utf8");
+assert((zhModulePlanContent.match(new RegExp(ownedTaskPlan.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length === 1, "governance sync should replace zh module plan table rows instead of appending a duplicate table");
+assert(!zhModulePlanContent.includes("old/task_plan.md"), "governance sync should replace stale zh module plan rows");
+
 fs.writeFileSync(path.join(target, "UNRELATED.txt"), "dirty\n");
 const dirtyResult = expectJson<NewTaskResponse>(["new-task", "dirty-allowed", "--title", "Dirty Allowed", target]);
 assert(dirtyResult.governance?.commit?.committed === true, "new-task should commit CLI-owned paths even when unrelated dirty files exist");

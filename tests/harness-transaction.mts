@@ -9,6 +9,7 @@ import { normalizeTarget } from "../scripts/lib/core-shared.mjs";
 import {
   assert,
   expectJson,
+  run,
   tmpRoot,
 } from "./helpers/harness-test-utils.mjs";
 
@@ -30,9 +31,12 @@ type ModuleStepResponse = {
   governance?: {
     commit?: {
       committed?: boolean;
+      allowedPaths?: string[];
     };
   };
 };
+
+type LifecycleResponse = ModuleStepResponse;
 
 const target = path.join(tmpRoot, "harness-transaction-target");
 fs.mkdirSync(target);
@@ -326,6 +330,158 @@ assert(fs.readFileSync(ledgerPath, "utf8").includes("Module txn step T-TRANSACTI
 assert(fs.readFileSync(modulePlanPath, "utf8").includes("transaction-lifecycle"), "transaction-migrated lifecycle review should regenerate module plan index");
 assert(git(lifecycleTarget, ["status", "--short"]).stdout.trim() === "", "transaction-migrated lifecycle review should leave git clean");
 
+const dirtyLifecycleTarget = path.join(tmpRoot, "harness-transaction-dirty-lifecycle-target");
+fs.mkdirSync(dirtyLifecycleTarget);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core,module-parallel", dirtyLifecycleTarget]);
+git(dirtyLifecycleTarget, ["init"]);
+git(dirtyLifecycleTarget, ["config", "user.name", "Harness Test"]);
+git(dirtyLifecycleTarget, ["config", "user.email", "harness-test@example.invalid"]);
+git(dirtyLifecycleTarget, ["add", "."]);
+git(dirtyLifecycleTarget, ["commit", "-m", "test fixture baseline"]);
+expectJson(["module", "register", "dirtytxn", "--title", "Dirty Transaction", "--prefix", "DTX", "--scope", "src/dirty/**", dirtyLifecycleTarget]);
+
+function writeUnrelatedDirty(root: string, name: string): string {
+  const relativePath = `${name}.txt`;
+  fs.writeFileSync(path.join(root, relativePath), `${name}\n`);
+  return relativePath;
+}
+
+  function assertLastCommitWithinAllowedPaths(root: string, result: LifecycleResponse, message: string): void {
+    const committedPaths = git(root, ["show", "--name-only", "--format=", "HEAD"]).stdout.trim().split(/\r?\n/).filter(Boolean);
+    const allowedPaths = result.governance?.commit?.allowedPaths || [];
+    const allowed = new Set(allowedPaths);
+    assert(committedPaths.length > 0, `${message}: expected at least one committed path`);
+    assert(allowedPaths.length > 0, `${message}: command should declare commit allowed paths`);
+    assert(committedPaths.every((file) => allowed.has(file)), `${message}: commit should include only declared allowed paths, got committed=${committedPaths.join(", ")} allowed=${allowedPaths.join(", ")}`);
+  }
+
+function assertUnrelatedDirtyRemains(root: string, relativePath: string, message: string): void {
+  const status = git(root, ["status", "--short"]).stdout.trim().split(/\r?\n/).filter(Boolean);
+  assert(status.includes(`?? ${relativePath}`), `${message}: unrelated dirty file should remain dirty, got ${status.join(", ")}`);
+}
+
+  const dirtyStartTask = expectJson<NewTaskResponse>(["new-task", "dirty-lifecycle-start", "--title", "Dirty Lifecycle Start", "--locale", "en-US", dirtyLifecycleTarget]);
+  const dirtyStartFile = writeUnrelatedDirty(dirtyLifecycleTarget, "UNRELATED_START");
+  const dirtyStartResult = expectJson<LifecycleResponse>(["task-start", dirtyStartTask.task.shortId || "dirty-lifecycle-start", "--message", "start with unrelated dirty", dirtyLifecycleTarget]);
+  assertLastCommitWithinAllowedPaths(dirtyLifecycleTarget, dirtyStartResult, "task-start with unrelated dirty");
+  assertUnrelatedDirtyRemains(dirtyLifecycleTarget, dirtyStartFile, "task-start with unrelated dirty");
+  fs.rmSync(path.join(dirtyLifecycleTarget, dirtyStartFile));
+
+const dirtyLogTask = expectJson<NewTaskResponse>(["new-task", "dirty-lifecycle-log", "--title", "Dirty Lifecycle Log", "--locale", "en-US", dirtyLifecycleTarget]);
+  expectJson(["task-start", dirtyLogTask.task.shortId || "dirty-lifecycle-log", "--message", "clean start before dirty log", dirtyLifecycleTarget]);
+  const dirtyLogFile = writeUnrelatedDirty(dirtyLifecycleTarget, "UNRELATED_LOG");
+  const dirtyLogResult = expectJson<LifecycleResponse>(["task-log", dirtyLogTask.task.shortId || "dirty-lifecycle-log", "--message", "log with unrelated dirty", "--evidence", "command:TARGET:test:passed", dirtyLifecycleTarget]);
+  assertLastCommitWithinAllowedPaths(dirtyLifecycleTarget, dirtyLogResult, "task-log with unrelated dirty");
+  assertUnrelatedDirtyRemains(dirtyLifecycleTarget, dirtyLogFile, "task-log with unrelated dirty");
+  fs.rmSync(path.join(dirtyLifecycleTarget, dirtyLogFile));
+
+const dirtyBlockTask = expectJson<NewTaskResponse>(["new-task", "dirty-lifecycle-block", "--title", "Dirty Lifecycle Block", "--locale", "en-US", dirtyLifecycleTarget]);
+  expectJson(["task-start", dirtyBlockTask.task.shortId || "dirty-lifecycle-block", "--message", "clean start before dirty block", dirtyLifecycleTarget]);
+  const dirtyBlockFile = writeUnrelatedDirty(dirtyLifecycleTarget, "UNRELATED_BLOCK");
+  const dirtyBlockResult = expectJson<LifecycleResponse>(["task-block", dirtyBlockTask.task.shortId || "dirty-lifecycle-block", "--message", "block with unrelated dirty", dirtyLifecycleTarget]);
+  assertLastCommitWithinAllowedPaths(dirtyLifecycleTarget, dirtyBlockResult, "task-block with unrelated dirty");
+  assertUnrelatedDirtyRemains(dirtyLifecycleTarget, dirtyBlockFile, "task-block with unrelated dirty");
+  fs.rmSync(path.join(dirtyLifecycleTarget, dirtyBlockFile));
+
+const dirtyReviewTask = expectJson<NewTaskResponse>(["new-task", "dirty-lifecycle-review", "--title", "Dirty Lifecycle Review", "--locale", "en-US", dirtyLifecycleTarget]);
+  expectJson(["task-start", dirtyReviewTask.task.shortId || "dirty-lifecycle-review", "--message", "clean start before dirty review", dirtyLifecycleTarget]);
+  expectJson(["task-phase", dirtyReviewTask.task.shortId || "dirty-lifecycle-review", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", dirtyLifecycleTarget]);
+  const dirtyReviewFile = writeUnrelatedDirty(dirtyLifecycleTarget, "UNRELATED_REVIEW");
+  const dirtyReviewResult = expectJson<LifecycleResponse>(["task-review", dirtyReviewTask.task.shortId || "dirty-lifecycle-review", "--message", "review with unrelated dirty", dirtyLifecycleTarget]);
+  assertLastCommitWithinAllowedPaths(dirtyLifecycleTarget, dirtyReviewResult, "task-review with unrelated dirty");
+  assertUnrelatedDirtyRemains(dirtyLifecycleTarget, dirtyReviewFile, "task-review with unrelated dirty");
+  fs.rmSync(path.join(dirtyLifecycleTarget, dirtyReviewFile));
+
+const dirtyCompleteTask = expectJson<NewTaskResponse>(["new-task", "dirty-lifecycle-complete", "--title", "Dirty Lifecycle Complete", "--locale", "en-US", "--budget", "simple", dirtyLifecycleTarget]);
+  expectJson(["task-start", dirtyCompleteTask.task.shortId || "dirty-lifecycle-complete", "--message", "clean start before dirty complete", dirtyLifecycleTarget]);
+  const dirtyCompleteFile = writeUnrelatedDirty(dirtyLifecycleTarget, "UNRELATED_COMPLETE");
+  const dirtyCompleteResult = expectJson<LifecycleResponse>(["task-complete", dirtyCompleteTask.task.shortId || "dirty-lifecycle-complete", "--message", "complete with unrelated dirty", dirtyLifecycleTarget]);
+  assertLastCommitWithinAllowedPaths(dirtyLifecycleTarget, dirtyCompleteResult, "task-complete with unrelated dirty");
+  assertUnrelatedDirtyRemains(dirtyLifecycleTarget, dirtyCompleteFile, "task-complete with unrelated dirty");
+  fs.rmSync(path.join(dirtyLifecycleTarget, dirtyCompleteFile));
+
+const dirtyPhaseTask = expectJson<NewTaskResponse>(["new-task", "dirty-lifecycle-phase", "--title", "Dirty Lifecycle Phase", "--locale", "en-US", dirtyLifecycleTarget]);
+  expectJson(["task-start", dirtyPhaseTask.task.shortId || "dirty-lifecycle-phase", "--message", "clean start before dirty phase", dirtyLifecycleTarget]);
+  const dirtyPhaseFile = writeUnrelatedDirty(dirtyLifecycleTarget, "UNRELATED_PHASE");
+  const dirtyPhaseResult = expectJson<LifecycleResponse>(["task-phase", dirtyPhaseTask.task.shortId || "dirty-lifecycle-phase", "EXEC-01", "--state", "done", "--completion", "100", "--evidence", "present", dirtyLifecycleTarget]);
+  assertLastCommitWithinAllowedPaths(dirtyLifecycleTarget, dirtyPhaseResult, "task-phase with unrelated dirty");
+  assertUnrelatedDirtyRemains(dirtyLifecycleTarget, dirtyPhaseFile, "task-phase with unrelated dirty");
+  fs.rmSync(path.join(dirtyLifecycleTarget, dirtyPhaseFile));
+
+const dirtyModuleTask = expectJson<NewTaskResponse>(["new-task", "dirty-module-step", "--title", "Dirty Module Step", "--locale", "en-US", "--module", "dirtytxn", dirtyLifecycleTarget]);
+assert(Boolean(dirtyModuleTask.task), "dirty module-step fixture should create a module task");
+  const dirtyModuleStepId = moduleStepIdForTask(dirtyLifecycleTarget, "dirtytxn", dirtyModuleTask.task.shortId || "dirty-module-step");
+  const dirtyModuleFile = writeUnrelatedDirty(dirtyLifecycleTarget, "UNRELATED_MODULE_STEP");
+  const dirtyModuleResult = expectJson<LifecycleResponse>(["module-step", "dirtytxn", dirtyModuleStepId, "--state", "done", dirtyLifecycleTarget]);
+  assertLastCommitWithinAllowedPaths(dirtyLifecycleTarget, dirtyModuleResult, "module-step with unrelated dirty");
+  assertUnrelatedDirtyRemains(dirtyLifecycleTarget, dirtyModuleFile, "module-step with unrelated dirty");
+  fs.rmSync(path.join(dirtyLifecycleTarget, dirtyModuleFile));
+
+  const dirtyHarnessTask = expectJson<NewTaskResponse>(["new-task", "dirty-lifecycle-harness-dirty", "--title", "Dirty Harness Path", "--locale", "en-US", dirtyLifecycleTarget]);
+  const dirtyHarnessRelative = "coding-agent-harness/planning/tasks/UNRELATED_HARNESS_DRAFT.md";
+  fs.writeFileSync(path.join(dirtyLifecycleTarget, dirtyHarnessRelative), "# unrelated harness draft\n");
+  const dirtyHarnessResult = expectJson<LifecycleResponse>(["task-start", dirtyHarnessTask.task.shortId || "dirty-lifecycle-harness-dirty", "--message", "start with unrelated harness dirty", dirtyLifecycleTarget]);
+  assertLastCommitWithinAllowedPaths(dirtyLifecycleTarget, dirtyHarnessResult, "task-start with unrelated dirty harness path");
+  assertUnrelatedDirtyRemains(dirtyLifecycleTarget, dirtyHarnessRelative, "task-start with unrelated dirty harness path");
+  fs.rmSync(path.join(dirtyLifecycleTarget, dirtyHarnessRelative));
+
+const ownedPhaseTask = expectJson<NewTaskResponse>(["new-task", "dirty-phase-owned", "--title", "Dirty Phase Owned", "--locale", "en-US", dirtyLifecycleTarget]);
+expectJson(["task-start", ownedPhaseTask.task.shortId || "dirty-phase-owned", "--message", "clean start before owned dirty phase", dirtyLifecycleTarget]);
+const ownedVisualMapPath = path.join(dirtyLifecycleTarget, `coding-agent-harness/planning/tasks/${ownedPhaseTask.task.shortId}/visual_map.md`);
+fs.appendFileSync(ownedVisualMapPath, "\n<!-- user-owned visual map draft -->\n");
+const ownedDirtyPhase = run(["task-phase", ownedPhaseTask.task.shortId || "dirty-phase-owned", "EXEC-01", "--state", "done", dirtyLifecycleTarget]);
+assert(ownedDirtyPhase.status !== 0, "task-phase should reject dirty files inside its visual map write scope");
+assert(`${ownedDirtyPhase.stdout}\n${ownedDirtyPhase.stderr}`.includes("write scope"), "owned dirty task-phase refusal should explain the write-scope conflict");
+git(dirtyLifecycleTarget, ["checkout", "--", toRelative(ownedVisualMapPath, dirtyLifecycleTarget)]);
+
+const ownedModuleTask = expectJson<NewTaskResponse>(["new-task", "dirty-module-owned", "--title", "Dirty Module Owned", "--locale", "en-US", "--module", "dirtytxn", dirtyLifecycleTarget]);
+const ownedModuleStepId = moduleStepIdForTask(dirtyLifecycleTarget, "dirtytxn", ownedModuleTask.task.shortId || "dirty-module-owned");
+const ownedModulePlanPath = path.join(dirtyLifecycleTarget, "coding-agent-harness/planning/modules/dirtytxn/module_plan.md");
+fs.appendFileSync(ownedModulePlanPath, "\n<!-- user-owned module plan draft -->\n");
+const ownedDirtyModule = run(["module-step", "dirtytxn", ownedModuleStepId, "--state", "done", dirtyLifecycleTarget]);
+assert(ownedDirtyModule.status !== 0, "module-step should reject dirty files inside its module plan write scope");
+assert(`${ownedDirtyModule.stdout}\n${ownedDirtyModule.stderr}`.includes("write scope"), "owned dirty module-step refusal should explain the write-scope conflict");
+git(dirtyLifecycleTarget, ["checkout", "--", toRelative(ownedModulePlanPath, dirtyLifecycleTarget)]);
+
+const ownedDirtyTask = expectJson<NewTaskResponse>(["new-task", "dirty-lifecycle-owned", "--title", "Dirty Lifecycle Owned", "--locale", "en-US", dirtyLifecycleTarget]);
+const ownedProgressPath = path.join(dirtyLifecycleTarget, `coding-agent-harness/planning/tasks/${ownedDirtyTask.task.shortId}/progress.md`);
+fs.appendFileSync(ownedProgressPath, "\n<!-- user-owned progress draft -->\n");
+const ownedDirtyStart = run(["task-start", ownedDirtyTask.task.shortId || "dirty-lifecycle-owned", "--message", "owned dirty should fail", dirtyLifecycleTarget]);
+assert(ownedDirtyStart.status !== 0, "task-start should reject dirty files inside its lifecycle write scope");
+assert(`${ownedDirtyStart.stdout}\n${ownedDirtyStart.stderr}`.includes("write scope"), "owned dirty lifecycle refusal should explain the write-scope conflict");
+git(dirtyLifecycleTarget, ["checkout", "--", toRelative(ownedProgressPath, dirtyLifecycleTarget)]);
+
+  const stagedOutsideTask = expectJson<NewTaskResponse>(["new-task", "dirty-lifecycle-staged", "--title", "Dirty Lifecycle Staged", "--locale", "en-US", dirtyLifecycleTarget]);
+  fs.writeFileSync(path.join(dirtyLifecycleTarget, "coding-agent-harness/planning/tasks/STAGED_OUTSIDE.md"), "staged outside\n");
+  git(dirtyLifecycleTarget, ["add", "coding-agent-harness/planning/tasks/STAGED_OUTSIDE.md"]);
+  const stagedOutsideStart = run(["task-start", stagedOutsideTask.task.shortId || "dirty-lifecycle-staged", "--message", "staged outside should fail", dirtyLifecycleTarget]);
+  assert(stagedOutsideStart.status !== 0, "task-start should reject staged files outside its lifecycle write scope");
+  assert(`${stagedOutsideStart.stdout}\n${stagedOutsideStart.stderr}`.includes("staged"), "staged outside lifecycle refusal should explain staged-file ownership");
+  git(dirtyLifecycleTarget, ["reset", "--", "coding-agent-harness/planning/tasks/STAGED_OUTSIDE.md"]);
+  fs.rmSync(path.join(dirtyLifecycleTarget, "coding-agent-harness/planning/tasks/STAGED_OUTSIDE.md"));
+
+  const stagedOutsidePhaseTask = expectJson<NewTaskResponse>(["new-task", "dirty-phase-staged", "--title", "Dirty Phase Staged", "--locale", "en-US", dirtyLifecycleTarget]);
+  expectJson(["task-start", stagedOutsidePhaseTask.task.shortId || "dirty-phase-staged", "--message", "clean start before staged dirty phase", dirtyLifecycleTarget]);
+  fs.writeFileSync(path.join(dirtyLifecycleTarget, "STAGED_PHASE_OUTSIDE.txt"), "staged outside phase\n");
+  git(dirtyLifecycleTarget, ["add", "STAGED_PHASE_OUTSIDE.txt"]);
+  const stagedOutsidePhase = run(["task-phase", stagedOutsidePhaseTask.task.shortId || "dirty-phase-staged", "EXEC-01", "--state", "done", dirtyLifecycleTarget]);
+  assert(stagedOutsidePhase.status !== 0, "task-phase should reject staged files outside its visual map write scope");
+  assert(`${stagedOutsidePhase.stdout}\n${stagedOutsidePhase.stderr}`.includes("staged"), "staged outside task-phase refusal should explain staged-file ownership");
+  git(dirtyLifecycleTarget, ["reset", "--", "STAGED_PHASE_OUTSIDE.txt"]);
+  fs.rmSync(path.join(dirtyLifecycleTarget, "STAGED_PHASE_OUTSIDE.txt"));
+
+  const stagedOutsideModuleTask = expectJson<NewTaskResponse>(["new-task", "dirty-module-staged", "--title", "Dirty Module Staged", "--locale", "en-US", "--module", "dirtytxn", dirtyLifecycleTarget]);
+  const stagedOutsideModuleStepId = moduleStepIdForTask(dirtyLifecycleTarget, "dirtytxn", stagedOutsideModuleTask.task.shortId || "dirty-module-staged");
+  fs.writeFileSync(path.join(dirtyLifecycleTarget, "STAGED_MODULE_OUTSIDE.txt"), "staged outside module\n");
+  git(dirtyLifecycleTarget, ["add", "STAGED_MODULE_OUTSIDE.txt"]);
+  const stagedOutsideModule = run(["module-step", "dirtytxn", stagedOutsideModuleStepId, "--state", "done", dirtyLifecycleTarget]);
+  assert(stagedOutsideModule.status !== 0, "module-step should reject staged files outside its module write scope");
+  assert(`${stagedOutsideModule.stdout}\n${stagedOutsideModule.stderr}`.includes("staged"), "staged outside module-step refusal should explain staged-file ownership");
+  git(dirtyLifecycleTarget, ["reset", "--", "STAGED_MODULE_OUTSIDE.txt"]);
+  fs.rmSync(path.join(dirtyLifecycleTarget, "STAGED_MODULE_OUTSIDE.txt"));
+
+assert(git(dirtyLifecycleTarget, ["status", "--short"]).stdout.trim() === "", "dirty lifecycle transaction fixtures should leave git clean after cleanup");
+
 console.log("HarnessTransaction tests passed");
 
 function git(cwd: string, args: string[]): SpawnSyncReturns<string> {
@@ -336,6 +492,20 @@ function git(cwd: string, args: string[]): SpawnSyncReturns<string> {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function toRelative(filePath: string, root: string): string {
+  return path.relative(root, filePath).replaceAll(path.sep, "/");
+}
+
+function moduleStepIdForTask(root: string, moduleKey: string, taskShortId: string): string {
+  const modulePlan = fs.readFileSync(path.join(root, "coding-agent-harness/planning/modules", moduleKey, "module_plan.md"), "utf8");
+  for (const line of modulePlan.split(/\r?\n/)) {
+    if (!line.includes(taskShortId) || !line.startsWith("|")) continue;
+    const cells = line.split("|").map((cell) => cell.trim()).filter(Boolean);
+    if (cells[0] && cells[0] !== "---") return cells[0];
+  }
+  throw new Error(`Could not find module step for ${moduleKey}/${taskShortId}`);
 }
 
 function createDirectorySymlink(targetPath: string, linkPath: string): boolean {
