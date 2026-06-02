@@ -486,12 +486,21 @@ assert(supersededTask.taskQueues.includes("soft-deleted-superseded"), "supersede
 commitFixtureBaseline(target, "before queue delete fixture");
 
 const deleteFixture = expectJson(["new-task", "queue-delete", "--title", "Queue Delete", "--locale", "en-US", target]);
+const deleteFixtureDir = taskDirectory(deleteFixture);
 expectJson(["task-delete", "queue-delete", "--reason", "wrong duplicate", target]);
-let deleteStatus = expectJson(["status", "--json", target]);
-assert(deleteStatus.tasks.find((task) => task.id === deleteFixture.task.id).deletionState === "soft-deleted", "task-delete should default to soft-delete tombstone");
+let activeDeletedTasks = expectJson(["task-list", "--json", target]).tasks;
+assert(!activeDeletedTasks.some((task) => task.id === deleteFixture.task.id), "normal task-list should hide physically soft-deleted tasks");
+let deleteStatus = expectJson(["task-list", "--include-archived", "--json", target]);
+const softDeletedTask = deleteStatus.tasks.find((task) => task.id === deleteFixture.task.id);
+assert(softDeletedTask?.deletionState === "soft-deleted", "task-delete should default to soft-delete tombstone");
+assert(String(softDeletedTask.path).includes(`governance/archive/soft-deleted/tasks/TASKS/${todayLocal}-queue-delete`), "soft-deleted task material should move into dedicated archive storage");
+assert(!fs.existsSync(deleteFixtureDir), "soft delete should remove the task from the active planning tree");
+assert(fs.existsSync(path.join(target, "coding-agent-harness/governance/archive/soft-deleted/tasks/TASKS", `${todayLocal}-queue-delete`, "task_plan.md")), "soft delete should preserve task material in soft-deleted archive storage");
 expectJson(["task-reopen", "queue-delete", "--reason", "restore fixture", target]);
-deleteStatus = expectJson(["status", "--json", target]);
+deleteStatus = expectJson(["task-list", "--json", target]);
 assert(deleteStatus.tasks.find((task) => task.id === deleteFixture.task.id).deletionState === "active", "task-reopen should remove tombstone");
+assert(fs.existsSync(deleteFixtureDir), "task-reopen should restore a soft-deleted task to the active planning tree");
+assert(!fs.existsSync(path.join(target, "coding-agent-harness/governance/archive/soft-deleted/tasks/TASKS", `${todayLocal}-queue-delete`)), "task-reopen should remove the soft-deleted archive copy");
 
 const riskyDelete = expectJson(["new-task", "queue-risky-delete", "--title", "Queue Risky Delete", "--locale", "en-US", target]);
 expectJson(["task-start", "queue-risky-delete", "--message", "implementation started", target]);
@@ -499,7 +508,7 @@ const riskyDeleteWithoutAudit = run(["task-delete", "queue-risky-delete", "--rea
 assert(riskyDeleteWithoutAudit.status !== 0, "soft deleting an in-progress task should require accountable confirmation");
 assert(`${riskyDeleteWithoutAudit.stdout}\n${riskyDeleteWithoutAudit.stderr}`.includes("--confirm"), "risky soft delete failure should mention canonical confirmation");
 expectJson(["task-delete", "queue-risky-delete", "--reason", "duplicate", "--deleted-by", "Task Owner <owner@example.invalid>", "--confirm", riskyDelete.task.id, target]);
-deleteStatus = expectJson(["status", "--json", target]);
+deleteStatus = expectJson(["task-list", "--include-archived", "--json", target]);
 assert(deleteStatus.tasks.find((task) => task.id === riskyDelete.task.id).deletionState === "soft-deleted", "confirmed risky soft delete should write tombstone");
 
 const hardDraft = expectJson(["new-task", "queue-hard-draft", "--title", "Queue Hard Draft", "--locale", "en-US", target]);
