@@ -260,14 +260,13 @@ function writeClosedCloseout(taskDir: string): void {
   fs.writeFileSync(closeoutPath, `${fs.readFileSync(closeoutPath, "utf8").trimEnd()}\n\nCloseout Status: closed\n`);
 }
 
-function expectReviewConfirmJson(taskId: string, confirmText: string): HarnessTestLooseJson {
+function expectReviewConfirmJson(taskId: string, confirmText: string): void {
   try {
-    const payload = confirmTaskReview(target, taskId, {
+    confirmTaskReview(target, taskId, {
       reviewer: "Human Reviewer",
       message: "contract baseline confirmation",
       confirmText,
     });
-    return payload as HarnessTestLooseJson;
   } catch (error) {
     throw new Error(`review confirmation failed: ${error instanceof Error ? error.message : String(error || "unknown error")}`);
   }
