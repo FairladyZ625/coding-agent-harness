@@ -7,6 +7,8 @@ import {
   visualMapFile,
   legacyVisualRoadmapFile,
   allowedReviewDispositions,
+  allowedTaskStateValues,
+  allowedZhTaskStateValues,
   allowedPhaseStates,
   allowedEvidenceStatus,
   normalizeTarget,
@@ -382,7 +384,7 @@ export function buildStatus(targetInput: string | undefined, options: BuildStatu
       else warnings.push(`adoption-needed: ${message}`);
     }
     if (task.stateSource === "invalid") {
-      const message = `${task.path}/progress.md invalid task state: ${task.stateRaw}`;
+      const message = `${task.path}/progress.md invalid task state: ${task.stateRaw}. Allowed values: ${allowedTaskStateValues.join(", ")}; zh-CN allowed values: ${allowedZhTaskStateValues.join(", ")}. Suggested fix: replace the ## 状态 / ## Current Status machine field with one allowed value and move fine-grained coordination status to the progress log or coordinator handoff.`;
       if (contractStrict || options.strictLegacy) failures.push(message);
       else warnings.push(`adoption-needed: ${message}`);
     }

@@ -81,7 +81,9 @@ export const allowedReviewDispositions = new Set([
   "not-reproducible",
   "out-of-scope",
 ]);
-export const allowedTaskStates = new Set(["not_started", "planned", "in_progress", "review", "blocked", "done"]);
+export const allowedTaskStateValues = ["not_started", "planned", "in_progress", "review", "blocked", "done"];
+export const allowedZhTaskStateValues = ["未开始", "计划中", "进行中", "审查中", "已阻塞", "已完成"];
+export const allowedTaskStates = new Set(allowedTaskStateValues);
 export const allowedTaskBudgets = new Set(["simple", "standard", "complex"]);
 export const allowedPhaseStates = new Set(["planned", "in_progress", "review", "blocked", "done", "skipped"]);
 export const allowedEvidenceStatus = new Set(["missing", "partial", "present", "waived"]);

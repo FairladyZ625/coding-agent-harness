@@ -58,6 +58,7 @@ import {
   taskScannerVersion,
 } from "./task-review-model.mjs";
 import { attachTaskSemanticProjection } from "./task-semantic-projection.mjs";
+import { invalidTaskStateMaterialIssues } from "./task-state-materials.mjs";
 import {
   resolveHarnessPaths,
   safeAdoptionCapability,
@@ -97,11 +98,9 @@ function asLessonCandidateStatus(value: unknown): LessonCandidateStatus {
     issues,
   };
 }
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
-
 function nestedRecord(value: unknown, key: string): Record<string, unknown> {
   if (!isRecord(value)) return {};
   const nested = value[key];
@@ -387,6 +386,7 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       })
       : [];
     const materialIssues = [
+      ...invalidTaskStateMaterialIssues(target, taskDir, stateInfo),
       ...materialReadiness.issues,
       ...templateMaterialIssues,
       ...taskAuditMaterialIssues(target, taskDir, taskAudit),

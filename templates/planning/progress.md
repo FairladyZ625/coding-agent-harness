@@ -4,6 +4,19 @@
 
 planned
 
+Status is a controlled machine field. Use exactly one of:
+
+- `not_started`
+- `planned`
+- `in_progress`
+- `review`
+- `blocked`
+- `done`
+
+Do not put fine-grained coordination states such as `planning review`,
+`awaiting coordinator pass`, or `ready for local review` in this field. Record
+those details in the log, decisions, residual, or coordinator handoff sections.
+
 ## Log
 
 | Time | Actor | Action | Evidence | Next |
