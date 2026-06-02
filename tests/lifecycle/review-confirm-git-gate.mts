@@ -230,6 +230,17 @@ function readIndex(fixture: ReviewFixture): string {
 }
 
 {
+  const fixture = prepareReviewTarget("git-gate-staged-outside-refusal");
+  fs.writeFileSync(path.join(fixture.target, "STAGED_OUTSIDE.md"), "staged outside review confirm\n");
+  expectGit(fixture.target, ["add", "STAGED_OUTSIDE.md"]);
+  const result = reviewConfirm(fixture);
+  assert(result.status !== 0, "review-confirm should reject staged files outside its write allowlist");
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert(output.includes("staged") || output.includes("Git index"), "staged outside refusal should explain staged-file ownership");
+  assert(git(fixture.target, ["status", "--short"]).stdout.includes("A  STAGED_OUTSIDE.md"), "review-confirm should leave staged outside files untouched after refusal");
+}
+
+{
   const fixture = prepareReviewTarget("git-gate-missing-identity");
   expectGit(fixture.target, ["config", "--unset", "user.name"]);
   expectGit(fixture.target, ["config", "--unset", "user.email"]);

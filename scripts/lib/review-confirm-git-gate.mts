@@ -59,6 +59,7 @@ export function prepareReviewConfirmGitGate(projectRoot: string, allowedFilesAbs
   assertAllowedPaths(allowedPaths);
   const baselineEntries = statusEntries(gitRoot);
   assertOwnedPathsClean(allowedPaths, baselineEntries);
+  assertOnlyAllowedStaged(gitRoot, allowedPaths);
   assertCommitIdentity(gitRoot);
   return {
     gitRoot,
@@ -271,7 +272,7 @@ function assertOnlyAllowedChanged(gitRoot: string, allowedPaths: string[]): void
 
 function assertOnlyAllowedStaged(gitRoot: string, allowedPaths: string[]): void {
   const entries = statusEntries(gitRoot);
-  const stagedOutside = entries.filter((entry) => entry.index !== " " && !allowedPaths.includes(entry.path));
+  const stagedOutside = entries.filter((entry) => entry.index !== " " && entry.index !== "?" && !allowedPaths.includes(entry.path));
   if (stagedOutside.length > 0) {
     throw new ReviewConfirmGitGateError("Git index contains staged files outside the review confirmation allowlist.", {
       code: "git-index-allowlist-violation",

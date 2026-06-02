@@ -387,7 +387,7 @@ export function moduleGeneratedIndexSurfaces(target: HarnessTarget, tasks: Gover
       absolute: modulePlanPath,
       relative: toPosix(path.relative(target.projectRoot, modulePlanPath)),
       rows: stepRows,
-      content: replaceTableRows(existingOrTemplate(modulePlanPath, "templates/planning/module_plan.md"), /^Step ID$/i, stepRows),
+      content: replaceTableRows(existingOrTemplate(modulePlanPath, "templates/planning/module_plan.md"), /^(?:Step ID|步骤 ID)$/i, stepRows),
     });
   }
   return surfaces;
