@@ -14,12 +14,13 @@ import { createTask, resolveTaskDirectory } from "./task-lifecycle.mjs";
 import { readPresetPackage, buildPresetAudit, renderPresetTemplate } from "./preset-registry.mjs";
 import { firstColumn, updateMarkdownTableRow } from "./markdown-utils.mjs";
 import { listTaskPlanPaths, taskIdForDirectory } from "./task-scanner.mjs";
+import { governanceRelativePaths } from "./governance-sync.mjs";
 import {
-  beginGovernanceSync,
-  commitGovernanceSync,
-  governanceRelativePaths,
-  releaseGovernanceSync,
-} from "./governance-sync.mjs";
+  assertTransactionSucceeded,
+  createGovernanceHarnessTransaction,
+  type GeneratedSurface,
+  type TransactionResult,
+} from "./harness-transaction.mjs";
 import type { LifecycleChange, LifecycleTarget } from "./types/task-lifecycle.js";
 import type { PresetPackage } from "./types/preset.js";
 
@@ -61,6 +62,15 @@ type PresetAudit = ReturnType<typeof buildPresetAudit>;
 type DetailArtifact = {
   path: string;
   prefixedPath: string;
+};
+type LessonRollbackSnapshot = {
+  directoriesToRemove: string[];
+  files: Array<{
+    absolutePath: string;
+    content?: Buffer;
+    existed: boolean;
+    mode?: number;
+  }>;
 };
 type LessonPromptValues = {
   target: LessonTarget;
@@ -144,15 +154,29 @@ export function createLessonSedimentationTask(
   const slug = normalizeTaskId(`lesson-${sourceShortId.replace(/^\d{4}-\d{2}-\d{2}-/, "")}-${candidate.id}`);
   const taskTitle = title || `Lesson sedimentation for ${candidate.id}`;
   const locale = readCapabilityRegistry(target).locale;
+  assertSourceFollowUpTaskUpdateable(candidatePath, candidate.id);
   let taskResult: CreatedTaskResult;
+  let rollbackSnapshot: LessonRollbackSnapshot | null = null;
   try {
+    if (!dryRun) {
+      const plannedTaskResult: CreatedTaskResult = createTask(target.projectRoot, slug, {
+        title: taskTitle,
+        locale,
+        budget: "standard",
+        longRunning: true,
+        dryRun: true,
+        deferCommit: true,
+        allowDirtyRelativePaths,
+      });
+      rollbackSnapshot = captureLessonRollbackSnapshot(target, plannedTaskResult, [candidatePath]);
+    }
     taskResult = createTask(target.projectRoot, slug, {
       title: taskTitle,
       locale,
       budget: "standard",
       longRunning: true,
       dryRun,
-      deferCommit,
+      deferCommit: dryRun ? deferCommit : true,
       allowDirtyRelativePaths,
     });
   } catch (error: unknown) {
@@ -197,61 +221,42 @@ export function createLessonSedimentationTask(
   const changes: Array<LifecycleChange | GovernanceRelativeChange> = [...taskResult.changes];
 
   if (!dryRun) {
-    const deferredDirtyPaths = deferCommit
-      ? [
-        ...governanceRelativePaths(asGovernanceChanges(taskResult.changes)),
-        toPosix(path.relative(target.projectRoot, candidatePath)),
-        ...(allowDirtyRelativePaths || []),
-      ]
-      : [];
-    const governanceContext = beginGovernanceSync(target, {
+    const lessonChanges = singleLessonSedimentationChanges(target, followUpDir, candidatePath);
+    changes.push(...lessonChanges);
+    const allowedPaths = [
+      ...governanceRelativePaths(asGovernanceChanges(changes)),
+      ...(allowDirtyRelativePaths || []),
+    ];
+    const transaction = createGovernanceHarnessTransaction(target);
+    const plan = transaction.plan({
       operation: `lesson-sediment ${sourceTaskId} ${candidate.id}`,
-      allowDirtyWorktree: deferCommit,
-      allowedRelativePaths: deferredDirtyPaths,
-      allowDirtyWriteScope: deferCommit,
+      allowedPaths,
+      generatedSurfaces: lessonGeneratedSurfaces(changes),
+      commit: {
+        message: `chore(harness): record lesson sedimentation ${candidate.id}`,
+        allowDirtyWorktree: true,
+        allowDirtyWriteScope: true,
+        defer: deferCommit,
+      },
+      apply() {
+        appendToFollowUpTask({ followUpDir, sourceTaskId, candidate, prompt, contextPacket, audit });
+        maybeInjectLessonSedimentationFailure("after-append", [candidate.id]);
+        updateSourceFollowUpTask(candidatePath, candidate.id, followUpTaskId);
+        return {
+          allowedPaths,
+          generatedSurfaces: lessonGeneratedSurfaces(changes),
+        };
+      },
     });
-    try {
-      appendToFollowUpTask({ followUpDir, sourceTaskId, candidate, prompt, contextPacket, audit });
-      updateSourceFollowUpTask(candidatePath, candidate.id, followUpTaskId);
-      changes.push(
-        {
-          destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "task_plan.md"))),
-          source: "lesson-sedimentation",
-          action: "append-preset-context",
-        },
-        {
-          destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "progress.md"))),
-          source: "lesson-sedimentation",
-          action: "append-preset-progress",
-        },
-        {
-          destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "artifacts/lesson-sedimentation-prompt.md"))),
-          source: "lesson-sedimentation",
-          action: "create-prompt-artifact",
-        },
-        {
-          destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "artifacts/preset-audit.json"))),
-          source: "lesson-sedimentation",
-          action: "create-preset-audit",
-        },
-        {
-          destination: toPosix(path.relative(target.projectRoot, candidatePath)),
-          source: lessonCandidatesFile,
-          action: "update-follow-up-task",
-        },
-      );
-      const commit = deferCommit
-        ? { committed: false, reason: "deferred", allowedPaths: governanceRelativePaths(asGovernanceChanges(changes)) }
-        : commitGovernanceSync(governanceContext, governanceRelativePaths(asGovernanceChanges(changes)), {
-          message: `chore(harness): record lesson sedimentation ${candidate.id}`,
-        });
-      taskResult.governance = {
-        ...(taskResult.governance || {}),
-        lessonSedimentationCommit: commit,
-      };
-    } finally {
-      releaseGovernanceSync(governanceContext);
-    }
+    const transactionResult = transaction.apply(plan);
+    if (!transactionResult.success && rollbackSnapshot) rollbackFailedLessonSedimentation(rollbackSnapshot, transactionResult);
+    assertTransactionSucceeded(transactionResult);
+    taskResult.governance = {
+      ...(taskResult.governance || {}),
+      commit: transactionResult.commit,
+      lessonSedimentationCommit: transactionResult.commit,
+      lessonSedimentationTransaction: lessonTransactionSummary(transactionResult),
+    };
   }
 
   return {
@@ -283,6 +288,7 @@ export function createAggregateLessonSedimentationTask(targetInput: string, sele
   }
   const taskDirectoryIndex = buildLessonTaskDirectoryIndex(target);
   const entries = normalizedSelections.map((selection) => resolveLessonCandidate(target, selection.taskId, selection.candidateId, taskDirectoryIndex));
+  for (const entry of entries) assertSourceFollowUpTaskUpdateable(entry.candidatePath, entry.candidate.id);
   const sourceShort = entries.length === 1
     ? entries[0].sourceShortId.replace(/^\d{4}-\d{2}-\d{2}-/, "")
     : commonSourceShort(entries) || "selected-lessons";
@@ -290,7 +296,19 @@ export function createAggregateLessonSedimentationTask(targetInput: string, sele
   const taskTitle = title || `Aggregate lesson sedimentation for ${entries.length} candidates`;
   const locale = readCapabilityRegistry(target).locale;
   const preset = readPresetPackage(presetId);
-  const taskResult = createTask(target.projectRoot, slug, {
+  let rollbackSnapshot: LessonRollbackSnapshot | null = null;
+  if (!dryRun) {
+    const plannedTaskResult: CreatedTaskResult = createTask(target.projectRoot, slug, {
+      title: taskTitle,
+      locale,
+      budget: "standard",
+      longRunning: true,
+      dryRun: true,
+      deferCommit: true,
+    });
+    rollbackSnapshot = captureLessonRollbackSnapshot(target, plannedTaskResult, entries.map((entry) => entry.candidatePath));
+  }
+  const taskResult: CreatedTaskResult = createTask(target.projectRoot, slug, {
     title: taskTitle,
     locale,
     budget: "standard",
@@ -311,51 +329,37 @@ export function createAggregateLessonSedimentationTask(targetInput: string, sele
   const changes: Array<LifecycleChange | GovernanceRelativeChange> = [...taskResult.changes];
   if (!dryRun) {
     const candidatePaths = [...new Set(entries.map((entry) => toPosix(path.relative(target.projectRoot, entry.candidatePath))))];
-    const governanceContext = beginGovernanceSync(target, {
+    const lessonChanges = aggregateLessonSedimentationChanges(target, followUpDir, candidatePaths);
+    changes.push(...lessonChanges);
+    const allowedPaths = governanceRelativePaths(asGovernanceChanges(changes));
+    const transaction = createGovernanceHarnessTransaction(target);
+    const plan = transaction.plan({
       operation: `lesson-sediment-aggregate ${followUpTaskId}`,
-      allowDirtyWorktree: true,
-      allowedRelativePaths: [...governanceRelativePaths(asGovernanceChanges(taskResult.changes)), ...candidatePaths],
-      allowDirtyWriteScope: true,
+      allowedPaths,
+      generatedSurfaces: lessonGeneratedSurfaces(changes),
+      commit: {
+        message: `chore(harness): record aggregate lesson sedimentation ${followUpTaskId}`,
+        allowDirtyWorktree: true,
+        allowDirtyWriteScope: true,
+      },
+      apply() {
+        appendToAggregateFollowUpTask({ followUpDir, entries, prompt, contextPacket, audit });
+        maybeInjectLessonSedimentationFailure("after-append", entries.map((entry) => entry.candidate.id));
+        for (const entry of entries) updateSourceFollowUpTask(entry.candidatePath, entry.candidate.id, followUpTaskId);
+        return {
+          allowedPaths,
+          generatedSurfaces: lessonGeneratedSurfaces(changes),
+        };
+      },
     });
-    try {
-      appendToAggregateFollowUpTask({ followUpDir, entries, prompt, contextPacket, audit });
-      for (const entry of entries) updateSourceFollowUpTask(entry.candidatePath, entry.candidate.id, followUpTaskId);
-      changes.push(
-        {
-          destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "task_plan.md"))),
-          source: "lesson-sedimentation-aggregate",
-          action: "append-aggregate-context",
-        },
-        {
-          destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "progress.md"))),
-          source: "lesson-sedimentation-aggregate",
-          action: "append-aggregate-progress",
-        },
-        {
-          destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "artifacts/lesson-sedimentation-prompt.md"))),
-          source: "lesson-sedimentation-aggregate",
-          action: "create-aggregate-prompt-artifact",
-        },
-        {
-          destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "artifacts/preset-audit.json"))),
-          source: "lesson-sedimentation-aggregate",
-          action: "create-aggregate-preset-audit",
-        },
-        ...candidatePaths.map((destination) => ({
-          destination,
-          source: lessonCandidatesFile,
-          action: "update-follow-up-task",
-        })),
-      );
-      taskResult.governance = {
-        ...(taskResult.governance || {}),
-        commit: commitGovernanceSync(governanceContext, governanceRelativePaths(asGovernanceChanges(changes)), {
-          message: `chore(harness): record aggregate lesson sedimentation ${followUpTaskId}`,
-        }),
-      };
-    } finally {
-      releaseGovernanceSync(governanceContext);
-    }
+    const transactionResult = transaction.apply(plan);
+    if (!transactionResult.success && rollbackSnapshot) rollbackFailedLessonSedimentation(rollbackSnapshot, transactionResult);
+    assertTransactionSucceeded(transactionResult);
+    taskResult.governance = {
+      ...(taskResult.governance || {}),
+      commit: transactionResult.commit,
+      lessonSedimentationTransaction: lessonTransactionSummary(transactionResult),
+    };
   }
   return {
     dryRun,
@@ -658,6 +662,207 @@ function resolveDetailArtifact(target: LessonTarget, sourceTaskDir: string, cand
     path: absolute,
     prefixedPath: `TARGET:${toPosix(path.relative(target.projectRoot, absolute))}`,
   };
+}
+
+function singleLessonSedimentationChanges(target: LessonTarget, followUpDir: string, candidatePath: string): LifecycleChange[] {
+  return [
+    {
+      destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "task_plan.md"))),
+      source: "lesson-sedimentation",
+      action: "append-preset-context",
+    },
+    {
+      destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "progress.md"))),
+      source: "lesson-sedimentation",
+      action: "append-preset-progress",
+    },
+    {
+      destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "artifacts/lesson-sedimentation-prompt.md"))),
+      source: "lesson-sedimentation",
+      action: "create-prompt-artifact",
+    },
+    {
+      destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "artifacts/preset-audit.json"))),
+      source: "lesson-sedimentation",
+      action: "create-preset-audit",
+    },
+    {
+      destination: toPosix(path.relative(target.projectRoot, candidatePath)),
+      source: lessonCandidatesFile,
+      action: "update-follow-up-task",
+    },
+  ];
+}
+
+function aggregateLessonSedimentationChanges(target: LessonTarget, followUpDir: string, candidatePaths: string[]): LifecycleChange[] {
+  return [
+    {
+      destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "task_plan.md"))),
+      source: "lesson-sedimentation-aggregate",
+      action: "append-aggregate-context",
+    },
+    {
+      destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "progress.md"))),
+      source: "lesson-sedimentation-aggregate",
+      action: "append-aggregate-progress",
+    },
+    {
+      destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "artifacts/lesson-sedimentation-prompt.md"))),
+      source: "lesson-sedimentation-aggregate",
+      action: "create-aggregate-prompt-artifact",
+    },
+    {
+      destination: toPosix(path.relative(target.projectRoot, path.join(followUpDir, "artifacts/preset-audit.json"))),
+      source: "lesson-sedimentation-aggregate",
+      action: "create-aggregate-preset-audit",
+    },
+    ...candidatePaths.map((destination) => ({
+      destination,
+      source: lessonCandidatesFile,
+      action: "update-follow-up-task",
+    })),
+  ];
+}
+
+function lessonGeneratedSurfaces(changes: Array<LifecycleChange | GovernanceRelativeChange>): GeneratedSurface[] {
+  const bySurface = new Map<string, Set<string>>();
+  for (const change of changes) {
+    if (!change.destination) continue;
+    const surface = lessonSurfaceName(change);
+    if (!bySurface.has(surface)) bySurface.set(surface, new Set());
+    bySurface.get(surface)?.add(change.destination);
+  }
+  return [...bySurface.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([surface, paths]) => ({ surface, paths: [...paths].sort() }));
+}
+
+function lessonSurfaceName(change: LifecycleChange | GovernanceRelativeChange): string {
+  const record = change as { source?: unknown; surface?: unknown };
+  const source = String(record.source || record.surface || "");
+  if (source === "lesson-sedimentation" || source === "lesson-sedimentation-aggregate" || source === lessonCandidatesFile) return "lesson-sedimentation";
+  if (/(^|\/)templates(?:-[A-Za-z-]+)?\/planning\//.test(source)) return "task-package";
+  if (source.includes("preset")) return "preset-evidence";
+  return "task-materialization";
+}
+
+function lessonTransactionSummary(result: TransactionResult) {
+  return {
+    success: result.success,
+    operation: result.operation,
+    dryRun: result.dryRun,
+    allowedPaths: result.allowedPaths,
+    generatedSurfaces: result.generatedSurfaces,
+    writes: result.writes,
+    deletes: result.deletes,
+  };
+}
+
+function assertSourceFollowUpTaskUpdateable(candidatePath: string, candidateId: string): void {
+  const content = readFileSafe(candidatePath);
+  let hasFollowUpColumn = false;
+  const update = updateMarkdownTableRow(content, /^ID$/i, (header, row) => {
+    const idIndex = firstColumn(header, ["ID", "候选 ID"]);
+    const followUpIndex = firstColumn(header, ["Follow-up Task", "Followup Task", "后续任务"]);
+    hasFollowUpColumn = followUpIndex >= 0;
+    if (idIndex < 0 || followUpIndex < 0 || row[idIndex] !== candidateId) return null;
+    return row;
+  });
+  if (!hasFollowUpColumn) {
+    throw new LessonSedimentationError("Lesson candidate table must include a Follow-up Task column before creating a follow-up task.", {
+      code: "lesson-follow-up-column-missing",
+      status: 409,
+      details: { candidateId, candidatePath },
+      recovery: [
+        "Add a Follow-up Task column to lesson_candidates.md.",
+        "Set the candidate Follow-up Task value to pending, then run lesson sedimentation again.",
+      ],
+    });
+  }
+  if (!update.matched) {
+    throw new LessonSedimentationError(`Lesson candidate row cannot be updated: ${candidateId}`, {
+      code: "lesson-follow-up-row-not-updateable",
+      status: 409,
+      details: { candidateId, candidatePath },
+      recovery: [
+        "Confirm the candidate row still exists in lesson_candidates.md.",
+        "Refresh the Dashboard snapshot if the candidate table changed.",
+      ],
+    });
+  }
+}
+
+function captureLessonRollbackSnapshot(target: LessonTarget, plannedTaskResult: CreatedTaskResult, extraPaths: string[]): LessonRollbackSnapshot {
+  const followUpDir = path.join(target.projectRoot, plannedTaskResult.task.path.replace(/^TARGET:/, ""));
+  const relativePaths = [
+    ...governanceRelativePaths(asGovernanceChanges(plannedTaskResult.changes)),
+    ...extraPaths.map((candidatePath) => toPosix(path.relative(target.projectRoot, candidatePath))),
+  ];
+  const files = [...new Set(relativePaths)].map((relativePath) => {
+    const absolutePath = path.join(target.projectRoot, relativePath);
+    if (!fs.existsSync(absolutePath)) return { absolutePath, existed: false };
+    const stat = fs.statSync(absolutePath);
+    if (!stat.isFile()) return { absolutePath, existed: false };
+    return {
+      absolutePath,
+      content: fs.readFileSync(absolutePath),
+      existed: true,
+      mode: stat.mode,
+    };
+  });
+  return {
+    directoriesToRemove: [followUpDir],
+    files,
+  };
+}
+
+function rollbackFailedLessonSedimentation(snapshot: LessonRollbackSnapshot, transactionResult: TransactionResult): void {
+  const failures: string[] = [];
+  for (const file of snapshot.files) {
+    try {
+      if (file.existed && file.content) {
+        fs.mkdirSync(path.dirname(file.absolutePath), { recursive: true });
+        fs.writeFileSync(file.absolutePath, file.content);
+        if (file.mode !== undefined) fs.chmodSync(file.absolutePath, file.mode);
+      } else {
+        fs.rmSync(file.absolutePath, { force: true, recursive: true });
+      }
+    } catch (error) {
+      failures.push(`restore-file:${file.absolutePath}:${errorMessage(error)}`);
+    }
+  }
+  for (const directory of snapshot.directoriesToRemove) {
+    try {
+      fs.rmSync(directory, { recursive: true, force: true });
+    } catch (error) {
+      failures.push(`remove-directory:${directory}:${errorMessage(error)}`);
+    }
+  }
+  if (failures.length === 0) return;
+  throw new LessonSedimentationError("Lesson sedimentation failed and rollback could not restore all files.", {
+    code: "lesson-sedimentation-rollback-failed",
+    status: 500,
+    details: { failures, transactionError: transactionResult.success ? null : transactionResult.error },
+    recovery: [
+      "Inspect the source lesson_candidates.md and follow-up task directory.",
+      "Remove any half-created follow-up task files before retrying lesson sedimentation.",
+    ],
+  });
+}
+
+function maybeInjectLessonSedimentationFailure(point: string, candidateIds: string[]): void {
+  const raw = String(process.env.HARNESS_TEST_LESSON_SEDIMENTATION_FAIL || "").trim();
+  if (!raw) return;
+  const [expectedPoint, expectedCandidates = ""] = raw.split(":");
+  if (expectedPoint !== point) return;
+  const candidateFilter = expectedCandidates.split(",").map((candidateId) => candidateId.trim()).filter(Boolean);
+  if (candidateFilter.length > 0 && !candidateIds.some((candidateId) => candidateFilter.includes(candidateId))) return;
+  throw new LessonSedimentationError(`Injected lesson sedimentation failure at ${point}.`, {
+    code: "lesson-sedimentation-test-failure",
+    status: 500,
+    details: { point, candidateIds },
+    recovery: ["This failure is injected by HARNESS_TEST_LESSON_SEDIMENTATION_FAIL for transaction rollback coverage."],
+  });
 }
 
 function appendToFollowUpTask({ followUpDir, sourceTaskId, candidate, prompt, contextPacket, audit }: {

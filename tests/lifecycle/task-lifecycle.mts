@@ -802,6 +802,7 @@ try {
   const dashboardData = fs.readFileSync(path.join(workbenchDir, "assets/dashboard-data.js"), "utf8");
   assert(dashboardData.includes("Walkthrough: Closed review debt"), "dashboard data should include closeout walkthrough documents");
   assert(dashboardData.includes("LC-WORKBENCH-001"), "dashboard data should include actionable lesson candidates for workbench actions");
+  const lessonCreateHeadBefore = expectFixtureGit(lifecycleTarget, ["rev-parse", "HEAD"]).stdout.trim();
   const lessonCreateResponse = await fetch(new URL("api/tasks/lesson-sedimentation", runtime.url), {
     method: "POST",
     headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
@@ -812,6 +813,15 @@ try {
   const lessonCreatePayload = JSON.parse(lessonCreateText);
   assert(lessonCreatePayload.followUpTask?.id?.includes("LC-WORKBENCH-001".toLowerCase()), "lesson create response should include follow-up task id");
   assert(lessonCreatePayload.prompt?.includes("LC-WORKBENCH-001"), "lesson create response should include copyable prompt");
+  assert(lessonCreatePayload.governance?.commit?.commitSha, "workbench lesson sedimentation should commit the follow-up task and source candidate update once");
+  assert(lessonCreatePayload.governance?.lessonSedimentationTransaction?.success === true, "workbench lesson sedimentation should report the HarnessTransaction result");
+  assert(lessonCreatePayload.governance?.lessonSedimentationTransaction?.generatedSurfaces?.includes("lesson-sedimentation"), "workbench lesson transaction should identify the lesson-sedimentation generated surface");
+  assertSingleCommitDelta(lifecycleTarget, lessonCreateHeadBefore, lessonCreatePayload.governance.commit.commitSha, "workbench lesson sedimentation should use one final commit");
+  assertCommitIncludes(lifecycleTarget, lessonCreatePayload.governance.commit.commitSha, [
+    relativeTargetPath(lifecycleTarget, workbenchLessonCandidatePath),
+    `${lessonCreatePayload.followUpTask.path.replace(/^TARGET:/, "").replace(/^\/+/, "")}/task_plan.md`,
+    `${lessonCreatePayload.followUpTask.path.replace(/^TARGET:/, "").replace(/^\/+/, "")}/artifacts/lesson-sedimentation-prompt.md`,
+  ]);
   assert(fs.existsSync(path.join(lifecycleTarget, lessonCreatePayload.followUpTask.path.replace(/^TARGET:/, ""), "artifacts/lesson-sedimentation-prompt.md")), "lesson create should write the copyable prompt artifact");
   const duplicateLessonResponse = await fetch(new URL("api/tasks/lesson-sedimentation", runtime.url), {
     method: "POST",
@@ -823,6 +833,7 @@ try {
   assert(duplicateLessonPayload.code === "lesson-follow-up-exists", "duplicate lesson creation should expose a stable error code");
   assert(Array.isArray(duplicateLessonPayload.recovery) && duplicateLessonPayload.recovery.length > 0, "duplicate lesson creation should include recovery actions");
   assert(duplicateLessonPayload.details?.followUpTask === lessonCreatePayload.followUpTask.id, "duplicate lesson creation should identify the existing follow-up task");
+  const bulkLessonHeadBefore = expectFixtureGit(lifecycleTarget, ["rev-parse", "HEAD"]).stdout.trim();
   const bulkLessonResponse = await fetch(new URL("api/tasks/lesson-sedimentation-bulk", runtime.url), {
     method: "POST",
     headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: runtime.url.replace(/\/$/, "") },
@@ -840,7 +851,7 @@ try {
     created: number;
     failed: number;
     followUpTask: { id: string; path: string };
-    governance?: { commit?: { commitSha?: string } };
+    governance?: { commit?: { commitSha?: string }; lessonSedimentationTransaction?: { generatedSurfaces?: string[]; success?: boolean } };
     prompt: string;
     results: Array<{ followUpTask?: { id?: string }; ok: boolean }>;
   };
@@ -857,6 +868,14 @@ try {
   assert(updatedLessonRows.some((line) => line.includes("| LC-WORKBENCH-002 |") && line.includes(`| ${bulkLessonPayload.followUpTask.id} |`)), "bulk lesson sedimentation should point the first candidate at the aggregate task");
   assert(updatedLessonRows.some((line) => line.includes("| LC-WORKBENCH-003 |") && line.includes(`| ${bulkLessonPayload.followUpTask.id} |`)), "bulk lesson sedimentation should point the second candidate at the aggregate task");
   assert(bulkLessonPayload.governance?.commit?.commitSha, "bulk lesson sedimentation should commit the aggregate task once");
+  assert(bulkLessonPayload.governance?.lessonSedimentationTransaction?.success === true, "bulk lesson sedimentation should report the HarnessTransaction result");
+  assert(bulkLessonPayload.governance?.lessonSedimentationTransaction?.generatedSurfaces?.includes("lesson-sedimentation"), "bulk lesson transaction should identify the lesson-sedimentation generated surface");
+  assertSingleCommitDelta(lifecycleTarget, bulkLessonHeadBefore, bulkLessonPayload.governance.commit.commitSha, "bulk lesson sedimentation should use one final commit");
+  assertCommitIncludes(lifecycleTarget, bulkLessonPayload.governance.commit.commitSha, [
+    relativeTargetPath(lifecycleTarget, workbenchLessonCandidatePath),
+    relativeTargetPath(lifecycleTarget, path.join(aggregateTaskDir, "task_plan.md")),
+    relativeTargetPath(lifecycleTarget, path.join(aggregateTaskDir, "artifacts/lesson-sedimentation-prompt.md")),
+  ]);
   const badOrigin = await fetch(new URL("api/tasks/review-complete", runtime.url), {
     method: "POST",
     headers: { "content-type": "application/json", "x-harness-csrf": runtime.csrf, origin: "http://127.0.0.1:9" },
@@ -988,6 +1007,24 @@ function expectFixtureGit(target: string, args: string[]): SpawnSyncReturns<stri
   const result = spawnSync("git", args, { cwd: target, encoding: "utf8" });
   assert(result.status === 0, `git ${args.join(" ")} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
   return result;
+}
+
+function assertSingleCommitDelta(target: string, before: string, after: string, message: string): void {
+  const count = expectFixtureGit(target, ["rev-list", "--count", `${before}..${after}`]).stdout.trim();
+  assert(count === "1", `${message}: expected one commit from ${before} to ${after}, got ${count}`);
+  const head = expectFixtureGit(target, ["rev-parse", "HEAD"]).stdout.trim();
+  assert(head === after, `${message}: expected HEAD to be ${after}, got ${head}`);
+}
+
+function assertCommitIncludes(target: string, commitSha: string, expectedFiles: string[]): void {
+  const committedFiles = expectFixtureGit(target, ["show", "--name-only", "--format=", commitSha]).stdout.trim().split(/\r?\n/).filter(Boolean);
+  for (const expectedFile of expectedFiles) {
+    assert(committedFiles.includes(expectedFile), `commit ${commitSha} should include ${expectedFile}; got ${committedFiles.join(", ")}`);
+  }
+}
+
+function relativeTargetPath(target: string, absolutePath: string): string {
+  return path.relative(target, absolutePath).replace(/\\/g, "/");
 }
 
 function prepareWorkbenchReviewConfirmationFixture(slug: string): { id: string; shortId: string } {

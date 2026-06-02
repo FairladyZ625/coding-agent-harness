@@ -385,10 +385,129 @@ assert(lessonSedimentDryRun.prompt.includes("Detail artifact: TARGET:coding-agen
 const lessonSedimentationPreset = expectJson(["preset", "inspect", "lesson-sedimentation", "--json"]);
 assert(lessonSedimentationPreset.id === "lesson-sedimentation", "lesson-sedimentation preset should be inspectable");
 assert(expectJson(["preset", "check", "lesson-sedimentation", "--json"]).status === "pass", "lesson-sedimentation preset check should pass");
+
+const missingFollowUpLessonTask = expectJson(["new-task", "queue-lesson-missing-followup", "--title", "Queue Lesson Missing Follow Up", "--locale", "en-US", "--long-running", target]);
+const missingFollowUpLessonDir = taskDirectory(missingFollowUpLessonTask);
+fs.mkdirSync(path.join(missingFollowUpLessonDir, "lessons"), { recursive: true });
+fs.writeFileSync(
+  path.join(missingFollowUpLessonDir, "lessons/LC-MISSING-FOLLOWUP.md"),
+  [
+    "# LC-MISSING-FOLLOWUP - Missing follow-up column",
+    "",
+    "## Problem / Trigger",
+    "",
+    "Lesson sedimentation must fail before creating a follow-up task when the source table cannot record that task id.",
+    "",
+    "## Correct Rule",
+    "",
+    "The source candidate table is part of the lesson writer transaction contract.",
+    "",
+  ].join("\n"),
+);
+fs.writeFileSync(
+  path.join(missingFollowUpLessonDir, "lesson_candidates.md"),
+  [
+    "# Queue Lesson Missing Follow Up - Lesson Candidates",
+    "",
+    "## Candidate Status",
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    "| Schema version | lesson-candidate-v1 |",
+    "| Task-level status | needs-promotion |",
+    "| Review decision | approved-for-sedimentation |",
+    "| Promotion state | queued |",
+    "| Closeout token | pending |",
+    "",
+    "## Candidates",
+    "",
+    "| ID | Row Status | Title | Scope | Module Key | Detail Artifact | Boundary Reason | Why It Might Matter | Review Decision | Promotion Target | Conflict Check | Required Standard Update |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| LC-MISSING-FOLLOWUP | needs-promotion | Missing follow-up writeback column | global | n/a | lessons/LC-MISSING-FOLLOWUP.md | Follow-up task creation must not outrun source writeback | Prevents source candidates and follow-up tasks from diverging | approved | lesson sedimentation transaction | no matching lesson found | lesson writer transaction |",
+    "",
+  ].join("\n"),
+);
+commitFixtureBaseline(target, "before missing follow-up lesson sedimentation fixture");
+const taskDirsBeforeMissingFollowUp = fs.readdirSync(path.join(target, "coding-agent-harness/planning/tasks")).sort();
+const missingFollowUpResult = run(["lesson-sediment", missingFollowUpLessonTask.task.id, "LC-MISSING-FOLLOWUP", target]);
+assert(missingFollowUpResult.status !== 0, "lesson-sediment should reject candidates whose source table cannot record the follow-up task id");
+const missingFollowUpError = `${missingFollowUpResult.stdout}\n${missingFollowUpResult.stderr}`;
+assert(missingFollowUpError.includes("lesson-follow-up-column-missing") || missingFollowUpError.includes("Follow-up Task column"), "lesson-sediment missing-column failure should expose a stable recovery signal");
+const taskDirsAfterMissingFollowUp = fs.readdirSync(path.join(target, "coding-agent-harness/planning/tasks")).sort();
+assert(JSON.stringify(taskDirsAfterMissingFollowUp) === JSON.stringify(taskDirsBeforeMissingFollowUp), "lesson-sediment missing-column failure should not create a half materialized follow-up task");
+assert(expectFixtureGit(target, ["status", "--porcelain"]).stdout.trim() === "", "lesson-sediment missing-column failure should not leave dirty source or follow-up files");
+
+const rollbackLessonTask = expectJson(["new-task", "queue-lesson-rollback", "--title", "Queue Lesson Rollback", "--locale", "en-US", "--long-running", target]);
+const rollbackLessonDir = taskDirectory(rollbackLessonTask);
+fs.mkdirSync(path.join(rollbackLessonDir, "lessons"), { recursive: true });
+fs.writeFileSync(
+  path.join(rollbackLessonDir, "lessons/LC-ROLLBACK.md"),
+  [
+    "# LC-ROLLBACK - Lesson rollback",
+    "",
+    "## Problem / Trigger",
+    "",
+    "A failed lesson writer must not leave a source candidate without its follow-up task id while the task files exist.",
+    "",
+    "## Correct Rule",
+    "",
+    "The lesson writer Module restores the source candidate and removes the new follow-up directory when final transaction apply fails.",
+    "",
+  ].join("\n"),
+);
+fs.writeFileSync(
+  path.join(rollbackLessonDir, "lesson_candidates.md"),
+  [
+    "# Queue Lesson Rollback - Lesson Candidates",
+    "",
+    "## Candidate Status",
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    "| Schema version | lesson-candidate-v1 |",
+    "| Task-level status | needs-promotion |",
+    "| Review decision | approved-for-sedimentation |",
+    "| Promotion state | queued |",
+    "| Closeout token | pending |",
+    "",
+    "## Candidates",
+    "",
+    "| ID | Row Status | Title | Scope | Module Key | Detail Artifact | Boundary Reason | Why It Might Matter | Review Decision | Promotion Target | Conflict Check | Required Standard Update | Follow-up Task |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| LC-ROLLBACK | needs-promotion | Roll back failed lesson writer | global | n/a | lessons/LC-ROLLBACK.md | Failure after prompt append must not leave divergent files | Prevents local source and follow-up task state from splitting | approved | lesson writer rollback | no matching lesson found | lesson writer transaction | pending |",
+    "",
+  ].join("\n"),
+);
+commitFixtureBaseline(target, "before rollback lesson sedimentation fixture");
+const rollbackCandidateBefore = fs.readFileSync(path.join(rollbackLessonDir, "lesson_candidates.md"), "utf8");
+const taskDirsBeforeRollback = fs.readdirSync(path.join(target, "coding-agent-harness/planning/tasks")).sort();
+const rollbackResult = run(
+  ["lesson-sediment", rollbackLessonTask.task.id, "LC-ROLLBACK", target],
+  { env: { HARNESS_TEST_LESSON_SEDIMENTATION_FAIL: "after-append:LC-ROLLBACK" } },
+);
+assert(rollbackResult.status !== 0, "lesson-sediment should fail when final transaction apply fails after follow-up append");
+const rollbackError = `${rollbackResult.stdout}\n${rollbackResult.stderr}`;
+assert(rollbackError.includes("lesson-sedimentation-test-failure") || rollbackError.includes("Injected lesson sedimentation failure"), "rollback fixture should expose the injected failure");
+const taskDirsAfterRollback = fs.readdirSync(path.join(target, "coding-agent-harness/planning/tasks")).sort();
+assert(JSON.stringify(taskDirsAfterRollback) === JSON.stringify(taskDirsBeforeRollback), "lesson-sediment failed final transaction should remove the half-created follow-up task");
+assert(fs.readFileSync(path.join(rollbackLessonDir, "lesson_candidates.md"), "utf8") === rollbackCandidateBefore, "lesson-sediment failed final transaction should restore the source candidate file");
+assert(expectFixtureGit(target, ["status", "--porcelain"]).stdout.trim() === "", "lesson-sediment failed final transaction should leave the fixture worktree clean");
+
 commitFixtureBaseline(target, "before lesson sediment follow-up task");
+const beforeLessonSedimentHead = expectFixtureGit(target, ["rev-parse", "HEAD"]).stdout.trim();
 const lessonSediment = expectJson(["lesson-sediment", lessonTask.task.id, "LC-QUEUE-LESSON", target]);
 assert(lessonSediment.preset === "lesson-sedimentation", "lesson-sediment should report preset");
 assert(lessonSediment.followUpTask.id.startsWith("TASKS/"), "lesson-sediment should create a follow-up task");
+const lessonSedimentGovernance = lessonSediment.governance as { commit?: { commitSha?: string }; lessonSedimentationTransaction?: { generatedSurfaces?: string[]; success?: boolean } } | undefined;
+assert(lessonSedimentGovernance?.commit?.commitSha, "lesson-sediment should commit the follow-up task and source candidate update once");
+assert(lessonSedimentGovernance?.lessonSedimentationTransaction?.success === true, "lesson-sediment should report the HarnessTransaction result for the lesson writer");
+assert(lessonSedimentGovernance?.lessonSedimentationTransaction?.generatedSurfaces?.includes("lesson-sedimentation"), "lesson-sediment transaction should identify the lesson-sedimentation generated surface");
+assertSingleCommitDelta(target, beforeLessonSedimentHead, lessonSedimentGovernance.commit.commitSha, "lesson-sediment should use one final commit");
+assertCommitIncludes(target, lessonSedimentGovernance.commit.commitSha, [
+  `coding-agent-harness/planning/tasks/${todayLocal}-queue-lesson/lesson_candidates.md`,
+  lessonSediment.followUpTask.path.replace(/^TARGET:/, "").replace(/^\/+/, "") + "/task_plan.md",
+  lessonSediment.followUpTask.path.replace(/^TARGET:/, "").replace(/^\/+/, "") + "/artifacts/lesson-sedimentation-prompt.md",
+]);
 assert(fs.existsSync(path.join(target, lessonSediment.followUpTask.path.replace(/^TARGET:/, ""), "artifacts/lesson-sedimentation-prompt.md")), "lesson-sediment should write prompt artifact");
 const followUpBrief = fs.readFileSync(path.join(target, lessonSediment.followUpTask.path.replace(/^TARGET:/, ""), "brief.md"), "utf8");
 assert(followUpBrief.includes("## 创建日期"), "lesson-sediment should create follow-up tasks using the target registry locale");
@@ -664,6 +783,20 @@ function replaceHumanConfirmationSection(content: string, replacement: string): 
 
 function taskDirectory(result: HarnessTestLooseJson): string {
   return path.join(target, result.task.path.replace(/^TARGET:/, ""));
+}
+
+function assertSingleCommitDelta(targetRoot: string, before: string, after: string, message: string): void {
+  const count = expectFixtureGit(targetRoot, ["rev-list", "--count", `${before}..${after}`]).stdout.trim();
+  assert(count === "1", `${message}: expected one commit from ${before} to ${after}, got ${count}`);
+  const head = expectFixtureGit(targetRoot, ["rev-parse", "HEAD"]).stdout.trim();
+  assert(head === after, `${message}: expected HEAD to be ${after}, got ${head}`);
+}
+
+function assertCommitIncludes(targetRoot: string, commitSha: string, expectedFiles: string[]): void {
+  const committedFiles = expectFixtureGit(targetRoot, ["show", "--name-only", "--format=", commitSha]).stdout.trim().split(/\r?\n/).filter(Boolean);
+  for (const expectedFile of expectedFiles) {
+    assert(committedFiles.includes(expectedFile), `commit ${commitSha} should include ${expectedFile}; got ${committedFiles.join(", ")}`);
+  }
 }
 
 function writeMigratedReviewConfirmation(taskDir: string, taskId: string, confirmText: string): void {
