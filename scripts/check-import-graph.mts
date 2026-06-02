@@ -172,13 +172,13 @@ export const architectureImportContract: ArchitectureImportContract = {
       evidence: "import graph check plus P04 no-data-loss lifecycle fixtures",
     },
     {
-      id: "P04-application-tombstone-resolution-bridge",
+      id: "P05-application-tombstone-repository-resolution-bridge",
       source: "scripts/application/task/tombstone-operations.mts",
-      target: "scripts/lib/task-lifecycle.mts",
-      ownerPhase: "P04-transaction-cutover",
+      target: "scripts/lib/task-repository.mts",
+      ownerPhase: "P05-repository-scanner-strangler",
       expiryPhase: "P07-task-operations-facade-removal",
-      reason: "Tombstone mutations now use HarnessTransaction, but task directory resolution still depends on the legacy lifecycle resolver until task use-case ports own task resolution.",
-      evidence: "import graph check plus P04 tombstone no-data-loss fixtures",
+      reason: "Tombstone mutations now resolve task directories through the TaskRepository Module resolver helper, but the concrete adapter is still scanner-backed until P05 completes repository/scanner strangling.",
+      evidence: "import graph check plus P04 tombstone no-data-loss fixtures and P05 repository parity fixtures",
     },
     {
       id: "P05-application-tombstone-scanner-bridge",
