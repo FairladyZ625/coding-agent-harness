@@ -494,7 +494,6 @@ function renderDrawerContent(taskId) {
   `;
 
   const timeline = phaseTimeline(task);
-  const documents = taskDocumentLibrary(task, "");
   const findings = openFindings(task);
   const evidence = evidenceList(task);
 
@@ -511,7 +510,7 @@ function renderDrawerContent(taskId) {
       ${reviewActionPanel(task, { mode: "summary" })}
       ${lessonCandidatePanel(task, { context: "drawer" })}
       ${timeline}
-      ${documents}
+      ${drawerDocumentPreview(task)}
       ${findings}
       ${evidence}
     </div>
@@ -540,6 +539,91 @@ function openDrawer(taskId) {
   bindLessonSedimentationButtons(drawer);
   drawer.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
   drawer.querySelectorAll("[data-task-complete]").forEach((button) => button.addEventListener("click", () => completeTaskFromDashboard(button.dataset.taskComplete)));
+}
+
+function drawerPreviewDocuments(task) {
+  const docs = orderedTaskDocuments(task);
+  if (!docs.length) return [];
+  const defaultKey = defaultTaskDocumentKey(task, docs);
+  const primaryQueue = taskPrimaryQueueValue(task);
+  const preferred = primaryQueue === "active" || primaryQueue === "blocked"
+    ? ["progress", "visualMap", defaultKey]
+    : [defaultKey];
+  const selected = [];
+  for (const key of preferred) {
+    const doc = docs.find((item) => item.key === key);
+    if (doc && !selected.some((item) => item.key === doc.key)) selected.push(doc);
+  }
+  return selected.length ? selected : docs.slice(0, 1);
+}
+
+function drawerDocumentPreview(task) {
+  const previewDocs = drawerPreviewDocuments(task);
+  const docs = orderedTaskDocuments(task);
+  if (!previewDocs.length && !docs.length) return "";
+  return `<section class="side-panel drawer-doc-preview">
+    <div class="section-head compact">
+      <div>
+        <p class="eyebrow">${t("taskDocuments")}</p>
+        <h3>${t("sourceDocuments")}</h3>
+      </div>
+      <a href="#/tasks/${encodeURIComponent(task.id)}">${t("fullView")}</a>
+    </div>
+    <div class="drawer-preview-stack">
+      ${previewDocs.map((doc) => drawerPreviewCard(task, doc)).join("")}
+    </div>
+    <div class="drawer-doc-links">
+      ${docs.map((doc) => `<a href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(doc.key)}" title="${escapeAttr(doc.path)}">${escapeHtml(doc.title)}</a>`).join("")}
+    </div>
+  </section>`;
+}
+
+function drawerPreviewCard(task, doc) {
+  return `<details class="drawer-preview-card">
+    <summary class="drawer-preview-head">
+      <strong>${escapeHtml(doc.title)}</strong>
+    </summary>
+    <a class="drawer-preview-full" href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(doc.key)}">${t("fullView")}</a>
+    <p>${escapeHtml(safeDocumentExcerpt(doc.content || ""))}</p>
+    <div class="drawer-preview-body markdown">${window.HarnessMarkdown.render(doc.content || "", state.renderMode)}</div>
+  </details>`;
+}
+
+function safeDocumentExcerpt(content, maxLength = 260) {
+  const lines = String(content || "").split(/\r?\n/);
+  const output = [];
+  let inFence = false;
+  let inFrontmatter = false;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (index === 0 && trimmed === "---") {
+      inFrontmatter = true;
+      continue;
+    }
+    if (inFrontmatter) {
+      if (trimmed === "---") inFrontmatter = false;
+      continue;
+    }
+    if (/^```/.test(trimmed)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    if (!trimmed || /^[-*_]{3,}$/.test(trimmed)) continue;
+    const cleaned = trimmed
+      .replace(/^#{1,6}\s+/, "")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/[*_~]+/g, "")
+      .trim();
+    if (!cleaned || /^harness\s+/i.test(cleaned)) continue;
+    output.push(cleaned);
+    if (output.join(" ").length >= maxLength || output.length >= 4) break;
+  }
+  const excerpt = output.join(" ").replace(/\s+/g, " ").trim();
+  if (excerpt.length <= maxLength) return excerpt || "No preview available.";
+  return `${excerpt.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
 }
 
 function bindCopyTaskNameButtons(root) {

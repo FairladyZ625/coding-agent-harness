@@ -75,6 +75,15 @@
   .detail-side {
     position: static;
   }
+
+  .doc-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .doc-workbench-nav {
+    max-height: none;
+    overflow: visible;
+  }
 }
 
 /* Slide-over Drawer Component */

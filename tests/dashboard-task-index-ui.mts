@@ -7,6 +7,7 @@ import vm from "node:vm";
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const appJs = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/app.js"), "utf8")
   .replace(/\nwindow\.addEventListener\("hashchange", app\);\napp\(\);\nloadRuntime\(\);\n?$/, "\n");
+const dashboardCss = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/app.css"), "utf8");
 const i18nJs = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/i18n.js"), "utf8");
 
 type DashboardSandbox = {
@@ -281,6 +282,12 @@ assert(projectionResult.row.includes("agent reviewed"), "task rows should displa
 const documentOrderSandbox = createSandbox();
 vm.runInContext(`
   window.HarnessMarkdown = { render: (content) => String(content || "") };
+  bundle.documents = {
+    documents: [
+      { path: "TARGET:coding-agent-harness/planning/tasks/raw-core-fallback/progress.md", content: "# Raw Progress" },
+      { path: "TARGET:coding-agent-harness/planning/tasks/raw-core-fallback/walkthrough.md", content: "# Raw Walkthrough" },
+    ],
+  };
   const docsByKey = {
     "brief.md": { path: "TARGET:coding-agent-harness/planning/tasks/doc-order/brief.md", content: "# Brief" },
     "task_plan.md": { path: "TARGET:coding-agent-harness/planning/tasks/doc-order/task_plan.md", content: "# Plan" },
@@ -314,11 +321,21 @@ vm.runInContext(`
     review: orderedKeysFor({ state: "review", taskQueues: ["review"], taskLifecycleProjection: { state: "review", lifecycleState: "in_review", taskQueues: ["review"] } }).slice(0, 5),
     done: orderedKeysFor({ state: "done", taskQueues: ["finalized"], taskLifecycleProjection: { state: "done", lifecycleState: "closed", taskQueues: ["finalized"] } }).slice(0, 6),
     allReview: orderedKeysFor({ state: "review", taskQueues: ["review"], taskLifecycleProjection: { state: "review", lifecycleState: "in_review", taskQueues: ["review"] } }),
+    unprojectedCoreOrder: orderedTaskDocuments({
+      id: "TASKS/raw-core-fallback",
+      path: "TARGET:coding-agent-harness/planning/tasks/raw-core-fallback",
+      state: "in_progress",
+      completion: 0,
+      documentsByKey: {},
+      documentProjection: { byKey: {} },
+      reviewWorkbenchQueueView: { queues: ["active"], primaryQueue: "active" },
+      taskLifecycleProjection: { state: "in_progress", lifecycleState: "active", taskQueues: ["active"] },
+    }).map((doc) => doc.key),
     projectedSelected: selectedSourceDocument({ path: "TARGET:coding-agent-harness/planning/tasks/doc-order", documentsByKey: docsByKey, documentProjection: { byKey: docsByKey } }, "references/operator-runbook.md"),
     unprojectedSelected: selectedSourceDocument({ path: "TARGET:coding-agent-harness/planning/tasks/doc-order", documentsByKey: {}, documentProjection: { byKey: {} } }, "references/operator-runbook.md"),
   });
 `, documentOrderSandbox);
-const documentOrderResult = JSON.parse(String(documentOrderSandbox.__result)) as { missing: string[]; active: string[]; review: string[]; done: string[]; allReview: string[]; projectedSelected: string; unprojectedSelected: string };
+const documentOrderResult = JSON.parse(String(documentOrderSandbox.__result)) as { missing: string[]; active: string[]; review: string[]; done: string[]; allReview: string[]; unprojectedCoreOrder: string[]; projectedSelected: string; unprojectedSelected: string };
 assert(documentOrderResult.missing[0] === "brief", "missing-materials/early tasks should open brief first");
 assert(documentOrderResult.active[0] === "progress", "in-progress tasks should open progress first");
 assert(documentOrderResult.review[0] === "walkthrough", "review tasks should open walkthrough first");
@@ -326,8 +343,107 @@ assert(documentOrderResult.review[1] === "lessonCandidates", "review tasks shoul
 assert(documentOrderResult.done[0] === "walkthrough", "closed tasks should open walkthrough first");
 assert(documentOrderResult.allReview.includes("references/operator-runbook.md"), "task detail should include nested reference documents");
 assert(documentOrderResult.allReview.includes("artifacts/__dashboard_artifacts.md"), "task detail should include generated artifact manifests");
+assert(!documentOrderResult.unprojectedCoreOrder.includes("progress"), "task detail core docs must not bypass task documentProjection through raw bundle documents");
 assert(documentOrderResult.projectedSelected.includes("Operator Runbook"), "manual material doc route should render projected documents");
 assert(documentOrderResult.unprojectedSelected === "", "manual material doc route must not bypass task documentProjection");
+
+const documentWorkbenchSandbox = createSandbox();
+vm.runInContext(`
+  window.HarnessMarkdown = { render: (content) => "<rendered>" + String(content || "") + "</rendered>" };
+  const workbenchDocs = {
+    "brief.md": { path: "TARGET:coding-agent-harness/planning/tasks/workbench/brief.md", content: "# Brief\\nBrief body" },
+    "task_plan.md": { path: "TARGET:coding-agent-harness/planning/tasks/workbench/task_plan.md", content: "# Plan" },
+    "visual_map.md": { path: "TARGET:coding-agent-harness/planning/tasks/workbench/visual_map.md", content: "# Visual Map" },
+    "long-running-task-contract.md": { path: "TARGET:coding-agent-harness/planning/tasks/workbench/long-running-task-contract.md", content: "# Contract" },
+    "progress.md": { path: "TARGET:coding-agent-harness/planning/tasks/workbench/progress.md", content: "# Progress" },
+    "walkthrough.md": { path: "TARGET:coding-agent-harness/planning/tasks/workbench/walkthrough.md", content: "# Walkthrough" },
+    "references/operator-runbook.md": { path: "TARGET:coding-agent-harness/planning/tasks/workbench/references/operator-runbook.md", title: "Operator Runbook", content: "# Operator Runbook" },
+    "artifacts/__dashboard_artifacts.md": { path: "TARGET:coding-agent-harness/planning/tasks/workbench/artifacts/__dashboard_artifacts.md", content: "# Artifacts" },
+    "notes/future.md": { path: "TARGET:coding-agent-harness/planning/tasks/workbench/notes/future.md", title: "Future Note", content: "# Future" },
+  };
+  const workbenchTask = {
+    id: "TASKS/workbench",
+    path: "TARGET:coding-agent-harness/planning/tasks/workbench",
+    state: "in_progress",
+    completion: 40,
+    documentsByKey: workbenchDocs,
+    documentProjection: { byKey: workbenchDocs },
+    taskLifecycleProjection: { state: "in_progress", lifecycleState: "active", taskQueues: ["active"] },
+    reviewWorkbenchQueueView: { queues: ["active"], primaryQueue: "active" },
+  };
+  const libraryHtml = taskDocumentLibrary(workbenchTask, "references/operator-runbook.md");
+  __result = JSON.stringify({
+    groups: taskDocumentGroups(workbenchTask).map((group) => [group.key, group.docs.map((doc) => doc.key)]),
+    defaultKey: defaultTaskDocumentKey(workbenchTask, orderedTaskDocuments(workbenchTask)),
+    libraryHtml,
+    readerCount: (libraryHtml.match(/class="doc-workbench-reader/g) || []).length,
+  });
+`, documentWorkbenchSandbox);
+const documentWorkbenchResult = JSON.parse(String(documentWorkbenchSandbox.__result)) as { groups: Array<[string, string[]]>; defaultKey: string; libraryHtml: string; readerCount: number };
+const workbenchGroups = new Map(documentWorkbenchResult.groups);
+assert(workbenchGroups.get("operations")?.includes("longRunningContract"), "document workbench should preserve long-running contracts in Operations");
+assert(workbenchGroups.get("references")?.includes("references/operator-runbook.md"), "document workbench should group nested references");
+assert(workbenchGroups.get("artifacts")?.includes("artifacts/__dashboard_artifacts.md"), "document workbench should group generated artifact manifests");
+assert(workbenchGroups.get("other")?.includes("notes/future.md"), "document workbench should preserve unknown projected keys in Other projected docs");
+assert(documentWorkbenchResult.defaultKey === "progress", "document workbench should reuse projection-backed priority for default active document");
+assert(documentWorkbenchResult.readerCount === 1, "document workbench should render exactly one markdown reader");
+assert(documentWorkbenchResult.libraryHtml.includes('class="doc-workbench"'), "document workbench should replace accordion layout with a workspace layout");
+assert(!documentWorkbenchResult.libraryHtml.includes("doc-accordion"), "document workbench should not render source documents as accordions");
+assert(documentWorkbenchResult.libraryHtml.includes("Operator Runbook"), "document workbench should render selected material document content");
+
+const drawerPreviewSandbox = createSandbox();
+vm.runInContext(`
+  window.HarnessMarkdown = { render: (content) => "<rendered>" + String(content || "") + "</rendered>" };
+  const drawerDocs = {
+    "brief.md": { path: "TARGET:coding-agent-harness/planning/tasks/drawer/brief.md", content: "---\\ntitle: Brief\\n---\\n# Brief\\nBrief summary line.\\n\\n\\\`\\\`\\\`mermaid\\nflowchart LR\\nA-->B\\n\\\`\\\`\\\`\\nKeep this later." },
+    "visual_map.md": { path: "TARGET:coding-agent-harness/planning/tasks/drawer/visual_map.md", content: "# Visual Map\\nMap summary line.\\n\\n\\\`\\\`\\\`\\ncommand block should be skipped\\n\\\`\\\`\\\`" },
+    "progress.md": { path: "TARGET:coding-agent-harness/planning/tasks/drawer/progress.md", content: "# Progress\\nProgress summary line.\\n" + "x".repeat(1000) },
+    "walkthrough.md": { path: "TARGET:coding-agent-harness/planning/tasks/drawer/walkthrough.md", content: "# Walkthrough\\nWalkthrough summary line." },
+    "references/operator-runbook.md": { path: "TARGET:coding-agent-harness/planning/tasks/drawer/references/operator-runbook.md", title: "Operator Runbook", content: "# Runbook" },
+  };
+  function drawerTask(overrides) {
+    return {
+      id: overrides.id,
+      shortId: overrides.id.split("/").pop(),
+      title: "Drawer task",
+      path: "TARGET:coding-agent-harness/planning/tasks/drawer",
+      state: overrides.state,
+      completion: overrides.completion || 0,
+      documentsByKey: drawerDocs,
+      documentProjection: { byKey: drawerDocs },
+      taskLifecycleProjection: overrides.lifecycle,
+      reviewWorkbenchQueueView: { queues: overrides.lifecycle.taskQueues, primaryQueue: overrides.lifecycle.taskQueues[0] },
+      phases: [{ id: "EXEC-01", kind: "execution", state: "in_progress", completion: 40, actor: "agent", evidenceStatus: "partial", output: "work", exitCommand: "harness task-phase drawer EXEC-01" }],
+    };
+  }
+  const planned = drawerTask({ id: "TASKS/drawer-planned", state: "planned", lifecycle: { state: "planned", lifecycleState: "ready", taskQueues: ["planned"] } });
+  const active = drawerTask({ id: "TASKS/drawer-active", state: "in_progress", completion: 40, lifecycle: { state: "in_progress", lifecycleState: "active", taskQueues: ["active"] } });
+  const review = drawerTask({ id: "TASKS/drawer-review", state: "review", completion: 90, lifecycle: { state: "review", lifecycleState: "in_review", taskQueues: ["review"] } });
+  bundle.status.tasks = [planned, active, review];
+  __result = JSON.stringify({
+    plannedPreview: drawerPreviewDocuments(planned).map((item) => item.key),
+    activePreview: drawerPreviewDocuments(active).map((item) => item.key),
+    reviewPreview: drawerPreviewDocuments(review).map((item) => item.key),
+    excerpt: safeDocumentExcerpt(drawerDocs["brief.md"].content, 120),
+    activeDrawer: renderDrawerContent("TASKS/drawer-active"),
+  });
+`, drawerPreviewSandbox);
+const drawerPreviewResult = JSON.parse(String(drawerPreviewSandbox.__result)) as { plannedPreview: string[]; activePreview: string[]; reviewPreview: string[]; excerpt: string; activeDrawer: string };
+assert(drawerPreviewResult.plannedPreview[0] === "brief", "drawer should preview brief for planned tasks");
+assert(drawerPreviewResult.activePreview.includes("progress") && drawerPreviewResult.activePreview.includes("visualMap"), "drawer should preview progress and visual map for active tasks");
+assert(drawerPreviewResult.reviewPreview[0] === "walkthrough", "drawer should preview walkthrough for review tasks");
+assert(!drawerPreviewResult.excerpt.includes("---"), "safe excerpt should skip frontmatter");
+assert(!drawerPreviewResult.excerpt.includes("flowchart"), "safe excerpt should skip mermaid/code blocks");
+assert(drawerPreviewResult.excerpt.length <= 140, "safe excerpt should be length-limited");
+assert(drawerPreviewResult.activeDrawer.includes("Progress summary line"), "drawer should show lifecycle-priority plain text preview");
+assert(drawerPreviewResult.activeDrawer.includes("#/tasks/TASKS%2Fdrawer-active/docs/progress"), "drawer preview should deep-link to full page doc route");
+assert(!drawerPreviewResult.activeDrawer.includes("doc-accordion"), "drawer should not embed the full document library");
+assert(drawerPreviewResult.activeDrawer.includes("drawer-preview-body markdown"), "drawer preview cards should expand inline for core documents");
+assert(drawerPreviewResult.activeDrawer.includes("<rendered># Progress"), "drawer preview should render only selected core documents inline");
+assert(!drawerPreviewResult.activeDrawer.includes("<rendered># Runbook"), "drawer should keep non-preview documents as full-page links only");
+
+assert(/\.phase-step strong\s*\{[^}]*overflow-wrap:\s*anywhere/s.test(dashboardCss), "compact phase cards should wrap long phase ids");
+assert(/\.phase-step-head span\s*\{[^}]*overflow-wrap:\s*anywhere/s.test(dashboardCss), "compact phase cards should wrap long phase metadata");
 
 const lifecycleQueueSandbox = createSandbox();
 vm.runInContext(`

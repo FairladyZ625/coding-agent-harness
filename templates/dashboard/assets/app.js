@@ -1381,7 +1381,6 @@ function taskDetail(route) {
         ${lessonCandidatePanel(task, { context: "detail" })}
         ${openFindings(task)}
         ${evidenceList(task)}
-        ${documentTabs(task)}
       </aside>
     </section>
   </main>`;
@@ -1450,9 +1449,9 @@ function phaseTimeline(task) {
         ? phases.filter((phase) => !knownKinds.has(phase.kind || "execution"))
         : phases.filter((phase) => (phase.kind || "execution") === kind);
       if (!items.length) return "";
-      return `<div class="phase-kind-group ${escapeAttr(kind)}">
+      return `<div class="phase-kind-group ${escapeAttr(kind)}" role="list">
         <h3>${escapeHtml(label)}</h3>
-        ${items.map(phaseStep).join("")}
+        <div class="phase-lane">${items.map(phaseStep).join("")}</div>
       </div>`;
     })
     .join("");
@@ -1468,19 +1467,20 @@ function phaseStep(phase) {
   const knownKind = ["init", "execution", "gate"].includes(kind);
   const kindLabel = knownKind ? escapeHtml(kind) : `<span class="tag warn">${escapeHtml(kind)}</span>`;
   const phaseKindClass = knownKind ? kind : "other";
-  return `<div class="phase-step ${escapeAttr(phase.state)} ${escapeAttr(phaseKindClass)}">
-    <div class="phase-step-head">
+  const detail = phase.output || phase.blockingRisk || phase.state || "";
+  return `<details class="phase-step ${escapeAttr(phase.state)} ${escapeAttr(phaseKindClass)}" role="listitem">
+    <summary class="phase-step-head">
       <strong>${escapeHtml(phase.id)}</strong>
       <span>${kindLabel} · ${phase.completion}%</span>
-    </div>
-    <p>${escapeHtml(phase.output || phase.blockingRisk || phase.state)}</p>
+    </summary>
     ${progressBar(phase.completion)}
     <div class="phase-meta">
       ${phaseMetaTag(actor)}
       ${tag(phase.evidenceStatus || "missing")}
     </div>
+    <p>${escapeHtml(detail)}</p>
     ${phase.exitCommand ? `<code class="phase-exit-command">${escapeHtml(phase.exitCommand)}</code>` : ""}
-  </div>`;
+  </details>`;
 }
 
 function phaseMetaTag(value) {
@@ -1488,7 +1488,7 @@ function phaseMetaTag(value) {
 }
 
 function taskDocSection(task, fileName, title, required) {
-  const doc = taskDocument(task, fileName);
+  const doc = projectedTaskDocument(task, fileName);
   if (!doc && !required) return "";
   return `<section class="doc-section">
     <div class="section-head"><h2>${escapeHtml(title)}</h2>${doc ? `<button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button>` : ""}</div>
@@ -1500,6 +1500,8 @@ function taskDocumentLibrary(task, selectedTab) {
   const docs = orderedTaskDocuments(task);
   if (!docs.length) return taskDocSection(task, "brief.md", t("brief"), true);
   const selectedKey = docs.some((doc) => doc.key === selectedTab) ? selectedTab : defaultTaskDocumentKey(task, docs);
+  const selected = docs.find((doc) => doc.key === selectedKey) || docs[0];
+  const groups = taskDocumentGroups(task, docs);
   return `<section class="doc-library">
     <div class="section-head">
       <div>
@@ -1508,8 +1510,11 @@ function taskDocumentLibrary(task, selectedTab) {
       </div>
       <button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button>
     </div>
-    <div class="doc-accordion-list">
-      ${docs.map((item) => documentAccordion(item, item.key === selectedKey)).join("")}
+    <div class="doc-workbench">
+      <nav class="doc-workbench-nav" aria-label="${escapeAttr(t("sourceDocuments"))}">
+        ${groups.map((group) => documentGroupNav(task, group, selectedKey)).join("")}
+      </nav>
+      ${documentReader(selected)}
     </div>
   </section>`;
 }
@@ -1517,14 +1522,14 @@ function taskDocumentLibrary(task, selectedTab) {
 function orderedTaskDocuments(task) {
   const coreDocs = taskDocTabs
     .map(([key, file]) => {
-      const doc = taskDocument(task, file);
+      const doc = projectedTaskDocument(task, file);
       if (doc) return { key, file, title: t(key), path: doc.path, content: doc.content };
       if (key === "brief") return { key, file, title: t(key), path: `${task.path}/brief.md`, content: generatedBrief(task), generated: true };
       return null;
     })
     .filter(Boolean);
   const seen = new Set(coreDocs.map((doc) => doc.path));
-  const materialDocs = taskMaterialDocuments(task).filter((doc) => {
+  const materialDocs = taskProjectionDocuments(task).filter((doc) => {
     if (seen.has(doc.path)) return false;
     seen.add(doc.path);
     return true;
@@ -1539,10 +1544,16 @@ function orderedTaskDocuments(task) {
   });
 }
 
-function taskMaterialDocuments(task) {
+function projectedTaskDocument(task, fileName) {
+  const projection = taskDocumentProjection(task);
+  if (fileName === "__walkthrough__") return projection["walkthrough.md"] || null;
+  return projection[fileName] || null;
+}
+
+function taskProjectionDocuments(task) {
   const projection = taskDocumentProjection(task);
   return Object.entries(projection)
-    .filter(([key]) => key.startsWith("references/") || key.startsWith("artifacts/"))
+    .filter(([, doc]) => doc?.path)
     .map(([key, doc]) => ({
       key,
       file: key,
@@ -1555,7 +1566,7 @@ function taskMaterialDocuments(task) {
 function taskMaterialTitle(key, doc) {
   if (key === "references/INDEX.md") return t("references");
   if (key === "artifacts/INDEX.md" || key === "artifacts/__dashboard_artifacts.md") return t("artifacts");
-  const group = key.startsWith("references/") ? t("references") : t("artifacts");
+  const group = key.startsWith("references/") ? t("references") : key.startsWith("artifacts/") ? t("artifacts") : "Other";
   const name = String(doc?.title || key.split("/").pop() || key).replace(/\.md$/i, "");
   return `${group} · ${name}`;
 }
@@ -1591,14 +1602,53 @@ function defaultTaskDocumentKey(task, docs) {
   return priority.find((key) => docs.some((doc) => doc.key === key)) || docs[0]?.key || "brief";
 }
 
-function documentAccordion(item, open) {
-  return `<details class="doc-accordion" ${open ? "open" : ""}>
-    <summary>
-      <span>${escapeHtml(item.title)}</span>
-      <small>${escapeHtml(item.generated ? t("generatedFallback") : item.path)}</small>
-    </summary>
-    <div class="markdown">${window.HarnessMarkdown.render(item.content, state.renderMode)}</div>
-  </details>`;
+function taskDocumentGroups(task, docs = orderedTaskDocuments(task)) {
+  const defaultKey = defaultTaskDocumentKey(task, docs);
+  const seen = new Set();
+  const pick = (predicate) => docs.filter((doc) => {
+    if (seen.has(doc.key) || !predicate(doc)) return false;
+    seen.add(doc.key);
+    return true;
+  });
+  const groups = [
+    { key: "primary", title: "Primary", docs: pick((doc) => doc.key === defaultKey || doc.key === "brief") },
+    { key: "operations", title: "Operations", docs: pick((doc) => ["taskPlan", "visualMap", "strategy", "progress", "longRunningContract", "legacyRoadmap"].includes(doc.key)) },
+    { key: "review", title: "Review", docs: pick((doc) => ["findings", "review", "walkthrough", "lessonCandidates"].includes(doc.key)) },
+    { key: "references", title: t("references"), docs: pick((doc) => doc.key?.startsWith("references/") || doc.key === "references") },
+    { key: "artifacts", title: t("artifacts"), docs: pick((doc) => doc.key?.startsWith("artifacts/") || doc.key === "artifacts") },
+    { key: "other", title: "Other projected docs", docs: pick(() => true) },
+  ];
+  return groups.filter((group) => group.docs.length);
+}
+
+function documentGroupNav(task, group, selectedKey) {
+  return `<div class="doc-nav-group" data-doc-group="${escapeAttr(group.key)}">
+    <h3>${escapeHtml(group.title)}</h3>
+    <div class="doc-nav-links">
+      ${group.docs.map((doc) => documentNavLink(task, doc, selectedKey)).join("")}
+    </div>
+  </div>`;
+}
+
+function documentNavLink(task, doc, selectedKey) {
+  const active = doc.key === selectedKey;
+  return `<a class="doc-nav-link ${active ? "active" : ""}" href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(doc.key)}" title="${escapeAttr(doc.path)}" ${active ? 'aria-current="page"' : ""}>
+    <span>${escapeHtml(doc.title)}</span>
+    <small>${escapeHtml(doc.generated ? t("generatedFallback") : doc.path)}</small>
+  </a>`;
+}
+
+function documentReader(doc) {
+  if (!doc) return emptyState(t("noDocuments"));
+  return `<article class="doc-workbench-reader" tabindex="-1">
+    <header class="doc-reader-head">
+      <div>
+        <h3>${escapeHtml(doc.title)}</h3>
+        <p>${escapeHtml(doc.generated ? t("generatedFallback") : doc.path)}</p>
+      </div>
+    </header>
+    <div class="markdown">${window.HarnessMarkdown.render(doc.content, state.renderMode)}</div>
+  </article>`;
 }
 
 function documentTabs(task) {
@@ -1612,7 +1662,7 @@ function documentTabs(task) {
 function selectedSourceDocument(task, tab) {
   if (!tab) return "";
   const match = taskDocTabs.find(([key]) => key === tab);
-  const doc = match ? taskDocument(task, match[1]) : taskDocumentProjection(task)[tab];
+  const doc = match ? projectedTaskDocument(task, match[1]) : taskDocumentProjection(task)[tab];
   if (!doc) return "";
   return `<section class="doc-section selected-source">
     <div class="section-head"><h2>${t("selectedSource")} · ${escapeHtml(match ? t(match[0]) : taskMaterialTitle(tab, doc))}</h2><button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button></div>
@@ -3658,7 +3708,6 @@ function renderDrawerContent(taskId) {
   `;
 
   const timeline = phaseTimeline(task);
-  const documents = taskDocumentLibrary(task, "");
   const findings = openFindings(task);
   const evidence = evidenceList(task);
 
@@ -3675,7 +3724,7 @@ function renderDrawerContent(taskId) {
       ${reviewActionPanel(task, { mode: "summary" })}
       ${lessonCandidatePanel(task, { context: "drawer" })}
       ${timeline}
-      ${documents}
+      ${drawerDocumentPreview(task)}
       ${findings}
       ${evidence}
     </div>
@@ -3704,6 +3753,91 @@ function openDrawer(taskId) {
   bindLessonSedimentationButtons(drawer);
   drawer.querySelectorAll("[data-review-complete]").forEach((button) => button.addEventListener("click", () => completeReviewFromDashboard(button.dataset.reviewComplete)));
   drawer.querySelectorAll("[data-task-complete]").forEach((button) => button.addEventListener("click", () => completeTaskFromDashboard(button.dataset.taskComplete)));
+}
+
+function drawerPreviewDocuments(task) {
+  const docs = orderedTaskDocuments(task);
+  if (!docs.length) return [];
+  const defaultKey = defaultTaskDocumentKey(task, docs);
+  const primaryQueue = taskPrimaryQueueValue(task);
+  const preferred = primaryQueue === "active" || primaryQueue === "blocked"
+    ? ["progress", "visualMap", defaultKey]
+    : [defaultKey];
+  const selected = [];
+  for (const key of preferred) {
+    const doc = docs.find((item) => item.key === key);
+    if (doc && !selected.some((item) => item.key === doc.key)) selected.push(doc);
+  }
+  return selected.length ? selected : docs.slice(0, 1);
+}
+
+function drawerDocumentPreview(task) {
+  const previewDocs = drawerPreviewDocuments(task);
+  const docs = orderedTaskDocuments(task);
+  if (!previewDocs.length && !docs.length) return "";
+  return `<section class="side-panel drawer-doc-preview">
+    <div class="section-head compact">
+      <div>
+        <p class="eyebrow">${t("taskDocuments")}</p>
+        <h3>${t("sourceDocuments")}</h3>
+      </div>
+      <a href="#/tasks/${encodeURIComponent(task.id)}">${t("fullView")}</a>
+    </div>
+    <div class="drawer-preview-stack">
+      ${previewDocs.map((doc) => drawerPreviewCard(task, doc)).join("")}
+    </div>
+    <div class="drawer-doc-links">
+      ${docs.map((doc) => `<a href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(doc.key)}" title="${escapeAttr(doc.path)}">${escapeHtml(doc.title)}</a>`).join("")}
+    </div>
+  </section>`;
+}
+
+function drawerPreviewCard(task, doc) {
+  return `<details class="drawer-preview-card">
+    <summary class="drawer-preview-head">
+      <strong>${escapeHtml(doc.title)}</strong>
+    </summary>
+    <a class="drawer-preview-full" href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(doc.key)}">${t("fullView")}</a>
+    <p>${escapeHtml(safeDocumentExcerpt(doc.content || ""))}</p>
+    <div class="drawer-preview-body markdown">${window.HarnessMarkdown.render(doc.content || "", state.renderMode)}</div>
+  </details>`;
+}
+
+function safeDocumentExcerpt(content, maxLength = 260) {
+  const lines = String(content || "").split(/\r?\n/);
+  const output = [];
+  let inFence = false;
+  let inFrontmatter = false;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (index === 0 && trimmed === "---") {
+      inFrontmatter = true;
+      continue;
+    }
+    if (inFrontmatter) {
+      if (trimmed === "---") inFrontmatter = false;
+      continue;
+    }
+    if (/^```/.test(trimmed)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    if (!trimmed || /^[-*_]{3,}$/.test(trimmed)) continue;
+    const cleaned = trimmed
+      .replace(/^#{1,6}\s+/, "")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/[*_~]+/g, "")
+      .trim();
+    if (!cleaned || /^harness\s+/i.test(cleaned)) continue;
+    output.push(cleaned);
+    if (output.join(" ").length >= maxLength || output.length >= 4) break;
+  }
+  const excerpt = output.join(" ").replace(/\s+/g, " ").trim();
+  if (excerpt.length <= maxLength) return excerpt || "No preview available.";
+  return `${excerpt.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
 }
 
 function bindCopyTaskNameButtons(root) {
