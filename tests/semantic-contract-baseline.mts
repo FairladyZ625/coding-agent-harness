@@ -434,7 +434,7 @@ function assertDashboardScopeRuntimeBehavior(): void {
   );
 }
 
-function dashboardScopeTask(id: string, visibilityScopes: string[], taskQueues: string[], deletionState = "active"): ContractTask {
+function dashboardScopeTask(id: string, visibilityScopes: string[], taskQueues: string[], deletionState = "active"): Record<string, unknown> {
   return {
     id,
     shortId: id,
@@ -458,7 +458,7 @@ function dashboardScopeTask(id: string, visibilityScopes: string[], taskQueues: 
     reviewWorkbenchQueueView: { queues: taskQueues, primaryQueue: taskQueues[0] },
     deletionState,
     supersededBy: "",
-  } as unknown as ContractTask;
+  };
 }
 
 function assertGuiSchemaCompatibility(tasks: ContractTask[]): void {
