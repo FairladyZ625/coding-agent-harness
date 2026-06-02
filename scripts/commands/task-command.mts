@@ -6,6 +6,7 @@ import {
   updateModuleStep,
   updateTaskPhase,
 } from "../lib/harness-core.mjs";
+import fs from "node:fs";
 import { takeRepeatedOptionsFromArgs } from "../lib/command-registry.mjs";
 import { createTaskOperations, unwrapTaskOperation } from "../application/task/task-operations.mjs";
 
@@ -228,6 +229,36 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
     }
     try {
       console.log(JSON.stringify(unwrapTaskOperation(createTaskOperations(targetArg()).supersede({ taskId, by, reason, deletedBy, confirm, allowOpenFindings })), null, 2));
+    } catch (error) {
+      console.error(errorMessage(error));
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (command === "task-archive-batch") {
+    const reason = takeOption("--reason", "");
+    const archivedBy = takeOption("--archived-by", "");
+    const release = takeOption("--release", "");
+    const taskListPath = takeOption("--task-list", "");
+    const archiveFields = takeRepeatedKeyValueOptions(args, "--archive-field");
+    if (!taskListPath) {
+      console.error("task-archive-batch requires --task-list <release-closeout-task-list.json>");
+      process.exit(2);
+    }
+    try {
+      const taskList = JSON.parse(fs.readFileSync(taskListPath, "utf8")) as { schemaVersion?: string; taskIds?: unknown[]; release?: string };
+      if (taskList.schemaVersion !== "release-closeout-task-list/v1") throw new Error("--task-list schemaVersion must be release-closeout-task-list/v1");
+      const taskIds = (taskList.taskIds || []).map((taskId) => String(taskId || "").trim()).filter(Boolean);
+      if (taskIds.length === 0) throw new Error("--task-list must include at least one task id");
+      const result = createTaskOperations(targetArg()).archiveBatch({
+        release: release || String(taskList.release || ""),
+        taskIds,
+        reason,
+        archivedBy,
+        archiveFields,
+      });
+      console.log(JSON.stringify(unwrapTaskOperation(result), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);

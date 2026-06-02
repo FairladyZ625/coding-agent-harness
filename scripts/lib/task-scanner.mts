@@ -127,9 +127,7 @@ export {
   taskReviewStatus,
   taskScannerVersion,
 } from "./task-review-model.mjs";
-export {
-  parseTaskAuditMetadata,
-} from "./task-audit-metadata.mjs";
+export { parseTaskAuditMetadata } from "./task-audit-metadata.mjs";
 export {
   allowedLessonCandidateRowStatuses,
   allowedLessonCandidateTaskStatuses,
@@ -193,23 +191,23 @@ export function readVisualMapContractFile(taskDir: string, legacyContent = ""): 
   };
 }
 
-export function isActiveTaskState(state: string): boolean {
-  return ["active", "planned", "not_started", "in_progress", "review", "blocked", "reopened", "current-evidence"].includes(state);
-}
+export function isActiveTaskState(state: string): boolean { return ["active", "planned", "not_started", "in_progress", "review", "blocked", "reopened", "current-evidence"].includes(state); }
 
-export function listTaskPlanPaths(target: TaskScannerTarget): string[] {
+export function listTaskPlanPaths(target: TaskScannerTarget, { includeArchived = false }: { includeArchived?: boolean } = {}): string[] {
   const harnessPaths = (target.harness || resolveHarnessPaths(target)) as ResolvedHarnessPaths;
-  const taskRoots = harnessPaths.taskRoots;
-  return taskRoots
+  const activePaths = harnessPaths.taskRoots
     .flatMap((root) => walkFiles(root))
     .filter((file) => file.endsWith("task_plan.md"))
     .filter((file) => !isExcludedTaskPlanPath(file, harnessPaths))
     .filter((file) => !isArchivedHarnessPath(file));
+  if (!includeArchived) return activePaths;
+  const archiveRoot = path.join(harnessPaths.governanceRoot, "archive");
+  const releaseRoot = path.join(archiveRoot, "releases");
+  const archiveTaskRoots = [path.join(archiveRoot, "tasks"), ...(fs.existsSync(releaseRoot) ? fs.readdirSync(releaseRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => path.join(releaseRoot, entry.name, "tasks")) : [])].filter((root) => fs.existsSync(root));
+  return [...activePaths, ...archiveTaskRoots.flatMap((root) => walkFiles(root)).filter((file) => file.endsWith("task_plan.md"))].sort();
 }
 
-export function taskIdForDirectory(target: TaskScannerTarget, taskDir: string): string {
-  return taskIdFromDirectory((target.harness || resolveHarnessPaths(target)) as ResolvedHarnessPaths, taskDir);
-}
+export function taskIdForDirectory(target: TaskScannerTarget, taskDir: string): string { return taskIdFromDirectory((target.harness || resolveHarnessPaths(target)) as ResolvedHarnessPaths, taskDir); }
 
 export function inferTaskClassification({ id, title, relative, explicitModule, legacyCandidate = false }: {
   id: string;
@@ -295,9 +293,9 @@ export function taskCutoverCounters(tasks: Array<{ visualMapStatus: string; migr
   };
 }
 
-export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffoldProvenance = false, taskPlanPaths, closeoutContent }: CollectTasksOptions = {}) {
+export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffoldProvenance = false, includeArchived = false, taskPlanPaths, closeoutContent }: CollectTasksOptions = {}) {
   const harnessPaths = (target.harness || resolveHarnessPaths(target)) as ResolvedHarnessPaths;
-  const paths = taskPlanPaths || listTaskPlanPaths(target);
+  const paths = taskPlanPaths || listTaskPlanPaths(target, { includeArchived });
   const closeout = closeoutContent ?? (harnessPaths.version === 2 ? "" : readFileSafe(harnessPaths.legacy.closeoutPath));
   return paths.map((taskPlanPath) => {
     const taskDir = path.dirname(taskPlanPath);
@@ -322,7 +320,8 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
     const phases = parsePhases(visualMap.content);
     const completion = phaseCompletionAverage(phases);
     const relative = toPosix(path.relative(target.projectRoot, taskDir));
-    const id = taskIdForDirectory(target, taskDir);
+    const directoryId = taskIdForDirectory(target, taskDir);
+    const id = relative.match(/^coding-agent-harness\/governance\/archive\/(?:releases\/[^/]+\/)?tasks\/((?:TASKS|MODULES|EXTERNAL)\/.+)$/)?.[1] || directoryId;
     const identity = parseTaskIdentity(taskPlan, id);
     const tombstone = parseTaskTombstone(taskPlan);
     const title = titleFromMarkdown(brief.content || taskPlan, path.basename(taskDir));
@@ -430,7 +429,7 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       originalPath: `TARGET:${relative}`,
       aliases: [],
       identitySource: identity.identitySource,
-      shortId: path.basename(taskDir),
+      shortId: id.split("/").at(-1) || path.basename(taskDir),
       title,
       path: `TARGET:${relative}`,
       taskPlanPath: `TARGET:${toPosix(path.relative(target.projectRoot, taskPlanPath))}`,

@@ -98,6 +98,7 @@ export function createScannerTaskRepository(targetInput: TaskScannerTarget | str
     list(query: TaskQuery = {}) {
       const tasks = collectTasks(target, {
         requireGeneratedScaffoldProvenance: query.requireGeneratedScaffoldProvenance ?? defaults.requireGeneratedScaffoldProvenance,
+        includeArchived: query.includeArchived !== false,
         closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
       });
       return applyTaskQuery(tasks, query);
@@ -106,6 +107,7 @@ export function createScannerTaskRepository(targetInput: TaskScannerTarget | str
       const location = resolveRepositoryTaskLocation(target, ref);
       const task = collectTasks(target, {
         requireGeneratedScaffoldProvenance: defaults.requireGeneratedScaffoldProvenance,
+        includeArchived: true,
         closeoutContent: defaults.closeoutContent,
       }).find((candidate) => candidate.id === location.id);
       if (!task) throw new Error(`Task not found: ${ref.id || ref.path || ""}`);
@@ -246,7 +248,7 @@ function legacyPlanningPrefix(): string {
 }
 
 function taskDirectories(target: TaskScannerTarget): string[] {
-  return listTaskPlanPaths(target).map((taskPlanPath) => path.dirname(taskPlanPath));
+  return listTaskPlanPaths(target, { includeArchived: true }).map((taskPlanPath) => path.dirname(taskPlanPath));
 }
 
 function taskLocationFromDirectory(harnessPaths: ResolvedHarnessPaths, directory: string): TaskLocation {

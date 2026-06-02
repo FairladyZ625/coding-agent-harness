@@ -416,6 +416,11 @@ writeTaskFixture(`${todayLocal}-release-module-done`, {
   moduleKey: "life-circle",
   confirmedReview: true,
 });
+writeTaskFixture(`${todayLocal}-release-batch-root`, {
+  title: "Batch root done task with review confirmation",
+  state: "done",
+  confirmedReview: true,
+});
 writeTaskFixture(`${todayLocal}-release-external-done`, {
   title: "External done task with review confirmation",
   state: "done",
@@ -468,6 +473,10 @@ assert(reservedArchiveField.status !== 0, "task-archive should reject archive-fi
 assert(`${reservedArchiveField.stdout}\n${reservedArchiveField.stderr}`.includes("Reserved archive field"), "reserved archive field failure should explain the audit field boundary");
 
 expectJson(["task-archive", "release-done-path", "--reason", "release closeout", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "retention bucket=release:1.0.5", "--archive-field", "release package=coding-agent-harness/governance/releases/1.0.5/INDEX.md", target], { env });
+const archiveCommit = git(target, ["rev-parse", "HEAD"]).stdout.trim();
+const archiveCommittedFiles = git(target, ["show", "--name-only", "--format=", archiveCommit]).stdout.trim().split(/\r?\n/).filter(Boolean);
+assert(archiveCommittedFiles.some((file) => file.includes(`governance/archive/tasks/TASKS/${todayLocal}-release-done-path/`)), "single task archive should move task material into the generic archive");
+assert(!fs.existsSync(path.join(target, "coding-agent-harness/planning/tasks", `${todayLocal}-release-done-path`)), "single task archive should remove the task from the active planning tree");
 const taskIndexWithArchiveFields = expectJson(["task-index", "--json", target], { env });
 const releaseArchivedTask = taskIndexWithArchiveFields.tasks.find((task) => task.id.endsWith("release-done-path"));
 assert(releaseArchivedTask, "task index should include archived release-done-path fixture");
@@ -476,6 +485,45 @@ assert(releaseArchivedTask.archiveMetadata?.["release package"] === "coding-agen
 assert(releaseArchivedTask.archiveMetadata?.["archived by"] === "Release Manager <release@example.invalid>", "task index should expose the accountable archive actor");
 assert(releaseArchivedTask.archiveMetadata?.["review confirmed by"] === "Release Reviewer", "task index should expose the review confirmation actor");
 assert(releaseArchivedTask.archiveMetadata?.["review confirmation id"] === "HRC-20260528101010", "task index should expose the review confirmation id");
+
+fs.writeFileSync(path.join(target, "README.md"), "unrelated dirty state\n");
+expectJson(["task-archive", "release-review-confirmed", "--reason", "release closeout with unrelated dirty", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "retention bucket=release:1.0.5", target], { env });
+const unrelatedDirtyArchiveCommit = git(target, ["rev-parse", "HEAD"]).stdout.trim();
+const unrelatedDirtyCommittedFiles = git(target, ["show", "--name-only", "--format=", unrelatedDirtyArchiveCommit]).stdout.trim().split(/\r?\n/).filter(Boolean);
+assert(unrelatedDirtyCommittedFiles.some((file) => file.includes(`governance/archive/tasks/TASKS/${todayLocal}-release-review-confirmed/`)), "archive with unrelated dirty should move only task-owned files into the archive");
+assert(!unrelatedDirtyCommittedFiles.some((file) => file === "README.md"), "archive with unrelated dirty should not commit unrelated files");
+assert(git(target, ["status", "--porcelain"]).stdout.includes("README.md"), "unrelated dirty file should remain dirty after task-archive");
+fs.rmSync(path.join(target, "README.md"));
+
+const ownedDirtyTaskPlan = path.join(target, "coding-agent-harness/planning/modules/life-circle/tasks", `${todayLocal}-release-module-done`, "task_plan.md");
+fs.appendFileSync(ownedDirtyTaskPlan, "\n<!-- user-owned archive edit -->\n");
+const ownedDirtyArchive = run(["task-archive", `MODULES/life-circle/${todayLocal}-release-module-done`, "--reason", "should reject owned dirty", "--archived-by", "Release Manager <release@example.invalid>", target], { env });
+assert(ownedDirtyArchive.status !== 0, "task-archive should reject pre-existing dirty state in owned task paths");
+assert(`${ownedDirtyArchive.stdout}\n${ownedDirtyArchive.stderr}`.includes("owned path"), "owned dirty archive failure should identify the owned path boundary");
+git(target, ["checkout", "--", path.relative(target, ownedDirtyTaskPlan)]);
+
+const batchTaskListPath = path.join(tmpRoot, "release-archive-batch-task-list.json");
+fs.writeFileSync(batchTaskListPath, JSON.stringify({
+  schemaVersion: "release-closeout-task-list/v1",
+  release: "1.0.5",
+  taskIds: [`TASKS/${todayLocal}-release-batch-root`, `MODULES/life-circle/${todayLocal}-release-module-done`],
+}, null, 2));
+expectJson(["task-archive-batch", "--release", "1.0.5", "--task-list", batchTaskListPath, "--reason", "release closeout batch", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "retention bucket=release:1.0.5", target], { env });
+const batchArchiveCommit = git(target, ["rev-parse", "HEAD"]).stdout.trim();
+const batchArchiveSubject = git(target, ["show", "-s", "--format=%s", batchArchiveCommit]).stdout.trim();
+const batchArchiveCommittedFiles = git(target, ["show", "--name-only", "--format=", batchArchiveCommit]).stdout.trim().split(/\r?\n/).filter(Boolean);
+assert(batchArchiveSubject === "chore(harness): archive release 1.0.5 tasks", "batch archive should use one release-scoped commit subject");
+assert(batchArchiveCommittedFiles.some((file) => file.includes(`governance/archive/releases/1.0.5/tasks/TASKS/${todayLocal}-release-batch-root/`)), "batch archive should move root task files into the release archive");
+assert(batchArchiveCommittedFiles.some((file) => file.includes(`governance/archive/releases/1.0.5/tasks/MODULES/life-circle/${todayLocal}-release-module-done/`)), "batch archive should move module task files into the release archive");
+assert(!fs.existsSync(path.join(target, "coding-agent-harness/planning/tasks", `${todayLocal}-release-batch-root`)), "batch archive should remove the root task from the active planning tree");
+assert(!fs.existsSync(path.join(target, "coding-agent-harness/planning/modules/life-circle/tasks", `${todayLocal}-release-module-done`)), "batch archive should remove the module task from the active planning tree");
+assert(fs.existsSync(path.join(target, "coding-agent-harness/governance/archive/releases/1.0.5/tasks/TASKS", `${todayLocal}-release-batch-root`, "task_plan.md")), "batch archive should preserve root task material in archive");
+assert(fs.existsSync(path.join(target, "coding-agent-harness/governance/archive/releases/1.0.5/tasks/MODULES/life-circle", `${todayLocal}-release-module-done`, "task_plan.md")), "batch archive should preserve module task material in archive");
+const activeAfterBatchArchive = expectJson(["task-list", "--json", target], { env });
+assert(!activeAfterBatchArchive.tasks.some((task: ReleaseTaskIndexTask) => task.id === `TASKS/${todayLocal}-release-batch-root`), "normal task-list should hide physically archived root tasks");
+const archivedAfterBatchArchive = expectJson(["task-list", "--include-archived", "--json", target], { env });
+assert(archivedAfterBatchArchive.tasks.some((task: ReleaseTaskIndexTask) => task.id === `TASKS/${todayLocal}-release-batch-root` && task.archiveMetadata?.["retention bucket"] === "release:1.0.5"), "include-archived task-list should expose physically archived root tasks");
+assert(archivedAfterBatchArchive.tasks.some((task: ReleaseTaskIndexTask) => task.id === `MODULES/life-circle/${todayLocal}-release-module-done` && task.archiveMetadata?.["retention bucket"] === "release:1.0.5"), "include-archived task-list should expose physically archived module tasks");
 
 expectJson(["new-task", "release-closeout-no-selector", "--budget", "complex", "--preset", "release-closeout", "--release", "1.0.4", target], { env });
 const noSelector = run(["preset", "run", "release-closeout", "scaffold", "--task", "release-closeout-no-selector", "--allow-scripts", "--json", target], { env });

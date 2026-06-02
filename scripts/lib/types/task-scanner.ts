@@ -110,6 +110,7 @@ export type EvidenceRef = {
 
 export type CollectTasksOptions = {
   requireGeneratedScaffoldProvenance?: boolean;
+  includeArchived?: boolean;
   taskPlanPaths?: string[];
   closeoutContent?: string;
 };

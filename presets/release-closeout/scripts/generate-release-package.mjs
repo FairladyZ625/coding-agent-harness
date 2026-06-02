@@ -26,7 +26,7 @@ const releaseRoot = path.join(context.outputRoot, "release");
 fs.mkdirSync(releaseRoot, { recursive: true });
 
 const target = normalizeTarget(context.targetRoot);
-const allTasks = collectCoreTasks(target)
+const allTasks = collectCoreTasks(target, { includeArchived: true })
   .map(releaseTaskFromCore)
   .filter((task) => task.id !== context.task.id && task.shortId !== context.task.id && task.preset !== "release-closeout")
   .sort((a, b) => a.id.localeCompare(b.id));
@@ -276,6 +276,7 @@ function taskSummary(task) {
 }
 
 function archiveBlockReason(task) {
+  if (task.deletionState === "archived") return "";
   return sharedArchiveBlockReason(task, { archivedBy: task.reviewConfirmation?.reviewer || "" });
 }
 

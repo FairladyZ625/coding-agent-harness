@@ -1,7 +1,7 @@
 import { normalizeTarget } from "../../lib/core-shared.mjs";
 import { createTask, confirmTaskReview, updateTaskLifecycle } from "../../lib/task-lifecycle.mjs";
 import { createLessonSedimentationTask } from "../../lib/task-lesson-sedimentation.mjs";
-import { archiveTask, deleteTask, reopenTask, supersedeTask } from "../../lib/task-tombstone-commands.mjs";
+import { archiveTask, archiveTasks, deleteTask, reopenTask, supersedeTask } from "../../lib/task-tombstone-commands.mjs";
 import { createScannerTaskRepository } from "../../lib/task-repository.mjs";
 import type { TaskRecord, TaskRepository } from "../../lib/task-repository.mjs";
 import { buildTaskSemanticProjection } from "../../lib/task-semantic-projection.mjs";
@@ -81,6 +81,14 @@ export type ArchiveTaskInput = {
   archiveFields?: Record<string, unknown>;
 };
 
+export type ArchiveTaskBatchInput = {
+  release?: string;
+  taskIds?: string[];
+  reason?: string;
+  archivedBy?: string;
+  archiveFields?: Record<string, unknown>;
+};
+
 export type SupersedeTaskInput = {
   taskId: string;
   by?: string;
@@ -113,6 +121,7 @@ export type TaskOperations = {
   confirmReview(input: ReviewOperationInput): OperationResult;
   delete(input: DeleteTaskInput): OperationResult;
   archive(input: ArchiveTaskInput): OperationResult;
+  archiveBatch(input: ArchiveTaskBatchInput): OperationResult;
   supersede(input: SupersedeTaskInput): OperationResult;
   reopen(input: ReopenTaskInput): OperationResult;
   lessonSediment(input: LessonSedimentInput): OperationResult;
@@ -191,6 +200,15 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
     },
     archive(input) {
       return runOperation(() => archiveTask(targetRoot, input.taskId, {
+        reason: input.reason || "",
+        archivedBy: input.archivedBy || "",
+        archiveFields: input.archiveFields || {},
+      }));
+    },
+    archiveBatch(input) {
+      return runOperation(() => archiveTasks(targetRoot, {
+        release: input.release || "",
+        taskIds: input.taskIds || [],
         reason: input.reason || "",
         archivedBy: input.archivedBy || "",
         archiveFields: input.archiveFields || {},
