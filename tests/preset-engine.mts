@@ -13,6 +13,12 @@ import {
   writeZipFromDirectory,
 } from "./helpers/harness-test-utils.mjs";
 
+type PresetInspectResult = {
+  task: { kind?: string };
+  entrypoints: Record<string, { type?: string } | undefined>;
+  actions?: Record<string, { type?: string } | undefined>;
+};
+
 assert(fs.existsSync(path.join(repoRootFromTest(), "docs-release/guides/preset-development.md")), "preset development guide should exist");
 assert(fs.existsSync(path.join(repoRootFromTest(), "skills/preset-creator/SKILL.md")), "preset creator skill should exist");
 assert(fs.existsSync(path.join(repoRootFromTest(), "skills/preset-creator/references/preset-package-skeleton.md")), "preset creator skill should include a package skeleton reference");
@@ -85,6 +91,14 @@ assert(!codexThreadTaskPlan.includes("Admin Review Bypass"), "public Codex threa
 const listBefore = expectJson(["preset", "list", "--json"], { env });
 const legacyBefore = listBefore.presets.find((preset) => preset.id === "legacy-migration");
 assert(legacyBefore?.source === "builtin", "builtin presets should report source=builtin");
+const versionUpgradeBefore = listBefore.presets.find((preset) => preset.id === "version-upgrade");
+assert(versionUpgradeBefore?.source === "builtin", "version-upgrade should be bundled as a builtin preset");
+const versionUpgradeInspect = expectJson<PresetInspectResult>(["preset", "inspect", "version-upgrade", "--json"], { env });
+assert(versionUpgradeInspect.task.kind === "version-upgrade", "version-upgrade should expose its public task kind");
+assert(versionUpgradeInspect.entrypoints.plan?.type === "script", "version-upgrade should declare a plan script entrypoint");
+assert(versionUpgradeInspect.entrypoints.check?.type === "check", "version-upgrade should declare a check entrypoint");
+assert(versionUpgradeInspect.actions?.["apply-safe"]?.type === "script", "version-upgrade should expose an apply-safe script action");
+assert(expectJson(["preset", "check", "version-upgrade", "--json"], { env }).status === "pass", "version-upgrade bundled preset should pass preset check");
 const listTextBefore = expectPass(["preset", "list"], { env }).stdout;
 assert(listTextBefore.includes("legacy-migration@") && listTextBefore.includes("[builtin]"), "text preset list should show source labels");
 assert(listTextBefore.includes(" - "), "text preset list should include preset purpose");
