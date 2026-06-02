@@ -17,6 +17,7 @@ import {
   finalizeDeferredTaskReviewConfirmation as finalizeDeferredTaskReviewConfirmationWithContext,
 } from "./task-lifecycle/review-confirm.mjs";
 import { writeDashboardFolder } from "./dashboard-data.mjs";
+import { buildTaskSemanticProjection } from "./task-semantic-projection.mjs";
 import {
   checkPresetPackage,
   installPresetPackage,
@@ -472,20 +473,22 @@ function normalizeWorkbenchPath(filePath: string): string {
 }
 
 function bulkReviewConfirmationBlock(task: TaskRecord): BulkReviewBlock | null {
-  if (task.reviewStatus === "confirmed" || task.reviewConfirmation?.confirmed === true) {
-    return { status: 409, reason: "Review is already confirmed.", payload: { reviewStatus: task.reviewStatus || "confirmed", taskId: task.id || "" } };
+  const projection = buildTaskSemanticProjection(task as Record<string, unknown>);
+  const lifecycle = projection.taskLifecycleProjection;
+  const reviewView = projection.reviewWorkbenchQueueView;
+  if (reviewView.confirmed) {
+    return { status: 409, reason: "Review is already confirmed.", payload: { reviewStatus: lifecycle.reviewStatus || "confirmed", taskId: task.id || "" } };
   }
-  const queues = Array.isArray(task.taskQueues) ? task.taskQueues : [];
-  if (task.reviewQueueState !== "ready-to-confirm" || !queues.includes("review")) {
+  if (!reviewView.humanConfirmable) {
     return {
       status: 409,
       reason: "Review completion is only available for tasks in the review queue.",
       payload: {
-        reviewQueueState: task.reviewQueueState || "unknown",
-        taskQueues: queues,
+        reviewQueueState: lifecycle.reviewQueueState || "unknown",
+        taskQueues: reviewView.queues,
         queueReasons: Array.isArray(task.queueReasons) ? task.queueReasons : [],
         repairPrompt: task.repairPrompt || "",
-        reviewStatus: task.reviewStatus || "unknown",
+        reviewStatus: lifecycle.reviewStatus || "unknown",
         taskId: task.id || "",
       },
     };

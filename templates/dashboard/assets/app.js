@@ -1573,7 +1573,7 @@ function reviewActionPanel(task, { mode = "summary" } = {}) {
   const lifecycle = taskLifecycleProjection(task);
   const reviewView = taskReviewWorkbenchQueueView(task);
   const blocking = reviewView.blocked === true || (task.risks || []).some((risk) => /^P[0-2]$/i.test(risk.severity || "") && (risk.open || risk.blocksRelease));
-  const confirmed = reviewView.confirmed === true || lifecycle.reviewStatus === "confirmed";
+  const confirmed = reviewView.confirmed === true;
   const readyForCloseout = taskReadyForCloseout(task);
   const hasLessonWork = taskHasPendingLessonWork(task);
   const candidateStatus = task.lessonCandidateStatus || "missing";

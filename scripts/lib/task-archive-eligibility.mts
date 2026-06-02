@@ -1,5 +1,5 @@
 import { isConcreteAuditField } from "./task-audit-metadata.mjs";
-import { normalizeReviewBoolean } from "./task-review-model.mjs";
+import { isGitBackedHumanReviewConfirmed, normalizeReviewBoolean } from "./task-review-model.mjs";
 
 type ArchiveEligibilityTask = {
   state?: string;
@@ -45,7 +45,7 @@ export function archiveBlockReason(task: ArchiveEligibilityTask, { archivedBy = 
   }
   const blockingRisks = (task.risks || []).filter((risk) => normalizeReviewBoolean(risk.open) !== "no" && (normalizeReviewBoolean(risk.blocksRelease) === "yes" || ["P0", "P1", "P2"].includes(String(risk.severity))));
   if (blockingRisks.length) return "tasks with open blocking review findings cannot be archived without an explicit human waiver";
-  const reviewFinalized = task.reviewStatus === "confirmed" || task.reviewConfirmation?.confirmed === true || (task.taskQueues || []).includes("finalized");
+  const reviewFinalized = isGitBackedHumanReviewConfirmed(task);
   if (!reviewFinalized && task.state !== "done") return `state:${task.state || "unknown"}`;
   if (!reviewFinalized && task.budget !== "simple" && task.closeoutStatus !== "closed") return "tasks must have closed closeout materials before archive";
   if (task.materialsReady === false && task.reviewStatus !== "confirmed") {

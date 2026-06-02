@@ -22,7 +22,7 @@ import {
 import type { PhaseProgress } from "./phase-kind.mjs";
 import { validateReviewConfirmationGitAudit } from "./review-confirm-git-gate.mjs";
 import { isLessonCandidateDecisionComplete } from "./task-lesson-candidates.mjs";
-import { reviewConfirmationFromTaskAudit } from "./task-audit-metadata.mjs";
+import { isConcreteAuditField, reviewConfirmationFromTaskAudit } from "./task-audit-metadata.mjs";
 
 type StringMap = Map<string, string>;
 
@@ -122,6 +122,10 @@ type StateConflict = {
 type QueueReason = MaterialIssue & Record<string, unknown>;
 
 type TaskAudit = unknown;
+
+type ReviewConfirmationContainer = {
+  reviewConfirmation?: unknown;
+};
 
 export const taskScannerVersion = "task-scanner/2026-05-25-phase-kind";
 export const reviewFindingColumns = {
@@ -318,6 +322,21 @@ export function hasPendingLessonWork(lessonCandidates: LessonCandidates | null |
   return lessonCandidates?.status === "needs-promotion" || lessonCandidates?.promotionState === "queued" || (lessonCandidates?.openCount ?? 0) > 0;
 }
 
+export function isGitBackedHumanReviewConfirmed(input: unknown): boolean {
+  const container = input && typeof input === "object" && "reviewConfirmation" in input
+    ? input as ReviewConfirmationContainer
+    : { reviewConfirmation: input };
+  const confirmation = container.reviewConfirmation;
+  if (!confirmation || typeof confirmation !== "object") return false;
+  const record = confirmation as Record<string, unknown>;
+  if (record.confirmed !== true) return false;
+  const requiredFields = ["confirmationId", "confirmedAt", "reviewer", "commitSha"];
+  if (!requiredFields.every((field) => isConcreteAuditField(record[field]))) return false;
+  if (!/^[0-9a-f]{7,40}$/i.test(String(record.commitSha || ""))) return false;
+  const gitAudit = record.gitAudit;
+  return Boolean(gitAudit && typeof gitAudit === "object" && (gitAudit as { valid?: unknown }).valid === true);
+}
+
 export function deriveTaskQueues({
   id,
   title,
@@ -413,12 +432,12 @@ export function deriveTaskQueues({
   } else {
     if ((materialIssues || []).length > 0 || queueReasons.some((reason) => reason.queue === "missing-materials")) taskQueues.push("missing-materials");
     if (queueReasons.some((reason) => reason.queue === "blocked")) taskQueues.push("blocked");
-    if (reviewSubmission?.submitted && reviewQueueState === "ready-to-confirm" && !reviewConfirmation?.confirmed && !hasLessonWork && !taskQueues.includes("blocked") && !taskQueues.includes("missing-materials")) {
+    const humanReviewConfirmed = isGitBackedHumanReviewConfirmed(reviewConfirmation);
+    if (reviewSubmission?.submitted && reviewQueueState === "ready-to-confirm" && !humanReviewConfirmed && !hasLessonWork && !taskQueues.includes("blocked") && !taskQueues.includes("missing-materials")) {
       taskQueues.push("review");
     }
     if (hasLessonWork) taskQueues.push("lessons");
-    if (budget === "simple" && state === "done" && closeoutStatus === "closed") taskQueues.push("finalized");
-    if (reviewStatus === "confirmed") {
+    if (humanReviewConfirmed) {
       taskQueues.push("finalized");
     }
   }
@@ -486,7 +505,7 @@ export function parseReviewConfirmation(
 
 export function taskReviewStatus({ reviewContent = "", risks = [], confirmation = null, submission = null }: { reviewContent?: unknown; risks?: ReviewRisk[]; confirmation?: ReviewConfirmation | null; submission?: ReviewSubmission | null } = {}): string {
   if (risks.some(isBlockingReviewRisk)) return "blocked-open-findings";
-  if (confirmation?.confirmed) return "confirmed";
+  if (isGitBackedHumanReviewConfirmed(confirmation)) return "confirmed";
   if (!String(reviewContent || "").trim()) return "missing";
   if (submission?.submitted) return "agent-reviewed";
   if (hasAgentReviewSignal(reviewContent)) return "agent-reviewed";
@@ -507,12 +526,13 @@ export function isBlockingReviewRisk(risk: Partial<ReviewRisk> | null | undefine
   return /^P[0-2]$/i.test(risk?.severity || "") && Boolean(risk?.open || risk?.blocksRelease);
 }
 
-export function deriveLifecycleState({ state = "unknown", reviewStatus = "missing", closeoutStatus = "missing", budget = "standard", lessonCandidates = null }: { state?: string; reviewStatus?: string; closeoutStatus?: string; budget?: TaskBudget; lessonCandidates?: LessonCandidates | null } = {}): string {
+export function deriveLifecycleState({ state = "unknown", reviewStatus = "missing", closeoutStatus = "missing", budget = "standard", lessonCandidates = null, reviewConfirmation = null }: { state?: string; reviewStatus?: string; closeoutStatus?: string; budget?: TaskBudget; lessonCandidates?: LessonCandidates | null; reviewConfirmation?: ReviewConfirmation | null } = {}): string {
+  const humanReviewConfirmed = isGitBackedHumanReviewConfirmed(reviewConfirmation);
   if (reviewStatus === "blocked-open-findings") return "review-blocked";
-  if (budget === "simple" && closeoutStatus === "closed") return "closed";
-  if (closeoutStatus === "closed" && reviewStatus !== "confirmed") return "closed-review-pending";
+  if (budget === "simple" && closeoutStatus === "closed" && !humanReviewConfirmed) return "closed";
+  if (closeoutStatus === "closed" && !humanReviewConfirmed) return "closed-review-pending";
   if (closeoutStatus === "closed") return "closed";
-  if (reviewStatus === "confirmed") return "finalized";
+  if (humanReviewConfirmed) return "finalized";
   if (state === "blocked") return "blocked";
   if (state === "done") return "closing";
   if (state === "review") return "in_review";

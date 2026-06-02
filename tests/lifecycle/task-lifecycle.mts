@@ -379,7 +379,7 @@ const simpleComplete = expectJson(["task-complete", "simple-lifecycle", "--messa
 assert(simpleComplete.task?.state === "done", "simple task should be able to complete without review");
 assert(simpleComplete.task?.phases?.some((phase) => phase.id === "GATE-01" && phase.state === "done" && phase.completion === 100), "task-complete should mark the simple gate phase complete");
 assert(simpleComplete.task?.lifecycleState === "closed", "completed simple task should be closed without separate closeout SSoT");
-assert(simpleComplete.task?.taskQueues?.includes("finalized"), "completed simple task should enter the finalized queue");
+assert(!simpleComplete.task?.taskQueues?.includes("finalized"), "completed simple task without Git-backed human review must not enter the finalized queue");
 sanitizeTemplateFixtureMaterials(path.join(lifecycleTarget, `coding-agent-harness/planning/tasks/${todayLocal}-simple-lifecycle`));
 const earlyReview = run(["task-review", "review-too-early", lifecycleTarget]);
 assert(earlyReview.status !== 0, "task-review should reject unknown tasks");

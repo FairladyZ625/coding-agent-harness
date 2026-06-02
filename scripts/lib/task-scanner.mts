@@ -355,7 +355,7 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
     const effectiveCloseoutStatus = budget === "simple" && stateInfo.state === "done" && completion === 100
       ? "closed"
       : closeoutInfo.status;
-    const lifecycleState = deriveLifecycleState({ state: stateInfo.state, reviewStatus, closeoutStatus: effectiveCloseoutStatus, budget, lessonCandidates });
+    const lifecycleState = deriveLifecycleState({ state: stateInfo.state, reviewStatus, closeoutStatus: effectiveCloseoutStatus, budget, lessonCandidates, reviewConfirmation });
     const reviewSurfaceRequired = requiresReviewMaterials({
       state: stateInfo.state,
       lifecycleState,

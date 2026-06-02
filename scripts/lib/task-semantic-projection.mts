@@ -1,3 +1,5 @@
+import { isGitBackedHumanReviewConfirmed } from "./task-review-model.mjs";
+
 type TaskBudget = "simple" | "standard" | "complex";
 
 type QueueReason = {
@@ -22,7 +24,7 @@ type TaskSemanticProjectionInput = {
   taskQueues?: string[];
   queueReasons?: QueueReason[];
   materialsReady?: boolean;
-  reviewConfirmation?: { confirmed?: boolean } | null;
+  reviewConfirmation?: Record<string, unknown> | null;
   reviewSubmitted?: boolean;
   lessonCandidateStatus?: string;
   lessonCandidatePromotionState?: string;
@@ -130,7 +132,7 @@ export function buildTaskLifecycleProjection(task: TaskSemanticProjectionInput, 
   return {
     state: stringValue(task.state, "unknown"),
     lifecycleState: stringValue(task.lifecycleState, "unknown"),
-    reviewStatus: stringValue(task.reviewStatus, "missing"),
+    reviewStatus: normalizedReviewStatus(task),
     reviewQueueState: stringValue(task.reviewQueueState, "not-in-queue"),
     closeoutStatus: stringValue(task.closeoutStatus, "missing"),
     taskQueues,
@@ -202,8 +204,8 @@ export function buildReviewWorkbenchQueueView(
 ): ReviewWorkbenchQueueView {
   const hasPendingLessonWork = taskHasPendingLessonWork(task, taskQueues);
   const humanConfirmable = lifecycle.reviewQueueState === "ready-to-confirm" && taskQueues.includes("review");
-  const confirmed = lifecycle.reviewStatus === "confirmed" || task.reviewConfirmation?.confirmed === true || taskQueues.includes("confirmed");
-  const finalized = confirmed || lifecycle.closeoutStatus === "closed" || taskQueues.includes("finalized");
+  const confirmed = lifecycle.reviewStatus === "confirmed" && isGitBackedHumanReviewConfirmed(task);
+  const finalized = confirmed && taskQueues.includes("finalized");
   const readyForCloseout = false;
   const primaryQueue = primaryReviewQueue(taskQueues);
   const reasonSummaries = normalizedQueueReasons(task);
@@ -225,9 +227,13 @@ export function buildReviewWorkbenchQueueView(
 
 function normalizedTaskQueues(task: TaskSemanticProjectionInput): string[] {
   const queues = Array.isArray(task.taskQueues) ? task.taskQueues.map((queue) => stringValue(queue, "")).filter(Boolean) : [];
-  const confirmed = stringValue(task.reviewStatus, "") === "confirmed" || task.reviewConfirmation?.confirmed === true;
-  const terminalQueues = new Set(["review", "confirmed", "confirmed-finalization-pending"]);
-  const sourceQueues = confirmed ? queues.filter((queue) => !terminalQueues.has(queue)) : queues;
+  if (stringValue(task.deletionState, "active") !== "active") return ["soft-deleted-superseded"];
+  const confirmed = isGitBackedHumanReviewConfirmed(task);
+  const unconfirmedTerminalQueues = new Set(["confirmed", "confirmed-finalization-pending", "finalized"]);
+  const confirmedTransitionQueues = new Set(["review", "confirmed", "confirmed-finalization-pending"]);
+  const sourceQueues = confirmed
+    ? queues.filter((queue) => !confirmedTransitionQueues.has(queue))
+    : queues.filter((queue) => !unconfirmedTerminalQueues.has(queue));
   if (confirmed && !sourceQueues.includes("finalized")) sourceQueues.push("finalized");
   if (confirmed && taskHasPendingLessonSignal(task) && !sourceQueues.includes("lessons")) sourceQueues.push("lessons");
   const normalized = sourceQueues.filter((queue) => queue !== "active" || taskIsCurrentlyActive(task));
@@ -246,6 +252,14 @@ function normalizedQueueReasons(task: TaskSemanticProjectionInput): QueueReason[
       severity: stringValue(reason.severity, ""),
     }))
     .filter((reason) => reason.code || reason.queue || reason.message || reason.severity);
+}
+
+function normalizedReviewStatus(task: TaskSemanticProjectionInput): string {
+  const raw = stringValue(task.reviewStatus, "missing");
+  if (isGitBackedHumanReviewConfirmed(task)) return "confirmed";
+  if (raw !== "confirmed") return raw;
+  if (task.reviewSubmitted === true) return "agent-reviewed";
+  return "required";
 }
 
 function primaryReviewQueue(queues: string[]): string {
@@ -274,11 +288,12 @@ function taskIsCurrentlyActive(task: TaskSemanticProjectionInput): boolean {
 
 function nonActiveLifecycleQueue(task: TaskSemanticProjectionInput): string {
   if (stringValue(task.deletionState, "active") !== "active") return "soft-deleted-superseded";
+  if (isGitBackedHumanReviewConfirmed(task)) return "finalized";
   const state = stringValue(task.state, "unknown");
   const lifecycleState = stringValue(task.lifecycleState, "unknown");
-  const closeoutStatus = stringValue(task.closeoutStatus, "missing");
-  const reviewStatus = stringValue(task.reviewStatus, "missing");
-  if (closeoutStatus === "closed" || ["closed", "finalized"].includes(lifecycleState) || reviewStatus === "confirmed") return "finalized";
+  const reviewQueueState = stringValue(task.reviewQueueState, "not-in-queue");
+  if (reviewQueueState === "needs-material") return "missing-materials";
+  if (reviewQueueState === "ready-to-confirm") return "review";
   if (state === "blocked" || lifecycleState === "blocked") return "blocked";
   if (state === "review" || lifecycleState === "in_review") return "review";
   if (["planned", "not_started"].includes(state) || lifecycleState === "ready") return "planned";

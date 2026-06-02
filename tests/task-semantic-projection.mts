@@ -7,6 +7,15 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+const gitBackedReviewConfirmation = {
+  confirmed: true,
+  confirmationId: "HRC-202606020900",
+  confirmedAt: "2026-06-02 09:00",
+  reviewer: "Human Reviewer",
+  commitSha: "0123456789abcdef0123456789abcdef01234567",
+  gitAudit: { valid: true },
+};
+
 const needsMaterialReview = buildTaskSemanticProjection({
   state: "review",
   lifecycleState: "in_review",
@@ -108,6 +117,7 @@ const confirmedLessonWork = buildTaskSemanticProjection({
   budget: "standard",
   completion: 100,
   taskQueues: ["finalized", "lessons"],
+  reviewConfirmation: gitBackedReviewConfirmation,
   materialsReady: true,
   reviewSubmitted: true,
   lessonCandidateStatus: "needs-promotion",
@@ -123,8 +133,8 @@ assert(confirmedLessonWork.dashboardTaskView.swimlane.columnKey === "lessons", "
 const closedHistorical = buildTaskSemanticProjection({
   state: "done",
   lifecycleState: "closed",
-  reviewStatus: "confirmed",
-  reviewQueueState: "not-in-queue",
+  reviewStatus: "required",
+  reviewQueueState: "closed-debt",
   closeoutStatus: "closed",
   budget: "standard",
   completion: 100,
@@ -136,9 +146,34 @@ const closedHistorical = buildTaskSemanticProjection({
 });
 
 assert(closedHistorical.dashboardTaskView.visibleInSwimlane === false, "closed historical work should be hidden from active swimlane");
-assert(closedHistorical.reviewWorkbenchQueueView.finalized === true, "closed work should project finalized review workbench state");
+assert(closedHistorical.reviewWorkbenchQueueView.finalized === false, "closed work without Git-backed confirmation must not project finalized review workbench state");
+assert(closedHistorical.reviewWorkbenchQueueView.primaryQueue !== "finalized", "closed work with stale raw finalized queue must not remain in the finalized queue");
+assert(!closedHistorical.reviewWorkbenchQueueView.queues.includes("finalized"), "stale raw finalized queue must be filtered when human review is not Git-backed confirmed");
 
 const confirmedByAudit = buildTaskSemanticProjection({
+  state: "review",
+  lifecycleState: "in_review",
+  reviewStatus: "agent-reviewed",
+  reviewQueueState: "ready-to-confirm",
+  closeoutStatus: "missing",
+  budget: "standard",
+  completion: 100,
+  taskQueues: ["review"],
+  materialsReady: true,
+  reviewSubmitted: true,
+  reviewConfirmation: gitBackedReviewConfirmation,
+  lessonCandidateStatus: "no-candidate-accepted",
+  lessonCandidateDecisionComplete: true,
+  deletionState: "active",
+});
+
+assert(confirmedByAudit.reviewWorkbenchQueueView.confirmed === true, "native review confirmation audit should project confirmed workbench state");
+assert(confirmedByAudit.reviewWorkbenchQueueView.finalized === true, "native review confirmation audit should project terminal finalized state");
+assert(confirmedByAudit.reviewWorkbenchQueueView.readyForCloseout === false, "native review confirmation audit should not require a second closeout action");
+assert(confirmedByAudit.reviewWorkbenchQueueView.primaryQueue === "finalized", "confirmed no-lesson tasks should not remain in the review or confirmed-finalization-pending queues");
+assert(confirmedByAudit.dashboardTaskView.visibleInSwimlane === false, "confirmed no-lesson tasks should leave active swimlane views");
+
+const nakedConfirmedBoolean = buildTaskSemanticProjection({
   state: "review",
   lifecycleState: "in_review",
   reviewStatus: "agent-reviewed",
@@ -155,11 +190,50 @@ const confirmedByAudit = buildTaskSemanticProjection({
   deletionState: "active",
 });
 
-assert(confirmedByAudit.reviewWorkbenchQueueView.confirmed === true, "native review confirmation audit should project confirmed workbench state");
-assert(confirmedByAudit.reviewWorkbenchQueueView.finalized === true, "native review confirmation audit should project terminal finalized state");
-assert(confirmedByAudit.reviewWorkbenchQueueView.readyForCloseout === false, "native review confirmation audit should not require a second closeout action");
-assert(confirmedByAudit.reviewWorkbenchQueueView.primaryQueue === "finalized", "confirmed no-lesson tasks should not remain in the review or confirmed-finalization-pending queues");
-assert(confirmedByAudit.dashboardTaskView.visibleInSwimlane === false, "confirmed no-lesson tasks should leave active swimlane views");
+assert(nakedConfirmedBoolean.reviewWorkbenchQueueView.confirmed === false, "bare reviewConfirmation.confirmed must not count as Git-backed confirmation");
+assert(nakedConfirmedBoolean.reviewWorkbenchQueueView.finalized === false, "bare reviewConfirmation.confirmed must not finalize active tasks");
+assert(nakedConfirmedBoolean.reviewWorkbenchQueueView.primaryQueue === "review", "bare reviewConfirmation.confirmed should leave ready work in the review queue");
+
+const staleRawConfirmedStatus = buildTaskSemanticProjection({
+  state: "review",
+  lifecycleState: "finalized",
+  reviewStatus: "confirmed",
+  reviewQueueState: "not-in-queue",
+  closeoutStatus: "missing",
+  budget: "standard",
+  completion: 100,
+  taskQueues: ["finalized"],
+  materialsReady: true,
+  reviewSubmitted: true,
+  reviewConfirmation: { confirmed: true },
+  lessonCandidateDecisionComplete: true,
+  deletionState: "active",
+});
+
+assert(staleRawConfirmedStatus.taskLifecycleProjection.reviewStatus !== "confirmed", "projected lifecycle reviewStatus must not preserve raw confirmed status without Git audit");
+assert(staleRawConfirmedStatus.reviewWorkbenchQueueView.confirmed === false, "stale raw confirmed status must not project confirmed workbench state");
+assert(staleRawConfirmedStatus.reviewWorkbenchQueueView.finalized === false, "stale raw confirmed status must not project finalized workbench state");
+assert(!staleRawConfirmedStatus.reviewWorkbenchQueueView.queues.includes("finalized"), "stale raw confirmed status must not keep raw finalized queue");
+
+const archivedConfirmedTombstone = buildTaskSemanticProjection({
+  state: "done",
+  lifecycleState: "closed",
+  reviewStatus: "confirmed",
+  reviewQueueState: "not-in-queue",
+  closeoutStatus: "closed",
+  budget: "standard",
+  completion: 100,
+  taskQueues: ["soft-deleted-superseded"],
+  materialsReady: true,
+  reviewSubmitted: true,
+  reviewConfirmation: gitBackedReviewConfirmation,
+  lessonCandidateDecisionComplete: true,
+  deletionState: "archived",
+});
+
+assert(archivedConfirmedTombstone.reviewWorkbenchQueueView.primaryQueue === "soft-deleted-superseded", "archived tombstones must stay in archive history queue even when review was confirmed");
+assert(archivedConfirmedTombstone.reviewWorkbenchQueueView.finalized === false, "archived tombstones must not project finalized workbench state");
+assert(!archivedConfirmedTombstone.reviewWorkbenchQueueView.queues.includes("finalized"), "archived tombstones must not carry finalized queue");
 
 assert(
   deriveLifecycleState({
@@ -168,6 +242,7 @@ assert(
     closeoutStatus: "pending",
     budget: "standard",
     lessonCandidates: { status: "no-candidate-accepted" } as never,
+    reviewConfirmation: gitBackedReviewConfirmation as never,
   }) === "finalized",
   "confirmed no-lesson tasks should derive a finalized lifecycle even when closeoutStatus is pending",
 );
@@ -178,6 +253,7 @@ assert(
     closeoutStatus: "pending",
     budget: "standard",
     lessonCandidates: { status: "needs-promotion" } as never,
+    reviewConfirmation: gitBackedReviewConfirmation as never,
   }) === "finalized",
   "confirmed tasks with pending lesson follow-up should still derive finalized lifecycle",
 );

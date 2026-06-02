@@ -21,6 +21,7 @@ const confirmedReviewTask = {
     confirmedAt: "2026-06-02 09:00",
     reviewer: "Release Reviewer",
     commitSha: "0123456789abcdef0123456789abcdef01234567",
+    gitAudit: { valid: true },
   },
 };
 
@@ -42,6 +43,18 @@ const unconfirmed = assessArchiveEligibility(unconfirmedReviewTask, {
 });
 assert(unconfirmed.eligible === false, "unconfirmed review tasks must not become archive eligible");
 assert(unconfirmed.reason === "state:review", "unconfirmed review tasks should still be blocked by raw lifecycle state");
+
+const rawFinalizedPollutionTask = {
+  ...confirmedReviewTask,
+  reviewStatus: "agent-reviewed",
+  taskQueues: ["finalized"],
+  reviewConfirmation: { confirmed: false },
+};
+const rawFinalizedPollution = assessArchiveEligibility(rawFinalizedPollutionTask, {
+  archivedBy: "Release Manager <release@example.invalid>",
+});
+assert(rawFinalizedPollution.eligible === false, "raw finalized queue must not make unconfirmed review tasks archive eligible");
+assert(rawFinalizedPollution.reason === "state:review", "archive eligibility must not trust raw finalized queue as review evidence");
 
 const blockedConfirmedTask = {
   ...confirmedReviewTask,
