@@ -1,9 +1,7 @@
 import {
-  beginGovernanceSync,
-  commitGovernanceSync,
-  governanceRelativePaths,
-  releaseGovernanceSync,
-} from "../../lib/governance-sync.mjs";
+  assertTransactionSucceeded,
+  createGovernanceHarnessTransaction,
+} from "../../lib/harness-transaction.mjs";
 
 type GovernanceChange = {
   destination: string;
@@ -16,7 +14,7 @@ type ModuleGovernanceTarget = {
 };
 
 export function moduleGovernanceRelativePaths(changes: GovernanceChange[]): string[] {
-  return governanceRelativePaths(changes);
+  return changes.map((change) => change.destination).filter(Boolean);
 }
 
 export function commitModuleGovernance(
@@ -29,19 +27,22 @@ export function commitModuleGovernance(
     allowDirtyWriteScope = false,
   }: { operation: string; dryRun: boolean; message: string; allowDirtyWriteScope?: boolean },
 ) {
-  const allowedRelativePaths = governanceRelativePaths(changes);
-  const context = beginGovernanceSync(target, {
+  const allowedRelativePaths = moduleGovernanceRelativePaths(changes);
+  const transaction = createGovernanceHarnessTransaction(target);
+  const plan = transaction.plan({
     operation,
     dryRun,
-    allowDirtyWorktree: true,
-    allowedRelativePaths,
-    allowDirtyWriteScope,
+    allowedPaths: allowedRelativePaths,
+    generatedSurfaces: changes.map((change) => ({ surface: change.surface, paths: [change.destination] })),
+    commit: {
+      message,
+      allowDirtyWorktree: true,
+      allowDirtyWriteScope,
+    },
   });
-  try {
-    return commitGovernanceSync(context, allowedRelativePaths, { message });
-  } finally {
-    releaseGovernanceSync(context);
-  }
+  const result = transaction.apply(plan);
+  assertTransactionSucceeded(result);
+  return result.commit;
 }
 
 export function runModuleGovernanceTransaction<TResult extends { changes: GovernanceChange[] }>(
@@ -60,19 +61,48 @@ export function runModuleGovernanceTransaction<TResult extends { changes: Govern
     allowDirtyWriteScope?: boolean;
     run: () => TResult;
   },
-): TResult & { governance: { commit: ReturnType<typeof commitGovernanceSync> } } {
-  const context = beginGovernanceSync(target, {
-    operation,
-    dryRun,
-    allowDirtyWorktree: true,
-    allowedRelativePaths: governanceRelativePaths(plannedChanges),
-    allowDirtyWriteScope,
-  });
-  try {
+): TResult & { governance: { commit: ReturnType<typeof commitModuleGovernance> } } {
+  const allowedRelativePaths = moduleGovernanceRelativePaths(plannedChanges);
+  if (dryRun) {
     const result = run();
-    const commit = commitGovernanceSync(context, governanceRelativePaths(result.changes), { message });
-    return { ...result, governance: { commit } };
-  } finally {
-    releaseGovernanceSync(context);
+    return {
+      ...result,
+      governance: {
+        commit: {
+          committed: false,
+          reason: "dry-run",
+          allowedPaths: allowedRelativePaths,
+        },
+      },
+    };
   }
+  let operationResult: TResult | null = null;
+  const transaction = createGovernanceHarnessTransaction(target);
+  const plan = transaction.plan({
+    operation,
+    allowedPaths: allowedRelativePaths,
+    generatedSurfaces: plannedChanges.map((change) => ({ surface: change.surface, paths: [change.destination] })),
+    commit: {
+      message,
+      allowDirtyWorktree: true,
+      allowDirtyWriteScope,
+    },
+  });
+  const result = transaction.apply({
+    ...plan,
+    changeSet: {
+      ...plan.changeSet,
+      apply() {
+        operationResult = run();
+        return {
+          allowedPaths: moduleGovernanceRelativePaths(operationResult.changes),
+          generatedSurfaces: operationResult.changes.map((change) => ({ surface: change.surface, paths: [change.destination] })),
+        };
+      },
+    },
+  });
+  assertTransactionSucceeded(result);
+  const finalOperationResult = operationResult as TResult | null;
+  if (!finalOperationResult) throw new Error(`Module governance transaction did not produce changes: ${operation}`);
+  return { ...finalOperationResult, governance: { commit: result.commit } };
 }

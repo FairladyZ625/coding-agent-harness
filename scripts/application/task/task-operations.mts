@@ -1,7 +1,7 @@
 import { normalizeTarget } from "../../lib/core-shared.mjs";
 import { createTask, confirmTaskReview, updateTaskLifecycle } from "../../lib/task-lifecycle.mjs";
 import { createLessonSedimentationTask } from "../../lib/task-lesson-sedimentation.mjs";
-import { archiveTask, archiveTasks, deleteTask, reopenTask, supersedeTask } from "../../lib/task-tombstone-commands.mjs";
+import { archiveTask, archiveTasks, deleteTask, reopenTask, supersedeTask } from "./tombstone-operations.mjs";
 import { createScannerTaskRepository } from "../../lib/task-repository.mjs";
 import type { TaskRecord, TaskRepository } from "../../lib/task-repository.mjs";
 import { buildTaskSemanticProjection } from "../../lib/task-semantic-projection.mjs";

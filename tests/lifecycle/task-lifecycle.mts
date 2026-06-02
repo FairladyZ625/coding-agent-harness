@@ -578,6 +578,14 @@ assert(noExecutionReview.stderr.includes("execution phase"), "task-review failur
 const unregisteredModuleCreate = run(["new-task", "unregistered-module", "--module", "auth", "--title", "Unregistered", lifecycleTarget]);
 assert(unregisteredModuleCreate.status !== 0, "new-task --module should reject unregistered modules");
 assert(unregisteredModuleCreate.stderr.includes("harness module register auth"), "unregistered module error should provide a register hint");
+const dryRunModuleRegistration = expectJson(["module", "register", "dryauth", "--title", "Dry Auth", "--prefix", "DRY", "--scope", "src/dry-auth/**", "--dry-run", lifecycleTarget]);
+const dryRunModuleCommit = (dryRunModuleRegistration.governance as { commit?: { committed?: boolean; reason?: string; allowedPaths?: string[] } } | undefined)?.commit;
+assert(dryRunModuleRegistration.moduleKey === "dryauth", "module register --dry-run should report the normalized module key");
+assert(dryRunModuleRegistration.changes?.some((change: { destination?: string }) => change.destination === "coding-agent-harness/harness.yaml"), "module register --dry-run should still report planned harness.yaml changes");
+assert(dryRunModuleCommit?.committed === false, "module register --dry-run should report an uncommitted governance summary");
+assert(dryRunModuleCommit?.reason === "dry-run", "module register --dry-run should preserve dry-run commit reason");
+assert(dryRunModuleCommit?.allowedPaths?.includes("coding-agent-harness/harness.yaml"), "module register --dry-run should report planned allowed paths");
+assert(!fs.existsSync(path.join(lifecycleTarget, "coding-agent-harness/planning/modules/dryauth")), "module register --dry-run should not scaffold module files");
 const authRegistration = expectJson(["module", "register", "auth", "--title", "Auth", "--prefix", "AUTH", "--scope", "src/auth/**", "--status", "in-progress", lifecycleTarget]);
 assert(authRegistration.moduleKey === "auth", "module register should report the normalized module key");
 assert(fs.readFileSync(path.join(lifecycleTarget, "coding-agent-harness/harness.yaml"), "utf8").includes("modules:"), "module register should persist modules in harness.yaml");

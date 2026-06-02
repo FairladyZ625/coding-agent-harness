@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { assessArchiveEligibility } from "../scripts/lib/task-archive-eligibility.mjs";
+import { assessArchiveEligibility } from "../scripts/domain/task/archive-eligibility.mjs";
+import { assessArchiveEligibility as assessArchiveEligibilityCompat } from "../scripts/lib/task-archive-eligibility.mjs";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -29,8 +30,13 @@ const eligible = assessArchiveEligibility(confirmedReviewTask, {
   archivedBy: "Release Manager <release@example.invalid>",
   now: "2026-06-02T09:05:00.000Z",
 });
+const compatEligible = assessArchiveEligibilityCompat(confirmedReviewTask, {
+  archivedBy: "Release Manager <release@example.invalid>",
+  now: "2026-06-02T09:05:00.000Z",
+});
 assert(eligible.eligible === true, "human-confirmed review tasks should be archive-eligible without a second closeout action");
 assert(eligible.auditFields["Archived By"] === "Release Manager <release@example.invalid>", "archive eligibility should preserve the accountable archive actor");
+assert(compatEligible.eligible === eligible.eligible && compatEligible.auditFields["Archived By"] === eligible.auditFields["Archived By"], "legacy archive eligibility re-export should preserve package API behavior");
 
 const unconfirmedReviewTask = {
   ...confirmedReviewTask,
