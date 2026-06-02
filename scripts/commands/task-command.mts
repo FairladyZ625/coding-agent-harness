@@ -9,6 +9,7 @@ import {
 import fs from "node:fs";
 import { takeRepeatedOptionsFromArgs } from "../lib/command-registry.mjs";
 import { createTaskOperations, unwrapTaskOperation } from "../application/task/task-operations.mjs";
+import { createScannerTaskOperationSubjectReader } from "../lib/task-operation-subjects.mjs";
 
 type FlagReader = (name: string, fallback?: boolean) => boolean;
 type OptionReader = (name: string, fallback?: string) => string;
@@ -63,6 +64,10 @@ type CreateTaskCliOptions = {
   };
 };
 
+function taskOperations(target: string) {
+  return createTaskOperations(target, { subjects: createScannerTaskOperationSubjectReader(target) });
+}
+
 export function runTaskCommand(command: string, { args, takeFlag, takeOption, targetArg }: CommandContext) {
   if (command === "new-task") {
     const dryRun = takeFlag("--dry-run");
@@ -89,7 +94,7 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
     try {
       const parsed = parseNewTaskArgs(args, { preset, fromSession });
       const createOptions = { title, locale, dryRun, moduleKey, budget, longRunning, preset, fromSession, presetArgs: parsed.presetArgs, automaticTaskId: parsed.automaticTaskId, registerModule, moduleRegistration };
-      console.log(JSON.stringify(unwrapTaskOperation(createTaskOperations(parsed.target).create({ taskId: parsed.taskId, ...createOptions })), null, 2));
+      console.log(JSON.stringify(unwrapTaskOperation(taskOperations(parsed.target).create({ taskId: parsed.taskId, ...createOptions })), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
@@ -133,7 +138,7 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
     };
     const lifecycle = lifecycleByCommand[command];
     try {
-      const operations = createTaskOperations(targetArg());
+      const operations = taskOperations(targetArg());
       const result =
         command === "task-start"
           ? operations.start({ taskId, message, evidence })
@@ -178,7 +183,7 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       process.exit(2);
     }
     try {
-      console.log(JSON.stringify(unwrapTaskOperation(createTaskOperations(targetArg()).lessonSediment({ taskId, candidateId, dryRun, title })), null, 2));
+      console.log(JSON.stringify(unwrapTaskOperation(taskOperations(targetArg()).lessonSediment({ taskId, candidateId, dryRun, title })), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
@@ -228,7 +233,7 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       process.exit(2);
     }
     try {
-      console.log(JSON.stringify(unwrapTaskOperation(createTaskOperations(targetArg()).supersede({ taskId, by, reason, deletedBy, confirm, allowOpenFindings })), null, 2));
+      console.log(JSON.stringify(unwrapTaskOperation(taskOperations(targetArg()).supersede({ taskId, by, reason, deletedBy, confirm, allowOpenFindings })), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
@@ -251,7 +256,7 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       if (taskList.schemaVersion !== "release-closeout-task-list/v1") throw new Error("--task-list schemaVersion must be release-closeout-task-list/v1");
       const taskIds = (taskList.taskIds || []).map((taskId) => String(taskId || "").trim()).filter(Boolean);
       if (taskIds.length === 0) throw new Error("--task-list must include at least one task id");
-      const result = createTaskOperations(targetArg()).archiveBatch({
+      const result = taskOperations(targetArg()).archiveBatch({
         release: release || String(taskList.release || ""),
         taskIds,
         reason,
@@ -284,10 +289,10 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       if (command === "task-delete" && soft && hard) throw new Error("task-delete accepts only one of --soft or --hard");
       const result =
         command === "task-delete"
-          ? createTaskOperations(targetArg()).delete({ taskId, hard, reason, deletedBy, confirm, allowOpenFindings })
+          ? taskOperations(targetArg()).delete({ taskId, hard, reason, deletedBy, confirm, allowOpenFindings })
           : command === "task-archive"
-            ? createTaskOperations(targetArg()).archive({ taskId, reason, archivedBy, archiveFields })
-            : createTaskOperations(targetArg()).reopen({ taskId, reason });
+            ? taskOperations(targetArg()).archive({ taskId, reason, archivedBy, archiveFields })
+            : taskOperations(targetArg()).reopen({ taskId, reason });
       console.log(JSON.stringify(unwrapTaskOperation(result), null, 2));
     } catch (error) {
       console.error(errorMessage(error));

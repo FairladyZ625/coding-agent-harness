@@ -79,6 +79,13 @@ assert(tombstoneSubject.paths.relativeProgressPath === "coding-agent-harness/pla
 assert(tombstoneSubject.policy.state === task.state, "repository tombstone subject should expose lifecycle state as policy facts");
 assertJsonEqual(tombstoneSubject.policy.taskQueues, task.taskQueues, "repository tombstone subject should preserve projected queue policy facts");
 
+const operationSubject = repository.getOperationSubject({ id: "demo-task" });
+assert(operationSubject.id === "TASKS/demo-task", "repository operation subject should preserve canonical task id");
+assert(!("taskPlanPath" in operationSubject), "repository operation subject should not expose raw scanner taskPlanPath");
+assert(!("path" in operationSubject), "repository operation subject should not expose raw scanner path");
+assertJsonEqual(operationSubject.semanticProjection.taskLifecycleProjection.taskQueues, task.taskLifecycleProjection.taskQueues, "repository operation subject should expose projected lifecycle queues");
+assertJsonEqual(operationSubject.semanticProjection.reviewWorkbenchQueueView.queues, task.reviewWorkbenchQueueView.queues, "repository operation subject should expose projected workbench queues");
+
 const materials = repository.readMaterials({ id: "demo-task" });
 assert(materials.taskPlan.content.includes("Task Contract: harness-task/v1"), "repository materials should read task_plan.md");
 assert(materials.brief.content.includes("Minimal example task"), "repository materials should read brief.md");
