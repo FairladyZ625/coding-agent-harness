@@ -62,6 +62,34 @@ assert(inspected.entrypoints.scaffold?.type === "script", "release-closeout shou
 assert(inspected.entrypoints.check?.type === "check", "release-closeout should declare a check entrypoint");
 assert(inspected.inputs.release?.flag === "--release" && inspected.inputs.release.required === true, "release-closeout should require --release");
 
+const versionUpgradeInspected = expectJson(["preset", "inspect", "version-upgrade", "--json", target], { env });
+assert(versionUpgradeInspected.inputs.fromVersion?.flag === "--from-version", "version-upgrade should require an explicit source version");
+assert(versionUpgradeInspected.inputs.toVersion?.flag === "--to-version", "version-upgrade should require an explicit target version");
+assert(versionUpgradeInspected.actions?.["apply-safe"]?.taskRequired === true, "version-upgrade apply-safe should require a preset-owned task");
+const versionUpgradeTask = expectJson(["new-task", "upgrade-1-0-8-to-1-0-9", "--budget", "complex", "--preset", "version-upgrade", "--from-version", "1.0.8", "--to-version", "1.0.9", target], { env });
+const versionUpgradeTaskDir = path.join(target, versionUpgradeTask.task.path.replace(/^TARGET:/, ""));
+const versionUpgradeTaskPlan = fs.readFileSync(path.join(versionUpgradeTaskDir, "task_plan.md"), "utf8");
+assert(versionUpgradeTaskPlan.includes("Version Upgrade Preset"), "version-upgrade task template should describe the upgrade workflow");
+assert(versionUpgradeTaskPlan.includes("harness preset run version-upgrade plan"), "version-upgrade task should direct agents to the generic preset runner");
+const versionUpgradePlanRun = expectJson<PresetRunResult>(["preset", "run", "version-upgrade", "plan", "--task", "upgrade-1-0-8-to-1-0-9", "--allow-scripts", "--json", target], { env });
+assert(versionUpgradePlanRun.materialized.some((item) => item.destination.endsWith("artifacts/version-upgrade/upgrade-plan.json")), "version-upgrade plan should materialize a task-local upgrade plan");
+const versionUpgradePlan = JSON.parse(fs.readFileSync(path.join(versionUpgradeTaskDir, "artifacts/version-upgrade/upgrade-plan.json"), "utf8"));
+assert(versionUpgradePlan.summary.fromVersion === "1.0.8" && versionUpgradePlan.summary.toVersion === "1.0.9", "version-upgrade plan should record the requested release edge");
+assert(versionUpgradePlan.safeActions.length >= 1, "version-upgrade plan should classify safe actions");
+assert(versionUpgradePlan.manualConfirmations.length >= 1, "version-upgrade plan should classify manual confirmations separately");
+assert(versionUpgradePlan.blockedActions.length >= 1, "version-upgrade plan should classify blocked actions separately");
+const safeActionRun = expectJson<PresetRunResult>(["preset", "action", "version-upgrade", "apply-safe", "--task", "upgrade-1-0-8-to-1-0-9", "--allow-scripts", "--json", target], { env });
+assert(safeActionRun.materialized.some((item) => item.destination.endsWith("artifacts/version-upgrade/safe-actions-applied.json")), "apply-safe should materialize safe-action evidence");
+const safeActionEvidence = JSON.parse(fs.readFileSync(path.join(versionUpgradeTaskDir, "artifacts/version-upgrade/safe-actions-applied.json"), "utf8"));
+assert(safeActionEvidence.appliedActions.length === versionUpgradePlan.safeActions.length, "apply-safe should only mark declared safe actions as applied");
+assert(safeActionEvidence.manualConfirmations.length === versionUpgradePlan.manualConfirmations.length, "apply-safe should preserve manual confirmations without applying them");
+assert(safeActionEvidence.blockedActions.length === versionUpgradePlan.blockedActions.length, "apply-safe should preserve blocked actions without applying them");
+const versionUpgradeCheck = expectJson<PresetRunResult>(["preset", "run", "version-upgrade", "check", "--task", "upgrade-1-0-8-to-1-0-9", "--allow-scripts", "--json", target], { env });
+assert(versionUpgradeCheck.status === "blocked", "version-upgrade check should stay blocked while manual confirmations remain unresolved");
+const upgradeVerify = JSON.parse(fs.readFileSync(path.join(versionUpgradeTaskDir, "artifacts/version-upgrade/upgrade-verify.json"), "utf8"));
+assert(upgradeVerify.status === "blocked", "version-upgrade check should write blocked verification evidence");
+assert(upgradeVerify.unresolvedManualConfirmations.length >= 1, "version-upgrade verification should list unresolved manual confirmations");
+
 const runnerPreset = path.join(tmpRoot, "runner-materialize-preset");
 fs.mkdirSync(path.join(runnerPreset, "scripts"), { recursive: true });
 fs.writeFileSync(

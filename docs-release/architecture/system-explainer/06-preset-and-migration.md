@@ -144,6 +144,19 @@ sequenceDiagram
 | `lesson-sedimentation` | Lesson 沉淀任务 | standard, complex | 无 |
 | `module` | 模块并行工作任务 | standard, complex | 需要 `--module <module-id>` |
 | `standard-task` | 标准任务方法 | standard, complex | 无 |
+| `version-upgrade` | 按版本升级 manifest 生成升级计划和验证证据 | complex | 需要 `--from-version` 与 `--to-version` |
+
+### Level 2 — version-upgrade Preset
+
+`version-upgrade` 使用一个通用 Preset 包承载升级工作流，再用 `presets/version-upgrade/releases/<from>-to-<to>.yaml`
+描述每个版本边的差异。这样 runner、安全边界、证据格式和检查逻辑保持通用；每次发版只需要新增或更新版本 manifest。
+
+工作流分三步：
+- `plan`：读取版本 manifest，生成 task-local `artifacts/version-upgrade/upgrade-plan.json`
+- `apply-safe`：只记录 manifest 标记为 safe 的动作证据，不自动执行 manual 或 blocked 项
+- `check`：生成 `upgrade-verify.json`；只要 manual confirmation 或 blocked action 还未解决，状态保持 `blocked`
+
+这个 Preset 不会合成人工 review 确认、不删除历史任务记录，也不会绕过 runner 的 materialization manifest 写入边界。
 
 ---
 
