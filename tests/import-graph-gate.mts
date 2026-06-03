@@ -101,6 +101,8 @@ const lessonMaintenanceSource = fs.readFileSync(path.join(repoRoot, "scripts/lib
 const moduleRegistrySource = fs.readFileSync(path.join(repoRoot, "scripts/lib/module-registry.mts"), "utf8");
 const reviewConfirmSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-lifecycle/review-confirm.mts"), "utf8");
 const reviewGatesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-lifecycle/review-gates.mts"), "utf8");
+const migrationSupportSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/migration-support.mts"), "utf8");
+const migrationTaskSampleSource = fs.readFileSync(path.join(repoRoot, "scripts/infrastructure/task/migration-task-sample-source.mts"), "utf8");
 const checkProfilesTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/check-profiles.ts"), "utf8");
 const taskRepositorySource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-repository.mts"), "utf8");
 const taskRepositoryTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/task-repository.ts"), "utf8");
@@ -162,6 +164,10 @@ assert(reviewGatesSource.includes("task-review-model"), "review gates should rea
 assert(reviewGatesSource.includes("task-lesson-candidates"), "review gates should read lesson candidate status through the lesson candidate module");
 assert(reviewGatesSource.includes("task-audit-metadata"), "review gates should read audit metadata through the audit metadata module");
 assert(reviewGatesSource.includes("task-visual-map-contract"), "review gates should read Visual Map phases through the visual-map contract module");
+assert(!migrationSupportSource.includes("task-scanner"), "migration support should consume a migration-only sample reader instead of the broad task-scanner facade");
+assert(!migrationSupportSource.includes("listTaskPlanPaths"), "migration support should not directly use task scanner plan-path helpers");
+assert(migrationSupportSource.includes("createMigrationTaskSampleReader"), "migration support should compose through the migration-only task sample reader seam");
+assert(migrationTaskSampleSource.includes("task-scanner"), "the migration-only task sample source should own legacy scanner path sampling");
 assert(!dashboardWorkbenchSource.includes("subjects: taskRepository"), "dashboard workbench task actions should use narrow subject readers instead of the broad TaskRepository identity");
 assert(!dashboardWorkbenchSource.includes("createScannerTaskRepository"), "dashboard workbench bulk review cache should consume workbench review subjects instead of creating the broad scanner-backed repository");
 assert(!taskTombstoneCommandsSource.includes("createScannerTaskRepository"), "task-tombstone compatibility commands should use the narrow tombstone subject reader instead of the broad scanner-backed repository");
