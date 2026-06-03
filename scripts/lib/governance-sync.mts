@@ -7,11 +7,12 @@ import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import type { SpawnSyncReturns } from "node:child_process";
 import { readBundledTemplate, readFileSafe, readJsonSafe, repoRoot, todayDate, toPosix } from "./core-shared.mjs";
-import { collectTasks } from "./task-scanner.mjs";
+import { createTaskGovernanceProjectionReader } from "./task-repository.mjs";
 import { appendMarkdownTableRow, firstColumn, fitMarkdownTableRow, splitMarkdownRow, upsertMarkdownTableRow } from "./markdown-utils.mjs";
 import { resolveHarnessPaths } from "./harness-paths.mjs";
 import { moduleRegistryViewPath, renderModuleRegistryView } from "./module-registry.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
+import type { TaskGovernanceProjection, TaskQuery } from "./types/task-repository.js";
 
 type StringRecord = Record<string, unknown>;
 type MarkdownRow = unknown[];
@@ -60,16 +61,8 @@ type GovernanceChange = {
   surface: string;
 };
 
-type GovernanceTask = {
-  id?: string;
-  shortId?: string;
-  title?: string;
-  path: string;
-  taskPlanPath?: string;
-  module?: string | null;
-  state?: string;
+type GovernanceTask = TaskGovernanceProjection & {
   completion?: number;
-  materialsReady?: boolean;
 };
 
 type ModuleIndexSurface = {
@@ -366,7 +359,7 @@ function syncModuleGeneratedIndexes(
   };
 }
 
-export function moduleGeneratedIndexSurfaces(target: HarnessTarget, tasks: GovernanceTask[] = collectTasks(target)): ModuleIndexSurface[] {
+export function moduleGeneratedIndexSurfaces(target: HarnessTarget, tasks: GovernanceTask[] = collectGovernanceProjectionTasks(target)): ModuleIndexSurface[] {
   const harnessPaths = activeHarnessPaths(target);
   const modules = [...new Set((tasks || []).map((task) => task.module).filter(isNonEmptyString))].sort();
   const surfaces: ModuleIndexSurface[] = [];
@@ -394,7 +387,7 @@ export function moduleGeneratedIndexSurfaces(target: HarnessTarget, tasks: Gover
 }
 
 function collectModuleTasks(target: HarnessTarget, moduleKey: string, task: GovernanceTask | null): GovernanceTask[] {
-  const tasks: GovernanceTask[] = collectTasks(target);
+  const tasks = collectGovernanceProjectionTasks(target, { module: moduleKey });
   const moduleTasks = tasks.filter((candidate) => candidate.module === moduleKey);
   if (task && !moduleTasks.some((candidate) => stripTargetPrefix(candidate.taskPlanPath) === `${stripTargetPrefix(task.path)}/task_plan.md`)) {
     moduleTasks.push({
@@ -406,6 +399,10 @@ function collectModuleTasks(target: HarnessTarget, moduleKey: string, task: Gove
     });
   }
   return moduleTasks;
+}
+
+function collectGovernanceProjectionTasks(target: HarnessTarget, query: Pick<TaskQuery, "module" | "includeArchived"> = {}): GovernanceTask[] {
+  return createTaskGovernanceProjectionReader(target).listGovernanceTasks({ includeArchived: false, ...query });
 }
 
 function replaceTableRows(content: string, headerPattern: RegExp, rows: MarkdownRow[]): string {

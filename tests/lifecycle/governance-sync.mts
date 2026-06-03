@@ -16,6 +16,7 @@ import { normalizeTarget } from "../../scripts/lib/core-shared.mjs";
 import {
   beginGovernanceSync,
   commitGovernanceSync,
+  moduleGeneratedIndexSurfaces,
   releaseGovernanceSync,
 } from "../../scripts/lib/governance-sync.mjs";
 
@@ -60,6 +61,20 @@ assert(ledgerContent.includes("| module | sync |"), "new-task --module should ex
 assert(fs.readFileSync(registryPath, "utf8").includes("coding-agent-harness/planning/modules/sync/module_plan.md"), "new-task --module should refresh the YAML-backed module registry view");
 assert(fs.readFileSync(modulePlanPath, "utf8").includes(ownedTaskPlan), "new-task --module should regenerate module plan index");
 assert(!fs.existsSync(path.join(target, "coding-agent-harness/planning/modules/sync/visual_map.md")), "new-task --module should not create a module-root visual map index");
+const defaultModuleSurfaces = moduleGeneratedIndexSurfaces(normalizeTarget(target));
+const syncModuleSurface = defaultModuleSurfaces.find((surface) => surface.relative === "coding-agent-harness/planning/modules/sync/module_plan.md");
+assert(syncModuleSurface, "module generated index default path should materialize module surfaces");
+assert(syncModuleSurface.content.includes(ownedTaskPlan), "module generated index default path should read task governance projections");
+const softDeleted = expectJson<NewTaskResponse>(["new-task", "governance-soft-deleted", "--title", "Governance Soft Deleted", "--locale", "en-US", "--module", "sync", target]);
+expectJson(["task-delete", softDeleted.task.id, "--soft", "--reason", "projection reader active-only fixture", target]);
+const softDeletedTaskPlan = `coding-agent-harness/planning/modules/sync/tasks/${todayLocal}-governance-soft-deleted/task_plan.md`;
+const activeOnlySurfaces = moduleGeneratedIndexSurfaces(normalizeTarget(target));
+const activeOnlySyncSurface = activeOnlySurfaces.find((surface) => surface.relative === "coding-agent-harness/planning/modules/sync/module_plan.md");
+assert(activeOnlySyncSurface, "module generated index default path should keep active module surfaces after tombstones exist");
+assert(!activeOnlySyncSurface.content.includes(softDeletedTaskPlan), "module generated index default path should preserve scanner active-only archive semantics");
+assert(!activeOnlySyncSurface.content.includes("Governance Soft Deleted"), "module generated index default path should not render archived task titles");
+assert(!activeOnlySyncSurface.content.includes("governance-soft-deleted"), "module generated index default path should not render archived task ids or archive paths");
+expectJson(["task-reopen", softDeleted.task.id, "--reason", "restore active-only fixture", target]);
 
 fs.writeFileSync(
   modulePlanPath,
