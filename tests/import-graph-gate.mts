@@ -114,6 +114,7 @@ const taskIndexSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-in
 const checkProfilesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/check-profiles.mts"), "utf8");
 const checkTaskContractsSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/check-task-contracts.mts"), "utf8");
 const governanceIndexGeneratorSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/governance-index-generator.mts"), "utf8");
+const taskAuditMigrationSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-audit-migration.mts"), "utf8");
 const dashboardDataSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-data.mts"), "utf8");
 const governanceSyncSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/governance-sync.mts"), "utf8");
 const lessonMaintenanceSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/lesson-maintenance.mts"), "utf8");
@@ -163,6 +164,8 @@ assert(!checkProfilesTypesSource.includes("TaskStatusProjection"), "checker task
 assert(!governanceIndexGeneratorSource.includes("createScannerTaskRepository"), "generated governance rebuild should consume governance projections instead of creating the broad scanner-backed repository");
 assert(!governanceIndexGeneratorSource.includes("TaskRecord"), "generated governance rebuild should not import or alias raw scanner TaskRecord objects");
 assert(governanceIndexGeneratorSource.includes("createTaskGovernanceProjectionReader"), "generated governance rebuild should compose through the governance projection reader seam");
+assert(!taskAuditMigrationSource.includes("task-scanner"), "task audit migration should use harness discovery contracts instead of the broad task-scanner facade");
+assert(!taskAuditMigrationSource.includes("listTaskPlanPaths"), "task audit migration should not directly use task scanner plan-path helpers");
 assert(!dashboardDataSource.includes("createScannerTaskRepository"), "dashboard bundle generation should consume status projections instead of creating the broad scanner-backed repository");
 assert(dashboardDataSource.includes("createTaskStatusProjectionReader"), "dashboard bundle generation should compose through the status projection reader seam");
 assert(!governanceSyncSource.includes("collectTasks"), "module governance generated indexes should not default to raw scanner task collection");

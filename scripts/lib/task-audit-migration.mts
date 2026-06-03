@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { normalizeTarget, readFileSafe, toPosix } from "./core-shared.mjs";
-import { listTaskPlanPaths, taskIdForDirectory } from "./task-scanner.mjs";
+import { isArchivedHarnessPath, normalizeTarget, readFileSafe, toPosix, walkFiles } from "./core-shared.mjs";
+import { resolveHarnessPaths, taskIdFromDirectory } from "./harness-paths.mjs";
+import { isExcludedTaskPlanPath } from "./task-discovery-contract.mjs";
 import {
   extractLegacyBlock,
   fieldsFromMarkdownBlock,
@@ -16,6 +17,7 @@ import {
 } from "./task-audit-metadata.mjs";
 import type { TaskAuditFields } from "./task-audit-metadata.mjs";
 import { firstColumn, markdownTableRows } from "./markdown-utils.mjs";
+import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 
 type ExtraEntry = [string, string];
 type LegacyBlock = NonNullable<ReturnType<typeof extractLegacyBlock>>;
@@ -106,11 +108,12 @@ const requiredReview = ["Confirmation ID", "Confirmed At", "Reviewer", "Reviewer
 
 export function planTaskAuditIndexMigration(targetInput: string): MigrationPlan {
   const target = normalizeTarget(targetInput);
+  const taskPlanPaths = listAuditMigrationTaskPlanPaths(target);
   const actions: MigrationAction[] = [];
   const failures: MigrationFailure[] = [];
-  for (const taskPlanPath of listTaskPlanPaths(target)) {
+  for (const taskPlanPath of taskPlanPaths) {
     const taskDir = path.dirname(taskPlanPath);
-    const taskId = taskIdForDirectory(target, taskDir);
+    const taskId = taskIdForAuditMigrationDirectory(target, taskDir);
     const indexPath = path.join(taskDir, "INDEX.md");
     const briefPath = path.join(taskDir, "brief.md");
     const reviewPath = path.join(taskDir, "review.md");
@@ -138,7 +141,7 @@ export function planTaskAuditIndexMigration(targetInput: string): MigrationPlan 
     target: target.projectRoot,
     result: failures.length ? "blocked" : "planned",
     summary: {
-      tasks: listTaskPlanPaths(target).length,
+      tasks: taskPlanPaths.length,
       actions: actions.length,
       failures: failures.length,
       legacyAuditBlocks: actions.reduce((sum, action) => sum + action.legacyBlocks.length, 0) + failures.length,
@@ -146,6 +149,23 @@ export function planTaskAuditIndexMigration(targetInput: string): MigrationPlan 
     actions,
     failures,
   };
+}
+
+function listAuditMigrationTaskPlanPaths(target: ReturnType<typeof normalizeTarget>): string[] {
+  const harnessPaths = auditMigrationHarnessPaths(target);
+  return harnessPaths.taskRoots
+    .flatMap((root) => walkFiles(root))
+    .filter((file) => file.endsWith("task_plan.md"))
+    .filter((file) => !isExcludedTaskPlanPath(file, harnessPaths))
+    .filter((file) => !isArchivedHarnessPath(file));
+}
+
+function taskIdForAuditMigrationDirectory(target: ReturnType<typeof normalizeTarget>, taskDir: string): string {
+  return taskIdFromDirectory(auditMigrationHarnessPaths(target), taskDir);
+}
+
+function auditMigrationHarnessPaths(target: ReturnType<typeof normalizeTarget>): ResolvedHarnessPaths {
+  return (target.harness || resolveHarnessPaths(target)) as ResolvedHarnessPaths;
 }
 
 export function applyTaskAuditIndexMigration(targetInput: string): MigrationPlan {
