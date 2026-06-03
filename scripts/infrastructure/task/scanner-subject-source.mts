@@ -1,7 +1,8 @@
 import path from "node:path";
+import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../../domain/task/task-subjects.mjs";
 import { normalizeTarget } from "../../lib/core-shared.mjs";
 import { collectTasks } from "../../lib/task-scanner.mjs";
-import type { TaskLocation, TaskRef, TaskTombstoneSubject } from "../../lib/types/task-repository.js";
+import type { TaskLocation, TaskOperationSubjectReader, TaskRef, TaskTombstoneSubject, TombstoneSubjectReader } from "../../lib/types/task-repository.js";
 import type { TaskScannerTarget } from "../../lib/types/task-scanner.js";
 import type { TaskSubjectRecord } from "../../domain/task/task-subjects.mjs";
 
@@ -23,6 +24,28 @@ export function createScannerTaskSubjectSource(targetInput: TaskScannerTarget | 
     get(ref: TaskRef) {
       const record = readScannerSubjectTask(target, ref);
       return scannerTaskSubject(target, record);
+    },
+  };
+}
+
+export function createScannerTaskOperationSubjectReader(targetInput: TaskScannerTarget | string | undefined = "."): TaskOperationSubjectReader {
+  const source = createScannerTaskSubjectSource(targetInput);
+  return {
+    getOperationSubject(ref: TaskRef) {
+      return buildTaskOperationSubject(source.get(ref).record);
+    },
+  };
+}
+
+export function createScannerTaskTombstoneSubjectReader(targetInput: TaskScannerTarget | string | undefined = "."): TombstoneSubjectReader {
+  const source = createScannerTaskSubjectSource(targetInput);
+  return {
+    getTombstoneSubject(ref: TaskRef) {
+      const subject = source.get(ref);
+      return buildTaskTombstoneSubject(subject.record, {
+        location: subject.location,
+        paths: subject.paths,
+      });
     },
   };
 }

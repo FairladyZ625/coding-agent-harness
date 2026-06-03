@@ -88,6 +88,7 @@ const harnessCoreSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/harne
 const taskLifecycleSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-lifecycle.mts"), "utf8");
 const statusBuilderSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/status-builder.mts"), "utf8");
 const dashboardWorkbenchSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-workbench.mts"), "utf8");
+const taskTombstoneCommandsSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-tombstone-commands.mts"), "utf8");
 const taskRepositorySource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-repository.mts"), "utf8");
 const taskRepositoryTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/task-repository.ts"), "utf8");
 const statusProjectionReaderSource = taskRepositorySource.match(/export function createTaskStatusProjectionReader[\s\S]*?\n}\n/)?.[0] || "";
@@ -103,6 +104,9 @@ assert(!broadTaskRepositoryTypeSource.includes("listLifecycleTasks") && !broadTa
 assert(!statusBuilderSource.includes("createScannerTaskRepository"), "status-builder should consume task status projections instead of creating the scanner-backed repository");
 assert(!dashboardWorkbenchSource.includes("subjects: taskRepository"), "dashboard workbench task actions should use narrow subject readers instead of the broad TaskRepository identity");
 assert(!dashboardWorkbenchSource.includes("createScannerTaskRepository"), "dashboard workbench bulk review cache should consume workbench review subjects instead of creating the broad scanner-backed repository");
+assert(!taskTombstoneCommandsSource.includes("createScannerTaskRepository"), "task-tombstone compatibility commands should use the narrow tombstone subject reader instead of the broad scanner-backed repository");
+assert(!taskTombstoneCommandsSource.includes("../adapters/cli/"), "task-tombstone compatibility commands should not depend on the CLI adapter layer");
+assert(taskTombstoneCommandsSource.includes("createScannerTaskTombstoneSubjectReader"), "task-tombstone compatibility commands should compose through the scanner-backed tombstone subject reader adapter");
 assert(!dashboardWorkbenchSource.includes("TaskRecord"), "dashboard workbench bulk review cache should not store raw scanner TaskRecord objects");
 assert(!dashboardWorkbenchSource.includes("buildTaskSemanticProjection"), "dashboard workbench bulk review gate should not interpret raw task facts locally");
 assert(taskLifecycleSource.includes("createTaskReviewConfirmationSubjectReader"), "task-lifecycle review-confirm should consume the narrow review confirmation subject reader");
