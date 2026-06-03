@@ -17,7 +17,7 @@ import {
 } from "./core-shared.mjs";
 import { readCapabilityRegistry, detectCapabilities } from "./capability-registry.mjs";
 import { buildStatus } from "./check-profiles.mjs";
-import { listTaskPlanPaths } from "./task-scanner.mjs";
+import { createMigrationTaskSampleReader } from "../infrastructure/task/migration-task-sample-source.mjs";
 import type { TaskStatusProjection } from "./task-repository.mjs";
 import type { CheckTarget } from "./types/check-profiles.js";
 
@@ -86,7 +86,7 @@ export function migrationSampleFiles(target: MigrationTarget): string[] {
     path.join(target.docsRoot, "05-TEST-QA/Regression-SSoT.md"),
     path.join(target.docsRoot, "09-PLANNING/Delivery-SSoT.md"),
   ];
-  const taskPlans = listTaskPlanPaths(target).slice(0, 20);
+  const taskPlans = createMigrationTaskSampleReader(target).listSampleTaskPlans();
   return [...candidates, ...taskPlans].filter((file) => fs.existsSync(file));
 }
 
