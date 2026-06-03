@@ -175,6 +175,72 @@ export type TaskWorkbenchReviewSubjectReader = {
   listWorkbenchReviewSubjects(query?: TaskQuery): TaskWorkbenchReviewSubject[];
 };
 
+export type TaskIndexIssue = {
+  code?: string;
+  message?: string;
+  sourcePath?: string;
+};
+
+export type TaskIndexProjection = {
+  aliases?: string[];
+  archiveMetadata?: Record<string, unknown>;
+  briefPath?: string;
+  closeoutStatus?: string;
+  completion?: number;
+  currentPath?: string;
+  deletionState?: string;
+  deleteReason?: string;
+  evidenceBundle?: string;
+  executionStrategyPath?: string;
+  findingsPath?: string;
+  hiddenByDefault?: boolean;
+  id: string;
+  identitySource?: string;
+  inferredModule?: string;
+  lessonCandidateIssues?: unknown[];
+  lessonCandidatePath?: string;
+  lessonCandidatePromotionState?: string;
+  lessonCandidateReviewDecision?: string;
+  lessonCandidateRows?: unknown[];
+  lessonCandidateStatus?: string;
+  lifecycleState?: string;
+  materialIssues?: TaskIndexIssue[];
+  materialsReady?: boolean;
+  module?: string | null;
+  namespace?: string;
+  originalPath?: string;
+  packageRole?: string;
+  path?: string;
+  presetVersion?: string;
+  progressPath?: string;
+  queueReasons?: TaskIndexIssue[];
+  repairPrompt?: string;
+  reviewPath?: string;
+  reviewQueueState?: string;
+  reviewStatus?: string;
+  reviewSubmitted?: boolean;
+  risks?: unknown[];
+  shortId?: string;
+  state?: string;
+  stateConflicts?: unknown[];
+  supersededBy?: string;
+  supersedes?: unknown[];
+  taskKey?: string;
+  taskKind?: string;
+  taskPlanPath?: string;
+  taskPreset?: string;
+  taskQueues?: unknown[];
+  taskRootKind?: string;
+  title?: string;
+  visibilityScopes?: string[];
+  visualMapPath?: string;
+  walkthroughPath?: string;
+};
+
+export type TaskIndexProjectionReader = {
+  listTaskIndexTasks(query?: TaskQuery): TaskIndexProjection[];
+};
+
 export type TaskStatusIssue = {
   code?: string;
   queue?: string;

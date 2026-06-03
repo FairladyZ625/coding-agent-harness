@@ -23,7 +23,7 @@ import {
   taskCutoverCounters,
 } from "./task-scanner.mjs";
 import { taskIdFromArchiveStoragePath } from "./task-archive-storage.mjs";
-import { buildTaskSemanticProjection, taskMatchesVisibilityScope } from "./task-semantic-projection.mjs";
+import { buildTaskSemanticProjection, taskMatchesVisibilityScope, taskVisibilityScopes } from "./task-semantic-projection.mjs";
 import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../domain/task/task-subjects.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import type { CollectTasksOptions, TaskContractFile, TaskScannerTarget, VisualMapContractFile } from "./types/task-scanner.js";
@@ -34,6 +34,8 @@ import type {
   TaskOperationSubjectReader as TaskRepositoryOperationSubjectReader,
   TaskLifecycleReader as TaskRepositoryLifecycleReader,
   TaskLifecycleTask as TaskRepositoryLifecycleTask,
+  TaskIndexProjection as TaskRepositoryIndexProjection,
+  TaskIndexProjectionReader as TaskRepositoryIndexProjectionReader,
   TaskLocation as TaskRepositoryLocation,
   TaskQuery as TaskRepositoryQuery,
   TaskReviewConfirmationSubject as TaskRepositoryReviewConfirmationSubject,
@@ -68,6 +70,8 @@ export type TaskQuery = TaskRepositoryQuery;
 export type TaskStatusProjection = TaskRepositoryStatusProjection;
 export type TaskStatusCutoverProjection = TaskRepositoryStatusCutoverProjection;
 export type TaskStatusProjectionReader = TaskRepositoryStatusProjectionReader;
+export type TaskIndexProjection = TaskRepositoryIndexProjection;
+export type TaskIndexProjectionReader = TaskRepositoryIndexProjectionReader;
 export type TaskTombstonePolicyFacts = TaskRepositoryTombstonePolicyFacts;
 export type TaskTombstoneSubject = TaskRepositoryTombstoneSubject;
 export type TombstoneSubjectReader = TaskRepositoryTombstoneSubjectReader;
@@ -211,6 +215,15 @@ export function createTaskStatusProjectionReader(targetInput: TaskScannerTarget 
   return {
     listStatusTasks(query: TaskQuery = {}) {
       return collectStatusTasks(target, defaults, query);
+    },
+  };
+}
+
+export function createTaskIndexProjectionReader(targetInput: TaskScannerTarget | string | undefined = ".", defaults: ScannerRepositoryOptions = {}): TaskIndexProjectionReader {
+  const target = normalizeRepositoryTarget(targetInput);
+  return {
+    listTaskIndexTasks(query: TaskQuery = {}) {
+      return collectTaskIndexTasks(target, defaults, query);
     },
   };
 }
@@ -366,6 +379,74 @@ function collectStatusTasks(target: TaskScannerTarget, defaults: ScannerReposito
     closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
   });
   return applyTaskQuery(tasks, query).map(taskStatusProjectionFromRecord);
+}
+
+function collectTaskIndexTasks(target: TaskScannerTarget, defaults: ScannerRepositoryOptions, query: TaskQuery = {}): TaskIndexProjection[] {
+  const tasks = collectTasks(target, {
+    requireGeneratedScaffoldProvenance: query.requireGeneratedScaffoldProvenance ?? defaults.requireGeneratedScaffoldProvenance,
+    includeArchived: query.includeArchived !== false,
+    closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
+  });
+  return applyTaskQuery(tasks, query).map(taskIndexProjectionFromRecord);
+}
+
+function taskIndexProjectionFromRecord(task: TaskRecord): TaskIndexProjection {
+  const taskIndexCompatibility = task as TaskRecord & { namespace?: string; packageRole?: string; taskRootKind?: string };
+  return {
+    aliases: task.aliases,
+    archiveMetadata: task.archiveMetadata,
+    briefPath: task.briefPath,
+    closeoutStatus: task.closeoutStatus,
+    completion: task.completion,
+    currentPath: task.currentPath,
+    deletionState: task.deletionState,
+    deleteReason: task.deleteReason,
+    evidenceBundle: task.evidenceBundle,
+    executionStrategyPath: task.executionStrategyPath,
+    findingsPath: task.findingsPath,
+    hiddenByDefault: task.hiddenByDefault,
+    id: task.id,
+    identitySource: task.identitySource,
+    inferredModule: task.inferredModule,
+    lessonCandidateIssues: task.lessonCandidateIssues,
+    lessonCandidatePath: task.lessonCandidatePath,
+    lessonCandidatePromotionState: task.lessonCandidatePromotionState,
+    lessonCandidateReviewDecision: task.lessonCandidateReviewDecision,
+    lessonCandidateRows: task.lessonCandidateRows,
+    lessonCandidateStatus: task.lessonCandidateStatus,
+    lifecycleState: task.lifecycleState,
+    materialIssues: task.materialIssues,
+    materialsReady: task.materialsReady,
+    module: task.module,
+    namespace: taskIndexCompatibility.namespace || "main",
+    originalPath: task.originalPath,
+    packageRole: taskIndexCompatibility.packageRole || "local",
+    path: task.path,
+    presetVersion: task.presetVersion,
+    progressPath: task.progressPath,
+    queueReasons: task.queueReasons,
+    repairPrompt: task.repairPrompt,
+    reviewPath: task.reviewPath,
+    reviewQueueState: task.reviewQueueState,
+    reviewStatus: task.reviewStatus,
+    reviewSubmitted: task.reviewSubmitted,
+    risks: task.risks,
+    shortId: task.shortId,
+    state: task.state,
+    stateConflicts: task.stateConflicts,
+    supersededBy: task.supersededBy,
+    supersedes: task.supersedes,
+    taskKey: task.taskKey,
+    taskKind: task.taskKind,
+    taskPlanPath: task.taskPlanPath,
+    taskPreset: task.taskPreset,
+    taskQueues: task.taskQueues,
+    taskRootKind: taskIndexCompatibility.taskRootKind || (task.module ? "module-task" : "project-task"),
+    title: task.title,
+    visibilityScopes: taskVisibilityScopes(task),
+    visualMapPath: task.visualMapPath,
+    walkthroughPath: task.walkthroughPath,
+  };
 }
 
 function taskStatusProjectionFromRecord(task: TaskRecord): TaskStatusProjection {
