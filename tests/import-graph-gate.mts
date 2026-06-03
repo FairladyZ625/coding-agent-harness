@@ -97,6 +97,7 @@ const checkTaskContractsSource = fs.readFileSync(path.join(repoRoot, "scripts/li
 const governanceIndexGeneratorSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/governance-index-generator.mts"), "utf8");
 const dashboardDataSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-data.mts"), "utf8");
 const governanceSyncSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/governance-sync.mts"), "utf8");
+const lessonMaintenanceSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/lesson-maintenance.mts"), "utf8");
 const checkProfilesTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/check-profiles.ts"), "utf8");
 const taskRepositorySource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-repository.mts"), "utf8");
 const taskRepositoryTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/task-repository.ts"), "utf8");
@@ -107,6 +108,7 @@ const checkProfileReaderSource = taskRepositorySource.match(/export function cre
 const taskIndexProjectionReaderSource = taskRepositorySource.match(/export function createTaskIndexProjectionReader[\s\S]*?\n}\n/)?.[0] || "";
 const taskGovernanceProjectionReaderSource = taskRepositorySource.match(/export function createTaskGovernanceProjectionReader[\s\S]*?\n}\n/)?.[0] || "";
 const taskPlanContractReaderSource = taskRepositorySource.match(/export function createTaskPlanContractReader[\s\S]*?\n}\n/)?.[0] || "";
+const taskLessonPromotionReaderSource = taskRepositorySource.match(/export function createTaskLessonPromotionReader[\s\S]*?\n}\n/)?.[0] || "";
 const resolveTaskDirectorySource = taskRepositorySource.match(/export function resolveTaskDirectory[\s\S]*?\n}\n/)?.[0] || "";
 const broadTaskRepositoryTypeSource = taskRepositorySource.match(/export type TaskRepository =[\s\S]*?\n};/)?.[0] || "";
 const lifecycleReviewTaskByDirectorySource = taskLifecycleSource.match(/function findReviewTaskByDirectory[\s\S]*?\n}\n/)?.[0] || "";
@@ -138,6 +140,10 @@ assert(!governanceSyncSource.includes("collectTasks"), "module governance genera
 assert(!governanceSyncSource.includes("task-scanner"), "module governance generated indexes should not import task-scanner directly");
 assert(!governanceSyncSource.includes("TaskRecord"), "module governance generated indexes should not import or alias raw scanner TaskRecord objects");
 assert(governanceSyncSource.includes("createTaskGovernanceProjectionReader"), "module governance generated indexes should compose through the governance projection reader seam");
+assert(!lessonMaintenanceSource.includes("collectTasks"), "lesson promotion should consume a narrow reader instead of raw scanner task collection");
+assert(!lessonMaintenanceSource.includes("task-scanner"), "lesson promotion should not import task-scanner directly");
+assert(!lessonMaintenanceSource.includes("TaskRecord"), "lesson promotion should not import or alias raw scanner TaskRecord objects");
+assert(lessonMaintenanceSource.includes("createTaskLessonPromotionReader"), "lesson promotion should compose through the lesson promotion reader seam");
 assert(!dashboardWorkbenchSource.includes("subjects: taskRepository"), "dashboard workbench task actions should use narrow subject readers instead of the broad TaskRepository identity");
 assert(!dashboardWorkbenchSource.includes("createScannerTaskRepository"), "dashboard workbench bulk review cache should consume workbench review subjects instead of creating the broad scanner-backed repository");
 assert(!taskTombstoneCommandsSource.includes("createScannerTaskRepository"), "task-tombstone compatibility commands should use the narrow tombstone subject reader instead of the broad scanner-backed repository");
@@ -161,6 +167,9 @@ assert(!checkTaskContractsSource.includes("createScannerTaskRepository"), "check
 assert(checkTaskContractsSource.includes("createTaskPlanContractReader"), "check-task-contracts should compose through the task plan-contract reader seam");
 assert(!taskPlanContractReaderSource.includes("createScannerTaskRepository"), "TaskPlanContractReader should not recreate the broad scanner-backed TaskRepository identity");
 assert(taskRepositoryTypesSource.includes("export type TaskPlanContractReader"), "task repository type island should expose the narrow plan-contract reader contract");
+assert(!taskLessonPromotionReaderSource.includes("createScannerTaskRepository"), "TaskLessonPromotionReader should not recreate the broad scanner-backed TaskRepository identity");
+assert(taskRepositoryTypesSource.includes("export type TaskLessonPromotionReader"), "task repository type island should expose the narrow lesson promotion reader contract");
+assert(!broadTaskRepositoryTypeSource.includes("resolveLessonPromotionTask"), "TaskLessonPromotionReader should stay separate instead of widening the broad TaskRepository identity");
 assert(!taskRepositorySource.includes("return { ...task };"), "status projection materialization should not leak scanner records by object spread");
 assert(graph.summary.fileCount === 11, `expected 11 graph files, got ${graph.summary.fileCount}`);
 assert(graph.summary.localEdgeCount === 9, `expected 9 local edges, got ${graph.summary.localEdgeCount}`);

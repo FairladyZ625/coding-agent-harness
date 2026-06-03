@@ -11,7 +11,7 @@ import {
 import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../scripts/domain/task/task-subjects.mjs";
 import { buildStatusData } from "../scripts/lib/status-builder.mjs";
 import { collectTasks, listTaskPlanPaths } from "../scripts/lib/task-scanner.mjs";
-import { createScannerTaskRepository, createTaskCheckProfileReader, createTaskGovernanceProjectionReader, createTaskIndexProjectionReader, createTaskLifecycleReader, createTaskPlanContractReader, createTaskReviewConfirmationSubjectReader, createTaskStatusProjectionReader, createTaskWorkbenchReviewSubjectReader } from "../scripts/lib/task-repository.mjs";
+import { createScannerTaskRepository, createTaskCheckProfileReader, createTaskGovernanceProjectionReader, createTaskIndexProjectionReader, createTaskLessonPromotionReader, createTaskLifecycleReader, createTaskPlanContractReader, createTaskReviewConfirmationSubjectReader, createTaskStatusProjectionReader, createTaskWorkbenchReviewSubjectReader } from "../scripts/lib/task-repository.mjs";
 
 type ComparableTask = {
   id?: string;
@@ -180,6 +180,12 @@ const planContractTaskKeys = [
   "taskPlanPath",
 ].sort();
 
+const lessonPromotionTaskKeys = [
+  "id",
+  "paths",
+  "shortId",
+].sort();
+
 const checkProfileTaskKeys = [
   "briefQuality",
   "briefSource",
@@ -298,6 +304,7 @@ const repository = createScannerTaskRepository(target);
 const taskIndexProjectionReader = createTaskIndexProjectionReader(target);
 const governanceProjectionReader = createTaskGovernanceProjectionReader(target);
 const planContractReader = createTaskPlanContractReader(target);
+const lessonPromotionReader = createTaskLessonPromotionReader(target);
 const checkProfileReader = createTaskCheckProfileReader(target);
 const lifecycleReader = createTaskLifecycleReader(target);
 const statusProjectionReader = createTaskStatusProjectionReader(target);
@@ -409,6 +416,15 @@ assert(!("path" in workbenchReviewSubject), "workbench review subject should not
 assert(task.id === "TASKS/demo-task", "repository get should find a task by canonical id");
 assert(repository.get({ id: "demo-task" }).id === task.id, "repository get should find a task by short id");
 assert(repository.get({ path: path.join(targetPath, "coding-agent-harness/planning/tasks/demo-task/task_plan.md") }).id === task.id, "repository get should find a task by task_plan path");
+const lessonPromotionTask = lessonPromotionReader.resolveLessonPromotionTask("demo-task");
+assertJsonEqual(Object.keys(lessonPromotionTask).sort(), lessonPromotionTaskKeys, "lesson promotion reader should expose only promotion lookup identity and candidate paths");
+assert(lessonPromotionTask.id === task.id, "lesson promotion reader should resolve bare task slugs");
+assert(lessonPromotionTask.shortId === task.shortId, "lesson promotion reader should preserve the short id used for next commands");
+assert(lessonPromotionTask.paths.directory.endsWith("coding-agent-harness/planning/tasks/demo-task"), "lesson promotion reader should expose the source task directory for promotion locality");
+assert(lessonPromotionTask.paths.lessonCandidatePath.endsWith("coding-agent-harness/planning/tasks/demo-task/lesson_candidates.md"), "lesson promotion reader should expose the source candidate file path");
+assert(lessonPromotionTask.paths.relativeLessonCandidatePath === "coding-agent-harness/planning/tasks/demo-task/lesson_candidates.md", "lesson promotion reader should expose the relative source candidate path for write-scope commits");
+assert(!("taskPlanPath" in lessonPromotionTask), "lesson promotion reader should not expose raw scanner taskPlanPath");
+assert(!("path" in lessonPromotionTask), "lesson promotion reader should not expose raw scanner path");
 
 const location = repository.resolve({ id: "demo-task" });
 assert(location.id === "TASKS/demo-task", "repository resolve should return canonical task id");
