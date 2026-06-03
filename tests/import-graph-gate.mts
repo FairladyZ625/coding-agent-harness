@@ -94,6 +94,7 @@ const taskIndexSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-in
 const checkProfilesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/check-profiles.mts"), "utf8");
 const checkTaskContractsSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/check-task-contracts.mts"), "utf8");
 const governanceIndexGeneratorSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/governance-index-generator.mts"), "utf8");
+const dashboardDataSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-data.mts"), "utf8");
 const checkProfilesTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/check-profiles.ts"), "utf8");
 const taskRepositorySource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-repository.mts"), "utf8");
 const taskRepositoryTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/task-repository.ts"), "utf8");
@@ -129,6 +130,8 @@ assert(!checkProfilesTypesSource.includes("TaskStatusProjection"), "checker task
 assert(!governanceIndexGeneratorSource.includes("createScannerTaskRepository"), "generated governance rebuild should consume governance projections instead of creating the broad scanner-backed repository");
 assert(!governanceIndexGeneratorSource.includes("TaskRecord"), "generated governance rebuild should not import or alias raw scanner TaskRecord objects");
 assert(governanceIndexGeneratorSource.includes("createTaskGovernanceProjectionReader"), "generated governance rebuild should compose through the governance projection reader seam");
+assert(!dashboardDataSource.includes("createScannerTaskRepository"), "dashboard bundle generation should consume status projections instead of creating the broad scanner-backed repository");
+assert(dashboardDataSource.includes("createTaskStatusProjectionReader"), "dashboard bundle generation should compose through the status projection reader seam");
 assert(!dashboardWorkbenchSource.includes("subjects: taskRepository"), "dashboard workbench task actions should use narrow subject readers instead of the broad TaskRepository identity");
 assert(!dashboardWorkbenchSource.includes("createScannerTaskRepository"), "dashboard workbench bulk review cache should consume workbench review subjects instead of creating the broad scanner-backed repository");
 assert(!taskTombstoneCommandsSource.includes("createScannerTaskRepository"), "task-tombstone compatibility commands should use the narrow tombstone subject reader instead of the broad scanner-backed repository");
