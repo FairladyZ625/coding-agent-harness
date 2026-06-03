@@ -32,6 +32,8 @@ import type {
   TaskOperationSemanticProjection as TaskRepositoryOperationSemanticProjection,
   TaskOperationSubject as TaskRepositoryOperationSubject,
   TaskOperationSubjectReader as TaskRepositoryOperationSubjectReader,
+  TaskLifecycleReader as TaskRepositoryLifecycleReader,
+  TaskLifecycleTask as TaskRepositoryLifecycleTask,
   TaskLocation as TaskRepositoryLocation,
   TaskQuery as TaskRepositoryQuery,
   TaskStatusCutoverProjection as TaskRepositoryStatusCutoverProjection,
@@ -71,6 +73,8 @@ export type TaskOperationBlockingRisk = TaskRepositoryOperationBlockingRisk;
 export type TaskOperationSemanticProjection = TaskRepositoryOperationSemanticProjection;
 export type TaskOperationSubject = TaskRepositoryOperationSubject;
 export type TaskOperationSubjectReader = TaskRepositoryOperationSubjectReader;
+export type TaskLifecycleTask = TaskRepositoryLifecycleTask;
+export type TaskLifecycleReader = TaskRepositoryLifecycleReader;
 export type TaskWorkbenchReviewSubject = TaskRepositoryWorkbenchReviewSubject;
 export type TaskWorkbenchReviewSubjectReader = TaskRepositoryWorkbenchReviewSubjectReader;
 
@@ -168,6 +172,18 @@ export function createScannerTaskRepository(targetInput: TaskScannerTarget | str
   };
 }
 
+export function createTaskLifecycleReader(targetInput: TaskScannerTarget | string | undefined = ".", defaults: ScannerRepositoryOptions = {}): TaskLifecycleReader {
+  const target = normalizeRepositoryTarget(targetInput);
+  return {
+    getLifecycleTaskByDirectory(taskDir: string) {
+      return readLifecycleTaskByDirectory(target, defaults, taskDir);
+    },
+    listLifecycleTasks(query: TaskQuery = {}) {
+      return collectLifecycleTasks(target, defaults, query);
+    },
+  };
+}
+
 export function createTaskWorkbenchReviewSubjectReader(targetInput: TaskScannerTarget | string | undefined = ".", defaults: ScannerRepositoryOptions = {}): TaskWorkbenchReviewSubjectReader {
   const target = normalizeRepositoryTarget(targetInput);
   return {
@@ -198,7 +214,7 @@ export function taskPlanPathFromRecord(target: { projectRoot: string }, task: { 
 }
 
 export function resolveTaskDirectory(targetInput: TaskScannerTarget | string | undefined, taskRef: string): string {
-  return createScannerTaskRepository(targetInput).resolve({ id: taskRef }).directory;
+  return resolveRepositoryTaskLocation(normalizeRepositoryTarget(targetInput), { id: taskRef }).directory;
 }
 
 function normalizeRepositoryTarget(targetInput: TaskScannerTarget | string | undefined): TaskScannerTarget {
@@ -235,6 +251,37 @@ function tombstoneSubjectFromRecord(target: TaskScannerTarget, location: TaskLoc
 
 function operationSubjectFromRecord(task: TaskRecord): TaskOperationSubject {
   return buildTaskOperationSubject(task);
+}
+
+function readLifecycleTaskByDirectory(target: TaskScannerTarget, defaults: ScannerRepositoryOptions, taskDir: string): TaskLifecycleTask | undefined {
+  const location = resolveRepositoryTaskLocation(target, { path: taskDir });
+  const task = collectTasks(target, {
+    requireGeneratedScaffoldProvenance: defaults.requireGeneratedScaffoldProvenance,
+    includeArchived: true,
+    closeoutContent: defaults.closeoutContent,
+  }).find((candidate) => candidate.id === location.id);
+  return task ? lifecycleTaskFromRecord(task) : undefined;
+}
+
+function collectLifecycleTasks(target: TaskScannerTarget, defaults: ScannerRepositoryOptions, query: TaskQuery = {}): TaskLifecycleTask[] {
+  const tasks = collectTasks(target, {
+    requireGeneratedScaffoldProvenance: query.requireGeneratedScaffoldProvenance ?? defaults.requireGeneratedScaffoldProvenance,
+    includeArchived: query.includeArchived !== false,
+    closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
+  });
+  return applyTaskQuery(tasks, query).map(lifecycleTaskFromRecord);
+}
+
+function lifecycleTaskFromRecord(task: TaskRecord): TaskLifecycleTask {
+  const record = task as TaskRecord & Record<string, unknown>;
+  return {
+    ...taskStatusProjectionFromRecord(task),
+    locale: typeof record.locale === "string" ? record.locale : undefined,
+    kind: typeof record.kind === "string" ? record.kind : typeof task.taskKind === "string" ? task.taskKind : undefined,
+    preset: typeof record.preset === "string" ? record.preset : typeof task.taskPreset === "string" ? task.taskPreset : undefined,
+    presetAudit: record.presetAudit && typeof record.presetAudit === "object" ? record.presetAudit as Record<string, unknown> : null,
+    longRunning: typeof record.longRunning === "boolean" ? record.longRunning : Boolean(task.longRunningContractPath),
+  };
 }
 
 function collectWorkbenchReviewSubjects(target: TaskScannerTarget, defaults: ScannerRepositoryOptions, query: TaskQuery = {}): TaskWorkbenchReviewSubject[] {

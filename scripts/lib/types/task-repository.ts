@@ -117,6 +117,19 @@ export type TaskOperationSubjectReader = {
   getOperationSubject(ref: TaskRef): TaskOperationSubject;
 };
 
+export type TaskLifecycleTask = TaskStatusProjection & {
+  locale?: string;
+  kind?: string;
+  preset?: string;
+  presetAudit?: Record<string, unknown> | null;
+  longRunning?: boolean;
+};
+
+export type TaskLifecycleReader = {
+  getLifecycleTaskByDirectory(taskDir: string): TaskLifecycleTask | undefined;
+  listLifecycleTasks(query?: TaskQuery): TaskLifecycleTask[];
+};
+
 export type TaskWorkbenchReviewSubject = {
   id: string;
   taskKey?: string;
