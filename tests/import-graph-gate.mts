@@ -99,6 +99,7 @@ const dashboardDataSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/das
 const governanceSyncSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/governance-sync.mts"), "utf8");
 const lessonMaintenanceSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/lesson-maintenance.mts"), "utf8");
 const moduleRegistrySource = fs.readFileSync(path.join(repoRoot, "scripts/lib/module-registry.mts"), "utf8");
+const reviewConfirmSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-lifecycle/review-confirm.mts"), "utf8");
 const checkProfilesTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/check-profiles.ts"), "utf8");
 const taskRepositorySource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-repository.mts"), "utf8");
 const taskRepositoryTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/task-repository.ts"), "utf8");
@@ -150,6 +151,11 @@ assert(!moduleRegistrySource.includes("collectTasks"), "module registry unregist
 assert(!moduleRegistrySource.includes("task-scanner"), "module registry unregister blockers should not import task-scanner directly");
 assert(!moduleRegistrySource.includes("TaskRecord"), "module registry unregister blockers should not import or alias raw scanner TaskRecord objects");
 assert(moduleRegistrySource.includes("createTaskModuleReferenceReader"), "module registry unregister blockers should compose through the module reference reader seam");
+assert(!reviewConfirmSource.includes("task-scanner"), "review-confirm should consume narrow metadata/review/lesson/path modules instead of the broad task-scanner facade");
+assert(reviewConfirmSource.includes("task-review-model"), "review-confirm should read review risks through the review model module");
+assert(reviewConfirmSource.includes("task-lesson-candidates"), "review-confirm should read lesson candidate status through the lesson candidate module");
+assert(reviewConfirmSource.includes("task-metadata"), "review-confirm should read budget through the task metadata module");
+assert(reviewConfirmSource.includes("harness-paths"), "review-confirm should derive task ids through harness path identity helpers");
 assert(!dashboardWorkbenchSource.includes("subjects: taskRepository"), "dashboard workbench task actions should use narrow subject readers instead of the broad TaskRepository identity");
 assert(!dashboardWorkbenchSource.includes("createScannerTaskRepository"), "dashboard workbench bulk review cache should consume workbench review subjects instead of creating the broad scanner-backed repository");
 assert(!taskTombstoneCommandsSource.includes("createScannerTaskRepository"), "task-tombstone compatibility commands should use the narrow tombstone subject reader instead of the broad scanner-backed repository");

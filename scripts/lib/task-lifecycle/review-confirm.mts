@@ -15,23 +15,33 @@ import {
   taskAuditFieldOrder,
 } from "../task-audit-metadata.mjs";
 import {
+  parseTaskBudget,
+} from "../task-metadata.mjs";
+import {
   collectReviewRisks,
   isBlockingReviewRisk,
+} from "../task-review-model.mjs";
+import {
   isLessonCandidateDecisionComplete,
   parseLessonCandidateStatus,
-  parseTaskBudget,
-  taskIdForDirectory,
-} from "../task-scanner.mjs";
+} from "../task-lesson-candidates.mjs";
+import {
+  resolveHarnessPaths,
+  taskIdFromDirectory,
+} from "../harness-paths.mjs";
 import { commitReviewConfirmationGate, prepareReviewConfirmGitGate } from "../review-confirm-git-gate.mjs";
 import { validateHumanReviewConfirmation } from "./review-gates.mjs";
 import { markdownCell } from "./text-utils.mjs";
-import type { TaskScannerTarget } from "../types/task-scanner.js";
+import type { ResolvedHarnessPaths } from "../harness-paths.mjs";
 
-type ReviewConfirmationTarget = TaskScannerTarget & {
+type ReviewConfirmationTarget = {
+  projectRoot: string;
+  docsRoot?: string;
   locale?: string;
-  harness?: {
+  harness?: ResolvedHarnessPaths & {
     taskRoots?: string[];
   } & Record<string, unknown>;
+  [key: string]: unknown;
 };
 
 type ReviewTask = {
@@ -69,7 +79,7 @@ export function confirmTaskReview(
   { reviewer = "Human Reviewer", message = "", confirmText = "", evidence = "", deferCommit = false }: ConfirmTaskReviewOptions = {},
 ) {
   assertTaskDirectoryInsidePlanning(target, taskDir);
-  const canonicalTaskId = taskIdForDirectory(target, taskDir);
+  const canonicalTaskId = reviewConfirmationTaskId(target, taskDir);
   const shortId = path.basename(taskDir);
   if (confirmText && ![shortId, canonicalTaskId].includes(confirmText)) {
     throw new Error(`Review confirmation text must match task id: ${shortId}`);
@@ -154,7 +164,7 @@ export function finalizeDeferredTaskReviewConfirmation(
 ) {
   assertTaskDirectoryInsidePlanning(target, taskDir);
   if (!commitSha) throw new Error("Missing deferred review confirmation commit SHA");
-  const canonicalTaskId = taskIdForDirectory(target, taskDir);
+  const canonicalTaskId = reviewConfirmationTaskId(target, taskDir);
   const indexPath = path.join(taskDir, "INDEX.md");
   const indexContent = readFileSafe(indexPath);
   const existingAudit = taskAuditFieldsFromIndex(indexContent);
@@ -190,8 +200,12 @@ function assertTaskDirectoryInsidePlanning(target: ReviewConfirmationTarget, tas
     .filter(fs.existsSync)
     .map((root) => fs.realpathSync(root));
   if (!allowedRoots.some((root) => realTaskDir === root || realTaskDir.startsWith(`${root}${path.sep}`))) {
-    throw new Error(`Task directory outside planning root: ${taskIdForDirectory(target, taskDir)}`);
+    throw new Error(`Task directory outside planning root: ${reviewConfirmationTaskId(target, taskDir)}`);
   }
+}
+
+function reviewConfirmationTaskId(target: ReviewConfirmationTarget, taskDir: string): string {
+  return taskIdFromDirectory(target.harness || resolveHarnessPaths(target), taskDir);
 }
 
 function taskAuditFieldsFromIndex(content: string): AuditFields {
