@@ -3,6 +3,20 @@ export type TaskRef = {
   path?: string;
 };
 
+export type TaskQuery = {
+  state?: string;
+  module?: string;
+  queue?: string;
+  preset?: string;
+  review?: string;
+  lesson?: string;
+  includeArchived?: boolean;
+  search?: string;
+  missingMaterials?: boolean;
+  requireGeneratedScaffoldProvenance?: boolean;
+  closeoutContent?: string;
+};
+
 export type TaskLocation = {
   id: string;
   directory: string;
@@ -101,4 +115,70 @@ export type TaskOperationSubject = {
 
 export type TaskOperationSubjectReader = {
   getOperationSubject(ref: TaskRef): TaskOperationSubject;
+};
+
+export type TaskStatusIssue = {
+  code?: string;
+  message?: string;
+  sourcePath?: string;
+};
+
+export type TaskStatusProjection = {
+  [key: string]: unknown;
+  aliases?: string[];
+  briefPath?: string;
+  briefSource?: string;
+  closeoutStatus?: string;
+  completion?: number;
+  currentPath?: string;
+  deletionState?: string;
+  documentRefs?: unknown[];
+  evidenceBundle?: string;
+  executionStrategyPath?: string;
+  findingsPath?: string;
+  handoffs?: unknown[];
+  hiddenByDefault?: boolean;
+  id?: string;
+  identitySource?: string;
+  inferredModule?: string;
+  lessonCandidateIssues?: unknown[];
+  lessonCandidatePath?: string;
+  lessonCandidateRows?: unknown[];
+  lessonCandidateStatus?: string;
+  lifecycleState?: string;
+  materialIssues?: TaskStatusIssue[];
+  materialsReady?: boolean;
+  module?: string | null;
+  namespace?: string;
+  originalPath?: string;
+  packageRole?: string;
+  path?: string;
+  presetVersion?: string;
+  progressPath?: string;
+  queueReasons?: TaskStatusIssue[];
+  repairPrompt?: string;
+  reviewPath?: string;
+  reviewStatus?: string;
+  reviewSubmitted?: boolean;
+  risks?: unknown[];
+  shortId?: string;
+  state?: string;
+  stateConflicts?: unknown[];
+  supersededBy?: string;
+  supersedes?: unknown[];
+  taskKind?: string;
+  taskKey?: string;
+  taskPlanPath?: string;
+  taskPreset?: string;
+  taskQueues?: unknown[];
+  taskRootKind?: string;
+  title?: string;
+  visualMapPath?: string;
+  visualMapSource?: string;
+  visualMapStatus?: string;
+  walkthroughPath?: string;
+};
+
+export type TaskStatusProjectionReader = {
+  listStatusTasks(query?: TaskQuery): TaskStatusProjection[];
 };

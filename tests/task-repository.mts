@@ -11,7 +11,7 @@ import {
 import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../scripts/domain/task/task-subjects.mjs";
 import { buildStatusData } from "../scripts/lib/status-builder.mjs";
 import { collectTasks, listTaskPlanPaths } from "../scripts/lib/task-scanner.mjs";
-import { createScannerTaskRepository } from "../scripts/lib/task-repository.mjs";
+import { createScannerTaskRepository, createTaskStatusProjectionReader } from "../scripts/lib/task-repository.mjs";
 
 type ComparableTask = {
   id?: string;
@@ -59,12 +59,15 @@ function assertJsonEqual(actual: unknown, expected: unknown, message: string): v
 const targetPath = copyMinimalProject("minimal");
 const target = normalizeTarget(targetPath);
 const repository = createScannerTaskRepository(target);
+const statusProjectionReader = createTaskStatusProjectionReader(target);
 const legacyTaskPlanPaths = listTaskPlanPaths(target);
 const legacyTasks = collectTasks(target, { taskPlanPaths: legacyTaskPlanPaths });
 const repositoryTasks = repository.list();
+const statusProjectionTasks = statusProjectionReader.listStatusTasks();
 
 assert(repositoryTasks.length === legacyTasks.length, "repository list should preserve task count");
 assertJsonEqual(repositoryTasks.map(queueComparable), legacyTasks.map(queueComparable), "repository list should preserve scanner queue/material fields");
+assertJsonEqual(statusProjectionTasks.map(queueComparable), repositoryTasks.map(queueComparable), "status projection reader should preserve queue/material fields without exposing scanner repository to status-builder");
 
 const task = repository.get({ id: "TASKS/demo-task" });
 assert(task.id === "TASKS/demo-task", "repository get should find a task by canonical id");
@@ -152,8 +155,8 @@ assert(materials.visualMap.content.includes("Visual Map Contract"), "repository 
 const status = buildStatusData(target as Parameters<typeof buildStatusData>[0]);
 assertJsonEqual(
   status.tasks.map(queueComparable),
-  repositoryTasks.map(queueComparable),
-  "status-builder should preserve repository task queue/material projection",
+  statusProjectionTasks.map(queueComparable),
+  "status-builder should preserve task status projection queue/material semantics",
 );
 
 const missingTargetPath = copyMinimalProject("missing-materials");
