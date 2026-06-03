@@ -119,20 +119,107 @@ export type TaskOperationSubjectReader = {
 
 export type TaskStatusIssue = {
   code?: string;
+  queue?: string;
   message?: string;
   sourcePath?: string;
+  severity?: string;
+};
+
+export type TaskStatusBriefQuality = {
+  status: "pass" | "fail";
+  issues: string[];
+};
+
+export type TaskStatusBudget = "simple" | "standard" | "complex";
+
+export type TaskStatusLifecycleProjection = {
+  state?: string;
+  lifecycleState?: string;
+  reviewStatus?: string;
+  reviewQueueState?: string;
+  closeoutStatus?: string;
+  taskQueues?: string[];
+  materialsReady?: boolean;
+  reviewSubmitted?: boolean;
+  lessonCandidateDecisionComplete?: boolean;
+  deletionState?: string;
+};
+
+export type TaskStatusVisibilityProjection = {
+  scopes?: string[];
+  defaultVisible?: boolean;
+  activeCycle?: boolean;
+  reviewWorkbench?: boolean;
+  archiveHistory?: boolean;
+  tombstoneHistory?: boolean;
+  taskIndexDefault?: boolean;
+  hiddenReason?: string;
+};
+
+export type TaskStatusDashboardTaskView = {
+  visibleInSwimlane?: boolean;
+  swimlaneStage?: string;
+  swimlane?: Record<string, unknown>;
+  materials?: Record<string, unknown>;
+  needsEvidence?: boolean;
+  reasonCode?: string;
+  reasonMessage?: string;
+};
+
+export type TaskStatusReviewWorkbenchQueueView = {
+  queues?: string[];
+  primaryQueue?: string;
+  inQueue?: boolean;
+  humanConfirmable?: boolean;
+  blocked?: boolean;
+  needsMaterials?: boolean;
+  confirmed?: boolean;
+  finalized?: boolean;
+  hasPendingLessonWork?: boolean;
+  readyForCloseout?: boolean;
+  reasonCodes?: string[];
+  reasonSummaries?: TaskStatusIssue[];
+};
+
+export type TaskStatusSemanticProjection = {
+  taskLifecycleProjection?: TaskStatusLifecycleProjection;
+  visibility?: TaskStatusVisibilityProjection;
+  dashboardTaskView?: TaskStatusDashboardTaskView;
+  reviewWorkbenchQueueView?: TaskStatusReviewWorkbenchQueueView;
+};
+
+export type TaskStatusPhase = {
+  id?: string;
+  kind?: string;
+  dependsOn?: string[];
+  state?: string;
+  completion?: number;
+  output?: string;
+  requiredEvidence?: string[];
+  exitCommand?: string;
+  actor?: string;
+  evidenceStatus?: string;
+  blockingRisk?: string;
+  owner?: string;
 };
 
 export type TaskStatusProjection = {
-  [key: string]: unknown;
   aliases?: string[];
+  archiveEligible?: boolean;
+  archiveMetadata?: Record<string, unknown>;
   briefPath?: string;
+  briefQuality?: TaskStatusBriefQuality;
   briefSource?: string;
+  budget?: TaskStatusBudget;
+  classificationBucket?: string;
+  classificationSource?: string;
   closeoutStatus?: string;
   completion?: number;
   currentPath?: string;
+  deleteReason?: string;
   deletionState?: string;
-  documentRefs?: unknown[];
+  dependencies?: unknown[];
+  evidence?: unknown[];
   evidenceBundle?: string;
   executionStrategyPath?: string;
   findingsPath?: string;
@@ -143,40 +230,76 @@ export type TaskStatusProjection = {
   inferredModule?: string;
   lessonCandidateIssues?: unknown[];
   lessonCandidatePath?: string;
+  lessonCandidateCloseoutToken?: string;
+  lessonCandidateDecisionComplete?: boolean;
+  lessonCandidateOpenCount?: number;
+  lessonCandidatePromotionState?: string;
+  lessonCandidateReviewDecision?: string;
+  lessonCandidateRowCount?: number;
   lessonCandidateRows?: unknown[];
   lessonCandidateStatus?: string;
+  legacyVisualRoadmapPresent?: boolean;
   lifecycleState?: string;
+  longRunningContractPath?: string;
+  longRunningContractStatus?: string;
   materialIssues?: TaskStatusIssue[];
   materialsReady?: boolean;
+  migrationAchievedLevel?: string;
+  migrationClassification?: string;
+  migrationSnapshot?: unknown;
+  migrationTargetLevel?: string;
   module?: string | null;
-  namespace?: string;
   originalPath?: string;
-  packageRole?: string;
   path?: string;
+  phases?: TaskStatusPhase[];
   presetVersion?: string;
   progressPath?: string;
   queueReasons?: TaskStatusIssue[];
+  reopenEligible?: boolean;
   repairPrompt?: string;
   reviewPath?: string;
+  reviewConfirmation?: Record<string, unknown> | null;
   reviewStatus?: string;
+  reviewQueueState?: string;
+  reviewSubmission?: unknown;
   reviewSubmitted?: boolean;
   risks?: unknown[];
+  roadmapSource?: string;
+  scaffoldProvenance?: unknown;
+  semanticProjection?: TaskStatusSemanticProjection;
   shortId?: string;
   state?: string;
   stateConflicts?: unknown[];
+  stateRaw?: string;
+  stateSource?: string;
   supersededBy?: string;
   supersedes?: unknown[];
+  taskAudit?: unknown;
+  taskContractGenerated?: boolean;
+  taskContractVersion?: string;
   taskKind?: string;
   taskKey?: string;
+  taskLifecycleProjection?: TaskStatusLifecycleProjection;
   taskPlanPath?: string;
   taskPreset?: string;
   taskQueues?: unknown[];
-  taskRootKind?: string;
   title?: string;
+  tombstoneSourcePath?: string;
+  visibility?: TaskStatusVisibilityProjection;
+  visibilityScopes?: string[];
+  reviewWorkbenchQueueView?: TaskStatusReviewWorkbenchQueueView;
+  dashboardTaskView?: TaskStatusDashboardTaskView;
   visualMapPath?: string;
   visualMapSource?: string;
   visualMapStatus?: string;
   walkthroughPath?: string;
+};
+
+export type TaskStatusCutoverProjection = {
+  visualMapStatus: string;
+  migrationClassification: string;
+  briefQuality?: TaskStatusBriefQuality;
+  visualMapSource: string;
 };
 
 export type TaskStatusProjectionReader = {
