@@ -42,6 +42,8 @@ import type {
   TaskIndexProjectionReader as TaskRepositoryIndexProjectionReader,
   TaskLessonPromotionReader,
   TaskLessonPromotionTask,
+  TaskModuleReference as TaskRepositoryModuleReference,
+  TaskModuleReferenceReader as TaskRepositoryModuleReferenceReader,
   TaskLocation as TaskRepositoryLocation,
   TaskPlanContractReader as TaskRepositoryPlanContractReader,
   TaskPlanContractTask as TaskRepositoryPlanContractTask,
@@ -83,6 +85,8 @@ export type TaskCheckProfileReader = TaskRepositoryCheckProfileReader;
 export type TaskIndexProjection = TaskRepositoryIndexProjection;
 export type TaskIndexProjectionReader = TaskRepositoryIndexProjectionReader;
 export type { TaskLessonPromotionReader, TaskLessonPromotionTask };
+export type TaskModuleReference = TaskRepositoryModuleReference;
+export type TaskModuleReferenceReader = TaskRepositoryModuleReferenceReader;
 export type TaskGovernanceProjection = TaskRepositoryGovernanceProjection;
 export type TaskGovernanceProjectionReader = TaskRepositoryGovernanceProjectionReader;
 export type TaskPlanContractTask = TaskRepositoryPlanContractTask;
@@ -275,6 +279,15 @@ export function createTaskLessonPromotionReader(targetInput: TaskScannerTarget |
   return {
     resolveLessonPromotionTask(taskRef: string) {
       return resolveLessonPromotionTask(target, defaults, taskRef);
+    },
+  };
+}
+
+export function createTaskModuleReferenceReader(targetInput: TaskScannerTarget | string | undefined = ".", defaults: ScannerRepositoryOptions = {}): TaskRepositoryModuleReferenceReader {
+  const target = normalizeRepositoryTarget(targetInput);
+  return {
+    listModuleReferences(moduleKey: string) {
+      return collectModuleReferences(target, defaults, moduleKey);
     },
   };
 }
@@ -500,6 +513,20 @@ function lessonPromotionTaskFromRecord(target: TaskScannerTarget, task: TaskReco
       lessonCandidatePath,
       relativeLessonCandidatePath: toPosix(path.relative(target.projectRoot, lessonCandidatePath)),
     },
+  };
+}
+
+function collectModuleReferences(target: TaskScannerTarget, defaults: ScannerRepositoryOptions, moduleKey: string): TaskRepositoryModuleReference[] {
+  return collectTasks(target, {
+    requireGeneratedScaffoldProvenance: defaults.requireGeneratedScaffoldProvenance,
+    includeArchived: false,
+    closeoutContent: defaults.closeoutContent,
+  }).filter((task) => task.module === moduleKey).map(moduleReferenceFromRecord);
+}
+
+function moduleReferenceFromRecord(task: TaskRecord): TaskRepositoryModuleReference {
+  return {
+    blocker: String(task.id || task.taskPlanPath || ""),
   };
 }
 

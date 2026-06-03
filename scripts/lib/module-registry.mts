@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { collectTasks } from "./task-scanner.mjs";
 import { normalizeLocale, normalizeTarget, readBundledTemplate, readFileSafe, renderTaskTemplate, todayDate, toPosix } from "./core-shared.mjs";
 import { assertRenderableHarnessManifest, renderHarnessManifest } from "./harness-paths.mjs";
+import { createTaskModuleReferenceReader } from "./task-repository.mjs";
 import { moduleTemplateFiles } from "./task-lifecycle/template-files.mjs";
 import type { HarnessModuleDefinition, HarnessModulesManifest, ResolvedHarnessPaths } from "./harness-paths.mjs";
 
@@ -315,9 +315,7 @@ function moduleUnregisterBlockers(target: HarnessTarget, key: string): string[] 
   const moduleDir = path.join(target.harness.modulesRoot, key);
   const taskDir = path.join(moduleDir, "tasks");
   if (fs.existsSync(taskDir) && fs.readdirSync(taskDir).length > 0) blockers.push(toPosix(path.relative(target.projectRoot, taskDir)));
-  for (const task of collectTasks(target)) {
-    if (task.module === key) blockers.push(String(task.id || task.taskPlanPath || key));
-  }
+  for (const reference of createTaskModuleReferenceReader(target.projectRoot).listModuleReferences(key)) blockers.push(reference.blocker);
   const ledger = readFileSafe(target.harness.ledgerPath);
   if (ledger.includes(`| module | ${key} |`) || ledger.includes(`/modules/${key}/`)) blockers.push(toPosix(path.relative(target.projectRoot, target.harness.ledgerPath)));
   return [...new Set(blockers)];
