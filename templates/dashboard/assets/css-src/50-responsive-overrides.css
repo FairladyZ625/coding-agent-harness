@@ -11,6 +11,10 @@
     grid-template-columns: 1fr;
   }
 
+  .detail-grid {
+    --task-detail-panel-height: min(72vh, 760px);
+  }
+
   .hero-actions {
     justify-content: flex-start;
     width: 100%;
@@ -74,10 +78,17 @@
 
   .detail-side {
     position: static;
+    max-height: none;
   }
 
   .detail-grid.side-collapsed {
     grid-template-columns: 1fr;
+  }
+
+  .detail-side-content {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .doc-workbench {
@@ -85,6 +96,7 @@
   }
 
   .doc-workbench-nav {
+    height: auto;
     max-height: none;
     overflow: visible;
   }
@@ -94,7 +106,17 @@
   }
 
   .doc-workbench-reader {
-    max-height: min(72vh, 760px);
+    height: var(--task-detail-panel-height);
+    max-height: var(--task-detail-panel-height);
+  }
+
+  .open-findings-panel {
+    height: auto;
+    max-height: none;
+  }
+
+  .open-findings-scroll {
+    max-height: var(--task-detail-panel-height);
   }
 
   .detail-side.collapsed .detail-side-toggle {

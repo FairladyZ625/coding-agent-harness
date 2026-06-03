@@ -3908,6 +3908,84 @@ details summary {
   font-size: 13px;
 }
 
+/* Task detail reader panel alignment */
+.detail-grid {
+  --task-detail-panel-height: clamp(800px, 104vh, 1288px);
+}
+
+.doc-workbench {
+  align-items: stretch;
+}
+
+.doc-workbench-nav {
+  align-content: start;
+  height: var(--task-detail-panel-height);
+  max-height: var(--task-detail-panel-height);
+}
+
+.doc-workbench-reader {
+  height: var(--task-detail-panel-height);
+  max-height: var(--task-detail-panel-height);
+}
+
+.detail-side {
+  max-height: var(--task-detail-panel-height);
+  top: 0;
+}
+
+.detail-side-content {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 0;
+  max-height: var(--task-detail-panel-height);
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.detail-side.collapsed {
+  max-height: none;
+}
+
+.detail-side.collapsed .detail-side-content {
+  display: none;
+}
+
+.side-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.side-panel-head h3 {
+  margin: 0;
+}
+
+.open-findings-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: var(--task-detail-panel-height);
+  min-height: var(--task-detail-panel-height);
+  max-height: var(--task-detail-panel-height);
+  overflow: hidden;
+}
+
+.open-findings-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.open-findings-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 /* Preset Workbench */
 .presets-page {
   min-width: 0;
@@ -4438,6 +4516,10 @@ details summary {
     grid-template-columns: 1fr;
   }
 
+  .detail-grid {
+    --task-detail-panel-height: min(72vh, 760px);
+  }
+
   .hero-actions {
     justify-content: flex-start;
     width: 100%;
@@ -4501,10 +4583,17 @@ details summary {
 
   .detail-side {
     position: static;
+    max-height: none;
   }
 
   .detail-grid.side-collapsed {
     grid-template-columns: 1fr;
+  }
+
+  .detail-side-content {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .doc-workbench {
@@ -4512,6 +4601,7 @@ details summary {
   }
 
   .doc-workbench-nav {
+    height: auto;
     max-height: none;
     overflow: visible;
   }
@@ -4521,7 +4611,17 @@ details summary {
   }
 
   .doc-workbench-reader {
-    max-height: min(72vh, 760px);
+    height: var(--task-detail-panel-height);
+    max-height: var(--task-detail-panel-height);
+  }
+
+  .open-findings-panel {
+    height: auto;
+    max-height: none;
+  }
+
+  .open-findings-scroll {
+    max-height: var(--task-detail-panel-height);
   }
 
   .detail-side.collapsed .detail-side-toggle {
