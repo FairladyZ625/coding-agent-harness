@@ -168,15 +168,6 @@ export const architectureImportContract: ArchitectureImportContract = {
   ],
   phaseOpenExceptions: [
     {
-      id: "P05-domain-task-subject-semantic-projection-bridge",
-      source: "scripts/domain/task/task-subjects.mts",
-      target: "scripts/lib/task-semantic-projection.mts",
-      ownerPhase: "P05-repository-scanner-strangler",
-      expiryPhase: "P06-dashboard-projection-consumer-cutover",
-      reason: "Task subject domain mapping temporarily reuses the existing CLI/Dashboard semantic projection builder for fallback parity until the projection contract is moved behind a domain/port-owned module.",
-      evidence: "import graph check plus P05 domain subject fallback tests; residual must stay open until P06 projection ownership is resolved",
-    },
-    {
       id: "P04-infrastructure-task-operation-lifecycle-writer-adapter",
       source: "scripts/infrastructure/task/legacy-task-operation-writers.mts",
       target: "scripts/lib/task-lifecycle.mts",
@@ -270,7 +261,8 @@ export const architectureImportContract: ArchitectureImportContract = {
     { path: "scripts/adapters/cli/task-operation-subject-reader.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Narrow scanner-backed TaskOperationSubjectReader CLI adapter for command wiring; not a harness-core package barrel surface." },
     { path: "scripts/infrastructure/task/scanner-subject-source.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Infrastructure-only scanner source for task subject readers; owns scanner collection, reference matching, and path normalization." },
     { path: "scripts/lib/task-scanner.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Legacy scanner adapter and migration-only boundary." },
-    { path: "scripts/lib/task-semantic-projection.mts", ownerPhase: "P06-dashboard-projection-consumer-cutover", reason: "Shared CLI/Dashboard/Test semantic contract." },
+    { path: "scripts/domain/task/task-semantic-projection.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Task semantic projection policy owned by domain task module." },
+    { path: "scripts/lib/task-semantic-projection.mts", ownerPhase: "P11-package-facade-deletion", reason: "Compatibility re-export for package/deep-import consumers until package facade cleanup." },
     { path: "scripts/lib/dashboard-data.mts", ownerPhase: "P06-dashboard-projection-consumer-cutover", reason: "Dashboard projection consumer." },
     { path: "scripts/lib/dashboard-workbench.mts", ownerPhase: "P08-dashboard-workbench-consumer-cutover", reason: "Workbench command adapter and review-confirm consumer." },
     { path: "scripts/lib/preset-runner.mts", ownerPhase: "P09-preset-runtime-cutover", reason: "Preset runtime transaction boundary." },

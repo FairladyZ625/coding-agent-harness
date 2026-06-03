@@ -23,7 +23,7 @@ import {
   taskCutoverCounters,
 } from "./task-scanner.mjs";
 import { taskIdFromArchiveStoragePath } from "./task-archive-storage.mjs";
-import { buildTaskSemanticProjection, taskMatchesVisibilityScope, taskVisibilityScopes } from "./task-semantic-projection.mjs";
+import { buildTaskSemanticProjection, taskMatchesVisibilityScope, taskVisibilityScopes } from "../domain/task/task-semantic-projection.mjs";
 import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../domain/task/task-subjects.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import type { CollectTasksOptions, TaskContractFile, TaskScannerTarget, VisualMapContractFile } from "./types/task-scanner.js";

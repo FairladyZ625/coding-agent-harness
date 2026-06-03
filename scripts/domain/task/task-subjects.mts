@@ -1,4 +1,4 @@
-import { buildTaskSemanticProjection } from "../../lib/task-semantic-projection.mjs";
+import { buildTaskSemanticProjection } from "./task-semantic-projection.mjs";
 import type {
   TaskLocation,
   TaskOperationBlockingRisk,
