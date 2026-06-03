@@ -5,7 +5,7 @@ import { visualMapFile, legacyVisualRoadmapFile, allowedTaskStates, allowedTaskB
 import { readCapabilityRegistry } from "./capability-registry.mjs";
 import { readPresetPackage } from "./preset-registry.mjs";
 import { parseTaskBudget } from "./task-metadata.mjs";
-import { createScannerTaskRepository, resolveTaskDirectory as resolveRepositoryTaskDirectory } from "./task-repository.mjs";
+import { createTaskLifecycleReader, resolveTaskDirectory as resolveRepositoryTaskDirectory } from "./task-repository.mjs";
 import { getColumn, firstColumn, updateMarkdownTableRow } from "./markdown-utils.mjs";
 import { validateLifecycleTransition, validateReviewEntryGate } from "./task-lifecycle/review-gates.mjs";
 import { advanceLifecyclePhase, autoRecordNoLessonCandidateDecision } from "./task-lifecycle/phase-sync.mjs";
@@ -64,7 +64,7 @@ function taskIdForDirectory(target: LifecycleTarget, taskDir: string): string {
 
 function findTaskByDirectory(target: LifecycleTarget, taskDir: string): LifecycleTask | undefined {
   try {
-    return createScannerTaskRepository(target).get({ path: taskDir }) as LifecycleTask;
+    return createTaskLifecycleReader(target).getLifecycleTaskByDirectory(taskDir) as LifecycleTask | undefined;
   } catch {
     return undefined;
   }
@@ -552,7 +552,7 @@ export function updateModuleStep(targetInput: string, moduleKey: string, stepId:
 
 export function listLifecycleTasks(targetInput: string, { state = "", moduleKey = "", queue = "", preset = "", review = "", lesson = "", search = "", missingMaterials = false, includeArchived = false }: ListLifecycleTasksOptions = {}) {
   const target = asLifecycleTarget(normalizeTarget(targetInput));
-  const tasks = createScannerTaskRepository(target).list({
+  const tasks = createTaskLifecycleReader(target).listLifecycleTasks({
     includeArchived,
     state,
     module: moduleKey ? normalizeHarnessModuleKey(moduleKey) : "",

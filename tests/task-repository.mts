@@ -11,7 +11,7 @@ import {
 import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../scripts/domain/task/task-subjects.mjs";
 import { buildStatusData } from "../scripts/lib/status-builder.mjs";
 import { collectTasks, listTaskPlanPaths } from "../scripts/lib/task-scanner.mjs";
-import { createScannerTaskRepository, createTaskStatusProjectionReader, createTaskWorkbenchReviewSubjectReader } from "../scripts/lib/task-repository.mjs";
+import { createScannerTaskRepository, createTaskLifecycleReader, createTaskStatusProjectionReader, createTaskWorkbenchReviewSubjectReader } from "../scripts/lib/task-repository.mjs";
 
 type ComparableTask = {
   id?: string;
@@ -156,18 +156,23 @@ function assertJsonEqual(actual: unknown, expected: unknown, message: string): v
 const targetPath = copyMinimalProject("minimal");
 const target = normalizeTarget(targetPath);
 const repository = createScannerTaskRepository(target);
+const lifecycleReader = createTaskLifecycleReader(target);
 const statusProjectionReader = createTaskStatusProjectionReader(target);
 const workbenchReviewSubjectReader = createTaskWorkbenchReviewSubjectReader(target);
 const legacyTaskPlanPaths = listTaskPlanPaths(target);
 const legacyTasks = collectTasks(target, { taskPlanPaths: legacyTaskPlanPaths });
 const repositoryTasks = repository.list();
+const lifecycleTasks = lifecycleReader.listLifecycleTasks();
 const statusProjectionTasks = statusProjectionReader.listStatusTasks();
 const workbenchReviewSubjects = workbenchReviewSubjectReader.listWorkbenchReviewSubjects();
 const statusProjectionTypeKeys = topLevelStatusProjectionTypeKeys();
 
 assert(repositoryTasks.length === legacyTasks.length, "repository list should preserve task count");
+assert(lifecycleTasks.length === repositoryTasks.length, "lifecycle reader should preserve task count without exposing scanner records");
 assert(workbenchReviewSubjects.length === repositoryTasks.length, "workbench review subject reader should preserve task count without exposing scanner records");
 assertJsonEqual(repositoryTasks.map(queueComparable), legacyTasks.map(queueComparable), "repository list should preserve scanner queue/material fields");
+assertJsonEqual(lifecycleTasks.map(queueComparable), repositoryTasks.map(queueComparable), "lifecycle reader should preserve lifecycle queue/material fields without exposing the broad TaskRepository identity");
+assert(statusProjectionKeys.every((key) => Object.keys(lifecycleTasks[0] || {}).includes(key)), "lifecycle reader should preserve every explicit task-list/status projection field");
 assertJsonEqual(statusProjectionTasks.map(queueComparable), repositoryTasks.map(queueComparable), "status projection reader should preserve queue/material fields without exposing scanner repository to status-builder");
 assertJsonEqual(statusProjectionTypeKeys, statusProjectionKeys, "TaskStatusProjection type keys must match the runtime status projection allowlist");
 assertJsonEqual(Object.keys(statusProjectionTasks[0] || {}).sort(), statusProjectionKeys, "status projection reader should expose only the explicit status/dashboard contract field allowlist");
@@ -178,6 +183,14 @@ assertJsonEqual(
 );
 
 const task = repository.get({ id: "TASKS/demo-task" });
+const lifecycleTask = lifecycleReader.getLifecycleTaskByDirectory(path.dirname(absoluteTargetPath(targetPath, task.taskPlanPath)));
+assert(lifecycleTask?.id === task.id, "lifecycle reader should find a task by task directory");
+assert(lifecycleTask.taskPlanPath === task.taskPlanPath, "lifecycle reader should preserve taskPlanPath for lifecycle updates");
+assertJsonEqual(lifecycleTask.semanticProjection, task.semanticProjection, "lifecycle reader should preserve current task-list projection output until P06/P09 shrink it");
+assertJsonEqual(lifecycleTask.materialIssues, task.materialIssues, "lifecycle reader should preserve material issue output for lifecycle no-data-loss");
+assert(lifecycleTask.kind === task.taskKind, "lifecycle reader should expose task kind compatibility alias");
+assert(lifecycleTask.preset === task.taskPreset, "lifecycle reader should expose task preset compatibility alias");
+assert(lifecycleReader.listLifecycleTasks({ state: "done" }).every((item) => item.state === "done"), "lifecycle reader should preserve state filtering for task-list");
 const workbenchReviewSubject = workbenchReviewSubjects.find((subject) => subject.id === task.id);
 assert(workbenchReviewSubject, "workbench review subject reader should include the demo task");
 assert(workbenchReviewSubject.aliases.includes(task.id) && workbenchReviewSubject.aliases.includes(task.shortId), "workbench review subject should expose only lookup aliases needed by bulk review actions");
