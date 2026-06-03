@@ -11,7 +11,7 @@ import {
 import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../scripts/domain/task/task-subjects.mjs";
 import { buildStatusData } from "../scripts/lib/status-builder.mjs";
 import { collectTasks, listTaskPlanPaths } from "../scripts/lib/task-scanner.mjs";
-import { createScannerTaskRepository, createTaskStatusProjectionReader } from "../scripts/lib/task-repository.mjs";
+import { createScannerTaskRepository, createTaskStatusProjectionReader, createTaskWorkbenchReviewSubjectReader } from "../scripts/lib/task-repository.mjs";
 
 type ComparableTask = {
   id?: string;
@@ -157,13 +157,16 @@ const targetPath = copyMinimalProject("minimal");
 const target = normalizeTarget(targetPath);
 const repository = createScannerTaskRepository(target);
 const statusProjectionReader = createTaskStatusProjectionReader(target);
+const workbenchReviewSubjectReader = createTaskWorkbenchReviewSubjectReader(target);
 const legacyTaskPlanPaths = listTaskPlanPaths(target);
 const legacyTasks = collectTasks(target, { taskPlanPaths: legacyTaskPlanPaths });
 const repositoryTasks = repository.list();
 const statusProjectionTasks = statusProjectionReader.listStatusTasks();
+const workbenchReviewSubjects = workbenchReviewSubjectReader.listWorkbenchReviewSubjects();
 const statusProjectionTypeKeys = topLevelStatusProjectionTypeKeys();
 
 assert(repositoryTasks.length === legacyTasks.length, "repository list should preserve task count");
+assert(workbenchReviewSubjects.length === repositoryTasks.length, "workbench review subject reader should preserve task count without exposing scanner records");
 assertJsonEqual(repositoryTasks.map(queueComparable), legacyTasks.map(queueComparable), "repository list should preserve scanner queue/material fields");
 assertJsonEqual(statusProjectionTasks.map(queueComparable), repositoryTasks.map(queueComparable), "status projection reader should preserve queue/material fields without exposing scanner repository to status-builder");
 assertJsonEqual(statusProjectionTypeKeys, statusProjectionKeys, "TaskStatusProjection type keys must match the runtime status projection allowlist");
@@ -175,6 +178,25 @@ assertJsonEqual(
 );
 
 const task = repository.get({ id: "TASKS/demo-task" });
+const workbenchReviewSubject = workbenchReviewSubjects.find((subject) => subject.id === task.id);
+assert(workbenchReviewSubject, "workbench review subject reader should include the demo task");
+assert(workbenchReviewSubject.aliases.includes(task.id) && workbenchReviewSubject.aliases.includes(task.shortId), "workbench review subject should expose only lookup aliases needed by bulk review actions");
+assert(workbenchReviewSubject.paths.directory === path.dirname(absoluteTargetPath(targetPath, task.taskPlanPath)), "workbench review subject should expose task directory for review-confirm context");
+assert(workbenchReviewSubject.confirmText === task.shortId, "workbench review subject should expose the human confirm text without leaking the full TaskRecord");
+assertJsonEqual(workbenchReviewSubject.reviewTask, {
+  id: task.id,
+  reviewStatus: task.reviewStatus,
+  walkthroughPath: task.walkthroughPath,
+  reviewQueueState: task.reviewQueueState,
+  state: task.state,
+  taskQueues: task.taskQueues,
+  lessonCandidateDecisionComplete: task.lessonCandidateDecisionComplete,
+  lessonCandidateStatus: task.lessonCandidateStatus,
+}, "workbench review subject should preserve the review gate facts used by review-confirm");
+assertJsonEqual(workbenchReviewSubject.semanticProjection.taskLifecycleProjection, task.taskLifecycleProjection, "workbench review subject should preserve lifecycle projection for bulk review gating");
+assertJsonEqual(workbenchReviewSubject.semanticProjection.reviewWorkbenchQueueView, task.reviewWorkbenchQueueView, "workbench review subject should preserve workbench queue projection for bulk review gating");
+assert(!("taskPlanPath" in workbenchReviewSubject), "workbench review subject should not expose raw scanner taskPlanPath");
+assert(!("path" in workbenchReviewSubject), "workbench review subject should not expose raw scanner path");
 assert(task.id === "TASKS/demo-task", "repository get should find a task by canonical id");
 assert(repository.get({ id: "demo-task" }).id === task.id, "repository get should find a task by short id");
 assert(repository.get({ path: path.join(targetPath, "coding-agent-harness/planning/tasks/demo-task/task_plan.md") }).id === task.id, "repository get should find a task by task_plan path");
@@ -281,4 +303,10 @@ function topLevelStatusProjectionTypeKeys(): string[] {
   const match = source.match(/export type TaskStatusProjection = \{\n([\s\S]*?)\n\};/);
   assert(match, "TaskStatusProjection type declaration should be parseable");
   return [...match[1].matchAll(/^\s{2}([A-Za-z0-9_]+)\?:/gm)].map((item) => item[1]).sort();
+}
+
+function absoluteTargetPath(projectRoot: string, rawPath: string): string {
+  const withoutTarget = String(rawPath || "").replace(/^TARGET:/, "");
+  if (path.isAbsolute(withoutTarget)) return withoutTarget;
+  return path.join(projectRoot, withoutTarget.replace(/^\/+/, ""));
 }

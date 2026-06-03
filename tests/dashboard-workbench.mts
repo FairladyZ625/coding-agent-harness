@@ -23,6 +23,8 @@ type PresetApiBody = JsonPayload & {
   error?: string;
   operation?: string;
   scope?: string;
+  failed?: number;
+  results?: Array<{ status?: number; payload?: JsonPayload; error?: string }>;
 };
 type PresetApiResponse = {
   status: number;
@@ -85,6 +87,13 @@ try {
   const appScript = await (await fetch(new URL("assets/app.js", runtime.url))).text();
   assert(appScript.includes("refreshDashboardSnapshot"), "workbench app should hot-update dashboard data without a full page reload");
   assert(!appScript.includes("window.location.reload()"), "workbench app should not hard reload when snapshots change");
+
+  const blockedBulkReview = await postJson("api/tasks/review-complete-bulk", { taskIds: ["demo-task"] });
+  assert(blockedBulkReview.status === 409, `bulk review should preserve blocked review status, got ${blockedBulkReview.status}: ${blockedBulkReview.text}`);
+  assert(blockedBulkReview.body.failed === 1, "bulk review should report one failed task when the task is not review-confirmable");
+  assert(blockedBulkReview.body.results?.[0]?.status === 409, "bulk review should return per-task review gate status");
+  assert(blockedBulkReview.body.results?.[0]?.payload?.taskId === "TASKS/demo-task", "bulk review should preserve canonical task id in blocked payload");
+  assert(Array.isArray(blockedBulkReview.body.results?.[0]?.payload?.taskQueues), "bulk review should preserve queue payload for dashboard no-data-loss");
 
   const checkPayload = await postJson("api/presets/check", { id: "module" });
   assert(checkPayload.status === 200, `preset check should pass, got ${checkPayload.status}: ${checkPayload.text}`);

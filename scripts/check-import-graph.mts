@@ -236,7 +236,7 @@ export const architectureImportContract: ArchitectureImportContract = {
       target: "scripts/lib/task-repository.mts",
       ownerPhase: "P08-dashboard-workbench-consumer-cutover",
       expiryPhase: "P08-dashboard-workbench-consumer-cutover",
-      reason: "Workbench still creates the scanner-backed repository until its read paths consume stable task repository/projection ports.",
+      reason: "Workbench still consumes task-repository workbench review subjects until its read paths move behind stable workbench projection ports.",
       evidence: "import graph check plus P08 workbench smoke fixtures",
     },
     {

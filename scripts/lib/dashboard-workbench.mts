@@ -10,7 +10,7 @@ import { commitWorkbenchBatch } from "../application/workbench/review-confirmati
 import { createAggregateLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
 import { normalizeTarget, toPosix } from "./core-shared.mjs";
 import { dashboardWatchRoots } from "./harness-paths.mjs";
-import { createScannerTaskRepository } from "./task-repository.mjs";
+import { createTaskWorkbenchReviewSubjectReader } from "./task-repository.mjs";
 import { createTaskOperations, taskOperationFailurePayload } from "../application/task/task-operations.mjs";
 import {
   createScannerTaskOperationSubjectReader,
@@ -21,7 +21,6 @@ import {
   finalizeDeferredTaskReviewConfirmation as finalizeDeferredTaskReviewConfirmationWithContext,
 } from "./task-lifecycle/review-confirm.mjs";
 import { writeDashboardFolder } from "./dashboard-data.mjs";
-import { buildTaskSemanticProjection } from "./task-semantic-projection.mjs";
 import {
   checkPresetPackage,
   installPresetPackage,
@@ -32,7 +31,7 @@ import {
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import type { CheckTarget } from "./types/check-profiles.js";
-import type { TaskRecord, TaskRepository } from "./task-repository.mjs";
+import type { TaskWorkbenchReviewSubject, TaskWorkbenchReviewSubjectReader } from "./task-repository.mjs";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "connection": "close" };
 
@@ -94,7 +93,7 @@ type JsonPayload = Record<string, unknown>;
 export async function serveDashboardWorkbench(outDir: string, targetInput: string, { host = "127.0.0.1", port = 0, localeOverride = "", autoRefresh = false, open = false, label = "dashboard workbench", recoverGeneratedDashboard = false, replaceExistingDashboardOutput = false }: WorkbenchOptions = {}) {
   if (host !== "127.0.0.1") throw new Error("dashboard workbench only supports --host 127.0.0.1");
   const target = normalizeTarget(targetInput) as WorkbenchTarget;
-  const taskRepository = createScannerTaskRepository(target);
+  const workbenchReviewSubjects = createTaskWorkbenchReviewSubjectReader(target);
   const taskOperations = createTaskOperations(target.projectRoot, {
     subjects: createScannerTaskOperationSubjectReader(target),
     tombstoneSubjects: createScannerTaskTombstoneSubjectReader(target),
@@ -176,11 +175,11 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
           return;
         }
         const results: WorkbenchBatchResult[] = [];
-        const taskCache = buildWorkbenchTaskCache(taskRepository, target.projectRoot);
+        const taskCache = buildWorkbenchTaskCache(workbenchReviewSubjects);
         for (const taskId of taskIds) {
-          const task = findCachedWorkbenchTask(taskCache, taskId);
-          const block = task ? bulkReviewConfirmationBlock(task) : { status: 404, reason: `Task not found: ${taskId}`, payload: { taskId } };
-          if (!task || block) {
+          const subject = findCachedWorkbenchTask(taskCache, taskId);
+          const block = subject ? bulkReviewConfirmationBlock(subject) : { status: 404, reason: `Task not found: ${taskId}`, payload: { taskId } };
+          if (!subject || block) {
             results.push({ taskId, ok: false, status: block?.status || 404, error: block?.reason || `Task not found: ${taskId}`, payload: block?.payload || { taskId } });
             continue;
           }
@@ -188,14 +187,14 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
             const payload = confirmTaskReviewWithContext(
               {
                 target,
-                taskDir: taskDirectoryForCachedTask(target.projectRoot, task),
-                findTaskByDirectory: (_target, taskDir) => findCachedTaskByDirectory(taskCache, taskDir),
+                taskDir: subject.paths.directory,
+                findTaskByDirectory: (_target, taskDir) => findCachedTaskByDirectory(taskCache, taskDir)?.reviewTask,
               },
               {
                 reviewer: body.reviewer || "Human Reviewer",
                 message: body.message || "bulk confirmed from dashboard workbench",
                 evidence: body.evidence || "",
-                confirmText: task.shortId || task.id || taskId,
+                confirmText: subject.confirmText || taskId,
                 deferCommit: true,
               },
             ) as { audit?: WorkbenchBatchResult["audit"]; task?: { id?: string } };
@@ -210,13 +209,13 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
           const allowedPaths = uniqueValues(results.filter((result) => result.ok).flatMap((result) => result.audit?.allowedPaths || []));
           const confirmCommit = commitWorkbenchBatch(target, allowedPaths, { operation: "review-complete-bulk", message: "chore: confirm selected reviews" });
           for (const result of results.filter((item) => item.ok)) {
-            const task = findCachedWorkbenchTask(taskCache, result.taskId);
-            if (!task) continue;
+            const subject = findCachedWorkbenchTask(taskCache, result.taskId);
+            if (!subject) continue;
             finalizeDeferredTaskReviewConfirmationWithContext(
               {
                 target,
-                taskDir: taskDirectoryForCachedTask(target.projectRoot, task),
-                findTaskByDirectory: (_target, taskDir) => findCachedTaskByDirectory(taskCache, taskDir),
+                taskDir: subject.paths.directory,
+                findTaskByDirectory: (_target, taskDir) => findCachedTaskByDirectory(taskCache, taskDir)?.reviewTask,
               },
               { commitSha: confirmCommit.commitSha },
             );
@@ -430,17 +429,9 @@ function normalizeBulkLessonSelections(rawSelections: unknown): BulkLessonSelect
   return result;
 }
 
-function findWorkbenchTask(repository: TaskRepository, taskId: string): TaskRecord | undefined {
-  try {
-    return repository.get({ id: taskId });
-  } catch {
-    return undefined;
-  }
-}
-
 type WorkbenchTaskCache = {
-  byId: Map<string, TaskRecord>;
-  byDirectory: Map<string, TaskRecord>;
+  byId: Map<string, TaskWorkbenchReviewSubject>;
+  byDirectory: Map<string, TaskWorkbenchReviewSubject>;
 };
 
 type BulkReviewBlock = {
@@ -449,42 +440,35 @@ type BulkReviewBlock = {
   payload: Record<string, unknown>;
 };
 
-function buildWorkbenchTaskCache(repository: TaskRepository, projectRoot: string): WorkbenchTaskCache {
-  const tasks = repository.list();
-  const byId = new Map<string, TaskRecord>();
-  const byDirectory = new Map<string, TaskRecord>();
-  for (const task of tasks) {
-    for (const id of [task.id, task.taskKey, task.shortId].filter(Boolean)) byId.set(String(id), task);
-    byDirectory.set(normalizeWorkbenchPath(taskDirectoryForCachedTask(projectRoot, task)), task);
+function buildWorkbenchTaskCache(reader: TaskWorkbenchReviewSubjectReader): WorkbenchTaskCache {
+  const subjects = reader.listWorkbenchReviewSubjects();
+  const byId = new Map<string, TaskWorkbenchReviewSubject>();
+  const byDirectory = new Map<string, TaskWorkbenchReviewSubject>();
+  for (const subject of subjects) {
+    for (const id of subject.aliases) byId.set(id, subject);
+    byDirectory.set(normalizeWorkbenchPath(subject.paths.directory), subject);
   }
   return { byId, byDirectory };
 }
 
-function findCachedWorkbenchTask(cache: WorkbenchTaskCache, taskId: string): TaskRecord | undefined {
+function findCachedWorkbenchTask(cache: WorkbenchTaskCache, taskId: string): TaskWorkbenchReviewSubject | undefined {
   return cache.byId.get(String(taskId || ""));
 }
 
-function findCachedTaskByDirectory(cache: WorkbenchTaskCache, taskDir: string): TaskRecord | undefined {
+function findCachedTaskByDirectory(cache: WorkbenchTaskCache, taskDir: string): TaskWorkbenchReviewSubject | undefined {
   return cache.byDirectory.get(normalizeWorkbenchPath(taskDir));
-}
-
-function taskDirectoryForCachedTask(projectRoot: string, task: TaskRecord): string {
-  const raw = String(task.currentPath || task.path || "");
-  if (!raw) throw new Error(`Task has no currentPath/path: ${task.id || task.taskKey || "unknown"}`);
-  const withoutTarget = raw.replace(/^TARGET:/, "");
-  return path.isAbsolute(withoutTarget) ? withoutTarget : path.join(projectRoot, withoutTarget.replace(/^\/+/, ""));
 }
 
 function normalizeWorkbenchPath(filePath: string): string {
   return toPosix(path.resolve(filePath));
 }
 
-function bulkReviewConfirmationBlock(task: TaskRecord): BulkReviewBlock | null {
-  const projection = buildTaskSemanticProjection(task as Record<string, unknown>);
+function bulkReviewConfirmationBlock(subject: TaskWorkbenchReviewSubject): BulkReviewBlock | null {
+  const projection = subject.semanticProjection;
   const lifecycle = projection.taskLifecycleProjection;
   const reviewView = projection.reviewWorkbenchQueueView;
   if (reviewView.confirmed) {
-    return { status: 409, reason: "Review is already confirmed.", payload: { reviewStatus: lifecycle.reviewStatus || "confirmed", taskId: task.id || "" } };
+    return { status: 409, reason: "Review is already confirmed.", payload: { reviewStatus: lifecycle.reviewStatus || "confirmed", taskId: subject.id } };
   }
   if (!reviewView.humanConfirmable) {
     return {
@@ -493,10 +477,10 @@ function bulkReviewConfirmationBlock(task: TaskRecord): BulkReviewBlock | null {
       payload: {
         reviewQueueState: lifecycle.reviewQueueState || "unknown",
         taskQueues: reviewView.queues,
-        queueReasons: Array.isArray(task.queueReasons) ? task.queueReasons : [],
-        repairPrompt: task.repairPrompt || "",
+        queueReasons: subject.queueReasons,
+        repairPrompt: subject.repairPrompt,
         reviewStatus: lifecycle.reviewStatus || "unknown",
-        taskId: task.id || "",
+        taskId: subject.id,
       },
     };
   }

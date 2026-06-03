@@ -95,6 +95,9 @@ assert(!harnessCoreSource.includes("../domain/task/task-subjects.mjs"), "task su
 assert(!fs.existsSync(path.join(repoRoot, "scripts/lib/task-operation-subjects.mts")), "scanner-backed TaskOperationSubjectReader helper should not live in scripts/lib");
 assert(!statusBuilderSource.includes("createScannerTaskRepository"), "status-builder should consume task status projections instead of creating the scanner-backed repository");
 assert(!dashboardWorkbenchSource.includes("subjects: taskRepository"), "dashboard workbench task actions should use narrow subject readers instead of the broad TaskRepository identity");
+assert(!dashboardWorkbenchSource.includes("createScannerTaskRepository"), "dashboard workbench bulk review cache should consume workbench review subjects instead of creating the broad scanner-backed repository");
+assert(!dashboardWorkbenchSource.includes("TaskRecord"), "dashboard workbench bulk review cache should not store raw scanner TaskRecord objects");
+assert(!dashboardWorkbenchSource.includes("buildTaskSemanticProjection"), "dashboard workbench bulk review gate should not interpret raw task facts locally");
 assert(!/export type TaskStatusProjection = \{\s*\[key: string\]: unknown;/m.test(taskRepositoryTypesSource), "TaskStatusProjection should be an explicit status/dashboard contract, not an arbitrary scanner record bag");
 assert(!statusProjectionReaderSource.includes("createScannerTaskRepository"), "TaskStatusProjectionReader should not recreate the broad scanner-backed TaskRepository identity");
 assert(!taskRepositorySource.includes("return { ...task };"), "status projection materialization should not leak scanner records by object spread");

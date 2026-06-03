@@ -23,7 +23,7 @@ import {
   taskCutoverCounters,
 } from "./task-scanner.mjs";
 import { taskIdFromArchiveStoragePath } from "./task-archive-storage.mjs";
-import { taskMatchesVisibilityScope } from "./task-semantic-projection.mjs";
+import { buildTaskSemanticProjection, taskMatchesVisibilityScope } from "./task-semantic-projection.mjs";
 import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../domain/task/task-subjects.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import type { CollectTasksOptions, TaskContractFile, TaskScannerTarget, VisualMapContractFile } from "./types/task-scanner.js";
@@ -40,6 +40,8 @@ import type {
   TaskStatusProjectionReader as TaskRepositoryStatusProjectionReader,
   TaskTombstonePolicyFacts as TaskRepositoryTombstonePolicyFacts,
   TaskTombstoneSubject as TaskRepositoryTombstoneSubject,
+  TaskWorkbenchReviewSubject as TaskRepositoryWorkbenchReviewSubject,
+  TaskWorkbenchReviewSubjectReader as TaskRepositoryWorkbenchReviewSubjectReader,
   TombstoneSubjectReader as TaskRepositoryTombstoneSubjectReader,
 } from "./types/task-repository.js";
 
@@ -69,6 +71,8 @@ export type TaskOperationBlockingRisk = TaskRepositoryOperationBlockingRisk;
 export type TaskOperationSemanticProjection = TaskRepositoryOperationSemanticProjection;
 export type TaskOperationSubject = TaskRepositoryOperationSubject;
 export type TaskOperationSubjectReader = TaskRepositoryOperationSubjectReader;
+export type TaskWorkbenchReviewSubject = TaskRepositoryWorkbenchReviewSubject;
+export type TaskWorkbenchReviewSubjectReader = TaskRepositoryWorkbenchReviewSubjectReader;
 
 export type TaskMaterial = {
   path: string;
@@ -94,6 +98,7 @@ export type TaskMaterials = {
 export type TaskRepository = TaskRepositoryTombstoneSubjectReader & TaskRepositoryOperationSubjectReader & {
   list(query?: TaskQuery): TaskRecord[];
   listStatusTasks(query?: TaskQuery): TaskStatusProjection[];
+  listWorkbenchReviewSubjects(query?: TaskQuery): TaskWorkbenchReviewSubject[];
   get(ref: TaskRef): TaskRecord;
   resolve(ref: TaskRef): TaskLocation;
   readMaterials(ref: TaskRef): TaskMaterials;
@@ -114,6 +119,9 @@ export function createScannerTaskRepository(targetInput: TaskScannerTarget | str
     },
     listStatusTasks(query: TaskQuery = {}) {
       return collectStatusTasks(target, defaults, query);
+    },
+    listWorkbenchReviewSubjects(query: TaskQuery = {}) {
+      return collectWorkbenchReviewSubjects(target, defaults, query);
     },
     get(ref: TaskRef) {
       const location = resolveRepositoryTaskLocation(target, ref);
@@ -156,6 +164,15 @@ export function createScannerTaskRepository(targetInput: TaskScannerTarget | str
       const location = resolveRepositoryTaskLocation(target, ref);
       const task = readRepositoryTask(target, defaults, location, ref);
       return operationSubjectFromRecord(task);
+    },
+  };
+}
+
+export function createTaskWorkbenchReviewSubjectReader(targetInput: TaskScannerTarget | string | undefined = ".", defaults: ScannerRepositoryOptions = {}): TaskWorkbenchReviewSubjectReader {
+  const target = normalizeRepositoryTarget(targetInput);
+  return {
+    listWorkbenchReviewSubjects(query: TaskQuery = {}) {
+      return collectWorkbenchReviewSubjects(target, defaults, query);
     },
   };
 }
@@ -218,6 +235,43 @@ function tombstoneSubjectFromRecord(target: TaskScannerTarget, location: TaskLoc
 
 function operationSubjectFromRecord(task: TaskRecord): TaskOperationSubject {
   return buildTaskOperationSubject(task);
+}
+
+function collectWorkbenchReviewSubjects(target: TaskScannerTarget, defaults: ScannerRepositoryOptions, query: TaskQuery = {}): TaskWorkbenchReviewSubject[] {
+  const tasks = collectTasks(target, {
+    requireGeneratedScaffoldProvenance: query.requireGeneratedScaffoldProvenance ?? defaults.requireGeneratedScaffoldProvenance,
+    includeArchived: query.includeArchived !== false,
+    closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
+  });
+  return applyTaskQuery(tasks, query).map((task) => workbenchReviewSubjectFromRecord(target, task));
+}
+
+function workbenchReviewSubjectFromRecord(target: TaskScannerTarget, task: TaskRecord): TaskWorkbenchReviewSubject {
+  const directory = taskDirectoryFromRecord(target, task);
+  return {
+    id: String(task.id || ""),
+    taskKey: task.taskKey,
+    shortId: task.shortId,
+    aliases: [task.id, task.taskKey, task.shortId, ...(Array.isArray(task.aliases) ? task.aliases : [])].filter(Boolean).map(String),
+    paths: {
+      directory,
+      relativeDirectory: toPosix(path.relative(target.projectRoot, directory)),
+    },
+    confirmText: String(task.shortId || task.id || ""),
+    reviewTask: {
+      id: task.id,
+      reviewStatus: task.reviewStatus,
+      walkthroughPath: task.walkthroughPath,
+      reviewQueueState: task.reviewQueueState,
+      state: task.state,
+      taskQueues: Array.isArray(task.taskQueues) ? task.taskQueues.map(String) : [],
+      lessonCandidateDecisionComplete: task.lessonCandidateDecisionComplete,
+      lessonCandidateStatus: task.lessonCandidateStatus,
+    },
+    queueReasons: Array.isArray(task.queueReasons) ? task.queueReasons : [],
+    repairPrompt: task.repairPrompt || "",
+    semanticProjection: buildTaskSemanticProjection(task as Record<string, unknown>),
+  };
 }
 
 function collectStatusTasks(target: TaskScannerTarget, defaults: ScannerRepositoryOptions, query: TaskQuery = {}): TaskStatusProjection[] {
@@ -321,6 +375,15 @@ function taskStatusProjectionFromRecord(task: TaskRecord): TaskStatusProjection 
     dashboardTaskView: task.dashboardTaskView,
     reviewWorkbenchQueueView: task.reviewWorkbenchQueueView,
   };
+}
+
+function taskDirectoryFromRecord(target: { projectRoot: string }, task: { currentPath?: string; path?: string; taskPlanPath?: string; id?: string; taskKey?: string }): string {
+  const taskPlan = String(task.taskPlanPath || "");
+  if (taskPlan) return path.dirname(absoluteTargetPath(target, taskPlan));
+  const raw = String(task.currentPath || task.path || "");
+  if (!raw) throw new Error(`Task has no currentPath/path: ${task.id || task.taskKey || "unknown"}`);
+  const withoutTarget = raw.replace(/^TARGET:/, "");
+  return path.isAbsolute(withoutTarget) ? withoutTarget : path.join(target.projectRoot, withoutTarget.replace(/^\/+/, ""));
 }
 
 function applyTaskQuery(tasks: TaskRecord[], query: TaskQuery): TaskRecord[] {

@@ -117,6 +117,35 @@ export type TaskOperationSubjectReader = {
   getOperationSubject(ref: TaskRef): TaskOperationSubject;
 };
 
+export type TaskWorkbenchReviewSubject = {
+  id: string;
+  taskKey?: string;
+  shortId?: string;
+  aliases: string[];
+  paths: {
+    directory: string;
+    relativeDirectory: string;
+  };
+  confirmText: string;
+  reviewTask: {
+    id?: string;
+    reviewStatus?: string;
+    walkthroughPath?: string;
+    reviewQueueState?: string;
+    state?: string;
+    taskQueues?: string[];
+    lessonCandidateDecisionComplete?: boolean;
+    lessonCandidateStatus?: string;
+  };
+  queueReasons: TaskOperationQueueReason[];
+  repairPrompt: string;
+  semanticProjection: TaskOperationSemanticProjection;
+};
+
+export type TaskWorkbenchReviewSubjectReader = {
+  listWorkbenchReviewSubjects(query?: TaskQuery): TaskWorkbenchReviewSubject[];
+};
+
 export type TaskStatusIssue = {
   code?: string;
   queue?: string;
