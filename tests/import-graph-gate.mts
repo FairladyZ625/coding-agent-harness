@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 type ImportGraphNode = {
   path: string;
+  imports: Array<{ target?: string }>;
   reachableFromBin?: boolean;
   reachableFromHarnessCore?: boolean;
   barrelReachable?: boolean;
@@ -82,6 +83,7 @@ writeFixture(
 );
 
 const graph = buildImportGraph({ repoRoot: fixtureRoot });
+const repoGraph = buildImportGraph({ repoRoot });
 const harnessCoreSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/harness-core.mts"), "utf8");
 assert(!harnessCoreSource.includes("./task-operation-subjects.mjs"), "scanner-backed TaskOperationSubjectReader helper should not be re-exported from the broad harness-core barrel");
 assert(!harnessCoreSource.includes("../domain/task/task-subjects.mjs"), "task subject domain mapper should not be re-exported from the broad harness-core barrel");
@@ -110,11 +112,13 @@ assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => excep
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.target === "scripts/lib/task-operation-subjects.mts"), "contract should not keep phase-open exceptions targeting the retired lib TaskOperationSubjectReader helper");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-adapter-task-operation-subject-repository-bridge"), "contract should not keep the broad TaskRepository-backed operation subject adapter bridge");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.source === "scripts/adapters/cli/task-operation-subject-reader.mts" && exception.target === "scripts/lib/task-repository.mts"), "contract should not re-register the operation subject adapter through the broad TaskRepository port");
-assert(graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-adapter-task-operation-subject-scanner-bridge" && exception.source === "scripts/adapters/cli/task-operation-subject-reader.mts" && exception.target === "scripts/lib/task-scanner.mts"), "contract should track the scanner-backed TaskOperationSubjectReader CLI adapter bridge");
-const subjectScannerBridge = graph.architectureContract.phaseOpenExceptions.find((exception) => exception.id === "P05-adapter-task-operation-subject-scanner-bridge");
-assert(subjectScannerBridge?.reason?.includes("infrastructure-only"), "scanner adapter exception should classify scanner reads as infrastructure-only");
-assert(subjectScannerBridge?.reason?.includes("task subject domain module"), "scanner adapter exception should route subject semantics to the domain mapper");
-assert(subjectScannerBridge?.evidence?.includes("adapter/repository subject parity"), "scanner adapter exception should require adapter/repository subject parity evidence");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-adapter-task-operation-subject-scanner-bridge"), "contract should not keep the retired CLI adapter to task-scanner direct bridge exception");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.source === "scripts/adapters/cli/task-operation-subject-reader.mts" && exception.target === "scripts/lib/task-scanner.mts"), "contract should not re-register direct CLI adapter scanner access under a new exception");
+assert(!nodeByPath(repoGraph, "scripts/adapters/cli/task-operation-subject-reader.mts").imports.some((edge) => edge.target === "scripts/lib/task-scanner.mts"), "CLI subject reader adapter should not import task-scanner directly");
+assert(nodeByPath(repoGraph, "scripts/infrastructure/task/scanner-subject-source.mts").imports.some((edge) => edge.target === "scripts/lib/task-scanner.mts"), "scanner subject source should own the infrastructure-only scanner read");
+const taskInfrastructureLayer = graph.architectureContract.layers.find((layer) => layer.id === "task-infrastructure-adapters");
+assert(taskInfrastructureLayer?.owns.includes("scripts/infrastructure/task/**"), "contract should register task infrastructure adapter ownership");
+assert(taskInfrastructureLayer?.mayImport.includes("scripts/lib/task-scanner.mts"), "task infrastructure adapter contract should explicitly own scanner reads");
 const subjectProjectionBridge = graph.architectureContract.phaseOpenExceptions.find((exception) => exception.id === "P05-domain-task-subject-semantic-projection-bridge");
 assert(subjectProjectionBridge?.source === "scripts/domain/task/task-subjects.mts" && subjectProjectionBridge.target === "scripts/lib/task-semantic-projection.mts", "contract should track the task subject domain mapper's temporary projection bridge");
 assert(subjectProjectionBridge?.expiryPhase === "P06-dashboard-projection-consumer-cutover", "task subject projection bridge should expire at the projection ownership phase");
@@ -123,6 +127,7 @@ assert(graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "
 assert(graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "scripts/domain/task/task-subjects.mts" && lock.ownerPhase === "P05-repository-scanner-strangler"), "contract should expose task subject domain mapper ownership");
 assert(!graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "scripts/lib/task-operation-subjects.mts"), "contract should not keep a shared-file lock for the retired lib TaskOperationSubjectReader helper");
 assert(graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "scripts/adapters/cli/task-operation-subject-reader.mts" && lock.ownerPhase === "P05-repository-scanner-strangler"), "contract should expose TaskOperationSubjectReader CLI adapter ownership");
+assert(graph.architectureContract.sharedFileLocks.some((lock) => lock.path === "scripts/infrastructure/task/scanner-subject-source.mts" && lock.ownerPhase === "P05-repository-scanner-strangler"), "contract should expose scanner subject source adapter ownership");
 assert(graph.architectureContract.boundaryRules.includes("application-imports-unregistered-legacy-surface"), "contract should expose fail-closed application legacy import rule");
 assert(graph.architectureContract.boundaryRules.includes("domain-imports-legacy-runtime"), "contract should expose fail-closed domain legacy runtime import rule");
 
