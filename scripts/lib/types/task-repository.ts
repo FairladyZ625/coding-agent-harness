@@ -280,6 +280,20 @@ export type TaskPlanContractReader = {
   listPlanContractTasks(query?: TaskQuery): TaskPlanContractTask[];
 };
 
+export type TaskLessonPromotionTask = {
+  id: string;
+  shortId: string;
+  paths: {
+    directory: string;
+    lessonCandidatePath: string;
+    relativeLessonCandidatePath: string;
+  };
+};
+
+export type TaskLessonPromotionReader = {
+  resolveLessonPromotionTask(taskRef: string): TaskLessonPromotionTask;
+};
+
 export type TaskCheckProfileMigrationSnapshot = {
   evidencePresent?: boolean;
   sessionPresent?: boolean;

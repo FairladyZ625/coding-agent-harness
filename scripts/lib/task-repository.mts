@@ -40,6 +40,8 @@ import type {
   TaskCheckProfileTask as TaskRepositoryCheckProfileTask,
   TaskIndexProjection as TaskRepositoryIndexProjection,
   TaskIndexProjectionReader as TaskRepositoryIndexProjectionReader,
+  TaskLessonPromotionReader,
+  TaskLessonPromotionTask,
   TaskLocation as TaskRepositoryLocation,
   TaskPlanContractReader as TaskRepositoryPlanContractReader,
   TaskPlanContractTask as TaskRepositoryPlanContractTask,
@@ -80,6 +82,7 @@ export type TaskCheckProfileTask = TaskRepositoryCheckProfileTask;
 export type TaskCheckProfileReader = TaskRepositoryCheckProfileReader;
 export type TaskIndexProjection = TaskRepositoryIndexProjection;
 export type TaskIndexProjectionReader = TaskRepositoryIndexProjectionReader;
+export type { TaskLessonPromotionReader, TaskLessonPromotionTask };
 export type TaskGovernanceProjection = TaskRepositoryGovernanceProjection;
 export type TaskGovernanceProjectionReader = TaskRepositoryGovernanceProjectionReader;
 export type TaskPlanContractTask = TaskRepositoryPlanContractTask;
@@ -263,6 +266,15 @@ export function createTaskPlanContractReader(targetInput: TaskScannerTarget | st
   return {
     listPlanContractTasks(query: TaskQuery = {}) {
       return collectPlanContractTasks(target, defaults, query);
+    },
+  };
+}
+
+export function createTaskLessonPromotionReader(targetInput: TaskScannerTarget | string | undefined = ".", defaults: ScannerRepositoryOptions = {}): TaskLessonPromotionReader {
+  const target = normalizeRepositoryTarget(targetInput);
+  return {
+    resolveLessonPromotionTask(taskRef: string) {
+      return resolveLessonPromotionTask(target, defaults, taskRef);
     },
   };
 }
@@ -454,6 +466,41 @@ function collectPlanContractTasks(target: TaskScannerTarget, defaults: ScannerRe
     closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
   });
   return applyTaskQuery(tasks, query).map(planContractTaskFromRecord);
+}
+
+function resolveLessonPromotionTask(target: TaskScannerTarget, defaults: ScannerRepositoryOptions, taskRef: string): TaskLessonPromotionTask {
+  const normalizedRef = normalizeTaskId(taskRef);
+  const matchesBareSlug = (item: TaskRecord): boolean => {
+    if (datePrefix.test(normalizedRef)) return false;
+    const shortBase = datePrefix.test(item.shortId) ? item.shortId.replace(datePrefix, "") : item.shortId;
+    return shortBase === normalizedRef;
+  };
+  const candidates = collectTasks(target, {
+    requireGeneratedScaffoldProvenance: defaults.requireGeneratedScaffoldProvenance,
+    includeArchived: false,
+    closeoutContent: defaults.closeoutContent,
+  }).filter((item) => item.id === taskRef || item.shortId === taskRef || item.id.endsWith(`/${taskRef}`) || matchesBareSlug(item));
+  if (candidates.length > 1) {
+    const options = candidates.map((item) => `- ${item.id}`).join("\n");
+    throw new Error(`Ambiguous task reference: ${taskRef}\n${options}`);
+  }
+  const task = candidates[0];
+  if (!task) throw new Error(`Task not found: ${taskRef}`);
+  return lessonPromotionTaskFromRecord(target, task);
+}
+
+function lessonPromotionTaskFromRecord(target: TaskScannerTarget, task: TaskRecord): TaskLessonPromotionTask {
+  const directory = taskDirectoryFromRecord(target, task);
+  const lessonCandidatePath = absoluteTargetPath(target, task.lessonCandidatePath || path.join(directory, lessonCandidatesFile));
+  return {
+    id: task.id,
+    shortId: task.shortId,
+    paths: {
+      directory,
+      lessonCandidatePath,
+      relativeLessonCandidatePath: toPosix(path.relative(target.projectRoot, lessonCandidatePath)),
+    },
+  };
 }
 
 function planContractTaskFromRecord(task: TaskRecord): TaskPlanContractTask {

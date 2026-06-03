@@ -1,30 +1,26 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
-  datePrefix,
-  lessonCandidatesFile,
   normalizeTarget,
   readFileSafe,
   slug,
   toPosix,
 } from "./core-shared.mjs";
-import {
-  collectTasks,
-  parseLessonCandidateStatus,
-} from "./task-scanner.mjs";
+import { parseLessonCandidateStatus } from "./task-lesson-candidates.mjs";
 import {
   beginGovernanceSync,
   commitGovernanceSync,
   releaseGovernanceSync,
 } from "./governance-sync.mjs";
+import { createTaskLessonPromotionReader } from "./task-repository.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
+import type { TaskLessonPromotionReader, TaskLessonPromotionTask } from "./types/task-repository.js";
 
 type LessonTarget = ReturnType<typeof normalizeTarget> & {
   projectRoot: string;
   harness: ResolvedHarnessPaths;
+  lessonPromotionReader?: TaskLessonPromotionReader;
 };
-
-type LessonTask = ReturnType<typeof collectTasks>[number];
 
 type PromotionChange = {
   action: string;
@@ -39,29 +35,15 @@ type PromoteLessonOptions = {
 type LessonDetailInput = {
   lessonId: string;
   candidate: Record<string, string>;
-  task: LessonTask;
+  task: TaskLessonPromotionTask;
 };
 
 export function promoteLessonCandidate(targetInput: string, taskId: string, candidateId: string, { dryRun = false, apply = false }: PromoteLessonOptions = {}) {
   const target = normalizeTarget(targetInput) as LessonTarget;
-  const normalizedRef = slug(taskId);
-  const matchesBareSlug = (item: LessonTask): boolean => {
-    if (!datePrefix.test(normalizedRef)) {
-      const shortBase = datePrefix.test(item.shortId) ? item.shortId.replace(datePrefix, "") : item.shortId;
-      if (shortBase === normalizedRef) return true;
-    }
-    return false;
-  };
-  const candidates = collectTasks(target).filter((item) => item.id === taskId || item.shortId === taskId || item.id.endsWith(`/${taskId}`) || matchesBareSlug(item));
-  if (candidates.length > 1) {
-    const options = candidates.map((item) => `- ${item.id}`).join("\n");
-    throw new Error(`Ambiguous task reference: ${taskId}\n${options}`);
-  }
-  const task = candidates[0];
-  if (!task) throw new Error(`Task not found: ${taskId}`);
+  const lessonPromotionReader = target.lessonPromotionReader || createTaskLessonPromotionReader(target);
+  const task = lessonPromotionReader.resolveLessonPromotionTask(taskId);
   if (!candidateId) throw new Error("Missing lesson candidate id");
-  const taskDir = path.join(target.projectRoot, task.path.replace(/^TARGET:/, ""));
-  const candidatePath = path.join(taskDir, lessonCandidatesFile);
+  const candidatePath = task.paths.lessonCandidatePath;
   const candidateContent = readFileSafe(candidatePath);
   const parsed = parseLessonCandidateStatus(candidateContent);
   const row = parsed.rows.find((item) => item.id.toLowerCase() === candidateId.toLowerCase());
@@ -80,7 +62,7 @@ export function promoteLessonCandidate(targetInput: string, taskId: string, cand
 
   const changes: PromotionChange[] = [];
   if (!fs.existsSync(detailPath)) changes.push({ action: dryRun ? "would-create" : "create", path: `TARGET:${detailRelative}` });
-  if (row.status !== "promoted" || parsed.status !== "promoted") changes.push({ action: dryRun ? "would-update" : "update", path: task.lessonCandidatePath || `TARGET:${toPosix(path.relative(target.projectRoot, candidatePath))}` });
+  if (row.status !== "promoted" || parsed.status !== "promoted") changes.push({ action: dryRun ? "would-update" : "update", path: `TARGET:${task.paths.relativeLessonCandidatePath || toPosix(path.relative(target.projectRoot, candidatePath))}` });
 
   const effectiveDryRun = dryRun || !apply;
   if (effectiveDryRun) {
@@ -105,7 +87,7 @@ export function promoteLessonCandidate(targetInput: string, taskId: string, cand
       governanceContext,
       [
         detailRelative,
-        toPosix(path.relative(target.projectRoot, candidatePath)),
+        task.paths.relativeLessonCandidatePath || toPosix(path.relative(target.projectRoot, candidatePath)),
       ],
       { message: `chore(harness): promote lesson ${row.id}` },
     );
