@@ -27,6 +27,7 @@ type CapabilityRegistry = ReturnType<typeof readCapabilityRegistry>;
 type DetectedCapability = CapabilityRegistry["capabilities"][number];
 type RecommendedCapability = DetectedCapability & { reason?: string };
 type MigrationFailureList = string[];
+const fullCutoverCapabilityModes = new Set(["declared-capability", "v2-manifest"]);
 
 type MigrationSession = {
   target: string;
@@ -213,7 +214,9 @@ export function validateFullCutoverSession(session: MigrationSession, failures: 
   if (session.result !== "complete") failures.push(`full cutover requires result complete, got ${session.result || "(none)"}`);
   if (session.strictDeferred) failures.push("full cutover cannot have strictDeferred");
   if (session.checks?.strict?.status !== "pass") failures.push("full cutover requires recorded strict check pass");
-  if (session.plan?.mode !== "declared-capability") failures.push(`full cutover requires migrate-plan mode declared-capability, got ${session.plan?.mode || "(none)"}`);
+  if (!fullCutoverCapabilityModes.has(String(session.plan?.mode || ""))) {
+    failures.push(`full cutover requires migrate-plan mode declared-capability or v2-manifest, got ${session.plan?.mode || "(none)"}`);
+  }
   const summary = session.plan?.summary || {};
   for (const [field, value] of [
     ["warnings", summary.warnings],

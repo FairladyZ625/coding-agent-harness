@@ -176,6 +176,33 @@ assert(fs.existsSync(migrationRun.sessionPath), "migrate-run should write sessio
 const migrationVerify = expectJson<MigrationVerifyJson>(["migrate-verify", migrationRun.sessionPath, "--json"]);
 assert(migrationVerify.status === "pass", "migrate-verify should accept a real migrate-run session");
 
+const fullCutoverV2Target = path.join(tmpRoot, "full-cutover-v2-target");
+fs.mkdirSync(fullCutoverV2Target);
+expectJson(["init", "--locale", "en-US", "--capabilities", "core,dashboard,safe-adoption", fullCutoverV2Target]);
+git(fullCutoverV2Target, ["init"]);
+git(fullCutoverV2Target, ["config", "user.name", "Harness Test"]);
+git(fullCutoverV2Target, ["config", "user.email", "harness-test@example.invalid"]);
+git(fullCutoverV2Target, ["add", "."]);
+git(fullCutoverV2Target, ["commit", "-m", "baseline"]);
+const fullCutoverV2SessionDir = path.join(tmpRoot, "full-cutover-v2-session");
+const fullCutoverV2Run = expectJson<MigrationRunJson>(["migrate-run", "--session-dir", fullCutoverV2SessionDir, "--json", fullCutoverV2Target]);
+assert(fullCutoverV2Run.operation === "migrate-run", "v2 full cutover fixture should emit a migration session");
+const fullCutoverV2Session = JSON.parse(fs.readFileSync(fullCutoverV2Run.sessionPath, "utf8"));
+assert(fullCutoverV2Session.plan.mode === "v2-manifest", "full cutover fixture should be backed by a v2 manifest registry");
+assert(fullCutoverV2Session.plan.summary.fullCutoverEligible === true, "v2 manifest fixture should be full-cutover eligible");
+const fullCutoverV2Verify = expectJson<MigrationVerifyJson>(["migrate-verify", fullCutoverV2Run.sessionPath, "--full-cutover", "--json"]);
+assert(fullCutoverV2Verify.status === "pass", "migrate-verify --full-cutover should accept v2 manifest sessions");
+
+const legacyModeSessionPath = path.join(fullCutoverV2SessionDir, "legacy-mode-session.json");
+fullCutoverV2Session.plan.mode = "legacy-compat";
+fs.writeFileSync(legacyModeSessionPath, `${JSON.stringify(fullCutoverV2Session, null, 2)}\n`);
+const legacyModeVerify = run(["migrate-verify", legacyModeSessionPath, "--full-cutover", "--json"]);
+assert(legacyModeVerify.status !== 0, "migrate-verify --full-cutover should reject legacy-compat sessions");
+assert(
+  `${legacyModeVerify.stdout}\n${legacyModeVerify.stderr}`.includes("declared-capability or v2-manifest"),
+  "legacy-compat full-cutover failure should explain accepted capability registry modes",
+);
+
 const forgedSessionPath = path.join(migrationRunSessionDir, "forged-session.json");
 const forgedSession = JSON.parse(fs.readFileSync(migrationRun.sessionPath, "utf8"));
 forgedSession.checks.strict.status = "pass";
