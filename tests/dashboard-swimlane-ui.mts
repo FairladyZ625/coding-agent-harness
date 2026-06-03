@@ -6,7 +6,7 @@ import vm from "node:vm";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const appJs = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/app.js"), "utf8")
-  .replace(/\nwindow\.addEventListener\("hashchange", app\);\napp\(\);\nloadRuntime\(\);\n?$/, "\n");
+  .replace(/\nwindow\.addEventListener\("hashchange", app\);\nwindow\.addEventListener\("popstate", app\);\napp\(\);\nloadRuntime\(\);\n?$/, "\n");
 const i18nJs = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/i18n.js"), "utf8");
 const css = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/app.css"), "utf8");
 

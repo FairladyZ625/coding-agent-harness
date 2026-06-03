@@ -1632,7 +1632,7 @@ function documentGroupNav(task, group, selectedKey) {
 
 function documentNavLink(task, doc, selectedKey) {
   const active = doc.key === selectedKey;
-  return `<a class="doc-nav-link ${active ? "active" : ""}" href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(doc.key)}" title="${escapeAttr(doc.path)}" ${active ? 'aria-current="page"' : ""}>
+  return `<a class="doc-nav-link ${active ? "active" : ""}" href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(doc.key)}" title="${escapeAttr(doc.path)}" data-doc-nav-link ${active ? 'aria-current="page"' : ""}>
     <span>${escapeHtml(doc.title)}</span>
     <small>${escapeHtml(doc.generated ? t("generatedFallback") : doc.path)}</small>
   </a>`;
@@ -3236,11 +3236,14 @@ function rerenderPreservingScroll() {
   const scrollX = window.scrollX || document.documentElement?.scrollLeft || 0;
   const scrollY = window.scrollY || document.documentElement?.scrollTop || document.body?.scrollTop || 0;
   const reviewShellTop = document.querySelector(".review-queue-list-shell")?.scrollTop || 0;
+  const docNavTop = document.querySelector(".doc-workbench-nav")?.scrollTop || 0;
   app();
   const restore = () => {
     window.scrollTo?.(scrollX, scrollY);
     const nextReviewShell = document.querySelector(".review-queue-list-shell");
     if (nextReviewShell) nextReviewShell.scrollTop = reviewShellTop;
+    const nextDocNav = document.querySelector(".doc-workbench-nav");
+    if (nextDocNav) nextDocNav.scrollTop = docNavTop;
   };
   restore();
   if (typeof requestAnimationFrame === "function") requestAnimationFrame(restore);
@@ -3259,6 +3262,16 @@ function bind() {
     state.taskPageByGroup = {};
     state.taskGroupPage = 1;
     rerenderPreservingFieldFocus(input, "[data-search]");
+  }));
+  document.querySelectorAll("[data-doc-nav-link]").forEach((link) => link.addEventListener("click", (event) => {
+    const href = link.getAttribute("href") || "";
+    if (!href.startsWith("#/tasks/")) return;
+    event.preventDefault();
+    if (window.location.hash !== href) {
+      if (window.history?.pushState) window.history.pushState(null, "", href);
+      else window.location.hash = href;
+    }
+    rerenderPreservingScroll();
   }));
   document.querySelectorAll("[data-state-filter]").forEach((select) => select.addEventListener("change", () => {
     state.taskState = select.value;
@@ -4194,5 +4207,6 @@ function escapeAttr(value) {
 }
 
 window.addEventListener("hashchange", app);
+window.addEventListener("popstate", app);
 app();
 loadRuntime();

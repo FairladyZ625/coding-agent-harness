@@ -6,7 +6,7 @@ import vm from "node:vm";
 
 const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const appJs = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/app.js"), "utf8")
-  .replace(/\nwindow\.addEventListener\("hashchange", app\);\napp\(\);\nloadRuntime\(\);\n?$/, "\n");
+  .replace(/\nwindow\.addEventListener\("hashchange", app\);\nwindow\.addEventListener\("popstate", app\);\napp\(\);\nloadRuntime\(\);\n?$/, "\n");
 const dashboardCss = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/app.css"), "utf8");
 const i18nJs = fs.readFileSync(path.join(repoRoot, "templates/dashboard/assets/i18n.js"), "utf8");
 
@@ -783,6 +783,81 @@ vm.runInContext(`
 const scrollResult = JSON.parse(String(scrollSandbox.__result)) as { scrollY: number; shellTop: number };
 assert(scrollResult.scrollY === 960, "bulk selection rerender should preserve window scroll");
 assert(scrollResult.shellTop === 480, "bulk selection rerender should preserve review list scroll");
+
+const docNavSandbox = createSandbox({
+  requestAnimationFrame: (callback: () => void) => {
+    callback();
+    return 1;
+  },
+});
+vm.runInContext(`
+  const oldDocNav = { scrollTop: 620 };
+  const newDocNav = { scrollTop: 0 };
+  const docLink = {
+    listeners: {},
+    getAttribute(name) {
+      return name === "href" ? "#/tasks/TASKS%2Fworkbench/docs/review" : "";
+    },
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    },
+  };
+  window.location.hash = "#/tasks/TASKS%2Fworkbench/docs/progress";
+  window.scrollX = 0;
+  window.scrollY = 740;
+  window.scrollTo = function(x, y) {
+    this.scrollX = x;
+    this.scrollY = y;
+  };
+  window.history = {
+    pushed: "",
+    pushState(_state, _title, href) {
+      this.pushed = href;
+      window.location.hash = href;
+    },
+  };
+  document = {
+    documentElement: { dataset: {}, lang: "", scrollTop: 740 },
+    body: { scrollTop: 740 },
+    querySelector(selector) {
+      if (selector === ".doc-workbench-nav") return oldDocNav;
+      return null;
+    },
+    querySelectorAll(selector) {
+      if (selector === "[data-doc-nav-link]") return [docLink];
+      return [];
+    },
+    getElementById: () => null,
+  };
+  let rerendered = false;
+  app = () => {
+    rerendered = true;
+    document.querySelector = (selector) => selector === ".doc-workbench-nav" ? newDocNav : null;
+  };
+  bind();
+  const clickEvent = {
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+  };
+  docLink.listeners.click(clickEvent);
+  __result = JSON.stringify({
+    defaultPrevented: clickEvent.defaultPrevented,
+    hash: window.location.hash,
+    pushed: window.history.pushed,
+    scrollY: window.scrollY,
+    docNavTop: newDocNav.scrollTop,
+    rerendered,
+  });
+`, docNavSandbox);
+const docNavResult = JSON.parse(String(docNavSandbox.__result)) as { defaultPrevented: boolean; hash: string; pushed: string; scrollY: number; docNavTop: number; rerendered: boolean };
+assert(docNavResult.defaultPrevented === true, "document nav clicks should suppress browser hash scroll");
+assert(docNavResult.hash.endsWith("/docs/review"), "document nav click should update the selected document route");
+assert(docNavResult.pushed.endsWith("/docs/review"), "document nav click should keep browser history addressable");
+assert(docNavResult.scrollY === 740, "document nav click should preserve window scroll");
+assert(docNavResult.docNavTop === 620, "document nav click should preserve the source document list scroll");
+assert(docNavResult.rerendered === true, "document nav click should rerender the selected document");
 
 function fakeInput(value: string): FakeInput {
   return {

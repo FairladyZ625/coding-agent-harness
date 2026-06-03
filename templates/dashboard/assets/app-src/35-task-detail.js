@@ -325,7 +325,7 @@ function documentGroupNav(task, group, selectedKey) {
 
 function documentNavLink(task, doc, selectedKey) {
   const active = doc.key === selectedKey;
-  return `<a class="doc-nav-link ${active ? "active" : ""}" href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(doc.key)}" title="${escapeAttr(doc.path)}" ${active ? 'aria-current="page"' : ""}>
+  return `<a class="doc-nav-link ${active ? "active" : ""}" href="#/tasks/${encodeURIComponent(task.id)}/docs/${encodeURIComponent(doc.key)}" title="${escapeAttr(doc.path)}" data-doc-nav-link ${active ? 'aria-current="page"' : ""}>
     <span>${escapeHtml(doc.title)}</span>
     <small>${escapeHtml(doc.generated ? t("generatedFallback") : doc.path)}</small>
   </a>`;
