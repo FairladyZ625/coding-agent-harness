@@ -96,6 +96,8 @@ const checkTaskContractsSource = fs.readFileSync(path.join(repoRoot, "scripts/li
 const checkProfilesTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/check-profiles.ts"), "utf8");
 const taskRepositorySource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-repository.mts"), "utf8");
 const taskRepositoryTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/task-repository.ts"), "utf8");
+const taskSubjectsSource = fs.readFileSync(path.join(repoRoot, "scripts/domain/task/task-subjects.mts"), "utf8");
+const taskSemanticProjectionSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-semantic-projection.mts"), "utf8");
 const statusProjectionReaderSource = taskRepositorySource.match(/export function createTaskStatusProjectionReader[\s\S]*?\n}\n/)?.[0] || "";
 const checkProfileReaderSource = taskRepositorySource.match(/export function createTaskCheckProfileReader[\s\S]*?\n}\n/)?.[0] || "";
 const taskIndexProjectionReaderSource = taskRepositorySource.match(/export function createTaskIndexProjectionReader[\s\S]*?\n}\n/)?.[0] || "";
@@ -179,10 +181,9 @@ assert(nodeByPath(repoGraph, "scripts/infrastructure/task/scanner-subject-source
 const taskInfrastructureLayer = graph.architectureContract.layers.find((layer) => layer.id === "task-infrastructure-adapters");
 assert(taskInfrastructureLayer?.owns.includes("scripts/infrastructure/task/**"), "contract should register task infrastructure adapter ownership");
 assert(taskInfrastructureLayer?.mayImport.includes("scripts/lib/task-scanner.mts"), "task infrastructure adapter contract should explicitly own scanner reads");
-const subjectProjectionBridge = graph.architectureContract.phaseOpenExceptions.find((exception) => exception.id === "P05-domain-task-subject-semantic-projection-bridge");
-assert(subjectProjectionBridge?.source === "scripts/domain/task/task-subjects.mts" && subjectProjectionBridge.target === "scripts/lib/task-semantic-projection.mts", "contract should track the task subject domain mapper's temporary projection bridge");
-assert(subjectProjectionBridge?.expiryPhase === "P06-dashboard-projection-consumer-cutover", "task subject projection bridge should expire at the projection ownership phase");
-assert(subjectProjectionBridge?.reason?.includes("temporarily reuses"), "task subject projection bridge should not be presented as final domain ownership");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-domain-task-subject-semantic-projection-bridge"), "contract should not keep the retired task subject domain semantic projection bridge");
+assert(!taskSubjectsSource.includes("../../lib/task-semantic-projection"), "task subject domain mapper should consume the domain-owned semantic projection module");
+assert(taskSemanticProjectionSource.includes("export * from \"../domain/task/task-semantic-projection.mjs\""), "legacy task semantic projection module should be a compatibility re-export");
 const legacyWriterLifecycleBridge = graph.architectureContract.phaseOpenExceptions.find((exception) => exception.id === "P04-infrastructure-task-operation-lifecycle-writer-adapter");
 assert(legacyWriterLifecycleBridge?.source === "scripts/infrastructure/task/legacy-task-operation-writers.mts" && legacyWriterLifecycleBridge.target === "scripts/lib/task-lifecycle.mts", "contract should explicitly track the legacy lifecycle writer adapter residual");
 assert(legacyWriterLifecycleBridge?.ownerPhase === "P04-transaction-cutover" && legacyWriterLifecycleBridge.expiryPhase === "P07-task-operations-facade-removal", "legacy lifecycle writer adapter residual should stay scoped to the P04-to-P07 retirement window");
