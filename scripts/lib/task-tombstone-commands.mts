@@ -1,5 +1,5 @@
 import { createTombstoneOperations, assertHardDeleteEligible } from "../application/task/tombstone-operations.mjs";
-import { createScannerTaskRepository } from "./task-repository.mjs";
+import { createScannerTaskTombstoneSubjectReader } from "../infrastructure/task/scanner-subject-source.mjs";
 import type {
   ArchiveBatchOptions,
   ArchiveOptions,
@@ -35,6 +35,6 @@ export function reopenTask(targetInput: string, taskRef: string, options: Tombst
 
 function scannerBackedOperations(targetInput: string) {
   return createTombstoneOperations(targetInput, {
-    subjects: createScannerTaskRepository(targetInput),
+    subjects: createScannerTaskTombstoneSubjectReader(targetInput),
   });
 }
