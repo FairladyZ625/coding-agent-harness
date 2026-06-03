@@ -196,6 +196,7 @@ const reviewConfirmationSubject = reviewConfirmationSubjectReader.findReviewConf
 assert(reviewConfirmationSubject, "review confirmation subject reader should find the demo task by directory");
 assertJsonEqual(reviewConfirmationSubject, {
   id: task.id,
+  title: task.title,
   reviewStatus: task.reviewStatus,
   walkthroughPath: task.walkthroughPath,
   reviewQueueState: task.reviewQueueState,
@@ -203,7 +204,7 @@ assertJsonEqual(reviewConfirmationSubject, {
   taskQueues: task.taskQueues,
   lessonCandidateDecisionComplete: task.lessonCandidateDecisionComplete,
   lessonCandidateStatus: task.lessonCandidateStatus,
-}, "review confirmation subject reader should expose only the review-confirm gate facts");
+}, "review confirmation subject reader should expose only the review-confirm gate and display identity facts");
 assert(!("taskPlanPath" in reviewConfirmationSubject), "review confirmation subject should not expose raw scanner taskPlanPath");
 assert(!("path" in reviewConfirmationSubject), "review confirmation subject should not expose raw scanner path");
 const workbenchReviewSubject = workbenchReviewSubjects.find((subject) => subject.id === task.id);

@@ -517,7 +517,7 @@ const preCompleteConfirm = expectReviewConfirmJson(lifecycleTarget, `TASKS/${tod
 assert(preCompleteConfirm.task?.id === `TASKS/${todayLocal}-phase-2-lifecycle`, "review-confirm should preserve the task id in its result payload");
 assert(preCompleteConfirm.task?.shortId === `${todayLocal}-phase-2-lifecycle`, "review-confirm should preserve the task short id in its result payload");
 assert(preCompleteConfirm.task?.path?.endsWith(`coding-agent-harness/planning/tasks/${todayLocal}-phase-2-lifecycle`), "review-confirm should preserve a task directory path in its result payload");
-assert(preCompleteConfirm.task?.title, "review-confirm should preserve a non-empty task title in its result payload");
+assert(preCompleteConfirm.task?.title === "阶段二任务生命周期", "review-confirm should preserve the real task title in its result payload");
 assert(preCompleteConfirm.task?.reviewStatus === "confirmed", "review-confirm should confirm review before task-complete");
 const lifecycleComplete = expectJson(["task-complete", "phase-2-lifecycle", "--message", "生命周期闭环完成", lifecycleTarget]);
 assert(lifecycleComplete.task?.state === "done", "task-complete should report done state");

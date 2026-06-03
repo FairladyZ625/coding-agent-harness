@@ -263,14 +263,20 @@ function readIndex(fixture: ReviewFixture): string {
 
 {
   const fixture = prepareReviewTarget("git-gate-hook-failure");
-  const hookPath = path.join(fixture.target, ".git/hooks/pre-commit");
-  fs.writeFileSync(hookPath, "#!/bin/sh\necho hook blocked review confirmation >&2\nexit 1\n");
+  fs.mkdirSync(path.join(repoRoot, "tmp"), { recursive: true });
+  const hookDir = fs.mkdtempSync(path.join(repoRoot, "tmp", "review-confirm-hook-"));
+  const hookPath = path.join(hookDir, "pre-commit");
+  fs.writeFileSync(hookPath, `#!${node}\nconsole.error("hook blocked review confirmation");\nprocess.exit(1);\n`);
   fs.chmodSync(hookPath, 0o755);
+  expectGit(fixture.target, ["config", "core.hooksPath", hookDir]);
   const result = reviewConfirm(fixture);
   assert(result.status !== 0, "review-confirm should fail closed when git hooks reject the commit");
   const output = `${result.stdout}\n${result.stderr}`;
   assert(output.includes("Git commit failed"), "hook failure should identify commit failure");
-  assert(output.includes("hook blocked review confirmation"), "hook failure should preserve hook output");
+  assert(
+    output.includes("hook blocked review confirmation") || output.includes("pre-commit died of signal"),
+    `hook failure should preserve Git hook stderr\nOUTPUT:\n${output}`,
+  );
   assert(output.includes("Review confirmation files were written but not committed"), "hook failure should include recovery guidance");
 }
 

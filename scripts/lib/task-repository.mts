@@ -311,6 +311,7 @@ function findReviewConfirmationSubjectByDirectory(target: TaskScannerTarget, def
 function reviewConfirmationSubjectFromRecord(task: TaskRecord): TaskReviewConfirmationSubject {
   return {
     id: task.id,
+    title: task.title,
     reviewStatus: task.reviewStatus,
     walkthroughPath: task.walkthroughPath,
     reviewQueueState: task.reviewQueueState,

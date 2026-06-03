@@ -132,6 +132,7 @@ export type TaskLifecycleReader = {
 
 export type TaskReviewConfirmationSubject = {
   id?: string;
+  title?: string;
   reviewStatus?: string;
   walkthroughPath?: string;
   reviewQueueState?: string;
