@@ -17,8 +17,8 @@ import {
   walkFiles,
 } from "./core-shared.mjs";
 import { assertTransactionSucceeded, createGovernanceHarnessTransaction, type FileWrite, type TransactionResult } from "./harness-transaction.mjs";
+import { resolveHarnessPaths, taskIdFromDirectory } from "./harness-paths.mjs";
 import { parseTaskMetadata } from "./task-metadata.mjs";
-import { taskIdForDirectory } from "./task-scanner.mjs";
 import { resolveTaskDirectory } from "./task-lifecycle.mjs";
 import { evaluateTemplateValues, assertPresetWriteScope, resolvePresetScopes } from "./preset-engine.mjs";
 import { buildPresetAudit, buildPresetScriptPolicy, presetScriptTrustValid, readPresetPackage } from "./preset-registry.mjs";
@@ -92,6 +92,10 @@ type TaskPathContext = {
   artifactsIndex: string;
   visualMap: string;
 };
+
+function taskIdForDirectory(target: PresetTarget, taskDir: string): string {
+  return taskIdFromDirectory(resolveHarnessPaths(target), taskDir);
+}
 
 export function runPresetEntrypoint(presetId: string, entrypointName: string, { taskRef = "", targetInput = ".", json = false, allowScripts = false, useCurrentPreset = false, reason = "" }: PresetRunOptions = {}) {
   void json;

@@ -120,6 +120,8 @@ const lessonMaintenanceSource = fs.readFileSync(path.join(repoRoot, "scripts/lib
 const moduleRegistrySource = fs.readFileSync(path.join(repoRoot, "scripts/lib/module-registry.mts"), "utf8");
 const reviewConfirmSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-lifecycle/review-confirm.mts"), "utf8");
 const reviewGatesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-lifecycle/review-gates.mts"), "utf8");
+const presetRunnerSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/preset-runner.mts"), "utf8");
+const migrationPlannerSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/migration-planner.mts"), "utf8");
 const migrationSupportSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/migration-support.mts"), "utf8");
 const migrationTaskSampleSource = fs.readFileSync(path.join(repoRoot, "scripts/infrastructure/task/migration-task-sample-source.mts"), "utf8");
 const checkProfilesTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/check-profiles.ts"), "utf8");
@@ -148,6 +150,8 @@ assert(!resolveTaskDirectorySource.includes("createScannerTaskRepository"), "tas
 assert(!broadTaskRepositoryTypeSource.includes("listLifecycleTasks") && !broadTaskRepositoryTypeSource.includes("getLifecycleTaskByDirectory"), "TaskLifecycleReader should stay separate instead of widening the broad TaskRepository identity");
 assert(!statusBuilderSource.includes("createScannerTaskRepository"), "status-builder should consume task status projections instead of creating the scanner-backed repository");
 assert(!taskIndexSource.includes("createScannerTaskRepository"), "task-index should consume task-index projections instead of creating the broad scanner-backed repository");
+assert(!presetRunnerSource.includes("./task-scanner.mjs"), "preset-runner should use harness path contracts instead of importing the task scanner");
+assert(!migrationPlannerSource.includes("./task-scanner.mjs"), "migration-planner should consume migration/status projections instead of importing the task scanner directly");
 assert(!taskIndexSource.includes("TaskRecord"), "task-index should not import or retype raw scanner TaskRecord objects");
 assert(!taskIndexSource.includes("task-semantic-projection"), "task-index should consume materialized visibility scopes instead of reinterpreting raw task visibility facts");
 assert(taskIndexSource.includes("createTaskIndexProjectionReader"), "task-index should compose through the task-index projection reader seam");
