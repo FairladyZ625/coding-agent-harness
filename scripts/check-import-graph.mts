@@ -133,7 +133,12 @@ export const architectureImportContract: ArchitectureImportContract = {
     {
       id: "adapters",
       owns: ["scripts/adapters/**"],
-      mayImport: ["scripts/application/**", "scripts/ports/**", "scripts/domain/**", "scripts/lib/types/**"],
+      mayImport: ["scripts/application/**", "scripts/ports/**", "scripts/domain/**", "scripts/infrastructure/task/**", "scripts/lib/types/**"],
+    },
+    {
+      id: "task-infrastructure-adapters",
+      owns: ["scripts/infrastructure/task/**"],
+      mayImport: ["scripts/domain/**", "scripts/infrastructure/kernel/**", "scripts/lib/core-shared.mts", "scripts/lib/task-scanner.mts", "scripts/lib/types/**"],
     },
     {
       id: "commands",
@@ -179,15 +184,6 @@ export const architectureImportContract: ArchitectureImportContract = {
       expiryPhase: "P07-task-operations-facade-removal",
       reason: "Lesson task creation remains a legacy command bridge until lifecycle writes are expressed as application changesets.",
       evidence: "import graph check plus P04 lesson-routing fixtures",
-    },
-    {
-      id: "P05-adapter-task-operation-subject-scanner-bridge",
-      source: "scripts/adapters/cli/task-operation-subject-reader.mts",
-      target: "scripts/lib/task-scanner.mts",
-      ownerPhase: "P05-repository-scanner-strangler",
-      expiryPhase: "P13-deletion-and-package-surface",
-      reason: "The CLI adapter reads scanner output as infrastructure-only input; subject business semantics are delegated to the shared task subject domain module instead of being interpreted in the adapter.",
-      evidence: "import graph check plus P05 adapter/repository subject parity fixtures and domain subject fallback tests",
     },
     {
       id: "P05-domain-task-subject-semantic-projection-bridge",
@@ -269,6 +265,7 @@ export const architectureImportContract: ArchitectureImportContract = {
     { path: "scripts/lib/task-repository.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "TaskRepository port and scanner-backed implementation." },
     { path: "scripts/domain/task/task-subjects.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Task operation/tombstone subject domain mapping and raw fact selection." },
     { path: "scripts/adapters/cli/task-operation-subject-reader.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Narrow scanner-backed TaskOperationSubjectReader CLI adapter for command wiring; not a harness-core package barrel surface." },
+    { path: "scripts/infrastructure/task/scanner-subject-source.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Infrastructure-only scanner source for task subject readers; owns scanner collection, reference matching, and path normalization." },
     { path: "scripts/lib/task-scanner.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Legacy scanner adapter and migration-only boundary." },
     { path: "scripts/lib/task-semantic-projection.mts", ownerPhase: "P06-dashboard-projection-consumer-cutover", reason: "Shared CLI/Dashboard/Test semantic contract." },
     { path: "scripts/lib/dashboard-data.mts", ownerPhase: "P06-dashboard-projection-consumer-cutover", reason: "Dashboard projection consumer." },
