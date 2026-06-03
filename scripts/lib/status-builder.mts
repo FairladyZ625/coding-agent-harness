@@ -2,9 +2,10 @@ import path from "node:path";
 import { normalizeTarget, toPosix } from "./core-shared.mjs";
 import { capabilityDefinitions, readCapabilityRegistry } from "./capability-registry.mjs";
 import { summarizeGitState } from "./git-status-summary.mjs";
-import { createScannerTaskRepository, taskCutoverCounters } from "./task-repository.mjs";
+import { createTaskStatusProjectionReader, taskStatusCutoverCounters } from "./task-repository.mjs";
 import { readHarnessModules } from "./module-registry.mjs";
 import { taskMatchesVisibilityScope } from "./task-semantic-projection.mjs";
+import type { TaskStatusIssue, TaskStatusProjection } from "./types/task-repository.js";
 
 type HarnessTarget = {
   projectRoot: string;
@@ -12,67 +13,8 @@ type HarnessTarget = {
   docsRoot: string;
 };
 
-type StatusTask = {
-  [key: string]: unknown;
-  aliases?: string[];
-  briefPath?: string;
-  briefSource?: string;
-  closeoutStatus?: string;
-  completion?: number;
-  currentPath?: string;
-  deletionState?: string;
-  documentRefs?: unknown[];
-  evidenceBundle?: string;
-  executionStrategyPath?: string;
-  findingsPath?: string;
-  handoffs?: unknown[];
-  hiddenByDefault?: boolean;
-  id?: string;
-  identitySource?: string;
-  inferredModule?: string;
-  lessonCandidateIssues?: unknown[];
-  lessonCandidatePath?: string;
-  lessonCandidateRows?: unknown[];
-  lessonCandidateStatus?: string;
-  lifecycleState?: string;
-  materialIssues?: StatusIssue[];
-  materialsReady?: boolean;
-  module?: string | null;
-  namespace?: string;
-  originalPath?: string;
-  packageRole?: string;
-  path?: string;
-  presetVersion?: string;
-  progressPath?: string;
-  queueReasons?: StatusIssue[];
-  repairPrompt?: string;
-  reviewPath?: string;
-  reviewStatus?: string;
-  reviewSubmitted?: boolean;
-  risks?: unknown[];
-  shortId?: string;
-  state?: string;
-  stateConflicts?: unknown[];
-  supersededBy?: string;
-  supersedes?: unknown[];
-  taskKind?: string;
-  taskKey?: string;
-  taskPlanPath?: string;
-  taskPreset?: string;
-  taskQueues?: unknown[];
-  taskRootKind?: string;
-  title?: string;
-  visualMapPath?: string;
-  visualMapSource?: string;
-  visualMapStatus?: string;
-  walkthroughPath?: string;
-};
-
-type StatusIssue = {
-  code?: string;
-  message?: string;
-  sourcePath?: string;
-};
+type StatusTask = TaskStatusProjection;
+type StatusIssue = TaskStatusIssue;
 
 type CapabilityStatus = {
   name: string;
@@ -109,7 +51,7 @@ type CutoverCounters = {
   missingCanonicalVisualMapCount: number;
 };
 
-const taskCutoverCountersForStatus = taskCutoverCounters as (tasks: StatusTask[]) => CutoverCounters;
+const taskCutoverCountersForStatus = taskStatusCutoverCounters as (tasks: StatusTask[]) => CutoverCounters;
 
 export function buildStatusData(targetInput: HarnessTarget | string | undefined, options: BuildStatusOptions = {}) {
   const target = hasProjectRoot(targetInput) ? targetInput : normalizeTarget(targetInput) as HarnessTarget;
@@ -121,10 +63,10 @@ export function buildStatusData(targetInput: HarnessTarget | string | undefined,
   const failures = [...(options.failures || [])];
   const warnings = [...(options.warnings || [])];
   const legacy = options.legacy || { status: "skipped", code: 0, stdout: "", stderr: "" };
-  const tasks = options.tasks || createScannerTaskRepository(target, {
+  const tasks = options.tasks || createTaskStatusProjectionReader(target, {
     requireGeneratedScaffoldProvenance: options.requireGeneratedScaffoldProvenance === true,
     closeoutContent: options.closeoutContent,
-  }).list() as StatusTask[];
+  }).listStatusTasks();
   const modules = harnessModulesForStatus(target);
   const briefReady = tasks.filter((task) => task.briefSource === "standalone").length;
   const briefMissing = tasks.length - briefReady;

@@ -20,6 +20,7 @@ import {
   listTaskPlanPaths,
   readTaskContractFile,
   readVisualMapContractFile,
+  taskCutoverCounters,
 } from "./task-scanner.mjs";
 import { taskIdFromArchiveStoragePath } from "./task-archive-storage.mjs";
 import { taskMatchesVisibilityScope } from "./task-semantic-projection.mjs";
@@ -32,7 +33,10 @@ import type {
   TaskOperationSubject as TaskRepositoryOperationSubject,
   TaskOperationSubjectReader as TaskRepositoryOperationSubjectReader,
   TaskLocation as TaskRepositoryLocation,
+  TaskQuery as TaskRepositoryQuery,
   TaskRef as TaskRepositoryRef,
+  TaskStatusProjection as TaskRepositoryStatusProjection,
+  TaskStatusProjectionReader as TaskRepositoryStatusProjectionReader,
   TaskTombstonePolicyFacts as TaskRepositoryTombstonePolicyFacts,
   TaskTombstoneSubject as TaskRepositoryTombstoneSubject,
   TombstoneSubjectReader as TaskRepositoryTombstoneSubjectReader,
@@ -53,6 +57,9 @@ export { readVisualMapContractFile } from "./task-scanner.mjs";
 export type TaskRecord = ReturnType<typeof collectTasks>[number];
 export type TaskRef = TaskRepositoryRef;
 export type TaskLocation = TaskRepositoryLocation;
+export type TaskQuery = TaskRepositoryQuery;
+export type TaskStatusProjection = TaskRepositoryStatusProjection;
+export type TaskStatusProjectionReader = TaskRepositoryStatusProjectionReader;
 export type TaskTombstonePolicyFacts = TaskRepositoryTombstonePolicyFacts;
 export type TaskTombstoneSubject = TaskRepositoryTombstoneSubject;
 export type TombstoneSubjectReader = TaskRepositoryTombstoneSubjectReader;
@@ -60,20 +67,6 @@ export type TaskOperationBlockingRisk = TaskRepositoryOperationBlockingRisk;
 export type TaskOperationSemanticProjection = TaskRepositoryOperationSemanticProjection;
 export type TaskOperationSubject = TaskRepositoryOperationSubject;
 export type TaskOperationSubjectReader = TaskRepositoryOperationSubjectReader;
-
-export type TaskQuery = {
-  state?: string;
-  module?: string;
-  queue?: string;
-  preset?: string;
-  review?: string;
-  lesson?: string;
-  includeArchived?: boolean;
-  search?: string;
-  missingMaterials?: boolean;
-  requireGeneratedScaffoldProvenance?: boolean;
-  closeoutContent?: string;
-};
 
 export type TaskMaterial = {
   path: string;
@@ -98,6 +91,7 @@ export type TaskMaterials = {
 
 export type TaskRepository = TaskRepositoryTombstoneSubjectReader & TaskRepositoryOperationSubjectReader & {
   list(query?: TaskQuery): TaskRecord[];
+  listStatusTasks(query?: TaskQuery): TaskStatusProjection[];
   get(ref: TaskRef): TaskRecord;
   resolve(ref: TaskRef): TaskLocation;
   readMaterials(ref: TaskRef): TaskMaterials;
@@ -115,6 +109,14 @@ export function createScannerTaskRepository(targetInput: TaskScannerTarget | str
         closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
       });
       return applyTaskQuery(tasks, query);
+    },
+    listStatusTasks(query: TaskQuery = {}) {
+      const tasks = collectTasks(target, {
+        requireGeneratedScaffoldProvenance: query.requireGeneratedScaffoldProvenance ?? defaults.requireGeneratedScaffoldProvenance,
+        includeArchived: query.includeArchived !== false,
+        closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
+      });
+      return applyTaskQuery(tasks, query).map(taskStatusProjectionFromRecord);
     },
     get(ref: TaskRef) {
       const location = resolveRepositoryTaskLocation(target, ref);
@@ -159,6 +161,19 @@ export function createScannerTaskRepository(targetInput: TaskScannerTarget | str
       return operationSubjectFromRecord(task);
     },
   };
+}
+
+export function createTaskStatusProjectionReader(targetInput: TaskScannerTarget | string | undefined = ".", defaults: ScannerRepositoryOptions = {}): TaskStatusProjectionReader {
+  const repository = createScannerTaskRepository(targetInput, defaults);
+  return {
+    listStatusTasks(query: TaskQuery = {}) {
+      return repository.listStatusTasks(query);
+    },
+  };
+}
+
+export function taskStatusCutoverCounters(tasks: TaskStatusProjection[]): ReturnType<typeof taskCutoverCounters> {
+  return taskCutoverCounters(tasks as TaskRecord[]);
 }
 
 export function taskPlanPathFromRecord(target: { projectRoot: string }, task: { taskPlanPath?: string; path?: string }): string {
@@ -206,6 +221,10 @@ function tombstoneSubjectFromRecord(target: TaskScannerTarget, location: TaskLoc
 
 function operationSubjectFromRecord(task: TaskRecord): TaskOperationSubject {
   return buildTaskOperationSubject(task);
+}
+
+function taskStatusProjectionFromRecord(task: TaskRecord): TaskStatusProjection {
+  return { ...task };
 }
 
 function applyTaskQuery(tasks: TaskRecord[], query: TaskQuery): TaskRecord[] {
