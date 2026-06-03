@@ -37,6 +37,8 @@ import type {
   TaskIndexProjection as TaskRepositoryIndexProjection,
   TaskIndexProjectionReader as TaskRepositoryIndexProjectionReader,
   TaskLocation as TaskRepositoryLocation,
+  TaskPlanContractReader as TaskRepositoryPlanContractReader,
+  TaskPlanContractTask as TaskRepositoryPlanContractTask,
   TaskQuery as TaskRepositoryQuery,
   TaskReviewConfirmationSubject as TaskRepositoryReviewConfirmationSubject,
   TaskReviewConfirmationSubjectReader as TaskRepositoryReviewConfirmationSubjectReader,
@@ -72,6 +74,8 @@ export type TaskStatusCutoverProjection = TaskRepositoryStatusCutoverProjection;
 export type TaskStatusProjectionReader = TaskRepositoryStatusProjectionReader;
 export type TaskIndexProjection = TaskRepositoryIndexProjection;
 export type TaskIndexProjectionReader = TaskRepositoryIndexProjectionReader;
+export type TaskPlanContractTask = TaskRepositoryPlanContractTask;
+export type TaskPlanContractReader = TaskRepositoryPlanContractReader;
 export type TaskTombstonePolicyFacts = TaskRepositoryTombstonePolicyFacts;
 export type TaskTombstoneSubject = TaskRepositoryTombstoneSubject;
 export type TombstoneSubjectReader = TaskRepositoryTombstoneSubjectReader;
@@ -224,6 +228,15 @@ export function createTaskIndexProjectionReader(targetInput: TaskScannerTarget |
   return {
     listTaskIndexTasks(query: TaskQuery = {}) {
       return collectTaskIndexTasks(target, defaults, query);
+    },
+  };
+}
+
+export function createTaskPlanContractReader(targetInput: TaskScannerTarget | string | undefined = ".", defaults: ScannerRepositoryOptions = {}): TaskPlanContractReader {
+  const target = normalizeRepositoryTarget(targetInput);
+  return {
+    listPlanContractTasks(query: TaskQuery = {}) {
+      return collectPlanContractTasks(target, defaults, query);
     },
   };
 }
@@ -388,6 +401,22 @@ function collectTaskIndexTasks(target: TaskScannerTarget, defaults: ScannerRepos
     closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
   });
   return applyTaskQuery(tasks, query).map(taskIndexProjectionFromRecord);
+}
+
+function collectPlanContractTasks(target: TaskScannerTarget, defaults: ScannerRepositoryOptions, query: TaskQuery = {}): TaskPlanContractTask[] {
+  const tasks = collectTasks(target, {
+    requireGeneratedScaffoldProvenance: query.requireGeneratedScaffoldProvenance ?? defaults.requireGeneratedScaffoldProvenance,
+    includeArchived: query.includeArchived !== false,
+    closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
+  });
+  return applyTaskQuery(tasks, query).map(planContractTaskFromRecord);
+}
+
+function planContractTaskFromRecord(task: TaskRecord): TaskPlanContractTask {
+  return {
+    path: task.path,
+    taskPlanPath: task.taskPlanPath,
+  };
 }
 
 function taskIndexProjectionFromRecord(task: TaskRecord): TaskIndexProjection {

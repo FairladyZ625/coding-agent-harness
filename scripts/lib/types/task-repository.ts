@@ -241,6 +241,15 @@ export type TaskIndexProjectionReader = {
   listTaskIndexTasks(query?: TaskQuery): TaskIndexProjection[];
 };
 
+export type TaskPlanContractTask = {
+  path?: string;
+  taskPlanPath?: string;
+};
+
+export type TaskPlanContractReader = {
+  listPlanContractTasks(query?: TaskQuery): TaskPlanContractTask[];
+};
+
 export type TaskStatusIssue = {
   code?: string;
   queue?: string;

@@ -91,10 +91,12 @@ const statusBuilderSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/sta
 const dashboardWorkbenchSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-workbench.mts"), "utf8");
 const taskTombstoneCommandsSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-tombstone-commands.mts"), "utf8");
 const taskIndexSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-index.mts"), "utf8");
+const checkTaskContractsSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/check-task-contracts.mts"), "utf8");
 const taskRepositorySource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-repository.mts"), "utf8");
 const taskRepositoryTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/task-repository.ts"), "utf8");
 const statusProjectionReaderSource = taskRepositorySource.match(/export function createTaskStatusProjectionReader[\s\S]*?\n}\n/)?.[0] || "";
 const taskIndexProjectionReaderSource = taskRepositorySource.match(/export function createTaskIndexProjectionReader[\s\S]*?\n}\n/)?.[0] || "";
+const taskPlanContractReaderSource = taskRepositorySource.match(/export function createTaskPlanContractReader[\s\S]*?\n}\n/)?.[0] || "";
 const resolveTaskDirectorySource = taskRepositorySource.match(/export function resolveTaskDirectory[\s\S]*?\n}\n/)?.[0] || "";
 const broadTaskRepositoryTypeSource = taskRepositorySource.match(/export type TaskRepository =[\s\S]*?\n};/)?.[0] || "";
 const lifecycleReviewTaskByDirectorySource = taskLifecycleSource.match(/function findReviewTaskByDirectory[\s\S]*?\n}\n/)?.[0] || "";
@@ -127,6 +129,10 @@ assert(!/export type TaskStatusProjection = \{\s*\[key: string\]: unknown;/m.tes
 assert(!statusProjectionReaderSource.includes("createScannerTaskRepository"), "TaskStatusProjectionReader should not recreate the broad scanner-backed TaskRepository identity");
 assert(!taskIndexProjectionReaderSource.includes("createScannerTaskRepository"), "TaskIndexProjectionReader should not recreate the broad scanner-backed TaskRepository identity");
 assert(taskRepositoryTypesSource.includes("export type TaskIndexProjectionReader"), "task repository type island should expose the narrow task-index projection reader contract");
+assert(!checkTaskContractsSource.includes("createScannerTaskRepository"), "check-task-contracts should consume a narrow plan-contract reader instead of the broad scanner-backed repository");
+assert(checkTaskContractsSource.includes("createTaskPlanContractReader"), "check-task-contracts should compose through the task plan-contract reader seam");
+assert(!taskPlanContractReaderSource.includes("createScannerTaskRepository"), "TaskPlanContractReader should not recreate the broad scanner-backed TaskRepository identity");
+assert(taskRepositoryTypesSource.includes("export type TaskPlanContractReader"), "task repository type island should expose the narrow plan-contract reader contract");
 assert(!taskRepositorySource.includes("return { ...task };"), "status projection materialization should not leak scanner records by object spread");
 assert(graph.summary.fileCount === 11, `expected 11 graph files, got ${graph.summary.fileCount}`);
 assert(graph.summary.localEdgeCount === 9, `expected 9 local edges, got ${graph.summary.localEdgeCount}`);

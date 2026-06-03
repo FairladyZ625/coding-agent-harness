@@ -11,7 +11,7 @@ import {
 import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../scripts/domain/task/task-subjects.mjs";
 import { buildStatusData } from "../scripts/lib/status-builder.mjs";
 import { collectTasks, listTaskPlanPaths } from "../scripts/lib/task-scanner.mjs";
-import { createScannerTaskRepository, createTaskIndexProjectionReader, createTaskLifecycleReader, createTaskReviewConfirmationSubjectReader, createTaskStatusProjectionReader, createTaskWorkbenchReviewSubjectReader } from "../scripts/lib/task-repository.mjs";
+import { createScannerTaskRepository, createTaskIndexProjectionReader, createTaskLifecycleReader, createTaskPlanContractReader, createTaskReviewConfirmationSubjectReader, createTaskStatusProjectionReader, createTaskWorkbenchReviewSubjectReader } from "../scripts/lib/task-repository.mjs";
 
 type ComparableTask = {
   id?: string;
@@ -175,6 +175,11 @@ const taskIndexProjectionKeys = [
   "walkthroughPath",
 ].sort();
 
+const planContractTaskKeys = [
+  "path",
+  "taskPlanPath",
+].sort();
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
@@ -226,6 +231,7 @@ const targetPath = copyMinimalProject("minimal");
 const target = normalizeTarget(targetPath);
 const repository = createScannerTaskRepository(target);
 const taskIndexProjectionReader = createTaskIndexProjectionReader(target);
+const planContractReader = createTaskPlanContractReader(target);
 const lifecycleReader = createTaskLifecycleReader(target);
 const statusProjectionReader = createTaskStatusProjectionReader(target);
 const reviewConfirmationSubjectReader = createTaskReviewConfirmationSubjectReader(target);
@@ -234,6 +240,7 @@ const legacyTaskPlanPaths = listTaskPlanPaths(target);
 const legacyTasks = collectTasks(target, { taskPlanPaths: legacyTaskPlanPaths });
 const repositoryTasks = repository.list();
 const taskIndexProjectionTasks = taskIndexProjectionReader.listTaskIndexTasks();
+const planContractTasks = planContractReader.listPlanContractTasks();
 const lifecycleTasks = lifecycleReader.listLifecycleTasks();
 const statusProjectionTasks = statusProjectionReader.listStatusTasks();
 const workbenchReviewSubjects = workbenchReviewSubjectReader.listWorkbenchReviewSubjects();
@@ -242,16 +249,19 @@ const taskIndexProjectionTypeKeys = topLevelProjectionTypeKeys("TaskIndexProject
 
 assert(repositoryTasks.length === legacyTasks.length, "repository list should preserve task count");
 assert(taskIndexProjectionTasks.length === repositoryTasks.length, "task-index projection reader should preserve task count without exposing scanner records to task-index");
+assert(planContractTasks.length === repositoryTasks.length, "plan-contract reader should preserve task count without exposing scanner records to check-task-contracts");
 assert(lifecycleTasks.length === repositoryTasks.length, "lifecycle reader should preserve task count without exposing scanner records");
 assert(workbenchReviewSubjects.length === repositoryTasks.length, "workbench review subject reader should preserve task count without exposing scanner records");
 assertJsonEqual(repositoryTasks.map(queueComparable), legacyTasks.map(queueComparable), "repository list should preserve scanner queue/material fields");
 assertJsonEqual(taskIndexProjectionTasks.map(queueComparable), repositoryTasks.map(queueComparable), "task-index projection reader should preserve queue/material fields without exposing broad repository identity to task-index");
+assertJsonEqual(planContractTasks, repositoryTasks.map((item) => ({ path: item.path, taskPlanPath: item.taskPlanPath })), "plan-contract reader should preserve only the task path facts needed by contract validation");
 assertJsonEqual(lifecycleTasks.map(queueComparable), repositoryTasks.map(queueComparable), "lifecycle reader should preserve lifecycle queue/material fields without exposing the broad TaskRepository identity");
 assert(statusProjectionKeys.every((key) => Object.keys(lifecycleTasks[0] || {}).includes(key)), "lifecycle reader should preserve every explicit task-list/status projection field");
 assertJsonEqual(statusProjectionTasks.map(queueComparable), repositoryTasks.map(queueComparable), "status projection reader should preserve queue/material fields without exposing scanner repository to status-builder");
 assertJsonEqual(statusProjectionTypeKeys, statusProjectionKeys, "TaskStatusProjection type keys must match the runtime status projection allowlist");
 assertJsonEqual(taskIndexProjectionTypeKeys, taskIndexProjectionKeys, "TaskIndexProjection type keys must match the runtime task-index projection allowlist");
 assertJsonEqual(Object.keys(taskIndexProjectionTasks[0] || {}).sort(), taskIndexProjectionKeys, "task-index projection reader should expose only the explicit task-index contract field allowlist");
+assertJsonEqual(Object.keys(planContractTasks[0] || {}).sort(), planContractTaskKeys, "plan-contract reader should expose only the task path contract field allowlist");
 assertJsonEqual(Object.keys(statusProjectionTasks[0] || {}).sort(), statusProjectionKeys, "status projection reader should expose only the explicit status/dashboard contract field allowlist");
 assert(taskIndexProjectionTasks.every((item) => Array.isArray(item.visibilityScopes)), "task-index projection reader should materialize visibility scopes so task-index does not reinterpret raw visibility facts");
 assertJsonEqual(

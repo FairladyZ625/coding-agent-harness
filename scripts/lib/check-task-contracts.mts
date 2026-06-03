@@ -9,8 +9,9 @@ import {
   visualMapFile,
 } from "./core-shared.mjs";
 import { parseTaskBudget, parseTaskContractInfo } from "./task-metadata.mjs";
-import { createScannerTaskRepository, taskPlanPathFromRecord } from "./task-repository.mjs";
+import { createTaskPlanContractReader, taskPlanPathFromRecord } from "./task-repository.mjs";
 import { parseTaskAuditMetadata } from "./task-audit-metadata.mjs";
+import type { TaskPlanContractTask } from "./task-repository.mjs";
 
 type HarnessTarget = {
   projectRoot: string;
@@ -18,7 +19,7 @@ type HarnessTarget = {
 
 type ValidatePlanContractsOptions = {
   strict?: boolean;
-  tasks?: Array<{ path?: string; taskPlanPath?: string }>;
+  tasks?: TaskPlanContractTask[];
 };
 
 type PlanContractValidationResult = {
@@ -40,7 +41,7 @@ export function validatePlanContracts(
     if (strict) failures.push(message);
     else warnings.push(`adoption-needed: ${message}`);
   };
-  const taskRecords = tasks || createScannerTaskRepository(target).list();
+  const taskRecords = tasks || createTaskPlanContractReader(target).listPlanContractTasks();
   for (const task of taskRecords) {
     const taskPlanPath = taskPlanPathFromRecord(target, task);
     const taskDir = path.dirname(taskPlanPath);
