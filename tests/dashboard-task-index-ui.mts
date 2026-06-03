@@ -393,6 +393,42 @@ assert(documentWorkbenchResult.libraryHtml.includes('class="doc-reader-scroll ma
 assert(!documentWorkbenchResult.libraryHtml.includes("doc-accordion"), "document workbench should not render source documents as accordions");
 assert(documentWorkbenchResult.libraryHtml.includes("Operator Runbook"), "document workbench should render selected material document content");
 
+const taskDetailPanelSandbox = createSandbox();
+vm.runInContext(`
+  window.HarnessMarkdown = { render: (content) => String(content || "") };
+  bundle.status.tasks = [{
+    id: "TASKS/detail-panel",
+    shortId: "detail-panel",
+    title: "Detail panel",
+    path: "TARGET:coding-agent-harness/planning/tasks/detail-panel",
+    state: "in_progress",
+    completion: 50,
+    documentsByKey: {
+      "progress.md": { path: "TARGET:coding-agent-harness/planning/tasks/detail-panel/progress.md", content: "# Progress" },
+      "brief.md": { path: "TARGET:coding-agent-harness/planning/tasks/detail-panel/brief.md", content: "# Brief" },
+    },
+    documentProjection: {
+      byKey: {
+        "progress.md": { path: "TARGET:coding-agent-harness/planning/tasks/detail-panel/progress.md", content: "# Progress" },
+        "brief.md": { path: "TARGET:coding-agent-harness/planning/tasks/detail-panel/brief.md", content: "# Brief" },
+      },
+    },
+    taskLifecycleProjection: { state: "in_progress", lifecycleState: "active", taskQueues: ["active"] },
+    reviewWorkbenchQueueView: { queues: ["active"], primaryQueue: "active" },
+    risks: [
+      { severity: "P2", summary: "Long finding one", open: true },
+      { severity: "P2", summary: "Long finding two", open: true },
+    ],
+    phases: [],
+  }];
+  __result = taskDetail({ id: "TASKS/detail-panel" });
+`, taskDetailPanelSandbox);
+const taskDetailPanelHtml = String(taskDetailPanelSandbox.__result);
+assert(taskDetailPanelHtml.includes('class="detail-side-content"'), "detail side panels should be wrapped by a bounded side content region");
+assert(taskDetailPanelHtml.includes('class="side-panel open-findings-panel"'), "open findings should render as its own bounded side panel");
+assert(/class="side-panel open-findings-panel"[\s\S]*class="side-panel-head"[\s\S]*data-detail-side-toggle/.test(taskDetailPanelHtml), "detail side collapse control should live inside the aligned open findings header");
+assert(taskDetailPanelHtml.includes('class="open-findings-scroll" tabindex="0"'), "open findings should expose an internal keyboard-focusable scroll region");
+
 const drawerPreviewSandbox = createSandbox();
 vm.runInContext(`
   window.HarnessMarkdown = { render: (content) => "<rendered>" + String(content || "") + "</rendered>" };
@@ -446,8 +482,15 @@ assert(!drawerPreviewResult.activeDrawer.includes("<rendered># Runbook"), "drawe
 
 assert(/\.phase-step strong\s*\{[^}]*overflow-wrap:\s*anywhere/s.test(dashboardCss), "compact phase cards should wrap long phase ids");
 assert(/\.phase-step-head span\s*\{[^}]*overflow-wrap:\s*anywhere/s.test(dashboardCss), "compact phase cards should wrap long phase metadata");
-assert(/\.doc-workbench-reader\s*\{[^}]*grid-template-rows:\s*auto minmax\(0,\s*1fr\)[^}]*max-height:\s*min\(76vh,\s*920px\)[^}]*overflow:\s*hidden/s.test(dashboardCss), "document reader should constrain long markdown inside a fixed reader shell");
+assert(/\.detail-grid\s*\{[^}]*--task-detail-panel-height:\s*clamp\(800px,\s*104vh,\s*1288px\)/s.test(dashboardCss), "task detail panels should share a taller fixed panel height token");
+assert(/\.doc-workbench-nav\s*\{[^}]*overflow:\s*auto/s.test(dashboardCss), "document nav should keep its internal scroll behavior");
+assert(/\.doc-workbench-nav\s*\{[^}]*height:\s*var\(--task-detail-panel-height\)[^}]*max-height:\s*var\(--task-detail-panel-height\)/s.test(dashboardCss), "document nav should use the shared panel height");
+assert(/\.doc-workbench-reader\s*\{[^}]*grid-template-rows:\s*auto minmax\(0,\s*1fr\)[^}]*overflow:\s*hidden/s.test(dashboardCss), "document reader should keep the fixed reader shell");
+assert(/\.doc-workbench-reader\s*\{[^}]*height:\s*var\(--task-detail-panel-height\)[^}]*max-height:\s*var\(--task-detail-panel-height\)/s.test(dashboardCss), "document reader should use the shared panel height");
 assert(/\.doc-reader-scroll\s*\{[^}]*overflow:\s*auto[^}]*overscroll-behavior:\s*contain/s.test(dashboardCss), "document markdown body should scroll inside the reader");
+assert(/\.detail-side-content\s*\{[^}]*max-height:\s*var\(--task-detail-panel-height\)[^}]*overflow:\s*auto/s.test(dashboardCss), "detail side content should be bounded instead of extending the page");
+assert(/\.open-findings-panel\s*\{[^}]*height:\s*var\(--task-detail-panel-height\)[^}]*min-height:\s*var\(--task-detail-panel-height\)[^}]*max-height:\s*var\(--task-detail-panel-height\)[^}]*overflow:\s*hidden/s.test(dashboardCss), "open findings panel should match the document reader height without being compressed by the side grid");
+assert(/\.open-findings-scroll\s*\{[^}]*overflow:\s*auto[^}]*overscroll-behavior:\s*contain/s.test(dashboardCss), "open findings should scroll inside the side panel");
 assert(/\.detail-grid\.side-collapsed\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*52px/s.test(dashboardCss), "right detail side panel should collapse to a narrow control rail");
 assert(/\.doc-workbench\.docs-collapsed\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s.test(dashboardCss), "document nav collapse should let the reader take the full workbench width");
 

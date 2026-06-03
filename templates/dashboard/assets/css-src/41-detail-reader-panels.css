@@ -1,0 +1,77 @@
+/* Task detail reader panel alignment */
+.detail-grid {
+  --task-detail-panel-height: clamp(800px, 104vh, 1288px);
+}
+
+.doc-workbench {
+  align-items: stretch;
+}
+
+.doc-workbench-nav {
+  align-content: start;
+  height: var(--task-detail-panel-height);
+  max-height: var(--task-detail-panel-height);
+}
+
+.doc-workbench-reader {
+  height: var(--task-detail-panel-height);
+  max-height: var(--task-detail-panel-height);
+}
+
+.detail-side {
+  max-height: var(--task-detail-panel-height);
+  top: 0;
+}
+
+.detail-side-content {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 0;
+  max-height: var(--task-detail-panel-height);
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.detail-side.collapsed {
+  max-height: none;
+}
+
+.detail-side.collapsed .detail-side-content {
+  display: none;
+}
+
+.side-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.side-panel-head h3 {
+  margin: 0;
+}
+
+.open-findings-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: var(--task-detail-panel-height);
+  min-height: var(--task-detail-panel-height);
+  max-height: var(--task-detail-panel-height);
+  overflow: hidden;
+}
+
+.open-findings-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.open-findings-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}

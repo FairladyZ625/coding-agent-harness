@@ -70,14 +70,19 @@ function taskDetail(route) {
         ${taskDocumentLibrary(task, route.doc)}
       </article>
       <aside class="detail-side ${state.detailSideCollapsed ? "collapsed" : ""}">
-        <button type="button" class="detail-side-toggle" data-detail-side-toggle aria-expanded="${state.detailSideCollapsed ? "false" : "true"}">${escapeHtml(state.detailSideCollapsed ? t("expandSidePanel") : t("collapseSidePanel"))}</button>
-        ${reviewActionPanel(task, { mode: "summary" })}
-        ${lessonCandidatePanel(task, { context: "detail" })}
-        ${openFindings(task)}
-        ${evidenceList(task)}
+        ${state.detailSideCollapsed ? detailSideToggleButton() : `<div class="detail-side-content">
+          ${openFindings(task, { sideToggle: true })}
+          ${reviewActionPanel(task, { mode: "summary" })}
+          ${lessonCandidatePanel(task, { context: "detail" })}
+          ${evidenceList(task)}
+        </div>`}
       </aside>
     </section>
   </main>`;
+}
+
+function detailSideToggleButton() {
+  return `<button type="button" class="detail-side-toggle" data-detail-side-toggle aria-expanded="${state.detailSideCollapsed ? "false" : "true"}">${escapeHtml(state.detailSideCollapsed ? t("expandSidePanel") : t("collapseSidePanel"))}</button>`;
 }
 
 function taskStateSummary(task) {
@@ -367,11 +372,16 @@ function selectedSourceDocument(task, tab) {
   </section>`;
 }
 
-function openFindings(task) {
+function openFindings(task, { sideToggle = false } = {}) {
   const risks = task.risks || [];
-  return `<section class="side-panel">
-    <h3>${t("openFindings")}</h3>
-    ${risks.map((risk) => `<div class="finding ${risk.open || risk.blocksRelease ? "open" : ""}"><strong>${escapeHtml(risk.severity)}</strong><span>${escapeHtml(risk.summary)}</span></div>`).join("") || `<p>${t("noOpenFindings")}</p>`}
+  return `<section class="side-panel open-findings-panel">
+    <div class="side-panel-head">
+      <h3>${t("openFindings")}</h3>
+      ${sideToggle ? detailSideToggleButton() : ""}
+    </div>
+    <div class="open-findings-scroll" tabindex="0">
+      ${risks.map((risk) => `<div class="finding ${risk.open || risk.blocksRelease ? "open" : ""}"><strong>${escapeHtml(risk.severity)}</strong><span>${escapeHtml(risk.summary)}</span></div>`).join("") || `<p>${t("noOpenFindings")}</p>`}
+    </div>
   </section>`;
 }
 
