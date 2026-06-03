@@ -11,7 +11,7 @@ import {
 import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../scripts/domain/task/task-subjects.mjs";
 import { buildStatusData } from "../scripts/lib/status-builder.mjs";
 import { collectTasks, listTaskPlanPaths } from "../scripts/lib/task-scanner.mjs";
-import { createScannerTaskRepository, createTaskLifecycleReader, createTaskReviewConfirmationSubjectReader, createTaskStatusProjectionReader, createTaskWorkbenchReviewSubjectReader } from "../scripts/lib/task-repository.mjs";
+import { createScannerTaskRepository, createTaskIndexProjectionReader, createTaskLifecycleReader, createTaskReviewConfirmationSubjectReader, createTaskStatusProjectionReader, createTaskWorkbenchReviewSubjectReader } from "../scripts/lib/task-repository.mjs";
 
 type ComparableTask = {
   id?: string;
@@ -119,6 +119,62 @@ const statusProjectionKeys = [
   "walkthroughPath",
 ].sort();
 
+const taskIndexProjectionKeys = [
+  "aliases",
+  "archiveMetadata",
+  "briefPath",
+  "closeoutStatus",
+  "completion",
+  "currentPath",
+  "deletionState",
+  "deleteReason",
+  "evidenceBundle",
+  "executionStrategyPath",
+  "findingsPath",
+  "hiddenByDefault",
+  "id",
+  "identitySource",
+  "inferredModule",
+  "lessonCandidateIssues",
+  "lessonCandidatePath",
+  "lessonCandidatePromotionState",
+  "lessonCandidateReviewDecision",
+  "lessonCandidateRows",
+  "lessonCandidateStatus",
+  "lifecycleState",
+  "materialIssues",
+  "materialsReady",
+  "module",
+  "namespace",
+  "originalPath",
+  "packageRole",
+  "path",
+  "presetVersion",
+  "progressPath",
+  "queueReasons",
+  "repairPrompt",
+  "reviewPath",
+  "reviewQueueState",
+  "reviewStatus",
+  "reviewSubmitted",
+  "risks",
+  "shortId",
+  "state",
+  "stateConflicts",
+  "supersededBy",
+  "supersedes",
+  "taskKey",
+  "taskKind",
+  "taskPlanPath",
+  "taskPreset",
+  "taskQueues",
+  "taskRootKind",
+  "title",
+  "visibilityScopes",
+  "visualMapPath",
+  "walkthroughPath",
+].sort();
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
@@ -147,6 +203,19 @@ function statusProjectionComparable(task: Record<string, unknown>): Record<strin
   return Object.fromEntries(statusProjectionKeys.map((key) => [key, task[key]]));
 }
 
+function taskIndexProjectionComparable(task: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(taskIndexProjectionKeys.map((key) => [key, task[key]]));
+}
+
+function expectedTaskIndexProjectionComparableFromRepository(task: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(taskIndexProjectionKeys.map((key) => {
+    if (key === "namespace") return [key, task[key] || "main"];
+    if (key === "packageRole") return [key, task[key] || "local"];
+    if (key === "taskRootKind") return [key, task[key] || (task.module ? "module-task" : "project-task")];
+    return [key, task[key]];
+  }));
+}
+
 function assertJsonEqual(actual: unknown, expected: unknown, message: string): void {
   const actualJson = JSON.stringify(actual);
   const expectedJson = JSON.stringify(expected);
@@ -156,6 +225,7 @@ function assertJsonEqual(actual: unknown, expected: unknown, message: string): v
 const targetPath = copyMinimalProject("minimal");
 const target = normalizeTarget(targetPath);
 const repository = createScannerTaskRepository(target);
+const taskIndexProjectionReader = createTaskIndexProjectionReader(target);
 const lifecycleReader = createTaskLifecycleReader(target);
 const statusProjectionReader = createTaskStatusProjectionReader(target);
 const reviewConfirmationSubjectReader = createTaskReviewConfirmationSubjectReader(target);
@@ -163,24 +233,36 @@ const workbenchReviewSubjectReader = createTaskWorkbenchReviewSubjectReader(targ
 const legacyTaskPlanPaths = listTaskPlanPaths(target);
 const legacyTasks = collectTasks(target, { taskPlanPaths: legacyTaskPlanPaths });
 const repositoryTasks = repository.list();
+const taskIndexProjectionTasks = taskIndexProjectionReader.listTaskIndexTasks();
 const lifecycleTasks = lifecycleReader.listLifecycleTasks();
 const statusProjectionTasks = statusProjectionReader.listStatusTasks();
 const workbenchReviewSubjects = workbenchReviewSubjectReader.listWorkbenchReviewSubjects();
 const statusProjectionTypeKeys = topLevelStatusProjectionTypeKeys();
+const taskIndexProjectionTypeKeys = topLevelProjectionTypeKeys("TaskIndexProjection");
 
 assert(repositoryTasks.length === legacyTasks.length, "repository list should preserve task count");
+assert(taskIndexProjectionTasks.length === repositoryTasks.length, "task-index projection reader should preserve task count without exposing scanner records to task-index");
 assert(lifecycleTasks.length === repositoryTasks.length, "lifecycle reader should preserve task count without exposing scanner records");
 assert(workbenchReviewSubjects.length === repositoryTasks.length, "workbench review subject reader should preserve task count without exposing scanner records");
 assertJsonEqual(repositoryTasks.map(queueComparable), legacyTasks.map(queueComparable), "repository list should preserve scanner queue/material fields");
+assertJsonEqual(taskIndexProjectionTasks.map(queueComparable), repositoryTasks.map(queueComparable), "task-index projection reader should preserve queue/material fields without exposing broad repository identity to task-index");
 assertJsonEqual(lifecycleTasks.map(queueComparable), repositoryTasks.map(queueComparable), "lifecycle reader should preserve lifecycle queue/material fields without exposing the broad TaskRepository identity");
 assert(statusProjectionKeys.every((key) => Object.keys(lifecycleTasks[0] || {}).includes(key)), "lifecycle reader should preserve every explicit task-list/status projection field");
 assertJsonEqual(statusProjectionTasks.map(queueComparable), repositoryTasks.map(queueComparable), "status projection reader should preserve queue/material fields without exposing scanner repository to status-builder");
 assertJsonEqual(statusProjectionTypeKeys, statusProjectionKeys, "TaskStatusProjection type keys must match the runtime status projection allowlist");
+assertJsonEqual(taskIndexProjectionTypeKeys, taskIndexProjectionKeys, "TaskIndexProjection type keys must match the runtime task-index projection allowlist");
+assertJsonEqual(Object.keys(taskIndexProjectionTasks[0] || {}).sort(), taskIndexProjectionKeys, "task-index projection reader should expose only the explicit task-index contract field allowlist");
 assertJsonEqual(Object.keys(statusProjectionTasks[0] || {}).sort(), statusProjectionKeys, "status projection reader should expose only the explicit status/dashboard contract field allowlist");
+assert(taskIndexProjectionTasks.every((item) => Array.isArray(item.visibilityScopes)), "task-index projection reader should materialize visibility scopes so task-index does not reinterpret raw visibility facts");
 assertJsonEqual(
   statusProjectionTasks.map((item) => statusProjectionComparable(item as Record<string, unknown>)),
   repositoryTasks.map((item) => statusProjectionComparable(item as Record<string, unknown>)),
   "status projection reader should preserve every explicit status/dashboard contract field from the scanner-backed repository source",
+);
+assertJsonEqual(
+  taskIndexProjectionTasks.map((item) => taskIndexProjectionComparable(item as Record<string, unknown>)),
+  repositoryTasks.map((item) => expectedTaskIndexProjectionComparableFromRepository(item as Record<string, unknown>)),
+  "task-index projection reader should preserve every explicit task-index contract field from the scanner-backed repository source",
 );
 
 const task = repository.get({ id: "TASKS/demo-task" });
@@ -328,10 +410,14 @@ assertJsonEqual(queueComparable(missingRepositoryTask), queueComparable(missingL
 console.log("Task repository compatibility tests passed");
 
 function topLevelStatusProjectionTypeKeys(): string[] {
+  return topLevelProjectionTypeKeys("TaskStatusProjection");
+}
+
+function topLevelProjectionTypeKeys(typeName: string): string[] {
   const source = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/task-repository.ts"), "utf8");
-  const match = source.match(/export type TaskStatusProjection = \{\n([\s\S]*?)\n\};/);
-  assert(match, "TaskStatusProjection type declaration should be parseable");
-  return [...match[1].matchAll(/^\s{2}([A-Za-z0-9_]+)\?:/gm)].map((item) => item[1]).sort();
+  const match = source.match(new RegExp(`export type ${typeName} = \\{\\n([\\s\\S]*?)\\n\\};`));
+  assert(match, `${typeName} type declaration should be parseable`);
+  return [...match[1].matchAll(/^\s{2}([A-Za-z0-9_]+)\??:/gm)].map((item) => item[1]).sort();
 }
 
 function absoluteTargetPath(projectRoot: string, rawPath: string): string {
