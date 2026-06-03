@@ -11,7 +11,7 @@ import {
 import { buildTaskOperationSubject, buildTaskTombstoneSubject } from "../scripts/domain/task/task-subjects.mjs";
 import { buildStatusData } from "../scripts/lib/status-builder.mjs";
 import { collectTasks, listTaskPlanPaths } from "../scripts/lib/task-scanner.mjs";
-import { createScannerTaskRepository, createTaskCheckProfileReader, createTaskGovernanceProjectionReader, createTaskIndexProjectionReader, createTaskLessonPromotionReader, createTaskLifecycleReader, createTaskPlanContractReader, createTaskReviewConfirmationSubjectReader, createTaskStatusProjectionReader, createTaskWorkbenchReviewSubjectReader } from "../scripts/lib/task-repository.mjs";
+import { createScannerTaskRepository, createTaskCheckProfileReader, createTaskGovernanceProjectionReader, createTaskIndexProjectionReader, createTaskLessonPromotionReader, createTaskLifecycleReader, createTaskModuleReferenceReader, createTaskPlanContractReader, createTaskReviewConfirmationSubjectReader, createTaskStatusProjectionReader, createTaskWorkbenchReviewSubjectReader } from "../scripts/lib/task-repository.mjs";
 
 type ComparableTask = {
   id?: string;
@@ -261,6 +261,10 @@ function queueComparable(task: ComparableTask): ComparableTask {
   };
 }
 
+function sortComparableTasks(tasks: ComparableTask[]): ComparableTask[] {
+  return [...tasks].sort((left, right) => String(left.id || "").localeCompare(String(right.id || "")));
+}
+
 function governanceQueueComparable(task: ComparableTask): ComparableTask {
   const comparable = queueComparable(task);
   delete comparable.queueReasons;
@@ -332,18 +336,36 @@ assert(planContractTasks.length === repositoryTasks.length, "plan-contract reade
 assert(checkProfileTasks.length === repositoryTasks.length, "check-profile reader should preserve task count without exposing scanner records to check-profiles");
 assert(lifecycleTasks.length === repositoryTasks.length, "lifecycle reader should preserve task count without exposing scanner records");
 assert(workbenchReviewSubjects.length === repositoryTasks.length, "workbench review subject reader should preserve task count without exposing scanner records");
-assertJsonEqual(repositoryTasks.map(queueComparable), legacyTasks.map(queueComparable), "repository list should preserve scanner queue/material fields");
-assertJsonEqual(taskIndexProjectionTasks.map(queueComparable), repositoryTasks.map(queueComparable), "task-index projection reader should preserve queue/material fields without exposing broad repository identity to task-index");
-assertJsonEqual(governanceProjectionTasks.map(governanceQueueComparable), repositoryTasks.map(governanceQueueComparable), "governance projection reader should preserve generated governance queue/material fields without exposing broad repository identity");
+
+const moduleTargetPath = copyMinimalProject("module-references");
+fs.mkdirSync(path.join(moduleTargetPath, "coding-agent-harness/planning/modules/auth/tasks"), { recursive: true });
+fs.cpSync(
+  path.join(moduleTargetPath, "coding-agent-harness/planning/tasks/demo-task"),
+  path.join(moduleTargetPath, "coding-agent-harness/planning/modules/auth/tasks/module-task"),
+  { recursive: true },
+);
+const moduleTarget = normalizeTarget(moduleTargetPath);
+const moduleLegacyTasks = collectTasks(moduleTarget, { taskPlanPaths: listTaskPlanPaths(moduleTarget) });
+const moduleReferences = createTaskModuleReferenceReader(moduleTarget).listModuleReferences("auth");
+assertJsonEqual(
+  moduleReferences,
+  moduleLegacyTasks.filter((task) => task.module === "auth").map((task) => ({ blocker: String(task.id || task.taskPlanPath || "") })),
+  "module reference reader should preserve module unregister blocker identity without exposing raw scanner records",
+);
+assert(Object.keys(moduleReferences[0] || {}).join(",") === "blocker", "module reference reader should expose only the module blocker contract");
+
+assertJsonEqual(sortComparableTasks(repositoryTasks.map(queueComparable)), sortComparableTasks(legacyTasks.map(queueComparable)), "repository list should preserve scanner queue/material fields");
+assertJsonEqual(sortComparableTasks(taskIndexProjectionTasks.map(queueComparable)), sortComparableTasks(repositoryTasks.map(queueComparable)), "task-index projection reader should preserve queue/material fields without exposing broad repository identity to task-index");
+assertJsonEqual(sortComparableTasks(governanceProjectionTasks.map(governanceQueueComparable)), sortComparableTasks(repositoryTasks.map(governanceQueueComparable)), "governance projection reader should preserve generated governance queue/material fields without exposing broad repository identity");
 assertJsonEqual(planContractTasks, repositoryTasks.map((item) => ({ path: item.path, taskPlanPath: item.taskPlanPath })), "plan-contract reader should preserve only the task path facts needed by contract validation");
 assertJsonEqual(
   checkProfileTasks.map((item) => checkProfileTaskComparable(item as Record<string, unknown>)),
   repositoryTasks.map((item) => checkProfileTaskComparable(item as Record<string, unknown>)),
   "check-profile reader should preserve every checker validation field from the scanner-backed repository source",
 );
-assertJsonEqual(lifecycleTasks.map(queueComparable), repositoryTasks.map(queueComparable), "lifecycle reader should preserve lifecycle queue/material fields without exposing the broad TaskRepository identity");
+assertJsonEqual(sortComparableTasks(lifecycleTasks.map(queueComparable)), sortComparableTasks(repositoryTasks.map(queueComparable)), "lifecycle reader should preserve lifecycle queue/material fields without exposing the broad TaskRepository identity");
 assert(statusProjectionKeys.every((key) => Object.keys(lifecycleTasks[0] || {}).includes(key)), "lifecycle reader should preserve every explicit task-list/status projection field");
-assertJsonEqual(statusProjectionTasks.map(queueComparable), repositoryTasks.map(queueComparable), "status projection reader should preserve queue/material fields without exposing scanner repository to status-builder");
+assertJsonEqual(sortComparableTasks(statusProjectionTasks.map(queueComparable)), sortComparableTasks(repositoryTasks.map(queueComparable)), "status projection reader should preserve queue/material fields without exposing scanner repository to status-builder");
 assertJsonEqual(statusProjectionTypeKeys, statusProjectionKeys, "TaskStatusProjection type keys must match the runtime status projection allowlist");
 assertJsonEqual(taskIndexProjectionTypeKeys, taskIndexProjectionKeys, "TaskIndexProjection type keys must match the runtime task-index projection allowlist");
 assertJsonEqual(checkProfileTaskTypeKeys, checkProfileTaskKeys, "TaskCheckProfileTask type keys must match the runtime check-profile allowlist");
@@ -506,8 +528,8 @@ assert(materials.visualMap.content.includes("Visual Map Contract"), "repository 
 
 const status = buildStatusData(target as Parameters<typeof buildStatusData>[0]);
 assertJsonEqual(
-  status.tasks.map(queueComparable),
-  statusProjectionTasks.map(queueComparable),
+  sortComparableTasks(status.tasks.map(queueComparable)),
+  sortComparableTasks(statusProjectionTasks.map(queueComparable)),
   "status-builder should preserve task status projection queue/material semantics",
 );
 

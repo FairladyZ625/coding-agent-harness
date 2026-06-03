@@ -294,6 +294,14 @@ export type TaskLessonPromotionReader = {
   resolveLessonPromotionTask(taskRef: string): TaskLessonPromotionTask;
 };
 
+export type TaskModuleReference = {
+  blocker: string;
+};
+
+export type TaskModuleReferenceReader = {
+  listModuleReferences(moduleKey: string): TaskModuleReference[];
+};
+
 export type TaskCheckProfileMigrationSnapshot = {
   evidencePresent?: boolean;
   sessionPresent?: boolean;
