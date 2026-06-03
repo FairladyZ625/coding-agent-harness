@@ -34,6 +34,7 @@ import type {
   TaskOperationSubjectReader as TaskRepositoryOperationSubjectReader,
   TaskLocation as TaskRepositoryLocation,
   TaskQuery as TaskRepositoryQuery,
+  TaskStatusCutoverProjection as TaskRepositoryStatusCutoverProjection,
   TaskRef as TaskRepositoryRef,
   TaskStatusProjection as TaskRepositoryStatusProjection,
   TaskStatusProjectionReader as TaskRepositoryStatusProjectionReader,
@@ -59,6 +60,7 @@ export type TaskRef = TaskRepositoryRef;
 export type TaskLocation = TaskRepositoryLocation;
 export type TaskQuery = TaskRepositoryQuery;
 export type TaskStatusProjection = TaskRepositoryStatusProjection;
+export type TaskStatusCutoverProjection = TaskRepositoryStatusCutoverProjection;
 export type TaskStatusProjectionReader = TaskRepositoryStatusProjectionReader;
 export type TaskTombstonePolicyFacts = TaskRepositoryTombstonePolicyFacts;
 export type TaskTombstoneSubject = TaskRepositoryTombstoneSubject;
@@ -111,12 +113,7 @@ export function createScannerTaskRepository(targetInput: TaskScannerTarget | str
       return applyTaskQuery(tasks, query);
     },
     listStatusTasks(query: TaskQuery = {}) {
-      const tasks = collectTasks(target, {
-        requireGeneratedScaffoldProvenance: query.requireGeneratedScaffoldProvenance ?? defaults.requireGeneratedScaffoldProvenance,
-        includeArchived: query.includeArchived !== false,
-        closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
-      });
-      return applyTaskQuery(tasks, query).map(taskStatusProjectionFromRecord);
+      return collectStatusTasks(target, defaults, query);
     },
     get(ref: TaskRef) {
       const location = resolveRepositoryTaskLocation(target, ref);
@@ -164,16 +161,16 @@ export function createScannerTaskRepository(targetInput: TaskScannerTarget | str
 }
 
 export function createTaskStatusProjectionReader(targetInput: TaskScannerTarget | string | undefined = ".", defaults: ScannerRepositoryOptions = {}): TaskStatusProjectionReader {
-  const repository = createScannerTaskRepository(targetInput, defaults);
+  const target = normalizeRepositoryTarget(targetInput);
   return {
     listStatusTasks(query: TaskQuery = {}) {
-      return repository.listStatusTasks(query);
+      return collectStatusTasks(target, defaults, query);
     },
   };
 }
 
-export function taskStatusCutoverCounters(tasks: TaskStatusProjection[]): ReturnType<typeof taskCutoverCounters> {
-  return taskCutoverCounters(tasks as TaskRecord[]);
+export function taskStatusCutoverCounters(tasks: TaskStatusCutoverProjection[]): ReturnType<typeof taskCutoverCounters> {
+  return taskCutoverCounters(tasks);
 }
 
 export function taskPlanPathFromRecord(target: { projectRoot: string }, task: { taskPlanPath?: string; path?: string }): string {
@@ -223,8 +220,107 @@ function operationSubjectFromRecord(task: TaskRecord): TaskOperationSubject {
   return buildTaskOperationSubject(task);
 }
 
+function collectStatusTasks(target: TaskScannerTarget, defaults: ScannerRepositoryOptions, query: TaskQuery = {}): TaskStatusProjection[] {
+  const tasks = collectTasks(target, {
+    requireGeneratedScaffoldProvenance: query.requireGeneratedScaffoldProvenance ?? defaults.requireGeneratedScaffoldProvenance,
+    includeArchived: query.includeArchived !== false,
+    closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
+  });
+  return applyTaskQuery(tasks, query).map(taskStatusProjectionFromRecord);
+}
+
 function taskStatusProjectionFromRecord(task: TaskRecord): TaskStatusProjection {
-  return { ...task };
+  return {
+    id: task.id,
+    taskKey: task.taskKey,
+    currentPath: task.currentPath,
+    originalPath: task.originalPath,
+    aliases: task.aliases,
+    identitySource: task.identitySource,
+    shortId: task.shortId,
+    title: task.title,
+    path: task.path,
+    taskPlanPath: task.taskPlanPath,
+    executionStrategyPath: task.executionStrategyPath,
+    progressPath: task.progressPath,
+    reviewPath: task.reviewPath,
+    findingsPath: task.findingsPath,
+    module: task.module,
+    inferredModule: task.inferredModule,
+    classificationSource: task.classificationSource,
+    classificationBucket: task.classificationBucket,
+    briefSource: task.briefSource,
+    briefPath: task.briefPath,
+    visualMapSource: task.visualMapSource,
+    visualMapStatus: task.visualMapStatus,
+    visualMapPath: task.visualMapPath,
+    legacyVisualRoadmapPresent: task.legacyVisualRoadmapPresent,
+    briefQuality: task.briefQuality,
+    migrationClassification: task.migrationClassification,
+    roadmapSource: task.roadmapSource,
+    state: task.state,
+    budget: task.budget,
+    taskContractVersion: task.taskContractVersion,
+    taskContractGenerated: task.taskContractGenerated,
+    stateSource: task.stateSource,
+    stateRaw: task.stateRaw,
+    taskKind: task.taskKind,
+    taskPreset: task.taskPreset,
+    presetVersion: task.presetVersion,
+    migrationTargetLevel: task.migrationTargetLevel,
+    migrationAchievedLevel: task.migrationAchievedLevel,
+    evidenceBundle: task.evidenceBundle,
+    migrationSnapshot: task.migrationSnapshot,
+    scaffoldProvenance: task.scaffoldProvenance,
+    taskAudit: task.taskAudit,
+    lifecycleState: task.lifecycleState,
+    reviewStatus: task.reviewStatus,
+    reviewSubmitted: task.reviewSubmitted,
+    reviewSubmission: task.reviewSubmission,
+    reviewQueueState: task.reviewQueueState,
+    reviewConfirmation: task.reviewConfirmation,
+    materialsReady: task.materialsReady,
+    materialIssues: task.materialIssues,
+    taskQueues: task.taskQueues,
+    queueReasons: task.queueReasons,
+    repairPrompt: task.repairPrompt,
+    closeoutStatus: task.closeoutStatus,
+    walkthroughPath: task.walkthroughPath,
+    lessonCandidatePath: task.lessonCandidatePath,
+    lessonCandidateStatus: task.lessonCandidateStatus,
+    lessonCandidateReviewDecision: task.lessonCandidateReviewDecision,
+    lessonCandidatePromotionState: task.lessonCandidatePromotionState,
+    lessonCandidateCloseoutToken: task.lessonCandidateCloseoutToken,
+    lessonCandidateRowCount: task.lessonCandidateRowCount,
+    lessonCandidateRows: task.lessonCandidateRows,
+    lessonCandidateOpenCount: task.lessonCandidateOpenCount,
+    lessonCandidateIssues: task.lessonCandidateIssues,
+    lessonCandidateDecisionComplete: task.lessonCandidateDecisionComplete,
+    longRunningContractPath: task.longRunningContractPath,
+    longRunningContractStatus: task.longRunningContractStatus,
+    deletionState: task.deletionState,
+    supersededBy: task.supersededBy,
+    supersedes: task.supersedes,
+    deleteReason: task.deleteReason,
+    archiveMetadata: task.archiveMetadata,
+    hiddenByDefault: task.hiddenByDefault,
+    reopenEligible: task.reopenEligible,
+    archiveEligible: task.archiveEligible,
+    tombstoneSourcePath: task.tombstoneSourcePath,
+    stateConflicts: task.stateConflicts,
+    completion: task.completion,
+    phases: task.phases,
+    risks: task.risks,
+    evidence: task.evidence,
+    handoffs: task.handoffs,
+    dependencies: task.dependencies,
+    semanticProjection: task.semanticProjection,
+    taskLifecycleProjection: task.taskLifecycleProjection,
+    visibility: task.visibility,
+    visibilityScopes: task.visibilityScopes,
+    dashboardTaskView: task.dashboardTaskView,
+    reviewWorkbenchQueueView: task.reviewWorkbenchQueueView,
+  };
 }
 
 function applyTaskQuery(tasks: TaskRecord[], query: TaskQuery): TaskRecord[] {

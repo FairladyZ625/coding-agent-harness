@@ -53,6 +53,7 @@ export function buildRuntimeDist({
   }
 
   fs.rmSync(buildOutDir, { recursive: true, force: true });
+  fs.mkdirSync(buildOutDir, { recursive: true });
 
   const npmArgs = ["exec", "--yes", "--package", `typescript@${typescriptVersion}`, "--", "tsc", "-p", absoluteConfig, "--outDir", buildOutDir, "--noCheck"];
   const npmExecPath = process.env.npm_execpath;

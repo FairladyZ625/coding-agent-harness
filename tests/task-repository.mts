@@ -25,12 +25,105 @@ type ComparableTask = {
   materialIssues?: unknown[];
 };
 
+const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+
+const statusProjectionKeys = [
+  "aliases",
+  "archiveEligible",
+  "archiveMetadata",
+  "briefPath",
+  "briefQuality",
+  "briefSource",
+  "budget",
+  "classificationBucket",
+  "classificationSource",
+  "closeoutStatus",
+  "completion",
+  "currentPath",
+  "dashboardTaskView",
+  "deleteReason",
+  "deletionState",
+  "dependencies",
+  "evidence",
+  "evidenceBundle",
+  "executionStrategyPath",
+  "findingsPath",
+  "handoffs",
+  "hiddenByDefault",
+  "id",
+  "identitySource",
+  "inferredModule",
+  "legacyVisualRoadmapPresent",
+  "lessonCandidateCloseoutToken",
+  "lessonCandidateDecisionComplete",
+  "lessonCandidateIssues",
+  "lessonCandidateOpenCount",
+  "lessonCandidatePath",
+  "lessonCandidatePromotionState",
+  "lessonCandidateReviewDecision",
+  "lessonCandidateRowCount",
+  "lessonCandidateRows",
+  "lessonCandidateStatus",
+  "lifecycleState",
+  "longRunningContractPath",
+  "longRunningContractStatus",
+  "materialIssues",
+  "materialsReady",
+  "migrationAchievedLevel",
+  "migrationClassification",
+  "migrationSnapshot",
+  "migrationTargetLevel",
+  "module",
+  "originalPath",
+  "path",
+  "phases",
+  "presetVersion",
+  "progressPath",
+  "queueReasons",
+  "reopenEligible",
+  "repairPrompt",
+  "reviewConfirmation",
+  "reviewPath",
+  "reviewQueueState",
+  "reviewStatus",
+  "reviewSubmission",
+  "reviewSubmitted",
+  "reviewWorkbenchQueueView",
+  "risks",
+  "roadmapSource",
+  "scaffoldProvenance",
+  "semanticProjection",
+  "shortId",
+  "state",
+  "stateConflicts",
+  "stateRaw",
+  "stateSource",
+  "supersededBy",
+  "supersedes",
+  "taskAudit",
+  "taskContractGenerated",
+  "taskContractVersion",
+  "taskKey",
+  "taskKind",
+  "taskLifecycleProjection",
+  "taskPlanPath",
+  "taskPreset",
+  "taskQueues",
+  "title",
+  "tombstoneSourcePath",
+  "visibility",
+  "visibilityScopes",
+  "visualMapPath",
+  "visualMapSource",
+  "visualMapStatus",
+  "walkthroughPath",
+].sort();
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
 function copyMinimalProject(name: string): string {
-  const repoRoot = process.env.HARNESS_TEST_REPO_ROOT || path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
   const target = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "harness-task-repository-")), name);
   fs.cpSync(path.join(repoRoot, "examples/minimal-project"), target, { recursive: true });
   return target;
@@ -50,6 +143,10 @@ function queueComparable(task: ComparableTask): ComparableTask {
   };
 }
 
+function statusProjectionComparable(task: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(statusProjectionKeys.map((key) => [key, task[key]]));
+}
+
 function assertJsonEqual(actual: unknown, expected: unknown, message: string): void {
   const actualJson = JSON.stringify(actual);
   const expectedJson = JSON.stringify(expected);
@@ -64,10 +161,18 @@ const legacyTaskPlanPaths = listTaskPlanPaths(target);
 const legacyTasks = collectTasks(target, { taskPlanPaths: legacyTaskPlanPaths });
 const repositoryTasks = repository.list();
 const statusProjectionTasks = statusProjectionReader.listStatusTasks();
+const statusProjectionTypeKeys = topLevelStatusProjectionTypeKeys();
 
 assert(repositoryTasks.length === legacyTasks.length, "repository list should preserve task count");
 assertJsonEqual(repositoryTasks.map(queueComparable), legacyTasks.map(queueComparable), "repository list should preserve scanner queue/material fields");
 assertJsonEqual(statusProjectionTasks.map(queueComparable), repositoryTasks.map(queueComparable), "status projection reader should preserve queue/material fields without exposing scanner repository to status-builder");
+assertJsonEqual(statusProjectionTypeKeys, statusProjectionKeys, "TaskStatusProjection type keys must match the runtime status projection allowlist");
+assertJsonEqual(Object.keys(statusProjectionTasks[0] || {}).sort(), statusProjectionKeys, "status projection reader should expose only the explicit status/dashboard contract field allowlist");
+assertJsonEqual(
+  statusProjectionTasks.map((item) => statusProjectionComparable(item as Record<string, unknown>)),
+  repositoryTasks.map((item) => statusProjectionComparable(item as Record<string, unknown>)),
+  "status projection reader should preserve every explicit status/dashboard contract field from the scanner-backed repository source",
+);
 
 const task = repository.get({ id: "TASKS/demo-task" });
 assert(task.id === "TASKS/demo-task", "repository get should find a task by canonical id");
@@ -170,3 +275,10 @@ assert(missingRepositoryTask.queueReasons.length > 0 || missingRepositoryTask.ma
 assertJsonEqual(queueComparable(missingRepositoryTask), queueComparable(missingLegacyTask), "repository should not drift unknown queue/material readiness behavior");
 
 console.log("Task repository compatibility tests passed");
+
+function topLevelStatusProjectionTypeKeys(): string[] {
+  const source = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/task-repository.ts"), "utf8");
+  const match = source.match(/export type TaskStatusProjection = \{\n([\s\S]*?)\n\};/);
+  assert(match, "TaskStatusProjection type declaration should be parseable");
+  return [...match[1].matchAll(/^\s{2}([A-Za-z0-9_]+)\?:/gm)].map((item) => item[1]).sort();
+}

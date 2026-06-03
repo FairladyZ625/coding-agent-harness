@@ -302,7 +302,11 @@ function runInstalledPackageSmoke(root: string, failures: Failure[], observation
   fs.mkdirSync(home, { recursive: true });
   const npmEnv = isolatedEnv({ nodeBin, home });
 
-  const pack = spawnSync("npm", ["pack", "--silent", "--pack-destination", packDir], {
+  // The release observation already runs `npm pack --dry-run --json` first,
+  // which exercises prepack and refreshes dist. The install smoke needs a
+  // tarball of that observed package, not another cold lifecycle build in an
+  // isolated npm cache.
+  const pack = spawnSync("npm", ["pack", "--silent", "--ignore-scripts", "--pack-destination", packDir], {
     cwd: root,
     encoding: "utf8",
     env: npmEnv,
