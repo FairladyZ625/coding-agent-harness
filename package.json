@@ -41,8 +41,8 @@
     "pack:dry-run": "npm pack --dry-run --json",
     "postinstall": "node postinstall.mjs",
     "observe:dist": "node run-dist.mjs check-dist-observation.mjs --skip-pack --skip-install-smoke",
-    "smoke:dashboard": "node run-dist.mjs run-built-tests.mjs --test tests/smoke-dashboard.mjs",
-    "test": "node run-dist.mjs run-built-tests.mjs"
+    "smoke:dashboard": "node scripts/run-built-tests.mts --test tests/smoke-dashboard.mjs",
+    "test": "node scripts/run-built-tests.mts"
   },
   "files": [
     "README.md",

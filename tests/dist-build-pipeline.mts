@@ -88,7 +88,7 @@ assert(packageJson.files.includes("postinstall.mjs"), "package allowlist should 
 assert(packageJson.files.includes("run-dist.mjs"), "package allowlist should include npm script dist bootstrap");
 assert(!packageJson.files.includes("scripts/"), "package allowlist should not include historical scripts shims after PR-28");
 assert(packageJson.files.includes("tsconfig.dist.json"), "package allowlist should include the dist build config");
-assert(packageJson.scripts?.test === "node run-dist.mjs run-built-tests.mjs", "test runner should execute built output from tests/**/*.mts through the bootstrap");
+assert(packageJson.scripts?.test === "node scripts/run-built-tests.mts", "test runner should avoid a redundant run-dist build before emitting tests");
 
 const help = spawnSync(process.execPath, [path.join(distRoot, "harness.mjs"), "--help"], {
   cwd: repoRoot,
