@@ -23,12 +23,6 @@ import {
 } from "./capability-registry.mjs";
 import { buildStatus } from "./check-profiles.mjs";
 import { collectAdoption, categorizeWarning, splitWarningMessage } from "./dashboard-data.mjs";
-import {
-  listTaskPlanPaths,
-  isActiveTaskState,
-  requiresCanonicalVisualMap,
-  taskCutoverCounters,
-} from "./task-scanner.mjs";
 import { writeDashboardFolder } from "./dashboard-data.mjs";
 import {
   migrationSampleFiles,
@@ -42,6 +36,7 @@ import {
   recommendedMigrationCapabilities,
   migrationPhases,
 } from "./migration-support.mjs";
+import { taskStatusCutoverCounters } from "./task-repository.mjs";
 import type { TaskStatusCutoverProjection, TaskStatusProjection } from "./task-repository.mjs";
 import type { CheckTarget } from "./types/check-profiles.js";
 
@@ -90,6 +85,10 @@ type WarningGroup = {
   count: number;
   examples: string[];
 };
+
+function requiresCanonicalMigrationVisualMap(task: { migrationClassification: string }): boolean {
+  return ["active", "reopened", "current-evidence", "historical-with-diagram"].includes(task.migrationClassification);
+}
 
 type MigrationSession = {
   operation?: string;
@@ -179,7 +178,7 @@ export function buildMigrationPlan(targetInput: string, { limit = 20 }: Migratio
       const task = tasksByShortId.get(key);
       const actionFile = taskContract[3] === legacyVisualRoadmapFile ? visualMapFile : taskContract[3];
       const visualGap = actionFile === visualMapFile;
-      if (!task || (!isActiveTaskState(task.state) && !(visualGap && requiresCanonicalVisualMap(task)))) {
+      if (!task || (task.migrationClassification !== "active" && !(visualGap && requiresCanonicalMigrationVisualMap(task)))) {
         legacyResiduals.push({
           type: "legacy-task-contract-gap",
           taskId: key,
@@ -255,7 +254,7 @@ export function buildMigrationPlan(targetInput: string, { limit = 20 }: Migratio
         "Rewrite the human brief and preserve links to source task evidence.",
       );
     }
-    if (requiresCanonicalVisualMap(task) && task.visualMapSource !== "canonical") {
+    if (requiresCanonicalMigrationVisualMap(task) && task.visualMapSource !== "canonical") {
       addTaskAction(
         task.shortId,
         task.path,
@@ -263,7 +262,7 @@ export function buildMigrationPlan(targetInput: string, { limit = 20 }: Migratio
         "Rewrite task diagrams into canonical visual_map.md. Legacy visual_roadmap.md is read-only migration input.",
       );
     }
-    if (isActiveTaskState(task.state) && task.briefSource !== "standalone") {
+    if (task.migrationClassification === "active" && task.briefSource !== "standalone") {
       addTaskAction(
         task.shortId,
         task.path,
@@ -288,7 +287,7 @@ export function buildMigrationPlan(targetInput: string, { limit = 20 }: Migratio
   const recommendedCapabilities = recommendedMigrationCapabilities(status, target, registry);
   const missingExecutionStrategy = taskActions.filter((action) => action.files.includes("execution_strategy.md")).length;
   const missingVisualMap = taskActions.filter((action) => action.files.includes(visualMapFile)).length;
-  const cutoverCounters = taskCutoverCounters(tasks as TaskStatusCutoverProjection[]);
+  const cutoverCounters = taskStatusCutoverCounters(tasks as TaskStatusCutoverProjection[]);
   const visualMapActions = taskActions.filter((action) => action.files.includes(visualMapFile)).length;
   const fullCutoverEligible =
     status.checkState.status === "pass" &&
