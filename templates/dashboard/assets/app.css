@@ -3169,6 +3169,10 @@ button, input, select {
   align-items: start;
 }
 
+.detail-grid.side-collapsed {
+  grid-template-columns: minmax(0, 1fr) 52px;
+}
+
 .detail-main {
   display: grid;
   gap: 20px;
@@ -3192,12 +3196,21 @@ button, input, select {
   align-items: start;
 }
 
+.doc-workbench.docs-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .doc-workbench-nav {
   display: grid;
   gap: 12px;
   max-height: min(72vh, 760px);
   overflow: auto;
   padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.doc-workbench.docs-collapsed .doc-workbench-nav {
+  display: none;
 }
 
 .doc-nav-group {
@@ -3258,8 +3271,11 @@ button, input, select {
 }
 
 .doc-workbench-reader {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   max-width: 100%;
+  max-height: min(76vh, 920px);
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--paper);
@@ -3288,8 +3304,17 @@ button, input, select {
   overflow-wrap: anywhere;
 }
 
-.doc-workbench-reader .markdown {
+.doc-reader-scroll {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 18px 22px 22px;
+  scrollbar-gutter: stable;
+}
+
+.doc-reader-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .drawer-doc-preview {
@@ -3397,6 +3422,34 @@ button, input, select {
   gap: 16px;
   position: sticky;
   top: 16px;
+}
+
+.detail-side-toggle {
+  justify-self: end;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 8px 12px;
+  min-width: 44px;
+  min-height: 40px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.detail-side.collapsed {
+  gap: 0;
+}
+
+.detail-side.collapsed .side-panel {
+  display: none;
+}
+
+.detail-side.collapsed .detail-side-toggle {
+  justify-self: stretch;
+  writing-mode: vertical-rl;
+  min-height: 132px;
+  border-radius: 8px;
 }
 
 .side-panel {
@@ -4450,6 +4503,10 @@ details summary {
     position: static;
   }
 
+  .detail-grid.side-collapsed {
+    grid-template-columns: 1fr;
+  }
+
   .doc-workbench {
     grid-template-columns: 1fr;
   }
@@ -4457,6 +4514,19 @@ details summary {
   .doc-workbench-nav {
     max-height: none;
     overflow: visible;
+  }
+
+  .doc-workbench.docs-collapsed .doc-workbench-nav {
+    display: none;
+  }
+
+  .doc-workbench-reader {
+    max-height: min(72vh, 760px);
+  }
+
+  .detail-side.collapsed .detail-side-toggle {
+    writing-mode: horizontal-tb;
+    min-height: 44px;
   }
 }
 

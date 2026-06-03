@@ -387,7 +387,9 @@ assert(workbenchGroups.get("artifacts")?.includes("artifacts/__dashboard_artifac
 assert(workbenchGroups.get("other")?.includes("notes/future.md"), "document workbench should preserve unknown projected keys in Other projected docs");
 assert(documentWorkbenchResult.defaultKey === "progress", "document workbench should reuse projection-backed priority for default active document");
 assert(documentWorkbenchResult.readerCount === 1, "document workbench should render exactly one markdown reader");
-assert(documentWorkbenchResult.libraryHtml.includes('class="doc-workbench"'), "document workbench should replace accordion layout with a workspace layout");
+assert(/class="doc-workbench(?:\s|")/.test(documentWorkbenchResult.libraryHtml), "document workbench should replace accordion layout with a workspace layout");
+assert(documentWorkbenchResult.libraryHtml.includes('data-detail-docs-toggle'), "document workbench should expose a document nav collapse control");
+assert(documentWorkbenchResult.libraryHtml.includes('class="doc-reader-scroll markdown"'), "document workbench should wrap markdown in an internal scroll region");
 assert(!documentWorkbenchResult.libraryHtml.includes("doc-accordion"), "document workbench should not render source documents as accordions");
 assert(documentWorkbenchResult.libraryHtml.includes("Operator Runbook"), "document workbench should render selected material document content");
 
@@ -444,6 +446,10 @@ assert(!drawerPreviewResult.activeDrawer.includes("<rendered># Runbook"), "drawe
 
 assert(/\.phase-step strong\s*\{[^}]*overflow-wrap:\s*anywhere/s.test(dashboardCss), "compact phase cards should wrap long phase ids");
 assert(/\.phase-step-head span\s*\{[^}]*overflow-wrap:\s*anywhere/s.test(dashboardCss), "compact phase cards should wrap long phase metadata");
+assert(/\.doc-workbench-reader\s*\{[^}]*grid-template-rows:\s*auto minmax\(0,\s*1fr\)[^}]*max-height:\s*min\(76vh,\s*920px\)[^}]*overflow:\s*hidden/s.test(dashboardCss), "document reader should constrain long markdown inside a fixed reader shell");
+assert(/\.doc-reader-scroll\s*\{[^}]*overflow:\s*auto[^}]*overscroll-behavior:\s*contain/s.test(dashboardCss), "document markdown body should scroll inside the reader");
+assert(/\.detail-grid\.side-collapsed\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*52px/s.test(dashboardCss), "right detail side panel should collapse to a narrow control rail");
+assert(/\.doc-workbench\.docs-collapsed\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s.test(dashboardCss), "document nav collapse should let the reader take the full workbench width");
 
 const lifecycleQueueSandbox = createSandbox();
 vm.runInContext(`
@@ -858,6 +864,47 @@ assert(docNavResult.pushed.endsWith("/docs/review"), "document nav click should 
 assert(docNavResult.scrollY === 740, "document nav click should preserve window scroll");
 assert(docNavResult.docNavTop === 620, "document nav click should preserve the source document list scroll");
 assert(docNavResult.rerendered === true, "document nav click should rerender the selected document");
+
+const detailCollapseSandbox = createSandbox({
+  localStorage: {
+    getItem: () => "",
+    setItem(key: string, value: string) {
+      (this as { writes?: Array<[string, string]> }).writes = [...((this as { writes?: Array<[string, string]> }).writes || []), [key, value]];
+    },
+  },
+});
+vm.runInContext(`
+  const docsToggle = { listeners: {}, addEventListener(type, listener) { this.listeners[type] = listener; } };
+  const sideToggle = { listeners: {}, addEventListener(type, listener) { this.listeners[type] = listener; } };
+  document = {
+    documentElement: { dataset: {}, lang: "", scrollTop: 0 },
+    body: { scrollTop: 0 },
+    querySelector: () => null,
+    querySelectorAll(selector) {
+      if (selector === "[data-detail-docs-toggle]") return [docsToggle];
+      if (selector === "[data-detail-side-toggle]") return [sideToggle];
+      return [];
+    },
+    getElementById: () => null,
+  };
+  let rerenders = 0;
+  app = () => { rerenders += 1; };
+  bind();
+  docsToggle.listeners.click();
+  sideToggle.listeners.click();
+  __result = JSON.stringify({
+    detailDocsCollapsed: state.detailDocsCollapsed,
+    detailSideCollapsed: state.detailSideCollapsed,
+    writes: localStorage.writes,
+    rerenders,
+  });
+`, detailCollapseSandbox);
+const detailCollapseResult = JSON.parse(String(detailCollapseSandbox.__result)) as { detailDocsCollapsed: boolean; detailSideCollapsed: boolean; writes: Array<[string, string]>; rerenders: number };
+assert(detailCollapseResult.detailDocsCollapsed === true, "document nav collapse button should update UI state");
+assert(detailCollapseResult.detailSideCollapsed === true, "detail side collapse button should update UI state");
+assert(detailCollapseResult.writes.some(([key, value]) => key === "harness.detailDocsCollapsed" && value === "true"), "document nav collapse state should persist");
+assert(detailCollapseResult.writes.some(([key, value]) => key === "harness.detailSideCollapsed" && value === "true"), "detail side collapse state should persist");
+assert(detailCollapseResult.rerenders === 2, "detail collapse buttons should rerender while preserving scroll");
 
 function fakeInput(value: string): FakeInput {
   return {

@@ -56,6 +56,8 @@ const state = {
   theme: localStorage.getItem("harness.theme") || "system",
   taskLayout: localStorage.getItem("harness.taskLayout") || "swimlane",
   taskSortOrder: localStorage.getItem("harness.taskSortOrder") === "asc" ? "asc" : "desc",
+  detailDocsCollapsed: localStorage.getItem("harness.detailDocsCollapsed") === "true",
+  detailSideCollapsed: localStorage.getItem("harness.detailSideCollapsed") === "true",
   runtime: { mode: "static", csrfToken: "", writableActions: [] },
   runtimeLoaded: false,
   runtimePoller: null,
@@ -1372,11 +1374,12 @@ function taskDetail(route) {
     </section>
     ${taskStateSummary(task)}
     ${phaseTimeline(task)}
-    <section class="detail-grid">
+    <section class="detail-grid ${state.detailSideCollapsed ? "side-collapsed" : ""}">
       <article class="detail-main">
         ${taskDocumentLibrary(task, route.doc)}
       </article>
-      <aside class="detail-side">
+      <aside class="detail-side ${state.detailSideCollapsed ? "collapsed" : ""}">
+        <button type="button" class="detail-side-toggle" data-detail-side-toggle aria-expanded="${state.detailSideCollapsed ? "false" : "true"}">${escapeHtml(state.detailSideCollapsed ? t("expandSidePanel") : t("collapseSidePanel"))}</button>
         ${reviewActionPanel(task, { mode: "summary" })}
         ${lessonCandidatePanel(task, { context: "detail" })}
         ${openFindings(task)}
@@ -1502,15 +1505,18 @@ function taskDocumentLibrary(task, selectedTab) {
   const selectedKey = docs.some((doc) => doc.key === selectedTab) ? selectedTab : defaultTaskDocumentKey(task, docs);
   const selected = docs.find((doc) => doc.key === selectedKey) || docs[0];
   const groups = taskDocumentGroups(task, docs);
-  return `<section class="doc-library">
+  return `<section class="doc-library ${state.detailDocsCollapsed ? "docs-collapsed" : ""}">
     <div class="section-head">
       <div>
         <p class="eyebrow">${t("taskDocuments")}</p>
         <h2>${escapeHtml(t("sourceDocuments"))}</h2>
       </div>
-      <button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button>
+      <div class="section-actions">
+        <button type="button" data-detail-docs-toggle aria-expanded="${state.detailDocsCollapsed ? "false" : "true"}">${escapeHtml(state.detailDocsCollapsed ? t("expandDocumentNav") : t("collapseDocumentNav"))}</button>
+        <button data-render-toggle>${state.renderMode === "rendered" ? t("source") : t("rendered")}</button>
+      </div>
     </div>
-    <div class="doc-workbench">
+    <div class="doc-workbench ${state.detailDocsCollapsed ? "docs-collapsed" : ""}">
       <nav class="doc-workbench-nav" aria-label="${escapeAttr(t("sourceDocuments"))}">
         ${groups.map((group) => documentGroupNav(task, group, selectedKey)).join("")}
       </nav>
@@ -1647,7 +1653,7 @@ function documentReader(doc) {
         <p>${escapeHtml(doc.generated ? t("generatedFallback") : doc.path)}</p>
       </div>
     </header>
-    <div class="markdown">${window.HarnessMarkdown.render(doc.content, state.renderMode)}</div>
+    <div class="doc-reader-scroll markdown" tabindex="0">${window.HarnessMarkdown.render(doc.content, state.renderMode)}</div>
   </article>`;
 }
 
@@ -3301,6 +3307,16 @@ function bind() {
   document.querySelectorAll("[data-render-toggle]").forEach((button) => button.addEventListener("click", () => {
     state.renderMode = state.renderMode === "rendered" ? "source" : "rendered";
     app();
+  }));
+  document.querySelectorAll("[data-detail-docs-toggle]").forEach((button) => button.addEventListener("click", () => {
+    state.detailDocsCollapsed = !state.detailDocsCollapsed;
+    localStorage.setItem("harness.detailDocsCollapsed", String(state.detailDocsCollapsed));
+    rerenderPreservingScroll();
+  }));
+  document.querySelectorAll("[data-detail-side-toggle]").forEach((button) => button.addEventListener("click", () => {
+    state.detailSideCollapsed = !state.detailSideCollapsed;
+    localStorage.setItem("harness.detailSideCollapsed", String(state.detailSideCollapsed));
+    rerenderPreservingScroll();
   }));
   document.querySelectorAll("[data-warning-filter]").forEach((button) => button.addEventListener("click", () => {
     state.warningFilter = button.dataset.warningFilter || "all";

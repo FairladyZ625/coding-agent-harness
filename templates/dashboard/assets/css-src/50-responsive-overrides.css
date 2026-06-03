@@ -76,6 +76,10 @@
     position: static;
   }
 
+  .detail-grid.side-collapsed {
+    grid-template-columns: 1fr;
+  }
+
   .doc-workbench {
     grid-template-columns: 1fr;
   }
@@ -83,6 +87,19 @@
   .doc-workbench-nav {
     max-height: none;
     overflow: visible;
+  }
+
+  .doc-workbench.docs-collapsed .doc-workbench-nav {
+    display: none;
+  }
+
+  .doc-workbench-reader {
+    max-height: min(72vh, 760px);
+  }
+
+  .detail-side.collapsed .detail-side-toggle {
+    writing-mode: horizontal-tb;
+    min-height: 44px;
   }
 }
 

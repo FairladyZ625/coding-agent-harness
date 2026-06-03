@@ -56,6 +56,8 @@ const state = {
   theme: localStorage.getItem("harness.theme") || "system",
   taskLayout: localStorage.getItem("harness.taskLayout") || "swimlane",
   taskSortOrder: localStorage.getItem("harness.taskSortOrder") === "asc" ? "asc" : "desc",
+  detailDocsCollapsed: localStorage.getItem("harness.detailDocsCollapsed") === "true",
+  detailSideCollapsed: localStorage.getItem("harness.detailSideCollapsed") === "true",
   runtime: { mode: "static", csrfToken: "", writableActions: [] },
   runtimeLoaded: false,
   runtimePoller: null,

@@ -88,6 +88,16 @@ function bind() {
     state.renderMode = state.renderMode === "rendered" ? "source" : "rendered";
     app();
   }));
+  document.querySelectorAll("[data-detail-docs-toggle]").forEach((button) => button.addEventListener("click", () => {
+    state.detailDocsCollapsed = !state.detailDocsCollapsed;
+    localStorage.setItem("harness.detailDocsCollapsed", String(state.detailDocsCollapsed));
+    rerenderPreservingScroll();
+  }));
+  document.querySelectorAll("[data-detail-side-toggle]").forEach((button) => button.addEventListener("click", () => {
+    state.detailSideCollapsed = !state.detailSideCollapsed;
+    localStorage.setItem("harness.detailSideCollapsed", String(state.detailSideCollapsed));
+    rerenderPreservingScroll();
+  }));
   document.querySelectorAll("[data-warning-filter]").forEach((button) => button.addEventListener("click", () => {
     state.warningFilter = button.dataset.warningFilter || "all";
     state.warningPage = 1;
