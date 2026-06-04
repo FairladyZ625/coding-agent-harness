@@ -107,13 +107,21 @@ export function commitReviewConfirmationGate(
   };
 }
 
-export function validateReviewConfirmationGitAudit({ projectRoot, taskId, reviewPath, progressPath, commitSha }: { projectRoot?: string; taskId?: string; reviewPath?: string; progressPath?: string; commitSha?: string }): AnyRecord {
+export function validateReviewConfirmationGitAudit({ projectRoot, taskId, reviewPath, progressPath, commitSha, expectedPathGroups = [] }: {
+  projectRoot?: string;
+  taskId?: string;
+  reviewPath?: string;
+  progressPath?: string;
+  commitSha?: string;
+  expectedPathGroups?: string[][];
+}): AnyRecord {
   const issues: string[] = [];
   const addIssue = (code: string) => issues.push(code);
   const root = projectRoot ? path.resolve(projectRoot) : "";
   const reviewRelativePath = root && reviewPath ? toPosix(path.relative(root, path.resolve(reviewPath))) : "";
   const progressRelativePath = root && progressPath ? toPosix(path.relative(root, path.resolve(progressPath))) : "";
-  const expectedPaths = [reviewRelativePath, progressRelativePath].filter(Boolean).sort();
+  const defaultExpectedPaths = [reviewRelativePath, progressRelativePath].filter(Boolean).sort();
+  const expectedPathCandidates = normalizeExpectedPathGroups(root, expectedPathGroups, defaultExpectedPaths);
   if (!root) addIssue("git-audit-context-missing");
   if (!commitSha) addIssue("git-audit-commit-missing");
   if (issues.length > 0) return { valid: false, issues };
@@ -123,7 +131,7 @@ export function validateReviewConfirmationGitAudit({ projectRoot, taskId, review
     return { valid: false, issues: ["git-audit-repository-missing"] };
   }
   const gitRoot = path.resolve(gitRootResult.stdout.trim());
-  if (real(gitRoot) !== real(root)) addIssue("git-audit-root-mismatch");
+  if (!sameRealPath(gitRoot, root)) addIssue("git-audit-root-mismatch");
 
   const commitResult = git(root, ["rev-parse", "--verify", `${commitSha}^{commit}`], { allowFailure: true });
   if (commitResult.status !== 0) {
@@ -143,21 +151,48 @@ export function validateReviewConfirmationGitAudit({ projectRoot, taskId, review
     .filter(Boolean)
     .map(toPosix)
     .sort();
-  if (expectedPaths.length === 0) addIssue("git-audit-allowlist-missing");
+  if (expectedPathCandidates.length === 0) addIssue("git-audit-allowlist-missing");
+  let matchedExpectedPaths: string[] = expectedPathCandidates[0] || [];
   if (batchSubject) {
-    const expectedIncluded = expectedPaths.every((expectedPath) => changedPaths.includes(expectedPath));
+    const matched = expectedPathCandidates.find((expectedPaths) => expectedPaths.every((expectedPath) => changedPaths.includes(expectedPath)));
+    if (matched) matchedExpectedPaths = matched;
     const batchPathsAllowed = changedPaths.every((changedPath) => /(^|\/)coding-agent-harness\/planning\/(?:tasks|modules)\/.+\/INDEX\.md$/.test(changedPath));
-    if (!expectedIncluded || !batchPathsAllowed) addIssue("git-audit-allowlist-mismatch");
-  } else if (changedPaths.join("\n") !== expectedPaths.join("\n")) addIssue("git-audit-allowlist-mismatch");
+    if (!matched || !batchPathsAllowed) addIssue("git-audit-allowlist-mismatch");
+  } else {
+    const matched = expectedPathCandidates.find((expectedPaths) => changedPaths.join("\n") === expectedPaths.join("\n"));
+    if (matched) matchedExpectedPaths = matched;
+    else addIssue("git-audit-allowlist-mismatch");
+  }
 
   return {
     valid: issues.length === 0,
     issues,
     commitSha: fullCommitSha,
     changedPaths,
-    expectedPaths,
+    expectedPaths: matchedExpectedPaths,
+    expectedPathGroups: expectedPathCandidates,
     subject,
   };
+}
+
+function normalizeExpectedPathGroups(root: string, groups: string[][], fallback: string[]): string[][] {
+  const normalized = [...groups, fallback]
+    .map((group) => [...new Set((group || []).map((item) => normalizeExpectedPath(root, item)).filter(Boolean))].sort())
+    .filter((group) => group.length > 0);
+  const seen = new Set<string>();
+  return normalized.filter((group) => {
+    const key = group.join("\n");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeExpectedPath(root: string, item: string): string {
+  const raw = String(item || "").trim();
+  if (!raw) return "";
+  if (!root || path.isAbsolute(raw)) return toPosix(path.relative(root, path.resolve(raw)));
+  return toPosix(raw);
 }
 
 function requireGitRoot(root: string): string {
@@ -336,4 +371,12 @@ function git(cwd: string, args: string[], { allowFailure = false } = {}): GitRes
 
 function real(filePath: string): string {
   return fs.realpathSync(filePath);
+}
+
+function sameRealPath(left: string, right: string): boolean {
+  const leftReal = real(left);
+  const rightReal = real(right);
+  if (leftReal === rightReal) return true;
+  if (process.platform === "darwin" || process.platform === "win32") return leftReal.toLowerCase() === rightReal.toLowerCase();
+  return false;
 }

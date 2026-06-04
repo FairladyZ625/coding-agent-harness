@@ -32,6 +32,22 @@ type ReviewFixture = {
 type StatusResponse = {
   tasks: Array<{ id?: string; reviewStatus?: string }>;
 };
+type TaskListResponse = {
+  tasks: Array<{
+    id?: string;
+    currentPath?: string;
+    deletionState?: string;
+    reviewConfirmation?: {
+      confirmed?: boolean;
+      gitAudit?: {
+        valid?: boolean;
+        expectedPaths?: string[];
+        expectedPathGroups?: string[][];
+      };
+    };
+    reviewStatus?: string;
+  }>;
+};
 type ReviewConfirmPayload = {
   audit: { commitSha: string; auditCommitSha?: string };
 };
@@ -200,6 +216,24 @@ function readIndex(fixture: ReviewFixture): string {
   assert(index.includes(`| Review Commit SHA | ${payload.audit.commitSha} |`), "review confirmation should record real commit SHA in INDEX.md");
   assert(!readReview(fixture).includes("Human Review Confirmation"), "review-confirm should not write Human Review Confirmation to review.md");
   assert(git(fixture.target, ["status", "--porcelain"]).stdout.trim() === "", "clean success should leave the repo clean");
+}
+
+{
+  const fixture = prepareReviewTarget("git-gate-archived-provenance");
+  const result = reviewConfirm(fixture);
+  assert(result.status === 0, `review-confirm before archive should pass\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
+  expectHarnessJson(["task-archive", fixture.shortId, "--reason", "release closeout fixture", "--archived-by", "Release Manager <release@example.invalid>", "--archive-field", "retention bucket=release:fixture", fixture.target]);
+  const listed = expectHarnessJson<TaskListResponse>(["task-list", "--include-archived", "--json", fixture.target]);
+  const archived = listed.tasks.find((candidate) => candidate.id === fixture.taskId);
+  assert(archived, "archived task should remain discoverable with --include-archived");
+  assert(archived.deletionState === "archived", "archived task should expose archived deletion state");
+  assert(String(archived.currentPath || "").includes("/governance/archive/"), "archived task current path should point at archive storage");
+  assert(archived.reviewConfirmation?.confirmed === true, `archived task should keep Git-backed human review confirmation: ${JSON.stringify(archived.reviewConfirmation)}`);
+  assert(archived.reviewConfirmation?.gitAudit?.valid === true, "archived task review git audit should validate against historical active path");
+  assert(
+    (archived.reviewConfirmation?.gitAudit?.expectedPaths || []).includes(`coding-agent-harness/planning/tasks/${fixture.shortId}/INDEX.md`),
+    "archived task git audit should match the historical active INDEX path, not only current archive path",
+  );
 }
 
 {

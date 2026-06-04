@@ -170,7 +170,10 @@ assert(confirmedStatus.reviewWorkbenchQueueView?.finalized === true, "confirmed 
 assert(!confirmedStatus.taskQueues.includes("review"), "confirmed fixture must not remain in review queue");
 
 const archivedStatus = findTask(statusTasks, archived.task.id);
-assert(archivedStatus.reviewStatus === "agent-reviewed", "archived fixture should retain Agent Review Submission status after archive storage move");
+assert(archivedStatus.reviewSubmitted === true, "archived fixture should retain Agent Review Submission status after archive storage move");
+const archivedReviewSubmission = archivedStatus.reviewSubmission as { submitted?: unknown } | undefined;
+assert(archivedReviewSubmission?.submitted === true, "archived fixture should retain Agent Review Submission packet after archive storage move");
+assert(archivedStatus.reviewStatus === "confirmed", "archived fixture should retain confirmed human-review status after archive storage move");
 assert(archivedStatus.deletionState === "archived", "archived fixture should expose archived deletionState after task-archive");
 assert(archivedStatus.reviewQueueState === "not-in-queue", "archived fixture must not enter review queue");
 assert(!archivedStatus.taskQueues.includes("review"), "archived fixture must not remain in the review queue");

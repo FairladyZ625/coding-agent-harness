@@ -52,9 +52,14 @@ import { attachTaskSemanticProjection } from "./task-semantic-projection.mjs";
 import { invalidTaskStateMaterialIssues } from "./task-state-materials.mjs";
 import {
   parsePhases,
-  readTaskContractFile,
-  readVisualMapContractFile,
 } from "./task-visual-map-contract.mjs";
+import {
+  provenanceTaskDirectories,
+  readContractFileFromTaskDirectories,
+  readFileFromTaskDirectories,
+  readVisualMapFromTaskDirectories,
+  reviewAuditProvenanceProjection,
+} from "./task-review-provenance.mjs";
 import {
   resolveHarnessPaths,
   safeAdoptionCapability,
@@ -238,19 +243,29 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
   return paths.map((taskPlanPath) => {
     const taskDir = path.dirname(taskPlanPath);
     const taskPlan = readFileSafe(taskPlanPath);
-    const brief = readTaskContractFile(taskDir, "brief.md", "");
-    const executionStrategyPath = path.join(taskDir, "execution_strategy.md");
+    const directoryId = taskIdForDirectory(target, taskDir);
+    const id = taskIdFromArchiveStoragePath(target.projectRoot, taskDir) || directoryId;
     const indexPath = path.join(taskDir, "INDEX.md");
+    const indexContent = readFileSafe(indexPath);
+    const identity = parseTaskIdentity(taskPlan, id);
+    const tombstone = parseTaskTombstone(taskPlan);
+    const reviewAuditProvenance = reviewAuditProvenanceProjection(target, identity.taskKey, {
+      currentIndexPath: indexPath,
+      currentTaskDir: taskDir,
+      deletionState: tombstone.deletionState,
+    });
+    const materialTaskDirs = provenanceTaskDirectories(target, reviewAuditProvenance, taskDir);
+    const brief = readContractFileFromTaskDirectories(materialTaskDirs, "brief.md", "");
+    const executionStrategyPath = path.join(taskDir, "execution_strategy.md");
     const progressPath = path.join(taskDir, "progress.md");
     const reviewPath = path.join(taskDir, "review.md");
     const findingsPath = path.join(taskDir, "findings.md");
     const lessonCandidatesPath = path.join(taskDir, lessonCandidatesFile);
     const longRunningContractPath = path.join(taskDir, longRunningTaskContractFile);
-    const visualMap = readVisualMapContractFile(taskDir, taskPlan);
-    const progress = readFileSafe(progressPath);
-    const review = readFileSafe(reviewPath);
-    const indexContent = readFileSafe(indexPath);
-    const parsedLessonCandidates = asLessonCandidateStatus(parseLessonCandidateStatus(readFileSafe(lessonCandidatesPath)));
+    const visualMap = readVisualMapFromTaskDirectories(materialTaskDirs, taskPlan);
+    const progress = readFileFromTaskDirectories(materialTaskDirs, "progress.md");
+    const review = readFileFromTaskDirectories(materialTaskDirs, "review.md");
+    const parsedLessonCandidates = asLessonCandidateStatus(parseLessonCandidateStatus(readFileFromTaskDirectories(materialTaskDirs, lessonCandidatesFile)));
     const lessonDetailIssues = validateLessonCandidateDetailArtifacts(target, taskDir, parsedLessonCandidates);
     const lessonCandidates = lessonDetailIssues.length
       ? { ...parsedLessonCandidates, issues: [...parsedLessonCandidates.issues, ...lessonDetailIssues] }
@@ -258,10 +273,6 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
     const phases = parsePhases(visualMap.content);
     const completion = phaseCompletionAverage(phases);
     const relative = toPosix(path.relative(target.projectRoot, taskDir));
-    const directoryId = taskIdForDirectory(target, taskDir);
-    const id = taskIdFromArchiveStoragePath(target.projectRoot, taskDir) || directoryId;
-    const identity = parseTaskIdentity(taskPlan, id);
-    const tombstone = parseTaskTombstone(taskPlan);
     const title = titleFromMarkdown(brief.content || taskPlan, path.basename(taskDir));
     const stateInfo = parseTaskStateInfo(progress);
     const budget = parseTaskBudget(taskPlan);
@@ -286,6 +297,7 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       indexPath,
       reviewPath,
       progressPath,
+      reviewAuditProvenance,
     });
     const reviewStatus = taskReviewStatus({ reviewContent: review, risks, confirmation: reviewConfirmation, submission: reviewSubmission });
     const closeoutInfo = taskCloseoutInfo(target, taskPlanPath, closeout);
@@ -313,12 +325,12 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       ? collectUneditedTemplateMaterialIssues(target, taskDir, {
         briefContent: brief.content,
         taskPlanContent: taskPlan,
-        executionStrategyContent: readFileSafe(executionStrategyPath),
+        executionStrategyContent: readFileFromTaskDirectories(materialTaskDirs, "execution_strategy.md") || readFileSafe(executionStrategyPath),
         visualMapContent: visualMap.content,
         progressContent: progress,
-        findingsContent: readFileSafe(findingsPath),
+        findingsContent: readFileFromTaskDirectories(materialTaskDirs, "findings.md") || readFileSafe(findingsPath),
         reviewContent: review,
-        lessonCandidatesContent: readFileSafe(lessonCandidatesPath),
+        lessonCandidatesContent: readFileFromTaskDirectories(materialTaskDirs, lessonCandidatesFile) || readFileSafe(lessonCandidatesPath),
         walkthroughPath: closeoutInfo.walkthroughPath,
         includeWalkthrough: Boolean(reviewSubmission?.submitted || reviewConfirmation?.confirmed || effectiveCloseoutStatus === "closed"),
         humanReviewConfirmed: taskAudit.summary.humanReviewStatus === "confirmed",
@@ -410,6 +422,7 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       reviewSubmission,
       reviewQueueState,
       reviewConfirmation,
+      reviewAuditProvenance,
       materialsReady: materialIssues.length === 0,
       materialIssues,
       taskQueues: queueModel.taskQueues,

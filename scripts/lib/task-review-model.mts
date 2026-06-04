@@ -452,7 +452,7 @@ function closeoutMaterialSourcePath(target: HarnessTarget, taskDir: string): str
 
 export function parseReviewConfirmation(
   reviewContent: unknown,
-  { taskKey = "", taskAudit = null, projectRoot = "", taskDir = "", indexPath = "", reviewPath = "", progressPath = "" }: {
+  { taskKey = "", taskAudit = null, projectRoot = "", taskDir = "", indexPath = "", reviewPath = "", progressPath = "", reviewAuditProvenance = null }: {
     taskKey?: string;
     taskAudit?: TaskAudit | null;
     projectRoot?: string;
@@ -460,6 +460,7 @@ export function parseReviewConfirmation(
     indexPath?: string;
     reviewPath?: string;
     progressPath?: string;
+    reviewAuditProvenance?: { reviewAudit?: { allowedPathGroups?: unknown } } | null;
   } = {},
 ): ReviewConfirmation | null {
   if (taskAudit) {
@@ -476,6 +477,7 @@ export function parseReviewConfirmation(
         reviewPath: indexPath || path.join(taskDir, "INDEX.md"),
         progressPath: "",
         commitSha: confirmation.commitSha,
+        expectedPathGroups: reviewAuditAllowedPathGroups(reviewAuditProvenance),
       });
       return {
         ...confirmation,
@@ -488,6 +490,15 @@ export function parseReviewConfirmation(
     return confirmation;
   }
   return null;
+}
+
+function reviewAuditAllowedPathGroups(provenance: { reviewAudit?: { allowedPathGroups?: unknown } } | null): string[][] {
+  const groups = provenance?.reviewAudit?.allowedPathGroups;
+  if (!Array.isArray(groups)) return [];
+  return groups
+    .filter(Array.isArray)
+    .map((group) => group.map((item) => String(item || "").trim()).filter(Boolean))
+    .filter((group) => group.length > 0);
 }
 
 export function taskReviewStatus({ reviewContent = "", risks = [], confirmation = null, submission = null }: { reviewContent?: unknown; risks?: ReviewRisk[]; confirmation?: ReviewConfirmation | null; submission?: ReviewSubmission | null } = {}): string {
