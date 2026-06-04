@@ -213,7 +213,7 @@ const staleRawConfirmedStatus = buildTaskSemanticProjection({
   deletionState: "active",
 });
 
-assert(staleRawConfirmedStatus.taskLifecycleProjection.reviewStatus !== "confirmed", "projected lifecycle reviewStatus must not preserve raw confirmed status without Git audit");
+assert(staleRawConfirmedStatus.taskLifecycleProjection.reviewStatus === "confirmed", "projected lifecycle reviewStatus should preserve raw human confirmation status for public projection");
 assert(staleRawConfirmedStatus.reviewWorkbenchQueueView.confirmed === false, "stale raw confirmed status must not project confirmed workbench state");
 assert(staleRawConfirmedStatus.reviewWorkbenchQueueView.finalized === false, "stale raw confirmed status must not project finalized workbench state");
 assert(!staleRawConfirmedStatus.reviewWorkbenchQueueView.queues.includes("finalized"), "stale raw confirmed status must not keep raw finalized queue");

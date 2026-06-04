@@ -543,6 +543,48 @@ const missingLegacyTask = collectTasks(missingTarget, { taskPlanPaths: listTaskP
 assert(missingRepositoryTask.queueReasons.length > 0 || missingRepositoryTask.materialIssues.length > 0, "missing-material fixture should exercise queue/material readiness fields");
 assertJsonEqual(queueComparable(missingRepositoryTask), queueComparable(missingLegacyTask), "repository should not drift unknown queue/material readiness behavior");
 
+const reviewAuditTargetPath = copyMinimalProject("review-audit-profiles");
+const reviewAuditTaskDir = path.join(reviewAuditTargetPath, "coding-agent-harness/planning/tasks/demo-task");
+const reviewAuditIndexPath = path.join(reviewAuditTaskDir, "INDEX.md");
+fs.writeFileSync(
+  reviewAuditIndexPath,
+  fs.readFileSync(reviewAuditIndexPath, "utf8")
+    .replace("| Human Review Status | not-confirmed |", "| Human Review Status | confirmed |")
+    .replace("| Confirmation ID | n/a |", "| Confirmation ID | HRC-20260605001800 |")
+    .replace("| Confirmed At | n/a |", "| Confirmed At | 2026-06-05 00:18 |")
+    .replace("| Reviewer | n/a |", "| Reviewer | Harness Reviewer |")
+    .replace("| Reviewer Email | n/a |", "| Reviewer Email | reviewer@example.invalid |")
+    .replace("| Confirm Text | n/a |", "| Confirm Text | TASKS/demo-task |")
+    .replace("| Evidence Checked | n/a |", "| Evidence Checked | TARGET:coding-agent-harness/planning/tasks/demo-task/review.md |")
+    .replace("| Review Commit SHA | n/a |", "| Review Commit SHA | deadbee |")
+    .replace("| Audit Status | migrated |", "| Audit Status | committed |"),
+);
+const reviewAuditTarget = normalizeTarget(reviewAuditTargetPath);
+const gitTrapDir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-git-trap-"));
+const gitTrapLog = path.join(gitTrapDir, "git.log");
+fs.writeFileSync(
+  path.join(gitTrapDir, "git"),
+  `#!/usr/bin/env sh\nprintf '%s\\n' "$*" >> "${gitTrapLog.replaceAll("\"", "\\\"")}"\nexit 1\n`,
+  { mode: 0o755 },
+);
+const originalPath = process.env.PATH || "";
+process.env.PATH = `${gitTrapDir}${path.delimiter}${originalPath}`;
+try {
+  const lightTask = collectTasks(reviewAuditTarget, { taskPlanPaths: listTaskPlanPaths(reviewAuditTarget), strictReviewGitAudit: false })[0];
+  assert((lightTask.reviewConfirmation as { confirmed?: unknown } | null)?.confirmed === false, "light projection should not expose unaudited confirmation metadata as confirmed");
+  assert((lightTask.reviewConfirmation as { gitAuditInvalid?: unknown } | null)?.gitAuditInvalid === true, "light projection should mark unaudited confirmation metadata as not Git-backed");
+  assert(lightTask.reviewStatus !== "confirmed", "light projection reviewStatus should not claim unaudited human confirmation as confirmed");
+  assert(lightTask.reviewWorkbenchQueueView.confirmed === false, "light projection should not treat unaudited confirmation metadata as Git-backed truth");
+  assert(!fs.existsSync(gitTrapLog), "light projection should not invoke git while scanning historical review confirmations");
+
+  const strictTask = collectTasks(reviewAuditTarget, { taskPlanPaths: listTaskPlanPaths(reviewAuditTarget), strictReviewGitAudit: true })[0];
+  assert((strictTask.reviewConfirmation as { confirmed?: unknown } | null)?.confirmed === false, "strict projection should reject review confirmations whose commit cannot be audited");
+  assert((strictTask.reviewConfirmation as { gitAuditInvalid?: unknown } | null)?.gitAuditInvalid === true, "strict projection should expose invalid git audit state");
+  assert(fs.existsSync(gitTrapLog), "strict projection should invoke git for historical review confirmation audit");
+} finally {
+  process.env.PATH = originalPath;
+}
+
 console.log("Task repository compatibility tests passed");
 
 function topLevelStatusProjectionTypeKeys(): string[] {

@@ -27,10 +27,10 @@ type ReviewAuditProvenance = {
   };
 };
 
-export function reviewAuditProvenanceProjection(target: ReviewAuditTarget, taskKey: string, { currentIndexPath, currentTaskDir, deletionState }: { currentIndexPath: string; currentTaskDir: string; deletionState: string }): ReviewAuditProvenance {
+export function reviewAuditProvenanceProjection(target: ReviewAuditTarget, taskKey: string, { currentIndexPath, currentTaskDir, deletionState, originalTaskDir = "" }: { currentIndexPath: string; currentTaskDir: string; deletionState: string; originalTaskDir?: string }): ReviewAuditProvenance {
   const currentIndex = toPosix(path.relative(target.projectRoot, currentIndexPath));
   const historicalIndexes = new Set<string>();
-  const activeTaskDir = activeTaskDirectoryForKey(target, taskKey);
+  const activeTaskDir = originalTaskDir || activeTaskDirectoryForKey(target, taskKey);
   if (activeTaskDir) historicalIndexes.add(toPosix(path.relative(target.projectRoot, path.join(activeTaskDir, "INDEX.md"))));
   const historical = [...historicalIndexes].filter((item) => item !== currentIndex).sort();
   return {

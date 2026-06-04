@@ -1,8 +1,8 @@
 // Dynamic audit metadata parsing stays behavior-first until the metadata domain model PR.
 
-import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { toPosix } from "./core-shared.mjs";
+import { defaultGitRunner } from "./git-runner.mjs";
 import { firstColumn, markdownTableRows } from "./markdown-utils.mjs";
 
 export type TaskAuditFields = Record<string, string>;
@@ -93,12 +93,11 @@ export const taskAuditFieldOrder = [
 ];
 
 export function readGitIdentity(projectRoot: string): GitIdentity {
-  const gitRoot = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: projectRoot, encoding: "utf8" });
+  const gitRoot = defaultGitRunner.root(projectRoot);
   if (gitRoot.status !== 0) {
     return { name: "n/a", email: "n/a", display: "n/a", source: "git-unavailable" };
   }
-  const name = spawnSync("git", ["config", "--get", "user.name"], { cwd: projectRoot, encoding: "utf8" }).stdout.trim();
-  const email = spawnSync("git", ["config", "--get", "user.email"], { cwd: projectRoot, encoding: "utf8" }).stdout.trim();
+  const { name, email } = defaultGitRunner.identity(projectRoot);
   if (!name && !email) return { name: "n/a", email: "n/a", display: "n/a", source: "git-config-missing" };
   const display = name && email ? `${name} <${email}>` : name || email;
   return { name: name || "n/a", email: email || "n/a", display, source: "git-config" };

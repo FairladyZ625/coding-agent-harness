@@ -241,6 +241,13 @@ function taskCommands(): CommandDefinition[] {
       flags: [option("--module", "Module key"), flag("--register-module", "Register missing module"), option("--module-title", "New module title"), option("--module-prefix", "New module prefix"), repeated("--module-scope", "New module scope"), option("--budget", "Task budget"), option("--preset", "Task preset"), option("--from-session", "Session JSON path"), flag("--long-running", "Create long-running task contract"), option("--title", "Task title"), localeFlag, dryRunFlag],
       handler: legacyTaskHandler("new-task"),
     },
+    {
+      name: "new-task-batch",
+      description: "Create multiple task packages in one commit",
+      usage: "harness new-task-batch --task-list file [--module key] [--budget simple|standard|complex] [--title fallback-title] [--locale zh-CN|en-US] [--dry-run] [target]",
+      flags: [option("--task-list", "JSON task list"), option("--module", "Module key"), option("--budget", "Task budget"), option("--title", "Fallback task title"), localeFlag, dryRunFlag],
+      handler: legacyTaskHandler("new-task-batch"),
+    },
     { name: "task-start", description: "Mark task started", usage: "harness task-start <task-id> [--message text] [target]", positionals: ["task-id"], flags: lifecycleFlags, handler: legacyTaskHandler("task-start") },
     { name: "task-phase", description: "Update a task phase", usage: "harness task-phase <task-id> <phase-id> [--state done] [--completion 100] [--evidence present] [target]", positionals: ["task-id", "phase-id"], flags: [option("--state", "Phase state"), option("--completion", "Completion percentage"), option("--evidence", "Evidence status")], handler: legacyTaskHandler("task-phase") },
     { name: "task-log", description: "Append task progress log", usage: "harness task-log <task-id> --message text [--evidence type:PATH:summary] [target]", positionals: ["task-id"], flags: [option("--message", "Progress message"), option("--evidence", "Evidence reference")], handler: legacyTaskHandler("task-log") },

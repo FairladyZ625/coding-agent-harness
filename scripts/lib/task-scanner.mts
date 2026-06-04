@@ -236,7 +236,7 @@ export function taskCutoverCounters(tasks: Array<{ visualMapStatus: string; migr
   };
 }
 
-export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffoldProvenance = false, includeArchived = false, taskPlanPaths, closeoutContent }: CollectTasksOptions = {}) {
+export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffoldProvenance = false, includeArchived = false, taskPlanPaths, closeoutContent, strictReviewGitAudit = false }: CollectTasksOptions = {}) {
   const harnessPaths = (target.harness || resolveHarnessPaths(target)) as ResolvedHarnessPaths;
   const paths = taskPlanPaths || listTaskPlanPaths(target, { includeArchived });
   const closeout = closeoutContent ?? (harnessPaths.version === 2 ? "" : readFileSafe(harnessPaths.legacy.closeoutPath));
@@ -249,10 +249,14 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
     const indexContent = readFileSafe(indexPath);
     const identity = parseTaskIdentity(taskPlan, id);
     const tombstone = parseTaskTombstone(taskPlan);
+    const currentRelativePath = toPosix(path.relative(target.projectRoot, taskDir));
+    const originalRelativePath = String(tombstone.archiveMetadata?.["original path"] || currentRelativePath);
+    const originalTaskDir = pathWithinProject(target.projectRoot, originalRelativePath);
     const reviewAuditProvenance = reviewAuditProvenanceProjection(target, identity.taskKey, {
       currentIndexPath: indexPath,
       currentTaskDir: taskDir,
       deletionState: tombstone.deletionState,
+      originalTaskDir,
     });
     const materialTaskDirs = provenanceTaskDirectories(target, reviewAuditProvenance, taskDir);
     const brief = readContractFileFromTaskDirectories(materialTaskDirs, "brief.md", "");
@@ -298,6 +302,7 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       reviewPath,
       progressPath,
       reviewAuditProvenance,
+      strictGitAudit: strictReviewGitAudit,
     });
     const reviewStatus = taskReviewStatus({ reviewContent: review, risks, confirmation: reviewConfirmation, submission: reviewSubmission });
     const closeoutInfo = taskCloseoutInfo(target, taskPlanPath, closeout);
@@ -377,7 +382,7 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       id,
       taskKey: identity.taskKey,
       currentPath: `TARGET:${relative}`,
-      originalPath: `TARGET:${relative}`,
+      originalPath: `TARGET:${originalRelativePath}`,
       aliases: [],
       identitySource: identity.identitySource,
       shortId: id.split("/").at(-1) || path.basename(taskDir),
@@ -547,4 +552,11 @@ function collectEvidence(progressContent: string): EvidenceRef[] {
     status: "present",
     summary: match[3].trim(),
   }));
+}
+
+function pathWithinProject(projectRoot: string, relativePath: string): string {
+  const raw = String(relativePath || "").replace(/^TARGET:/, "").trim();
+  if (!raw || path.isAbsolute(raw)) return "";
+  const absolute = path.resolve(projectRoot, raw);
+  return absolute === projectRoot || absolute.startsWith(`${projectRoot}${path.sep}`) ? absolute : "";
 }

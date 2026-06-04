@@ -59,6 +59,10 @@ type CreateTaskCliOptions = {
     locale?: string;
   };
 };
+type BatchTaskListItem = {
+  id: string;
+  title?: string;
+};
 
 function taskOperations(target: string) {
   return createScannerTaskOperations(target);
@@ -91,6 +95,23 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       const parsed = parseNewTaskArgs(args, { preset, fromSession });
       const createOptions = { title, locale, dryRun, moduleKey, budget, longRunning, preset, fromSession, presetArgs: parsed.presetArgs, automaticTaskId: parsed.automaticTaskId, registerModule, moduleRegistration };
       console.log(JSON.stringify(unwrapTaskOperation(taskOperations(parsed.target).create({ taskId: parsed.taskId, ...createOptions })), null, 2));
+    } catch (error) {
+      console.error(errorMessage(error));
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (command === "new-task-batch") {
+    const taskList = takeOption("--task-list", "");
+    const dryRun = takeFlag("--dry-run");
+    const locale = takeOption("--locale", "");
+    const title = takeOption("--title", "");
+    const moduleKey = takeOption("--module", "");
+    const budget = takeOption("--budget", "standard");
+    try {
+      const tasks = readBatchTaskList(taskList);
+      console.log(JSON.stringify(unwrapTaskOperation(taskOperations(targetArg()).createBatch({ tasks, title, locale, dryRun, moduleKey, budget })), null, 2));
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
@@ -421,6 +442,26 @@ function formatTaskCommandError(error: unknown): string {
   if (stderr) lines.push("", String(stderr));
   if (stdout) lines.push("", String(stdout));
   return lines.join("\n");
+}
+
+function readBatchTaskList(filePath: string): BatchTaskListItem[] {
+  if (!filePath) throw new Error("new-task-batch requires --task-list <json>");
+  const parsed = JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
+  const rawTasks = Array.isArray(parsed)
+    ? parsed
+    : isRecord(parsed) && Array.isArray(parsed.tasks)
+      ? parsed.tasks
+      : null;
+  if (!rawTasks) throw new Error("new-task-batch --task-list must be a JSON array or an object with tasks[]");
+  return rawTasks.map((item, index) => {
+    if (!isRecord(item)) throw new Error(`new-task-batch task at index ${index} must be an object`);
+    const id = String(item.id || "").trim();
+    if (!id) throw new Error(`new-task-batch task at index ${index} is missing id`);
+    return {
+      id,
+      title: String(item.title || "").trim(),
+    };
+  });
 }
 
 function takeRepeatedKeyValueOptions(args: string[], flag: string): Record<string, string> {

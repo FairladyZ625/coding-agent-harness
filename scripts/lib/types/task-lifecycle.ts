@@ -128,6 +128,15 @@ export type CreateTaskOptions = {
   };
 };
 
+export type CreateTaskBatchItem = {
+  id: string;
+  title?: string;
+};
+
+export type CreateTaskBatchOptions = Omit<CreateTaskOptions, "deferCommit" | "allowDirtyRelativePaths" | "automaticTaskId" | "fromSession" | "presetArgs" | "registerModule" | "moduleRegistration"> & {
+  tasks: CreateTaskBatchItem[];
+};
+
 export type LifecycleUpdateOptions = {
   event?: string;
   state?: string;

@@ -4,9 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
-import { spawnSync } from "node:child_process";
-import type { SpawnSyncReturns } from "node:child_process";
 import { readBundledTemplate, readFileSafe, readJsonSafe, repoRoot, todayDate, toPosix } from "./core-shared.mjs";
+import { defaultGitRunner, type GitCommandResult, type GitStatusEntry } from "./git-runner.mjs";
 import { createTaskGovernanceProjectionReader } from "./task-repository.mjs";
 import { appendMarkdownTableRow, firstColumn, fitMarkdownTableRow, splitMarkdownRow, upsertMarkdownTableRow } from "./markdown-utils.mjs";
 import { resolveHarnessPaths } from "./harness-paths.mjs";
@@ -29,12 +28,7 @@ type GovernanceSyncErrorOptions = {
   recovery?: string[];
 };
 
-type GovernanceStatusEntry = {
-  index: string;
-  worktree: string;
-  path: string;
-  raw: string;
-};
+type GovernanceStatusEntry = GitStatusEntry;
 
 type FingerprintedStatusEntry = GovernanceStatusEntry & {
   fingerprint: string;
@@ -464,13 +458,11 @@ export function inspectGit(root: string): GitInspection {
 }
 
 function currentBranch(root: string): string {
-  const result = git(root, ["branch", "--show-current"], { allowFailure: true });
-  return result.status === 0 ? result.stdout.trim() : "";
+  return defaultGitRunner.currentBranch(root);
 }
 
 function assertCommitIdentity(root: string): void {
-  const name = git(root, ["config", "--get", "user.name"], { allowFailure: true }).stdout.trim();
-  const email = git(root, ["config", "--get", "user.email"], { allowFailure: true }).stdout.trim();
+  const { name, email } = defaultGitRunner.identity(root);
   if (!name || !email) {
     throw new GovernanceSyncError("Governance sync auto-commit requires Git user.name and user.email.", {
       code: "governance-git-identity-missing",
@@ -544,10 +536,7 @@ function assertNoUnexpectedOutsideChanges(root: string, allowedPaths: string[], 
 }
 
 function assertLastCommitOnlyAllowed(root: string, allowedPaths: string[]): void {
-  const committed = git(root, ["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "HEAD"]).stdout
-    .split("\0")
-    .filter(Boolean)
-    .map(toPosix);
+  const committed = defaultGitRunner.commitChangedPaths(root, "HEAD");
   const outside = committed.filter((file) => !allowedPaths.includes(file));
   if (outside.length > 0) {
     throw new GovernanceSyncError("Governance sync commit contains files outside its write scope.", {
@@ -586,25 +575,14 @@ function fingerprintEntry(root: string, entry: GovernanceStatusEntry): string {
 }
 
 function statusEntries(root: string): GovernanceStatusEntry[] {
-  return git(root, ["status", "--porcelain=v1", "--untracked-files=all"]).stdout
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .map((line) => ({
-      index: line.slice(0, 1),
-      worktree: line.slice(1, 2),
-      path: toPosix(parseStatusPath(line.slice(3))),
-      raw: line,
-    }))
+  return defaultGitRunner.statusEntries(root)
     .filter((entry) => entry.path !== ".harness/locks/governance-sync.lock");
 }
 
-function parseStatusPath(value: string): string {
-  const unquoted = value.replace(/^"|"$/g, "");
-  return unquoted.includes(" -> ") ? unquoted.split(" -> ").pop() ?? unquoted : unquoted;
-}
-
-function git(cwd: string, args: string[], { allowFailure = false }: { allowFailure?: boolean } = {}): SpawnSyncReturns<string> {
-  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+function git(cwd: string, args: string[], { allowFailure = false }: { allowFailure?: boolean } = {}): GitCommandResult {
+  const result = args.join("\0") === "rev-parse\0--show-toplevel"
+    ? defaultGitRunner.root(cwd)
+    : defaultGitRunner.run(cwd, args);
   if (!allowFailure && result.status !== 0) {
     throw new GovernanceSyncError(`git ${args.join(" ")} failed`, {
       code: "governance-git-command-failed",

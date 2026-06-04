@@ -326,9 +326,7 @@ function normalizedQueueReasons(task: TaskSemanticProjectionInput): QueueReason[
 function normalizedReviewStatus(task: TaskSemanticProjectionInput): string {
   const raw = stringValue(task.reviewStatus, "missing");
   if (isGitBackedHumanReviewConfirmed(task)) return "confirmed";
-  if (raw !== "confirmed") return raw;
-  if (task.reviewSubmitted === true) return "agent-reviewed";
-  return "required";
+  return raw;
 }
 
 function primaryReviewQueue(queues: string[]): string {

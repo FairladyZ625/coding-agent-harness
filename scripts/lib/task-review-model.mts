@@ -452,7 +452,7 @@ function closeoutMaterialSourcePath(target: HarnessTarget, taskDir: string): str
 
 export function parseReviewConfirmation(
   reviewContent: unknown,
-  { taskKey = "", taskAudit = null, projectRoot = "", taskDir = "", indexPath = "", reviewPath = "", progressPath = "", reviewAuditProvenance = null }: {
+  { taskKey = "", taskAudit = null, projectRoot = "", taskDir = "", indexPath = "", reviewPath = "", progressPath = "", reviewAuditProvenance = null, strictGitAudit = false }: {
     taskKey?: string;
     taskAudit?: TaskAudit | null;
     projectRoot?: string;
@@ -461,11 +461,13 @@ export function parseReviewConfirmation(
     reviewPath?: string;
     progressPath?: string;
     reviewAuditProvenance?: { reviewAudit?: { allowedPathGroups?: unknown } } | null;
+    strictGitAudit?: boolean;
   } = {},
 ): ReviewConfirmation | null {
   if (taskAudit) {
     const confirmation = reviewConfirmationFromTaskAudit(taskAudit, { taskKey });
     if (
+      strictGitAudit &&
       confirmation?.confirmed &&
       projectRoot &&
       (indexPath || taskDir) &&
@@ -479,12 +481,21 @@ export function parseReviewConfirmation(
         commitSha: confirmation.commitSha,
         expectedPathGroups: reviewAuditAllowedPathGroups(reviewAuditProvenance),
       });
+      const gitAuditValid = gitAudit.valid === true;
       return {
         ...confirmation,
-        confirmed: confirmation.confirmed && gitAudit.valid,
-        missingFields: gitAudit.valid ? confirmation.missingFields : [...confirmation.missingFields, "Review Commit SHA git audit"],
+        confirmed: confirmation.confirmed && gitAuditValid,
+        missingFields: gitAuditValid ? confirmation.missingFields : [...confirmation.missingFields, "Review Commit SHA git audit"],
         gitAudit,
-        gitAuditInvalid: !gitAudit.valid,
+        gitAuditInvalid: !gitAuditValid,
+      };
+    }
+    if (confirmation?.confirmed) {
+      return {
+        ...confirmation,
+        confirmed: false,
+        missingFields: [...confirmation.missingFields, "Review Commit SHA git audit"],
+        gitAuditInvalid: true,
       };
     }
     return confirmation;
@@ -503,7 +514,7 @@ function reviewAuditAllowedPathGroups(provenance: { reviewAudit?: { allowedPathG
 
 export function taskReviewStatus({ reviewContent = "", risks = [], confirmation = null, submission = null }: { reviewContent?: unknown; risks?: ReviewRisk[]; confirmation?: ReviewConfirmation | null; submission?: ReviewSubmission | null } = {}): string {
   if (risks.some(isBlockingReviewRisk)) return "blocked-open-findings";
-  if (isGitBackedHumanReviewConfirmed(confirmation)) return "confirmed";
+  if (confirmation?.confirmed === true) return "confirmed";
   if (!String(reviewContent || "").trim()) return "missing";
   if (submission?.submitted) return "agent-reviewed";
   if (hasAgentReviewSignal(reviewContent)) return "agent-reviewed";

@@ -1,28 +1,14 @@
 import path from "node:path";
 import fs from "node:fs";
-import { spawnSync } from "node:child_process";
-// @ts-ignore core-shared remains a JS runtime dependency until its migration PR.
 import { toPosix } from "./core-shared.mjs";
+import { defaultGitRunner, type GitCommandResult, type GitStatusEntry } from "./git-runner.mjs";
 
-type AnyRecord = Record<string, any>;
-
-type GitStatusEntry = {
-  index: string;
-  worktree: string;
-  path: string;
-  raw: string;
-};
+type AnyRecord = Record<string, unknown>;
 
 type ReviewConfirmGate = {
   gitRoot: string;
   allowedPaths: string[];
   baselineOutsideEntries: GitStatusEntry[];
-};
-
-type GitResult = ReturnType<typeof spawnSync> & {
-  stdout: string;
-  stderr: string;
-  status: number | null;
 };
 
 export class ReviewConfirmGitGateError extends Error {
@@ -133,24 +119,19 @@ export function validateReviewConfirmationGitAudit({ projectRoot, taskId, review
   const gitRoot = path.resolve(gitRootResult.stdout.trim());
   if (!sameRealPath(gitRoot, root)) addIssue("git-audit-root-mismatch");
 
-  const commitResult = git(root, ["rev-parse", "--verify", `${commitSha}^{commit}`], { allowFailure: true });
+  const commitResult = defaultGitRunner.verifyCommit(root, commitSha || "");
   if (commitResult.status !== 0) {
     return { valid: false, issues: [...issues, "git-audit-commit-missing"] };
   }
   const fullCommitSha = commitResult.stdout.trim();
-  const reachable = git(root, ["merge-base", "--is-ancestor", fullCommitSha, "HEAD"], { allowFailure: true });
-  if (reachable.status !== 0) addIssue("git-audit-commit-not-reachable");
+  if (!defaultGitRunner.isAncestor(root, fullCommitSha)) addIssue("git-audit-commit-not-reachable");
 
-  const subject = git(root, ["show", "-s", "--format=%s", fullCommitSha], { allowFailure: true }).stdout.trim();
+  const subject = defaultGitRunner.commitSubject(root, fullCommitSha);
   const expectedSubject = `chore: confirm review ${String(taskId || "").replace(/[^A-Za-z0-9._/-]+/g, "-")}`;
   const batchSubject = subject === "chore: confirm selected reviews";
   if (subject !== expectedSubject && !batchSubject) addIssue("git-audit-subject-mismatch");
 
-  const changedPaths = git(root, ["diff-tree", "--no-commit-id", "--name-only", "-r", fullCommitSha], { allowFailure: true }).stdout
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .map(toPosix)
-    .sort();
+  const changedPaths = defaultGitRunner.commitChangedPaths(root, fullCommitSha);
   if (expectedPathCandidates.length === 0) addIssue("git-audit-allowlist-missing");
   let matchedExpectedPaths: string[] = expectedPathCandidates[0] || [];
   if (batchSubject) {
@@ -275,8 +256,7 @@ function statusSignature(entries: GitStatusEntry[]): string {
 }
 
 function assertCommitIdentity(gitRoot: string): void {
-  const name = git(gitRoot, ["config", "--get", "user.name"], { allowFailure: true }).stdout.trim();
-  const email = git(gitRoot, ["config", "--get", "user.email"], { allowFailure: true }).stdout.trim();
+  const { name, email } = defaultGitRunner.identity(gitRoot);
   if (!name || !email) {
     throw new ReviewConfirmGitGateError("Git commit identity is missing; refusing review confirmation auto-commit.", {
       code: "git-identity-missing",
@@ -342,23 +322,13 @@ function commitOnly(gitRoot: string, message: string, paths: string[], { recover
 }
 
 function statusEntries(gitRoot: string): GitStatusEntry[] {
-  const output = git(gitRoot, ["status", "--porcelain=v1", "--untracked-files=all"]).stdout;
-  return output.split(/\r?\n/).filter(Boolean).map((line) => ({
-    index: line.slice(0, 1),
-    worktree: line.slice(1, 2),
-    path: parseStatusPath(line.slice(3)),
-    raw: line,
-  }));
+  return defaultGitRunner.statusEntries(gitRoot);
 }
 
-function parseStatusPath(value: string): string {
-  const unquoted = value.replace(/^"|"$/g, "");
-  const renamed = unquoted.includes(" -> ") ? unquoted.split(" -> ").pop() : unquoted;
-  return renamed || "";
-}
-
-function git(cwd: string, args: string[], { allowFailure = false } = {}): GitResult {
-  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+function git(cwd: string, args: string[], { allowFailure = false } = {}): GitCommandResult {
+  const result = args.join("\0") === "rev-parse\0--show-toplevel"
+    ? defaultGitRunner.root(cwd)
+    : defaultGitRunner.run(cwd, args);
   if (!allowFailure && result.status !== 0) {
     throw new ReviewConfirmGitGateError(`git ${args.join(" ")} failed`, {
       code: "git-command-failed",
@@ -366,7 +336,7 @@ function git(cwd: string, args: string[], { allowFailure = false } = {}): GitRes
       recovery: ["Inspect the Git error and retry review-confirm after resolving it."],
     });
   }
-  return result as GitResult;
+  return result;
 }
 
 function real(filePath: string): string {

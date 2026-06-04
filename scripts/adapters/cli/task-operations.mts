@@ -8,7 +8,8 @@ import {
 export function createScannerTaskOperations(targetInput: string = ".") {
   return createTaskOperations(targetInput, {
     subjects: createScannerTaskOperationSubjectReader(targetInput),
-    tombstoneSubjects: createScannerTaskTombstoneSubjectReader(targetInput),
+    strictSubjects: createScannerTaskOperationSubjectReader(targetInput, { strictReviewGitAudit: true }),
+    tombstoneSubjects: createScannerTaskTombstoneSubjectReader(targetInput, { strictReviewGitAudit: true }),
     writers: createLegacyTaskOperationWriters(),
   });
 }

@@ -113,4 +113,5 @@ export type CollectTasksOptions = {
   includeArchived?: boolean;
   taskPlanPaths?: string[];
   closeoutContent?: string;
+  strictReviewGitAudit?: boolean;
 };

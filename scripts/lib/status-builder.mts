@@ -66,6 +66,7 @@ export function buildStatusData(targetInput: HarnessTarget | string | undefined,
   const tasks = options.tasks || createTaskStatusProjectionReader(target, {
     requireGeneratedScaffoldProvenance: options.requireGeneratedScaffoldProvenance === true,
     closeoutContent: options.closeoutContent,
+    strictReviewGitAudit: true,
   }).listStatusTasks();
   const modules = harnessModulesForStatus(target);
   const briefReady = tasks.filter((task) => task.briefSource === "standalone").length;

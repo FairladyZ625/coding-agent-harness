@@ -14,16 +14,17 @@ import { appendProgressLog, markWalkthroughClosed } from "./task-lifecycle/text-
 import { buildScaffoldProvenance } from "./task-lifecycle/scaffold-provenance.mjs";
 import { buildCreationTaskAudit } from "./task-audit-metadata.mjs";
 import { renderAgentReviewSubmission, replaceAgentReviewSubmission } from "./task-lifecycle/review-submission.mjs";
+import { runCreateTaskBatch } from "./task-lifecycle/create-task-batch.mjs";
 import { planCreateTaskChanges, resolveImplicitCreateTarget } from "./task-lifecycle/create-task-helpers.mjs";
 import { createTaskGeneratedSurfaces, createTaskTransactionSummary, materializeCreateTask, type CreateTaskMaterialization } from "./task-lifecycle/create-task-materialization.mjs";
 import { plannedLifecycleAllowedPaths } from "./task-lifecycle/planned-write-scope.mjs";
-import { governanceRelativePaths, syncModuleStepGovernance, syncTaskGovernance } from "./governance-sync.mjs";
+import { beginGovernanceSync, commitGovernanceSync, governanceRelativePaths, releaseGovernanceSync, syncModuleStepGovernance, syncTaskGovernance } from "./governance-sync.mjs";
 import { assertTransactionSucceeded, createGovernanceHarnessTransaction } from "./harness-transaction.mjs";
 import { normalizeHarnessModuleKey, prepareModuleRegistration, prepareModuleStepRegistrationUpdate, readHarnessModules, registeredHarnessModule } from "./module-registry.mjs";
 import { buildLifecyclePresetContext, evaluatePresetValues, resolveLifecyclePresetInputs } from "./task-lifecycle/preset-interop.mjs";
 import { taskIdFromDirectory } from "./harness-paths.mjs";
 import type { TaskBudget } from "./types/task-scanner.js";
-import type { CreateTaskOptions, DeferredReviewConfirmOptions, LifecycleChange, LifecycleTarget, LifecycleTask, LifecycleUpdateOptions, ListLifecycleTasksOptions, ModuleStepOptions, PhaseUpdateOptions, PresetContext, PresetInputs, PresetPackage, ReviewConfirmOptions, TaskIdentity } from "./types/task-lifecycle.js";
+import type { CreateTaskBatchOptions, CreateTaskOptions, DeferredReviewConfirmOptions, LifecycleChange, LifecycleTarget, LifecycleTask, LifecycleUpdateOptions, ListLifecycleTasksOptions, ModuleStepOptions, PhaseUpdateOptions, PresetContext, PresetInputs, PresetPackage, ReviewConfirmOptions, TaskIdentity } from "./types/task-lifecycle.js";
 
 type LifecycleGateEvent = "task-start" | "task-review" | "task-complete";
 
@@ -41,7 +42,7 @@ function lifecycleGateEvent(event: string): LifecycleGateEvent {
 
 function findReviewTaskByDirectory(target: { projectRoot: string }, taskDir: string): LifecycleTask | undefined {
   const lifecycleTarget = asLifecycleTarget(normalizeTarget(target.projectRoot));
-  return createTaskReviewConfirmationSubjectReader(lifecycleTarget).findReviewConfirmationSubjectByDirectory(taskDir) as LifecycleTask | undefined;
+  return createTaskReviewConfirmationSubjectReader(lifecycleTarget, { strictReviewGitAudit: true }).findReviewConfirmationSubjectByDirectory(taskDir) as LifecycleTask | undefined;
 }
 
 function taskRoot(target: LifecycleTarget, taskId: string, { moduleKey = "" }: { moduleKey?: string } = {}): string {
@@ -288,6 +289,10 @@ export function createTask(targetInput: string, taskId: string, { title = "", lo
       transaction: createTaskTransactionSummary(transactionResult),
     },
   };
+}
+
+export function createTaskBatch(targetInput: string, options: CreateTaskBatchOptions) {
+  return runCreateTaskBatch(createTask, targetInput, options);
 }
 
 export function updateTaskLifecycle(targetInput: string, taskId: string, { event = "task-log", state = "", message = "", evidence = "" }: LifecycleUpdateOptions = {}) {
@@ -553,7 +558,7 @@ export function updateModuleStep(targetInput: string, moduleKey: string, stepId:
 
 export function listLifecycleTasks(targetInput: string, { state = "", moduleKey = "", queue = "", preset = "", review = "", lesson = "", search = "", missingMaterials = false, includeArchived = false }: ListLifecycleTasksOptions = {}) {
   const target = asLifecycleTarget(normalizeTarget(targetInput));
-  const tasks = createTaskLifecycleReader(target).listLifecycleTasks({
+  const tasks = createTaskLifecycleReader(target, { strictReviewGitAudit: true }).listLifecycleTasks({
     includeArchived,
     state,
     module: moduleKey ? normalizeHarnessModuleKey(moduleKey) : "",
