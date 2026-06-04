@@ -67,7 +67,7 @@ export function validateLifecycleTransition({
       const ids = blockingRisks.map((risk) => risk.id || risk.severity).join(", ");
       throw new Error(`Open blocking review findings must be closed before task-complete: ${ids}`);
     }
-    if (!parseReviewConfirmation(reviewContent, { taskKey: reviewTaskKey, taskAudit: parseTaskAuditMetadata(indexContent), projectRoot, taskDir, indexPath: path.join(taskDir, "INDEX.md") })?.confirmed) {
+    if (!parseReviewConfirmation(reviewContent, { taskKey: reviewTaskKey, taskAudit: parseTaskAuditMetadata(indexContent), projectRoot, taskDir, indexPath: path.join(taskDir, "INDEX.md"), strictGitAudit: true })?.confirmed) {
       throw new Error("Human review must be confirmed before task-complete. Confirm it from the local Dashboard workbench first.");
     }
     const lessonCandidateStatus = parseLessonCandidateStatus(fs.existsSync(path.join(taskDir, lessonCandidatesFile)) ? fs.readFileSync(path.join(taskDir, lessonCandidatesFile), "utf8") : "");

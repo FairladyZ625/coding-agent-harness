@@ -383,6 +383,7 @@ function findReviewConfirmationSubjectByDirectory(target: TaskScannerTarget, def
     requireGeneratedScaffoldProvenance: defaults.requireGeneratedScaffoldProvenance,
     includeArchived: true,
     closeoutContent: defaults.closeoutContent,
+    strictReviewGitAudit: defaults.strictReviewGitAudit === true,
   });
   const task = tasks.find((candidate) => taskDirectoryFromRecord(target, candidate) === absoluteTaskDir);
   return task ? reviewConfirmationSubjectFromRecord(task) : undefined;

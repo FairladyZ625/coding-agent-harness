@@ -42,7 +42,7 @@ function lifecycleGateEvent(event: string): LifecycleGateEvent {
 
 function findReviewTaskByDirectory(target: { projectRoot: string }, taskDir: string): LifecycleTask | undefined {
   const lifecycleTarget = asLifecycleTarget(normalizeTarget(target.projectRoot));
-  return createTaskReviewConfirmationSubjectReader(lifecycleTarget).findReviewConfirmationSubjectByDirectory(taskDir) as LifecycleTask | undefined;
+  return createTaskReviewConfirmationSubjectReader(lifecycleTarget, { strictReviewGitAudit: true }).findReviewConfirmationSubjectByDirectory(taskDir) as LifecycleTask | undefined;
 }
 
 function taskRoot(target: LifecycleTarget, taskId: string, { moduleKey = "" }: { moduleKey?: string } = {}): string {

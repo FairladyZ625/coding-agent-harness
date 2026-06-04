@@ -490,6 +490,14 @@ export function parseReviewConfirmation(
         gitAuditInvalid: !gitAuditValid,
       };
     }
+    if (confirmation?.confirmed) {
+      return {
+        ...confirmation,
+        confirmed: false,
+        missingFields: [...confirmation.missingFields, "Review Commit SHA git audit"],
+        gitAuditInvalid: true,
+      };
+    }
     return confirmation;
   }
   return null;

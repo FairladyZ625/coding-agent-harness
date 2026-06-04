@@ -97,8 +97,10 @@ assert(batchCommitCount === 1, `new-task-batch should create exactly one commit;
 assert(gitOutput(target, ["log", "-1", "--format=%s"]) === "chore(harness): register 5 tasks", "new-task-batch commit subject should describe the batch");
 const batchGitCommands = fs.readFileSync(gitLog, "utf8").trim().split(/\r?\n/).filter(Boolean);
 const batchVerifyCommands = batchGitCommands.filter((command) => command.startsWith("rev-parse --verify "));
+const batchIdentityCommands = batchGitCommands.filter((command) => command === "config --get user.name" || command === "config --get user.email");
 assert(batchGitCommands.length <= 180, `new-task-batch should stay under the CI git-call ceiling; got ${batchGitCommands.length}\nTop commands:\n${topGitCommands(batchGitCommands)}`);
 assert(batchVerifyCommands.length === 0, `default new-task-batch must not audit historical review commits; got ${batchVerifyCommands.length} rev-parse --verify calls`);
+assert(batchIdentityCommands.length <= 2, `new-task-batch should share Git identity facts within one CLI process; got ${batchIdentityCommands.length} identity config calls\nTop commands:\n${topGitCommands(batchGitCommands)}`);
 
 const aliasCollisionListPath = path.join(wrapperDir, "batch-alias-collision.json");
 fs.writeFileSync(
