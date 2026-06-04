@@ -95,7 +95,7 @@ export const fullRetirementGateProfile: FullRetirementGateRequirement[] = [
   gate("typecheck", "typecheck", ["P10", "P11", "P13"], "npm run typecheck", "TypeScript contract remains valid"),
   gate("import-graph", "import-graph", ["P10", "P11", "P13"], "node scripts/check-import-graph.mts --check --json", "legacy import boundaries and repository identity guards hold"),
   gate("legacy-fallback-detector", "detector", ["P10", "P11"], "node scripts/run-built-tests.mts --test tests/legacy-fallback-detector.mjs", "detector positive/negative fixtures catch illegal raw fallback, retired facade import, and stale package export"),
-  gate("legacy-fallback-final-audit", "detector", ["P13"], "node dist/check-legacy-fallback-surfaces.mjs --final-audit --json", "P13 registry classes and review states are final-audit clean"),
+  gate("legacy-fallback-final-audit", "detector", ["P13"], "node dist/check-legacy-fallback-surfaces.mjs --final-audit --registry <fallback-surface-registry.md> --json", "P13 registry classes and review states are final-audit clean"),
   gate("dashboard-smoke", "dashboard", ["P10", "P11", "P13"], "npm run smoke:dashboard", "Dashboard consumer still renders after gate/package changes"),
   gate("dashboard-generation", "dashboard", ["P10", "P13"], "node scripts/run-built-tests.mts --test tests/dashboard-generation.mjs", "Dashboard generation has no-data-loss coverage"),
   gate("source-package-check", "package", ["P10", "P11", "P13"], "npm run check", "source-package profile and governance checks pass"),

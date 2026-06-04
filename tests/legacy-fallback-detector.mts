@@ -221,6 +221,11 @@ export function ${inferLifecycleName}() {
     registryPath: "registry-historical-section.md",
     finalAudit: true,
   });
+  const missingRegistryFinalAuditReport = analyzeLegacyFallbackSurfaces({
+    repoRoot: tmpRoot,
+    scanRoots: [],
+    finalAudit: true,
+  });
   const exportKeyReport = analyzeLegacyFallbackSurfaces({
     repoRoot: tmpRoot,
     scanRoots: [],
@@ -256,6 +261,7 @@ export function ${inferLifecycleName}() {
   expectFinding(multiTableRegistryReport.findings, "registry-p13-illegal-class", "registry-multi-table.md");
   expectFinding(multiTableRegistryReport.findings, "registry-open-review-state", "registry-multi-table.md");
   assert(historicalRegistryReport.findings.length === 0, `historical seed registry section should not be final-audit authoritative; got ${JSON.stringify(historicalRegistryReport.findings, null, 2)}`);
+  expectFinding(missingRegistryFinalAuditReport.findings, "final-audit-registry-required", "<registry>");
   expectFinding(packReport.findings, "stale-package-export", "pack-dry-run.json");
   expectFinding(exportKeyReport.findings, "stale-package-export", "pack-export-key.json");
   expectNoFinding(report.findings, "src/negative/migration-only.ts");

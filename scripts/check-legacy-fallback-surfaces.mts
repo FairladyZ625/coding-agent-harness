@@ -11,7 +11,8 @@ type LegacyFindingCode =
   | "private-package-leak"
   | "registry-class-out-of-range"
   | "registry-p13-illegal-class"
-  | "registry-open-review-state";
+  | "registry-open-review-state"
+  | "final-audit-registry-required";
 
 export type LegacyFallbackFinding = {
   code: LegacyFindingCode;
@@ -122,6 +123,15 @@ export function analyzeLegacyFallbackSurfaces(options: DetectorOptions = {}): Le
     findings.push(...scanSourceText(relativeFile, content));
   }
 
+  if (options.finalAudit && !options.registryPath) {
+    findings.push({
+      code: "final-audit-registry-required",
+      file: "<registry>",
+      line: 1,
+      message: "Final audit must scan an explicit fallback registry; pass --registry <path>.",
+      text: "--final-audit",
+    });
+  }
   if (options.registryPath) findings.push(...scanRegistry(repoRoot, options.registryPath, Boolean(options.finalAudit)));
   if (options.packageJsonPath) findings.push(...scanPackageSurface(repoRoot, options.packageJsonPath));
 
