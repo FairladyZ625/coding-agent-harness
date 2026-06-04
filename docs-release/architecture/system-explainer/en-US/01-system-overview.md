@@ -133,7 +133,7 @@ flowchart TD
 
   RT --> Commands["Command registry\nCommandDefinition[] binds CLI actions"]
   RT --> UseCases["Application use cases\nTaskOperations orchestrates lifecycle and review"]
-  RT --> Ports["Ports\nTaskRepository / HarnessTransaction isolate filesystem writes"]
+  RT --> Ports["Ports\ninternal task readers / HarnessTransaction isolate filesystem writes"]
   RT --> Projection["Semantic projection\nTaskLifecycleProjection / DashboardTaskView"]
   RT --> Render["Generate\nOutput Dashboard HTML + JSON index\nOutput governance index tables"]
 ```
@@ -141,6 +141,9 @@ flowchart TD
 The Runtime is **stateless** — every run re-reads from Markdown files from scratch.
 Dashboard, Workbench queues, and governance indexes are derived projection views
 from task source files, not a second source of truth.
+Runtime internals such as repository readers, scanner adapters, and generated
+`dist/lib/*` modules are not the public package API. Public use goes through the
+`harness` CLI, bundled presets, templates, and generated views.
 
 ---
 

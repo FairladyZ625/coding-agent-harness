@@ -5,7 +5,7 @@
 ```mermaid
 flowchart LR
   Source["Markdown source of truth\ncoding-agent-harness/"]
-  Repository["TaskRepository\ncompatibility read seam"]
+  Repository["Internal task readers\nadapter-owned read seam"]
   Status["status model\nscanner + validators"]
   Projection["Task semantic projection\nunified lifecycle / review / queue semantics"]
   Dashboard["Dashboard / Workbench / generated indexes"]
@@ -46,11 +46,11 @@ context recovery, but must be rebuildable from the source files.
 
 ---
 
-## Level 2 — How TaskRepository reads tasks
+## Level 2 — How internal task readers read tasks
 
 ```mermaid
 flowchart TD
-  Repo["TaskRepository"]
+  Repo["Internal task readers"]
   List["list(query)"]
   Get["get(ref)"]
   Resolve["resolve(ref)"]
@@ -67,9 +67,10 @@ flowchart TD
   Materials --> Scanner
 ```
 
-`TaskRepository` wraps the existing scanner. Callers see task records and task
-materials, not `listTaskPlanPaths()`, directory exclusion rules, or legacy
-visual-map fallback internals.
+Internal task readers wrap scanner-backed discovery where needed. Public and
+application callers should see semantic task views and reviewable materials, not
+`listTaskPlanPaths()`, directory exclusion rules, or legacy visual-map fallback
+internals.
 
 ### Task discovery flow
 
@@ -83,8 +84,9 @@ flowchart TD
 ```
 
 The scanner still parses Markdown tables, state, phases, review submission,
-confirmation, lesson decisions, and tombstones. The post-refactor difference is
-that every UI or command surface should not re-interpret those raw fields on its own.
+confirmation, lesson decisions, and tombstones as an infrastructure adapter. The
+post-refactor boundary is that UI, command, and generated surfaces must not
+re-interpret those raw fields on their own.
 
 ---
 

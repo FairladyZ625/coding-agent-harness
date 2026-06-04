@@ -131,7 +131,7 @@ flowchart TD
 
   RT --> Commands["命令注册\nCommandDefinition[] 绑定 CLI 动作"]
   RT --> UseCases["应用用例\nTaskOperations 编排生命周期和审查"]
-  RT --> Ports["端口\nTaskRepository / HarnessTransaction 隔离文件系统写入"]
+  RT --> Ports["端口\n内部任务读取器 / HarnessTransaction 隔离文件系统写入"]
   RT --> Projection["语义投影\nTaskLifecycleProjection / DashboardTaskView"]
   RT --> Render["生成\n输出 Dashboard HTML + JSON 索引\n输出治理索引表"]
 ```
@@ -139,6 +139,8 @@ flowchart TD
 Runtime 是**无状态的**——每次运行都从 Markdown 文件重新读取。
 Dashboard、Workbench 队列和治理索引都是从任务源文件派生出来的投影视图，
 不是第二套事实来源。
+repository 读取器、scanner adapter 和生成的 `dist/lib/*` 模块都是运行时内部实现，
+不是公开 package API。公开使用入口是 `harness` CLI、内置 preset、模板和生成视图。
 
 ---
 

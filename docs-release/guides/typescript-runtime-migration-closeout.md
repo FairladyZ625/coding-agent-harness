@@ -13,8 +13,9 @@ TypeScript-first:
 
 - `scripts/**/*.mts` builds to generated `dist/**/*.mjs` artifacts.
 - `tests/**/*.mts` runs through the built test runner.
-- `dist/**/*.mjs` is the package runtime surface for npm bin and installed
-  execution. Source checkout npm scripts refresh it before running.
+- `dist/**/*.mjs` is the package runtime execution surface for npm bin and
+  installed execution. It is not a public deep-import API. Source checkout npm
+  scripts refresh it before running.
 - `scripts/**/*.mjs` and `tests/**/*.mjs` have a final inventory of zero.
 
 The source repository ignores `dist/`, but the npm package publishes generated
@@ -42,8 +43,9 @@ dashboard exceptions below.
 
 ## Runtime Contract
 
-The package is an ESM package and its current public runtime contract points at
-generated dist build output:
+The package is an ESM package. Its public package contract is the `harness`
+binary plus `package.json` metadata; generated dist files are internal runtime
+implementation used by that binary:
 
 - `package.json` maps the `harness` executable to `dist/harness.mjs`.
 - npm postinstall runs the source-safe `postinstall.mjs` bootstrap, which
@@ -54,6 +56,8 @@ generated dist build output:
   runs the relevant dist entrypoint.
 - Runtime modules import sibling `.mjs` files inside `dist/`, so installed
   package execution does not depend on TypeScript loaders.
+- External consumers should not import `dist/lib/*` or other deep runtime paths.
+  Package `exports` intentionally denies those paths.
 
 The PR-27 observation gate proved the package was dist-primary before deletion.
 The PR-28 deletion gate keeps that proof executable by requiring final inventory
@@ -95,6 +99,6 @@ exceptions must prove all of the following for its own surface:
 - the PR is independently revertible without reverting the earlier dist runtime
   cutover or the PR-28 historical shim deletion.
 
-`dist/**/*.mjs` remains the supported package execution surface. Preset `.mjs`
-hooks and dashboard browser `.js` assets remain documented exceptions, not
-unfinished CLI runtime migration work.
+`dist/**/*.mjs` remains the supported package execution surface for the CLI, not
+a public import API. Preset `.mjs` hooks and dashboard browser `.js` assets
+remain documented exceptions, not unfinished CLI runtime migration work.
