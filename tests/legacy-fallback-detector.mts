@@ -143,6 +143,30 @@ export function ${inferLifecycleName}() {
 | OK-1 | final-helper | stable-kernel | closed | P13 |
 | BAD-1 | bad-class | maybe-legacy | closed | P13 |
 `);
+  writeFixture("registry-multi-table.md", `
+| ID | Type | Path |
+| --- | --- | --- |
+| REF-001 | runbook | references/project-protocol.md |
+
+| Surface | Class | Review State | Owner | Next Phase |
+| --- | --- | --- | --- | --- |
+| later-runtime | bypass-to-migrate | open-runtime-fallback | architecture | P13 |
+| later-bad-class | maybe-legacy | closed | architecture | P13 |
+`);
+  writeFixture("registry-historical-section.md", `
+## Historical Seed Registry
+
+| Surface | Class | Review State | Owner | Next Phase |
+| --- | --- | --- | --- | --- |
+| historical-runtime | bypass-to-migrate | open-runtime-fallback | architecture | P13 |
+| historical-bad-class | maybe-legacy | open | architecture | P13 |
+
+## Current Registry
+
+| Surface | Class | Review State | Owner | Next Phase |
+| --- | --- | --- | --- | --- |
+| current-helper | stable-kernel | closed | architecture | P13 |
+`);
   writeFixture("pack.json", JSON.stringify({
     main: retiredDistFacade,
     types: "dist/index.d.ts",
@@ -185,6 +209,18 @@ export function ${inferLifecycleName}() {
     scanRoots: [],
     packageJsonPath: "pack-dry-run.json",
   });
+  const multiTableRegistryReport = analyzeLegacyFallbackSurfaces({
+    repoRoot: tmpRoot,
+    scanRoots: [],
+    registryPath: "registry-multi-table.md",
+    finalAudit: true,
+  });
+  const historicalRegistryReport = analyzeLegacyFallbackSurfaces({
+    repoRoot: tmpRoot,
+    scanRoots: ["registry-historical-section.md"],
+    registryPath: "registry-historical-section.md",
+    finalAudit: true,
+  });
   const exportKeyReport = analyzeLegacyFallbackSurfaces({
     repoRoot: tmpRoot,
     scanRoots: [],
@@ -216,6 +252,10 @@ export function ${inferLifecycleName}() {
   expectFinding(report.findings, "registry-class-out-of-range", "registry.md");
   expectFinding(report.findings, "registry-p13-illegal-class", "registry.md");
   expectFinding(report.findings, "registry-open-review-state", "registry.md");
+  expectFinding(multiTableRegistryReport.findings, "registry-class-out-of-range", "registry-multi-table.md");
+  expectFinding(multiTableRegistryReport.findings, "registry-p13-illegal-class", "registry-multi-table.md");
+  expectFinding(multiTableRegistryReport.findings, "registry-open-review-state", "registry-multi-table.md");
+  assert(historicalRegistryReport.findings.length === 0, `historical seed registry section should not be final-audit authoritative; got ${JSON.stringify(historicalRegistryReport.findings, null, 2)}`);
   expectFinding(packReport.findings, "stale-package-export", "pack-dry-run.json");
   expectFinding(exportKeyReport.findings, "stale-package-export", "pack-export-key.json");
   expectNoFinding(report.findings, "src/negative/migration-only.ts");

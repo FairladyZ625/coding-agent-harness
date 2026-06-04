@@ -192,15 +192,25 @@ function scanRegistry(repoRoot: string, registryPath: string, finalAudit: boolea
   const content = fs.readFileSync(absolutePath, "utf8");
   const findings: LegacyFallbackFinding[] = [];
   let headerMap: Map<string, number> | undefined;
-  for (const [index, line] of content.split(/\r?\n/).entries()) {
+  const lines = content.split(/\r?\n/);
+  let sectionHeading = "";
+  for (const [index, line] of lines.entries()) {
+    if (isMarkdownHeading(line)) {
+      sectionHeading = normalizeHeading(line);
+      headerMap = undefined;
+      continue;
+    }
     if (!line.startsWith("|")) continue;
+    if (isIgnoredRegistrySection(sectionHeading)) continue;
     const cells = parseMarkdownTableCells(line);
     if (cells.length === 0) continue;
     if (isMarkdownTableDivider(cells)) continue;
-    if (!headerMap) {
-      headerMap = buildHeaderMap(cells);
+    if (isMarkdownTableHeader(lines, index)) {
+      const nextHeaderMap = buildHeaderMap(cells);
+      headerMap = nextHeaderMap.has("class") && nextHeaderMap.has("review state") ? nextHeaderMap : undefined;
       continue;
     }
+    if (!headerMap) continue;
     const classIndex = headerMap.get("class");
     const reviewStateIndex = headerMap.get("review state");
     if (classIndex === undefined || reviewStateIndex === undefined) continue;
@@ -330,8 +340,27 @@ function normalizeHeader(value: string): string {
   return stripInlineCode(value).toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+function isMarkdownHeading(line: string): boolean {
+  return /^#{1,6}\s+\S/.test(line);
+}
+
+function normalizeHeading(line: string): string {
+  return line.replace(/^#{1,6}\s+/, "").trim().toLowerCase();
+}
+
+function isIgnoredRegistrySection(sectionHeading: string): boolean {
+  return sectionHeading === "historical seed registry";
+}
+
 function isMarkdownTableDivider(cells: string[]): boolean {
   return cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function isMarkdownTableHeader(lines: string[], index: number): boolean {
+  const nextLine = lines[index + 1];
+  if (!nextLine?.startsWith("|")) return false;
+  const nextCells = parseMarkdownTableCells(nextLine);
+  return nextCells.length > 0 && isMarkdownTableDivider(nextCells);
 }
 
 type PackageSurfaceEntry = {
