@@ -7,8 +7,8 @@ import http from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
 import { isWorkbenchActionRequest, listWorkbenchWritableActionIds } from "../application/workbench/action-catalog.mjs";
-import { confirmWorkbenchReviewBatch } from "../application/workbench/review-confirmation.mjs";
-import { createAggregateLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
+import { createWorkbenchAggregateLessonSedimentationTask } from "../adapters/workbench/lesson-sedimentation-runner.mjs";
+import { confirmWorkbenchReviewBatch } from "../adapters/workbench/review-confirmation-runner.mjs";
 import { normalizeTarget } from "./core-shared.mjs";
 import { dashboardWatchRoots } from "./harness-paths.mjs";
 import { createWorkbenchReviewSubjectSource } from "../adapters/workbench/workbench-review-subject-source.mjs";
@@ -190,7 +190,7 @@ export async function serveDashboardWorkbench(outDir: string, targetInput: strin
           return;
         }
         try {
-          const result = createAggregateLessonSedimentationTask(target.projectRoot, selections, {
+          const result = createWorkbenchAggregateLessonSedimentationTask(target.projectRoot, selections, {
             title: body.title || "",
           });
           const results = selections.map((selection) => ({
