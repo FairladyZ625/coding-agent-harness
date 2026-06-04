@@ -19,6 +19,9 @@
     "type": "git",
     "url": "git+https://github.com/FairladyZ625/coding-agent-harness.git"
   },
+  "exports": {
+    "./package.json": "./package.json"
+  },
   "bugs": {
     "url": "https://github.com/FairladyZ625/coding-agent-harness/issues"
   },
@@ -30,7 +33,7 @@
     "check:private": "node run-dist.mjs harness.mjs check --profile private-harness .harness-private",
     "build:runtime": "node scripts/build-dist.mts",
     "prepack": "node scripts/build-dist.mts --quiet",
-    "prepublishOnly": "node run-dist.mjs check-dist-observation.mjs --skip-install-smoke",
+    "prepublishOnly": "node run-dist.mjs check-dist-observation.mjs --skip-install-smoke && node run-dist.mjs check-package-surface.mjs",
     "prepare": "node postinstall.mjs --build-only",
     "typecheck": "npm exec --yes --package typescript@5.9.3 -- tsc -p tsconfig.json",
     "typecheck:guards": "node run-dist.mjs check-type-boundaries.mjs && node run-dist.mjs check-no-ts-nocheck.mjs",
@@ -39,6 +42,7 @@
     "dashboard": "node run-dist.mjs harness.mjs dashboard --out tmp/harness-dashboard.html examples/minimal-project",
     "dashboard:folder": "node run-dist.mjs harness.mjs dashboard --out-dir tmp/harness-dashboard examples/minimal-project",
     "pack:dry-run": "npm pack --dry-run --json",
+    "check:package-surface": "node run-dist.mjs check-package-surface.mjs",
     "postinstall": "node postinstall.mjs",
     "observe:dist": "node run-dist.mjs check-dist-observation.mjs --skip-pack --skip-install-smoke",
     "smoke:dashboard": "node scripts/run-built-tests.mts --test tests/smoke-dashboard.mjs",

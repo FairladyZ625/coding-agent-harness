@@ -30,6 +30,7 @@ const suites: Suite[] = [
   { path: "tests/shared-type-islands.mjs" },
   { path: "tests/runtime-emit-contract.mjs" },
   { path: "tests/dist-build-pipeline.mjs", phase: "package" },
+  { path: "tests/package-surface.mjs", phase: "package" },
   { path: "tests/source-no-dist-lifecycle.mjs" },
   { path: "tests/dist-observation-gates.mjs", phase: "package" },
   { path: "tests/helpers/test-helper-types.mjs" },
