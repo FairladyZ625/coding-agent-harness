@@ -166,7 +166,8 @@ harness new-task \
 
 `migrate-verify` 通过不等于 full migration complete。完整迁移还必须满足：
 
-- `migrate-plan` 是 `declared-capability`。
+- `migrate-plan` 是 `declared-capability` 或 `v2-manifest`。这些 mode 只表示项目有资格进入
+  full-cutover 验证，不能单独证明 full migration complete。
 - `warnings=0`、`taskActions=0`、`reviewSchemaGaps=0`、`legacyReferenceGaps=0`、`legacyResiduals=0`、`recommendedCapabilities=[]`。
 - normal 和 strict check 都通过。
 - dashboard status 里 `summary.briefCoverage.ready == total` 且 `missing == 0`。
