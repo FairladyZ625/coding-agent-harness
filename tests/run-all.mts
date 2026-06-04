@@ -24,6 +24,7 @@ const suites: Suite[] = [
   { path: "tests/no-ts-nocheck-gate.mjs" },
   { path: "tests/import-graph-gate.mjs" },
   { path: "tests/legacy-fallback-detector.mjs" },
+  { path: "tests/full-retirement-gate-profile.mjs" },
   { path: "tests/impact-classifier.mjs" },
   { path: "tests/snapshot-matrix-tooling.mjs" },
   { path: "tests/shared-type-islands.mjs" },
