@@ -105,6 +105,9 @@ writeFixture(
 const graph = buildImportGraph({ repoRoot: fixtureRoot });
 const repoGraph = buildImportGraph({ repoRoot });
 const harnessCoreSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/harness-core.mts"), "utf8");
+const commandRegistrySource = fs.readFileSync(path.join(repoRoot, "scripts/commands/registry.mts"), "utf8");
+const capabilityRegistrySource = fs.readFileSync(path.join(repoRoot, "scripts/lib/capability-registry.mts"), "utf8");
+const capabilityDistributionSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/capability-distribution.mts"), "utf8");
 const taskCommandSource = fs.readFileSync(path.join(repoRoot, "scripts/commands/task-command.mts"), "utf8");
 const taskCommandResultsSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-command-results.mts"), "utf8");
 const taskOperationsSource = fs.readFileSync(path.join(repoRoot, "scripts/application/task/task-operations.mts"), "utf8");
@@ -147,6 +150,13 @@ const lifecycleReviewTaskByDirectorySource = taskLifecycleSource.match(/function
 assert(!harnessCoreSource.includes("./task-operation-subjects.mjs"), "scanner-backed TaskOperationSubjectReader helper should not be re-exported from the broad harness-core barrel");
 assert(!harnessCoreSource.includes("../domain/task/task-subjects.mjs"), "task subject domain mapper should not be re-exported from the broad harness-core barrel");
 assert(harnessCoreSource.includes("../infrastructure/task/legacy-task-operation-writers.mjs"), "harness-core should expose the legacy writer adapter needed for package-facing TaskOperations composition");
+assert(!harnessCoreSource.includes("./capability-distribution.mjs"), "user skill distribution must not be re-exported from the broad harness-core barrel");
+assert(commandRegistrySource.includes("../lib/capability-distribution.mjs"), "install-user and doctor-user commands should consume the narrow capability distribution module");
+assert(!capabilityRegistrySource.includes("installUserSkill"), "capability registry must not own user skill distribution install behavior");
+assert(!capabilityRegistrySource.includes("doctorUserSkill"), "capability registry must not own user skill distribution doctor behavior");
+assert(!capabilityRegistrySource.includes("userInstallTargets"), "capability registry must not own user agent distribution targets");
+assert(capabilityDistributionSource.includes("installUserSkill"), "capability distribution module should own user skill installation");
+assert(capabilityDistributionSource.includes("doctorUserSkill"), "capability distribution module should own user skill doctor checks");
 assert(!fs.existsSync(path.join(repoRoot, "scripts/lib/task-operation-subjects.mts")), "scanner-backed TaskOperationSubjectReader helper should not live in scripts/lib");
 assert(!taskCommandSource.includes("../lib/harness-core.mjs"), "task-command should consume narrow command/application contracts instead of the broad harness-core barrel");
 assert(!taskCommandSource.includes("../lib/task-lifecycle.mjs"), "task-command should not import task-lifecycle directly for command output or phase/module updates");

@@ -98,6 +98,7 @@ assert(packedFiles.includes("dist/postinstall.mjs"), "npm package must include d
 assert(!packedFiles.some((file) => file.startsWith("scripts/")), "npm package must not include historical scripts/ shims after PR-28");
 for (const required of [
   "dist/lib/harness-paths.mjs",
+  "dist/lib/capability-distribution.mjs",
   "dist/lib/preset-runtime-bridge.mjs",
   "dist/lib/structure-migration.mjs",
   "templates/planning/walkthrough.md",

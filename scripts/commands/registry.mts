@@ -5,14 +5,13 @@ import {
   addCapability,
   auditTemplateProjections,
   buildStatus,
-  doctorUserSkill,
-  installUserSkill,
   normalizeLocale,
   refreshTemplateProjections,
   rebuildGovernanceIndexes,
   validateSourcePackageBoundary,
   writeInitFiles,
 } from "../lib/harness-core.mjs";
+import { doctorUserSkill, installUserSkill } from "../lib/capability-distribution.mjs";
 import type { CommandContext, CommandDefinition, FlagDefinition } from "../lib/command-registry.mjs";
 import { createArgReaders } from "../lib/command-registry.mjs";
 import { runDashboardCommand, runDevDashboardCommand } from "./dashboard-command.mjs";
