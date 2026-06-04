@@ -37,11 +37,14 @@ const deniedDeepImports = [
   `${packageName}/dist/lib/task-archive-eligibility.mjs`,
   `${packageName}/dist/lib/task-operation-subjects.mjs`,
 ];
-const retiredPackageFiles = [
+const runtimeInternalPackageFiles = [
   "dist/lib/harness-core.mjs",
   "dist/lib/task-semantic-projection.mjs",
   "dist/lib/task-tombstone-commands.mjs",
   "dist/lib/task-archive-eligibility.mjs",
+];
+const retiredFacadePackageFiles = [
+  "dist/lib/task-operations.mjs",
 ];
 
 const options = parseArgs(process.argv.slice(2));
@@ -73,11 +76,19 @@ for (const key of exportKeys) {
 }
 
 const packFiles = packDryRunFiles();
-const packedRetiredFiles = retiredPackageFiles.filter((file) => packFiles.includes(file));
-if (packedRetiredFiles.length === 0) {
+const internalRuntimeFiles = runtimeInternalPackageFiles.filter((file) => packFiles.includes(file));
+if (internalRuntimeFiles.length === 0) {
   findings.push({
     code: "missing-internal-runtime-classification-target",
-    message: `Expected at least one runtime-internal retired file candidate in the tarball for P11 classification.`,
+    message: `Expected at least one runtime-internal file candidate in the tarball for P11 classification.`,
+  });
+}
+
+const packedRetiredFacadeFiles = retiredFacadePackageFiles.filter((file) => packFiles.includes(file));
+if (packedRetiredFacadeFiles.length > 0) {
+  findings.push({
+    code: "retired-facade-packed",
+    message: `Retired package facade(s) must not be shipped in the tarball: ${packedRetiredFacadeFiles.join(", ")}.`,
   });
 }
 
@@ -97,7 +108,12 @@ const result = {
   packageName: packageJson.name || "",
   exports: exportKeys,
   packFileCount: packFiles.length,
-  internalRuntimeFiles: packedRetiredFiles,
+  internalRuntimeFiles,
+  packageFileClassification: {
+    runtimeInternalTargets: runtimeInternalPackageFiles,
+    retiredFacadeTargets: retiredFacadePackageFiles,
+    packedRetiredFacadeFiles,
+  },
   deniedDeepImportSmoke: installSmoke,
   findings,
 };
@@ -116,12 +132,19 @@ function parseArgs(argv: string[]) {
   const parsed = {
     json: false,
     skipInstallSmoke: false,
+    packJsonPath: "",
   };
-  for (const arg of argv) {
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
     if (arg === "--json") {
       parsed.json = true;
     } else if (arg === "--skip-install-smoke") {
       parsed.skipInstallSmoke = true;
+    } else if (arg === "--pack-json") {
+      const value = argv[index + 1];
+      if (!value) throw new Error("--pack-json requires a path");
+      parsed.packJsonPath = value;
+      index += 1;
     } else {
       throw new Error(`Unknown check-package-surface option: ${arg}`);
     }
@@ -139,6 +162,10 @@ function exportedSubpaths(exportsValue: unknown): string[] {
 }
 
 function packDryRunFiles(): string[] {
+  if (options.packJsonPath) {
+    const packJsonPath = path.resolve(repoRoot, options.packJsonPath);
+    return parsePackJsonFiles(fs.readFileSync(packJsonPath, "utf8"));
+  }
   const result = spawnSync("npm", ["pack", "--dry-run", "--json"], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -151,7 +178,11 @@ function packDryRunFiles(): string[] {
     });
     return [];
   }
-  return (JSON.parse(result.stdout) as Array<{ files: PackFile[] }>)[0].files.map((file) => file.path).sort();
+  return parsePackJsonFiles(result.stdout);
+}
+
+function parsePackJsonFiles(content: string): string[] {
+  return (JSON.parse(content) as Array<{ files: PackFile[] }>)[0].files.map((file) => file.path).sort();
 }
 
 function runInstalledPackageSmoke(): DeepImportSmoke[] {
