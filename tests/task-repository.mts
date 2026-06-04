@@ -572,6 +572,7 @@ process.env.PATH = `${gitTrapDir}${path.delimiter}${originalPath}`;
 try {
   const lightTask = collectTasks(reviewAuditTarget, { taskPlanPaths: listTaskPlanPaths(reviewAuditTarget), strictReviewGitAudit: false })[0];
   assert((lightTask.reviewConfirmation as { confirmed?: unknown } | null)?.confirmed === true, "light projection should preserve parsed review confirmation metadata");
+  assert(lightTask.reviewStatus === "confirmed", "light projection should preserve reviewStatus as the parsed human confirmation fact");
   assert(lightTask.reviewWorkbenchQueueView.confirmed === false, "light projection should not treat unaudited confirmation metadata as Git-backed truth");
   assert(!fs.existsSync(gitTrapLog), "light projection should not invoke git while scanning historical review confirmations");
 

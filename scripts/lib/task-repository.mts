@@ -360,6 +360,7 @@ function collectLifecycleTasks(target: TaskScannerTarget, defaults: ScannerRepos
     requireGeneratedScaffoldProvenance: query.requireGeneratedScaffoldProvenance ?? defaults.requireGeneratedScaffoldProvenance,
     includeArchived: query.includeArchived !== false,
     closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
+    strictReviewGitAudit: defaults.strictReviewGitAudit === true,
   });
   return applyTaskQuery(tasks, query).map(lifecycleTaskFromRecord);
 }
@@ -443,6 +444,7 @@ function collectStatusTasks(target: TaskScannerTarget, defaults: ScannerReposito
     requireGeneratedScaffoldProvenance: query.requireGeneratedScaffoldProvenance ?? defaults.requireGeneratedScaffoldProvenance,
     includeArchived: query.includeArchived !== false,
     closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
+    strictReviewGitAudit: defaults.strictReviewGitAudit === true,
   });
   return applyTaskQuery(tasks, query).map(taskStatusProjectionFromRecord);
 }
@@ -462,6 +464,7 @@ function collectTaskIndexTasks(target: TaskScannerTarget, defaults: ScannerRepos
     requireGeneratedScaffoldProvenance: query.requireGeneratedScaffoldProvenance ?? defaults.requireGeneratedScaffoldProvenance,
     includeArchived: query.includeArchived !== false,
     closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
+    strictReviewGitAudit: defaults.strictReviewGitAudit === true,
   });
   return applyTaskQuery(tasks, query).map(taskIndexProjectionFromRecord);
 }

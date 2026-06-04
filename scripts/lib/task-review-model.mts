@@ -505,7 +505,7 @@ function reviewAuditAllowedPathGroups(provenance: { reviewAudit?: { allowedPathG
 
 export function taskReviewStatus({ reviewContent = "", risks = [], confirmation = null, submission = null }: { reviewContent?: unknown; risks?: ReviewRisk[]; confirmation?: ReviewConfirmation | null; submission?: ReviewSubmission | null } = {}): string {
   if (risks.some(isBlockingReviewRisk)) return "blocked-open-findings";
-  if (isGitBackedHumanReviewConfirmed(confirmation)) return "confirmed";
+  if (confirmation?.confirmed === true) return "confirmed";
   if (!String(reviewContent || "").trim()) return "missing";
   if (submission?.submitted) return "agent-reviewed";
   if (hasAgentReviewSignal(reviewContent)) return "agent-reviewed";

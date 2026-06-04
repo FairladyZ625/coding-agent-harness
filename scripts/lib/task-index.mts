@@ -27,7 +27,7 @@ type BuildTaskIndexOptions = {
 
 export function buildTaskIndex(targetInput: string | undefined, options: BuildTaskIndexOptions = {}) {
   const target = normalizeTarget(targetInput) as TaskIndexTarget;
-  const tasks = options.tasks || options.reader?.listTaskIndexTasks() || createTaskIndexProjectionReader(target).listTaskIndexTasks();
+  const tasks = options.tasks || options.reader?.listTaskIndexTasks() || createTaskIndexProjectionReader(target, { strictReviewGitAudit: true }).listTaskIndexTasks();
   assertUniqueTaskKeys(tasks);
   return {
     schemaVersion: target.harness.version === 2 ? "task-index/v2" : "task-index/v1",

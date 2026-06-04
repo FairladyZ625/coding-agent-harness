@@ -558,7 +558,7 @@ export function updateModuleStep(targetInput: string, moduleKey: string, stepId:
 
 export function listLifecycleTasks(targetInput: string, { state = "", moduleKey = "", queue = "", preset = "", review = "", lesson = "", search = "", missingMaterials = false, includeArchived = false }: ListLifecycleTasksOptions = {}) {
   const target = asLifecycleTarget(normalizeTarget(targetInput));
-  const tasks = createTaskLifecycleReader(target).listLifecycleTasks({
+  const tasks = createTaskLifecycleReader(target, { strictReviewGitAudit: true }).listLifecycleTasks({
     includeArchived,
     state,
     module: moduleKey ? normalizeHarnessModuleKey(moduleKey) : "",

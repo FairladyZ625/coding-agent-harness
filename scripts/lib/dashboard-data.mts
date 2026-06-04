@@ -203,7 +203,7 @@ function collectDashboardDocumentPaths(target: DashboardTarget, options: Dashboa
       selected.add(file);
     }
   }
-  const tasks = options.tasks || createTaskStatusProjectionReader(target).listStatusTasks();
+  const tasks = options.tasks || createTaskStatusProjectionReader(target, { strictReviewGitAudit: true }).listStatusTasks();
   const tasksByPlanPath = new Map(tasks.map((task) => [
     targetAbsolutePath(target, String(task.taskPlanPath || "")),
     task,
@@ -940,7 +940,7 @@ function warningAction(message: string): string {
 
 export function buildDashboardBundle(targetInput: string, options: DashboardOptions = {}): DashboardBundle {
   const target = normalizeTarget(targetInput) as DashboardTarget;
-  const tasks = options.tasks || createTaskStatusProjectionReader(target).listStatusTasks();
+  const tasks = options.tasks || createTaskStatusProjectionReader(target, { strictReviewGitAudit: true }).listStatusTasks();
   const capabilityState = validateCapabilities(target);
   const gitState = summarizeGitState(target);
   const declaredCapabilities = new Set(capabilityState.registry.capabilities.map((capability) => capability.name));
