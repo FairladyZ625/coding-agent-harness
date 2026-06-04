@@ -113,6 +113,7 @@ const statusBuilderSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/sta
 const dashboardWorkbenchSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-workbench.mts"), "utf8");
 const taskTombstoneCommandsSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-tombstone-commands.mts"), "utf8");
 const dashboardBundleReaderSource = fs.readFileSync(path.join(repoRoot, "scripts/application/dashboard/bundle-reader.mts"), "utf8");
+const generatedRowPolicySource = fs.readFileSync(path.join(repoRoot, "scripts/application/governance/generated-row-policy.mts"), "utf8");
 const taskIndexSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-index.mts"), "utf8");
 const checkProfilesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/check-profiles.mts"), "utf8");
 const checkTaskContractsSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/check-task-contracts.mts"), "utf8");
@@ -172,6 +173,10 @@ assert(!checkProfilesTypesSource.includes("TaskStatusProjection"), "checker task
 assert(!governanceIndexGeneratorSource.includes("createScannerTaskRepository"), "generated governance rebuild should consume governance projections instead of creating the broad scanner-backed repository");
 assert(!governanceIndexGeneratorSource.includes("TaskRecord"), "generated governance rebuild should not import or alias raw scanner TaskRecord objects");
 assert(governanceIndexGeneratorSource.includes("createTaskGovernanceProjectionReader"), "generated governance rebuild should compose through the governance projection reader seam");
+assert(governanceIndexGeneratorSource.includes("projectGeneratedGovernanceRows"), "generated governance rebuild should delegate generated rows to the P09 row policy module");
+assert(generatedRowPolicySource.includes("TaskGovernanceProjection"), "P09 generated row policy should consume the governance projection contract");
+assert(!generatedRowPolicySource.includes("task-scanner"), "P09 generated row policy must not consume scanner internals");
+assert(!generatedRowPolicySource.includes("TaskRecord"), "P09 generated row policy must not alias raw TaskRecord identity");
 assert(!taskAuditMigrationSource.includes("task-scanner"), "task audit migration should use harness discovery contracts instead of the broad task-scanner facade");
 assert(!taskAuditMigrationSource.includes("listTaskPlanPaths"), "task audit migration should not directly use task scanner plan-path helpers");
 assert(!dashboardDataSource.includes("createScannerTaskRepository"), "dashboard bundle generation should consume status projections instead of creating the broad scanner-backed repository");

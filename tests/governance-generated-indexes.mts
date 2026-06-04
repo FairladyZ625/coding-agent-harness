@@ -5,6 +5,11 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import type { SpawnSyncReturns } from "node:child_process";
 import {
+  projectGeneratedGovernanceRows,
+  projectLedgerRow,
+} from "../scripts/application/governance/generated-row-policy.mjs";
+import type { TaskGovernanceProjection } from "../scripts/lib/types/task-repository.js";
+import {
   assert,
   expectJson,
   run,
@@ -39,6 +44,37 @@ type TaskListResponse = {
 
 const target = path.join(tmpRoot, "governance-generated-indexes-target");
 fs.mkdirSync(target);
+
+const rowPolicyTask: TaskGovernanceProjection = {
+  id: "TASKS/row-policy-alpha",
+  shortId: "TASKS/row-policy-alpha",
+  taskKey: "row-policy-alpha",
+  title: "Row | Policy Alpha",
+  path: "TARGET:coding-agent-harness/planning/tasks/row-policy-alpha",
+  taskPlanPath: "TARGET:coding-agent-harness/planning/tasks/row-policy-alpha/task_plan.md",
+  module: "architecture",
+  reviewPath: "TARGET:coding-agent-harness/planning/tasks/row-policy-alpha/review.md",
+  walkthroughPath: "TARGET:coding-agent-harness/planning/tasks/row-policy-alpha/walkthrough.md",
+  taskQueues: ["review"],
+  lessonCandidateDecisionComplete: true,
+  taskLifecycleProjection: {
+    state: "review",
+    lifecycleState: "in-progress",
+    reviewStatus: "confirmed",
+    reviewQueueState: "not-in-queue",
+    closeoutStatus: "ready",
+    taskQueues: ["review"],
+    materialsReady: true,
+    reviewSubmitted: true,
+    lessonCandidateDecisionComplete: true,
+    deletionState: "active",
+  },
+};
+const policyRows = projectGeneratedGovernanceRows([rowPolicyTask], { today: "2026-06-04" });
+assert(policyRows.ledgerRows.length === 1 && policyRows.taskIndexRows.length === 1 && policyRows.closeoutRows.length === 1, "generated row policy should project every generated row family");
+assert(projectLedgerRow(rowPolicyTask, { today: "2026-06-04" })[7] === "coding-agent-harness/planning/tasks/row-policy-alpha/review.md", "generated ledger row policy should use review provenance from projection");
+assert(policyRows.taskIndexRows[0][2] === "review" && policyRows.taskIndexRows[0][4] === "confirmed", "task-index row policy should use lifecycle projection state/review fields");
+assert(policyRows.closeoutRows[0][2] === "ready" && policyRows.closeoutRows[0][5] === "checked", "closeout row policy should use lifecycle closeout and lesson projection");
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", target]);
 git(target, ["init"]);
 git(target, ["config", "user.name", "Harness Test"]);

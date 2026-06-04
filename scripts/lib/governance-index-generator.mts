@@ -10,6 +10,7 @@ import {
 } from "./core-shared.mjs";
 import { splitMarkdownRow } from "./markdown-utils.mjs";
 import { buildTaskIndex } from "./task-index.mjs";
+import { projectGeneratedGovernanceRows } from "../application/governance/generated-row-policy.mjs";
 import { createTaskGovernanceProjectionReader } from "./task-repository.mjs";
 import {
   beginGovernanceSync,
@@ -19,7 +20,6 @@ import {
 } from "./governance-sync.mjs";
 import { markdownCell } from "./task-lifecycle/text-utils.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
-import type { TaskLifecycleProjection } from "./task-semantic-projection.mjs";
 import type { TaskGovernanceProjection } from "./task-repository.mjs";
 
 type GovernanceTarget = ReturnType<typeof normalizeTarget> & {
@@ -105,13 +105,14 @@ function isArchiveOnlySurface(surface: RebuildSurface): boolean {
 }
 
 function governanceSurfaces(target: GovernanceTarget, tasks: GovernanceTask[]): GovernanceSurface[] {
+  const rows = projectGeneratedGovernanceRows(tasks, { today: todayDate() });
   return [
     {
       surface: "harness-ledger",
       absolute: target.harness.ledgerPath,
       relative: toPosix(path.relative(target.projectRoot, target.harness.ledgerPath)),
-      rows: tasks.map(ledgerRow),
-      content: replaceTableRows(readBundledTemplate("templates/ledger/Harness-Ledger.md"), /^ID$/i, tasks.map(ledgerRow)),
+      rows: rows.ledgerRows,
+      content: replaceTableRows(readBundledTemplate("templates/ledger/Harness-Ledger.md"), /^ID$/i, rows.ledgerRows),
     },
     ...legacyFeatureSurfaces(target),
   ];
@@ -134,15 +135,7 @@ function legacyFeatureSurfaces(target: GovernanceTarget): GovernanceSurface[] {
 function taskIndexSurfaces(target: GovernanceTarget, tasks: GovernanceTask[]): GovernanceSurface[] {
   const planningGeneratedRoot = path.join(target.harness.planningRoot, "generated");
   const taskIndexJson = buildTaskIndex(target.projectRoot);
-  const taskIndexRows = tasks.map((task) => [
-    task.taskKey || task.id,
-    task.title || task.shortId || task.id || "task",
-    taskLifecycleProjection(task).state,
-    taskLifecycleProjection(task).lifecycleState,
-    taskLifecycleProjection(task).reviewStatus,
-    task.closeoutStatus,
-    task.walkthroughPath || "pending",
-  ]);
+  const rows = projectGeneratedGovernanceRows(tasks, { today: todayDate() });
   const surfaces = [
     {
       surface: "task-index-json",
@@ -155,27 +148,17 @@ function taskIndexSurfaces(target: GovernanceTarget, tasks: GovernanceTask[]): G
       surface: "task-index-md",
       absolute: path.join(planningGeneratedRoot, "task-index.md"),
       relative: toPosix(path.relative(target.projectRoot, path.join(planningGeneratedRoot, "task-index.md"))),
-      rows: taskIndexRows,
-      content: renderTaskIndexMarkdown(taskIndexRows),
+      rows: rows.taskIndexRows,
+      content: renderTaskIndexMarkdown(rows.taskIndexRows),
     },
   ];
   if (target.harness.version === 2) {
-    const closeoutRows = tasks.map((task) => [
-      `CO-${taskSlug(task)}`,
-      task.taskKey || task.id,
-      taskLifecycleProjection(task).closeoutStatus || "missing",
-      stripTarget(task.walkthroughPath) || "pending",
-      taskLifecycleProjection(task).reviewStatus || "pending",
-      task.lessonCandidateDecisionComplete ? "checked" : (task.lessonCandidateStatus || "pending"),
-      residual(task),
-      todayDate(),
-    ]);
     surfaces.push({
       surface: "closeout-index",
       absolute: target.harness.closeoutIndexPath,
       relative: toPosix(path.relative(target.projectRoot, target.harness.closeoutIndexPath)),
-      rows: closeoutRows,
-      content: renderCloseoutIndexMarkdown(closeoutRows),
+      rows: rows.closeoutRows,
+      content: renderCloseoutIndexMarkdown(rows.closeoutRows),
     });
   }
   return surfaces;
@@ -224,69 +207,6 @@ function fitRow(row: MarkdownRow, length: number): string[] {
   const next = row.map((cell) => markdownCell(cell));
   while (next.length < length) next.push("");
   return next.slice(0, length);
-}
-
-function ledgerRow(task: GovernanceTask): string[] {
-  const plan = stripTarget(task.taskPlanPath || `${stripTarget(task.path)}/task_plan.md`);
-  const scope = task.module ? "module" : "task";
-  const moduleKey = task.module || "none";
-  return [
-    taskLedgerId(task),
-    scope,
-    moduleKey,
-    task.title || task.shortId || task.id || "task",
-    mapLedgerState(taskLifecycleProjection(task).state),
-    Array.isArray(task.taskQueues) && task.taskQueues.length ? task.taskQueues.join(",") : "none",
-    plan,
-    taskLifecycleProjection(task).reviewStatus === "confirmed" ? stripTarget(task.reviewPath) : (taskLifecycleProjection(task).reviewStatus || "pending"),
-    task.lessonCandidateDecisionComplete ? "checked" : (task.lessonCandidateStatus || "pending"),
-    task.walkthroughPath ? stripTarget(task.walkthroughPath) : (task.closeoutStatus || "pending"),
-    residual(task),
-    todayDate(),
-  ];
-}
-
-function residual(task: GovernanceTask): string {
-  if (Array.isArray(task.stateConflicts) && task.stateConflicts.length) return `state-conflicts:${task.stateConflicts.length}`;
-  if (Array.isArray(task.materialIssues) && task.materialIssues.length) return `material-issues:${task.materialIssues.length}`;
-  return "none";
-}
-
-function taskLedgerId(task: GovernanceTask): string {
-  return `HL-${taskSlug(task)}`;
-}
-
-function taskSlug(task: GovernanceTask): string {
-  return String(task.shortId || task.id || "task").replace(/^TASKS\//, "").replace(/^MODULES\//, "").replace(/[^A-Za-z0-9-]+/g, "-").slice(0, 72);
-}
-
-function stripTarget(value: unknown): string {
-  return String(value || "").replace(/^TARGET:/, "");
-}
-
-function taskLifecycleProjection(task: GovernanceTask): TaskLifecycleProjection {
-  const projection = (task as { taskLifecycleProjection?: TaskLifecycleProjection }).taskLifecycleProjection;
-  if (projection && typeof projection === "object") return projection;
-  return {
-    state: String(task.state || "unknown"),
-    lifecycleState: String(task.lifecycleState || "unknown"),
-    reviewStatus: String(task.reviewStatus || "missing"),
-    reviewQueueState: String(task.reviewQueueState || "not-in-queue"),
-    closeoutStatus: String(task.closeoutStatus || "missing"),
-    taskQueues: Array.isArray(task.taskQueues) ? task.taskQueues : ["active"],
-    materialsReady: task.materialsReady === true,
-    reviewSubmitted: task.reviewSubmitted === true,
-    lessonCandidateDecisionComplete: task.lessonCandidateDecisionComplete === true,
-    deletionState: String(task.deletionState || "active"),
-  };
-}
-
-function mapLedgerState(state: unknown): string {
-  if (state === "in_progress") return "active";
-  if (state === "review") return "review";
-  if (state === "done") return "closed";
-  if (state === "blocked") return "blocked";
-  return "planned";
 }
 
 function uniqueArchiveDir(target: GovernanceTarget): string {
