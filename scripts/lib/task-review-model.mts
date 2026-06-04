@@ -481,12 +481,13 @@ export function parseReviewConfirmation(
         commitSha: confirmation.commitSha,
         expectedPathGroups: reviewAuditAllowedPathGroups(reviewAuditProvenance),
       });
+      const gitAuditValid = gitAudit.valid === true;
       return {
         ...confirmation,
-        confirmed: confirmation.confirmed && gitAudit.valid,
-        missingFields: gitAudit.valid ? confirmation.missingFields : [...confirmation.missingFields, "Review Commit SHA git audit"],
+        confirmed: confirmation.confirmed && gitAuditValid,
+        missingFields: gitAuditValid ? confirmation.missingFields : [...confirmation.missingFields, "Review Commit SHA git audit"],
         gitAudit,
-        gitAuditInvalid: !gitAudit.valid,
+        gitAuditInvalid: !gitAuditValid,
       };
     }
     return confirmation;

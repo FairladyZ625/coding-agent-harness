@@ -42,6 +42,7 @@ const suites: Suite[] = [
   { path: "tests/task-repository.mjs" },
   { path: "tests/task-tombstone-commands.mjs" },
   { path: "tests/task-operations.mjs" },
+  { path: "tests/git-runner.mjs" },
   { path: "tests/harness-transaction.mjs" },
   { path: "tests/cli-write-performance.mjs" },
   { path: "tests/runtime-reliability-spike.mjs" },

@@ -38,18 +38,6 @@
       "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
     },
     {
-      "file": "scripts/lib/review-confirm-git-gate.mts",
-      "line": 4,
-      "code": "ts-escape-hatch",
-      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
-    },
-    {
-      "file": "scripts/lib/review-confirm-git-gate.mts",
-      "line": 7,
-      "code": "ts-escape-hatch",
-      "reason": "Phase 1a reviewed baseline; cleanup tracked by Gradual ts-nocheck removal"
-    },
-    {
       "file": "scripts/lib/status-dashboard-renderer.mts",
       "line": 3,
       "code": "ts-escape-hatch",
