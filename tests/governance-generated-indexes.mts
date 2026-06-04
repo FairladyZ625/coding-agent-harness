@@ -7,6 +7,7 @@ import type { SpawnSyncReturns } from "node:child_process";
 import {
   projectGeneratedGovernanceRows,
   projectLedgerRow,
+  projectModulePlanRows,
 } from "../scripts/application/governance/generated-row-policy.mjs";
 import type { TaskGovernanceProjection } from "../scripts/lib/types/task-repository.js";
 import {
@@ -75,6 +76,25 @@ assert(policyRows.ledgerRows.length === 1 && policyRows.taskIndexRows.length ===
 assert(projectLedgerRow(rowPolicyTask, { today: "2026-06-04" })[7] === "coding-agent-harness/planning/tasks/row-policy-alpha/review.md", "generated ledger row policy should use review provenance from projection");
 assert(policyRows.taskIndexRows[0][2] === "review" && policyRows.taskIndexRows[0][4] === "confirmed", "task-index row policy should use lifecycle projection state/review fields");
 assert(policyRows.closeoutRows[0][2] === "ready" && policyRows.closeoutRows[0][5] === "checked", "closeout row policy should use lifecycle closeout and lesson projection");
+const modulePolicyAlpha = {
+  ...rowPolicyTask,
+  shortId: "TASKS/2026-06-04-row-policy-alpha",
+} as TaskGovernanceProjection;
+const modulePolicyTask = {
+  ...rowPolicyTask,
+  id: "TASKS/2026-06-04-row-policy-beta",
+  shortId: "TASKS/2026-06-04-row-policy-beta",
+  taskKey: "row-policy-beta",
+  title: "Row Policy Beta",
+  state: "blocked",
+  taskLifecycleProjection: {
+    ...rowPolicyTask.taskLifecycleProjection!,
+    state: "review",
+  },
+} as TaskGovernanceProjection;
+const modulePolicyRows = projectModulePlanRows([modulePolicyTask, modulePolicyAlpha]);
+assert(modulePolicyRows[0][0] === "T-ROW-POLICY-ALPHA" && modulePolicyRows[0][4] === "none", "module plan row policy should sort rows by stripped task id");
+assert(modulePolicyRows[1][2] === "handoff" && modulePolicyRows[1][4] === "T-ROW-POLICY-ALPHA", "module plan row policy should use lifecycle projection state and previous-step links");
 expectJson(["init", "--locale", "en-US", "--capabilities", "core", target]);
 git(target, ["init"]);
 git(target, ["config", "user.name", "Harness Test"]);

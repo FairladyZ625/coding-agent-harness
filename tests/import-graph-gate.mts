@@ -188,6 +188,7 @@ assert(!governanceSyncSource.includes("collectTasks"), "module governance genera
 assert(!governanceSyncSource.includes("task-scanner"), "module governance generated indexes should not import task-scanner directly");
 assert(!governanceSyncSource.includes("TaskRecord"), "module governance generated indexes should not import or alias raw scanner TaskRecord objects");
 assert(governanceSyncSource.includes("createTaskGovernanceProjectionReader"), "module governance generated indexes should compose through the governance projection reader seam");
+assert(governanceSyncSource.includes("projectModulePlanRows"), "module governance generated indexes should delegate generated module rows to the P09 row policy module");
 assert(!lessonMaintenanceSource.includes("collectTasks"), "lesson promotion should consume a narrow reader instead of raw scanner task collection");
 assert(!lessonMaintenanceSource.includes("task-scanner"), "lesson promotion should not import task-scanner directly");
 assert(!lessonMaintenanceSource.includes("TaskRecord"), "lesson promotion should not import or alias raw scanner TaskRecord objects");

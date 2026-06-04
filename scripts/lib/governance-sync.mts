@@ -11,6 +11,7 @@ import { createTaskGovernanceProjectionReader } from "./task-repository.mjs";
 import { appendMarkdownTableRow, firstColumn, fitMarkdownTableRow, splitMarkdownRow, upsertMarkdownTableRow } from "./markdown-utils.mjs";
 import { resolveHarnessPaths } from "./harness-paths.mjs";
 import { moduleRegistryViewPath, renderModuleRegistryView } from "./module-registry.mjs";
+import { projectModulePlanRows } from "../application/governance/generated-row-policy.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 import type { TaskGovernanceProjection, TaskQuery } from "./types/task-repository.js";
 
@@ -364,17 +365,10 @@ export function moduleGeneratedIndexSurfaces(target: HarnessTarget, tasks: Gover
   const modules = [...new Set((tasks || []).map((task) => task.module).filter(isNonEmptyString))].sort();
   const surfaces: ModuleIndexSurface[] = [];
   for (const moduleKey of modules) {
-    const moduleTasks = (tasks || [])
-      .filter((task) => task.module === moduleKey)
-      .sort((a, b) => String(stripDatePrefix(a.shortId || a.id)).localeCompare(String(stripDatePrefix(b.shortId || b.id))));
+    const moduleTasks = (tasks || []).filter((task) => task.module === moduleKey);
     const moduleDir = path.join(harnessPaths.modulesRoot, moduleKey);
     const modulePlanPath = path.join(moduleDir, "module_plan.md");
-    const stepRows: MarkdownRow[] = moduleTasks.map((task, index) => {
-      const stepId = moduleStepId(task);
-      const previousTask = moduleTasks[index - 1];
-      const previous = index === 0 || !previousTask ? "none" : moduleStepId(previousTask);
-      return [stepId, task.title || task.shortId || task.id || "task", mapModuleState(task.state), stripTargetPrefix(task.taskPlanPath || `${stripTargetPrefix(task.path)}/task_plan.md`), previous];
-    });
+    const stepRows: MarkdownRow[] = projectModulePlanRows(moduleTasks);
     surfaces.push({
       surface: "module-plan-index",
       absolute: modulePlanPath,
@@ -425,14 +419,6 @@ function existingOrTemplate(filePath: string, templateSource: string): string {
   return fs.existsSync(filePath) ? readFileSafe(filePath) : readBundledTemplate(templateSource);
 }
 
-function moduleStepId(task: GovernanceTask): string {
-  return `T-${stripDatePrefix(task.shortId || task.id || "task").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toUpperCase().slice(0, 48)}`;
-}
-
-function stripDatePrefix(value: unknown): string {
-  return String(value || "").replace(/^(?:TASKS\/|MODULES\/[^/]+\/)?\d{4}-\d{2}-\d{2}-/, "");
-}
-
 function ensureFileFromTemplate(destinationPath: string, templateSource: string, { dryRun = false }: { dryRun?: boolean } = {}): void {
   if (fs.existsSync(destinationPath) || dryRun) return;
   fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
@@ -464,14 +450,6 @@ function mapLedgerState(state: string): string {
   if (state === "done") return "closed";
   if (state === "blocked") return "blocked";
   return "planned";
-}
-
-function mapModuleState(state: string | undefined): string {
-  if (state === "in_progress") return "active";
-  if (state === "review") return "handoff";
-  if (state === "done") return "merged";
-  if (state === "blocked") return "blocked";
-  return "reserved";
 }
 
 function activeHarnessPaths(target: HarnessTarget): ResolvedHarnessPaths {

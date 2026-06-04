@@ -68,6 +68,22 @@ export function projectCloseoutRow(task: TaskGovernanceProjection, options: Gene
   ];
 }
 
+export function projectModulePlanRows(tasks: TaskGovernanceProjection[]): string[][] {
+  const sortedTasks = [...(tasks || [])].sort((a, b) => String(stripDatePrefix(a.shortId || a.id)).localeCompare(String(stripDatePrefix(b.shortId || b.id))));
+  return sortedTasks.map((task, index) => projectModulePlanRow(task, sortedTasks[index - 1] || null));
+}
+
+export function projectModulePlanRow(task: TaskGovernanceProjection, previousTask: TaskGovernanceProjection | null): string[] {
+  const lifecycle = taskLifecycleProjection(task);
+  return [
+    moduleStepId(task),
+    task.title || task.shortId || task.id || "task",
+    mapModuleState(lifecycle.state),
+    stripTarget(task.taskPlanPath || `${stripTarget(task.path)}/task_plan.md`),
+    previousTask ? moduleStepId(previousTask) : "none",
+  ];
+}
+
 function residual(task: TaskGovernanceProjection): string {
   if (Array.isArray(task.stateConflicts) && task.stateConflicts.length) return `state-conflicts:${task.stateConflicts.length}`;
   if (Array.isArray(task.materialIssues) && task.materialIssues.length) return `material-issues:${task.materialIssues.length}`;
@@ -80,6 +96,14 @@ function taskLedgerId(task: TaskGovernanceProjection): string {
 
 function taskSlug(task: TaskGovernanceProjection): string {
   return String(task.shortId || task.id || "task").replace(/^TASKS\//, "").replace(/^MODULES\//, "").replace(/[^A-Za-z0-9-]+/g, "-").slice(0, 72);
+}
+
+function moduleStepId(task: TaskGovernanceProjection): string {
+  return `T-${stripDatePrefix(task.shortId || task.id || "task").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toUpperCase().slice(0, 48)}`;
+}
+
+function stripDatePrefix(value: unknown): string {
+  return String(value || "").replace(/^(?:TASKS\/|MODULES\/[^/]+\/)?\d{4}-\d{2}-\d{2}-/, "");
 }
 
 function stripTarget(value: unknown): string {
@@ -109,4 +133,12 @@ function mapLedgerState(state: unknown): string {
   if (state === "done") return "closed";
   if (state === "blocked") return "blocked";
   return "planned";
+}
+
+function mapModuleState(state: unknown): string {
+  if (state === "in_progress") return "active";
+  if (state === "review") return "handoff";
+  if (state === "done") return "merged";
+  if (state === "blocked") return "blocked";
+  return "reserved";
 }
