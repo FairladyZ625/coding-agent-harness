@@ -114,7 +114,10 @@ const taskOperationsSource = fs.readFileSync(path.join(repoRoot, "scripts/applic
 const taskLifecycleSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-lifecycle.mts"), "utf8");
 const statusBuilderSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/status-builder.mts"), "utf8");
 const dashboardWorkbenchSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-workbench.mts"), "utf8");
+const workbenchReviewConfirmationSource = fs.readFileSync(path.join(repoRoot, "scripts/application/workbench/review-confirmation.mts"), "utf8");
 const workbenchReviewSubjectSource = fs.readFileSync(path.join(repoRoot, "scripts/adapters/workbench/workbench-review-subject-source.mts"), "utf8");
+const workbenchReviewConfirmationRunnerSource = fs.readFileSync(path.join(repoRoot, "scripts/adapters/workbench/review-confirmation-runner.mts"), "utf8");
+const workbenchLessonSedimentationRunnerSource = fs.readFileSync(path.join(repoRoot, "scripts/adapters/workbench/lesson-sedimentation-runner.mts"), "utf8");
 const taskTombstoneCommandsSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-tombstone-commands.mts"), "utf8");
 const dashboardBundleReaderSource = fs.readFileSync(path.join(repoRoot, "scripts/application/dashboard/bundle-reader.mts"), "utf8");
 const generatedRowPolicySource = fs.readFileSync(path.join(repoRoot, "scripts/application/governance/generated-row-policy.mts"), "utf8");
@@ -228,6 +231,13 @@ assert(!dashboardWorkbenchSource.includes("createTaskWorkbenchReviewSubjectReade
 assert(dashboardWorkbenchSource.includes("createWorkbenchReviewSubjectSource"), "dashboard workbench should compose through the P08 workbench review subject source adapter");
 assert(workbenchReviewSubjectSource.includes("WorkbenchReviewSubjectSource"), "P08 workbench source adapter should expose a stable source contract");
 assert(workbenchReviewSubjectSource.includes("createTaskWorkbenchReviewSubjectReader"), "P08 workbench source adapter should own scanner-backed workbench review subject materialization");
+assert(!workbenchReviewConfirmationSource.includes("governance-sync"), "application workbench review confirmation should not import governance-sync directly");
+assert(!workbenchReviewConfirmationSource.includes("task-lifecycle"), "application workbench review confirmation should not import task-lifecycle directly");
+assert(workbenchReviewConfirmationRunnerSource.includes("beginGovernanceSync"), "P08 workbench review confirmation runner should own governance sync bridge");
+assert(workbenchReviewConfirmationRunnerSource.includes("confirmTaskReview"), "P08 workbench review confirmation runner should own lifecycle review confirmation bridge");
+assert(!dashboardWorkbenchSource.includes("task-lesson-sedimentation"), "dashboard workbench should not import lesson sedimentation internals directly");
+assert(dashboardWorkbenchSource.includes("createWorkbenchAggregateLessonSedimentationTask"), "dashboard workbench should compose lesson sedimentation through the P08 workbench adapter");
+assert(workbenchLessonSedimentationRunnerSource.includes("createAggregateLessonSedimentationTask"), "P08 workbench lesson runner should own aggregate lesson sedimentation bridge");
 assert(!taskTombstoneCommandsSource.includes("createScannerTaskRepository"), "task-tombstone compatibility commands should use the narrow tombstone subject reader instead of the broad scanner-backed repository");
 assert(!taskTombstoneCommandsSource.includes("../adapters/cli/"), "task-tombstone compatibility commands should not depend on the CLI adapter layer");
 assert(taskTombstoneCommandsSource.includes("createScannerTaskTombstoneSubjectReader"), "task-tombstone compatibility commands should compose through the scanner-backed tombstone subject reader adapter");
@@ -311,6 +321,9 @@ assert(taskInfrastructureLayer?.owns.includes("scripts/infrastructure/task/**"),
 assert(taskInfrastructureLayer?.mayImport.includes("scripts/lib/task-scanner.mts"), "task infrastructure adapter contract should explicitly own scanner reads");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-domain-task-subject-semantic-projection-bridge"), "contract should not keep the retired task subject domain semantic projection bridge");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P08-dashboard-workbench-review-confirm-internal-bridge"), "contract should not keep the retired dashboard workbench review-confirm internal bridge");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P08-application-workbench-review-confirmation-sync-bridge"), "contract should not keep the retired application workbench governance bridge");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P08-application-workbench-review-confirmation-lifecycle-bridge"), "contract should not keep the retired application workbench lifecycle bridge");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P08-dashboard-workbench-lesson-bridge"), "contract should not keep the retired dashboard workbench lesson bridge");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P08-dashboard-workbench-repository-bridge"), "contract should not keep the retired dashboard workbench repository bridge");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P08-dashboard-workbench-projection-bridge"), "contract should not keep the retired dashboard workbench projection bridge");
 assert(!taskSubjectsSource.includes("../../lib/task-semantic-projection"), "task subject domain mapper should consume the domain-owned semantic projection module");
