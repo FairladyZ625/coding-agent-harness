@@ -49,6 +49,24 @@ Give the installation prompt to your agent, and it can initialize, scan, migrate
 
 Any agent that can read files, write files, and run commands can use this Harness. It works with Codex, Claude Code, Gemini CLI, Cursor-style agents, OpenClaw, and similar coding agents.
 
+### Recommended Models
+
+This Harness is opinionated about model choice. For execution work, the project
+recommends GPT 5.5 because strong instruction following matters more than raw
+code generation breadth for task creation, evidence updates, review submission,
+and closeout discipline.
+
+Claude Opus models are recommended as review models. They can be useful for
+reading plans, challenging implementation quality, and finding risks, but they
+are not the preferred primary executor for this Harness because their
+instruction following is weaker and they are less proactive about updating
+Harness documentation and task materials.
+
+Other model families are not recommended for operating this Harness, including
+Gemini, Grok, DeepSeek, GLM, and similar models. They may be able to read and
+write the files mechanically, but the project does not recommend relying on them
+for Harness-governed task execution.
+
 ### Document-Native And Transparent
 
 Important project state stays visible in the repository:
