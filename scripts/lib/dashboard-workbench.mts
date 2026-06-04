@@ -11,7 +11,7 @@ import { confirmWorkbenchReviewBatch } from "../application/workbench/review-con
 import { createAggregateLessonSedimentationTask } from "./task-lesson-sedimentation.mjs";
 import { normalizeTarget } from "./core-shared.mjs";
 import { dashboardWatchRoots } from "./harness-paths.mjs";
-import { createTaskWorkbenchReviewSubjectReader } from "./task-repository.mjs";
+import { createWorkbenchReviewSubjectSource } from "../adapters/workbench/workbench-review-subject-source.mjs";
 import { taskOperationFailurePayload } from "../application/task/task-operations.mjs";
 import { createScannerTaskOperations } from "../adapters/cli/task-operations.mjs";
 import { writeDashboardFolder } from "./dashboard-data.mjs";
@@ -70,7 +70,7 @@ type JsonPayload = Record<string, unknown>;
 export async function serveDashboardWorkbench(outDir: string, targetInput: string, { host = "127.0.0.1", port = 0, localeOverride = "", autoRefresh = false, open = false, label = "dashboard workbench", recoverGeneratedDashboard = false, replaceExistingDashboardOutput = false }: WorkbenchOptions = {}) {
   if (host !== "127.0.0.1") throw new Error("dashboard workbench only supports --host 127.0.0.1");
   const target = normalizeTarget(targetInput) as WorkbenchTarget;
-  const workbenchReviewSubjects = createTaskWorkbenchReviewSubjectReader(target);
+  const workbenchReviewSubjects = createWorkbenchReviewSubjectSource(target);
   const taskOperations = createScannerTaskOperations(target.projectRoot);
   const outputDir = path.resolve(outDir);
   const csrfToken = crypto.randomBytes(24).toString("hex");
