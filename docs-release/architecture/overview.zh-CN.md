@@ -129,14 +129,14 @@ flowchart LR
 sequenceDiagram
   autonumber
   participant CLI as harness dashboard/dev
-  participant Repo as TaskRepository + scanner
+  participant Repo as 内部任务读取 adapter
   participant Projection as task semantic projection
   participant Bundle as dashboard bundle
   participant Output as HTML 输出
   participant Browser as 浏览器
   participant Target as 目标 harness 文件
 
-  CLI->>Repo: 读取 AGENTS.md 和 coding-agent-harness/
+  CLI->>Repo: 通过内部 adapter 读取 AGENTS.md 和 coding-agent-harness/
   Repo->>Projection: 构建 lifecycle、dashboard、review queue 视图
   Projection->>Bundle: 构建 status、tables、documents、graph、warnings
   Bundle->>Output: 写入 index.html、assets、data/*.json
@@ -149,6 +149,8 @@ sequenceDiagram
 ```
 
 静态 Dashboard 是可携带的证据快照。本地 Workbench 增加一个很小的可写操作面，用于人工确认过的动作，例如 review completion。
+scanner-backed 读取路径只是 semantic projection 背后的内部 adapter；公开消费者应使用 CLI
+命令和生成视图，不应通过 package deep import 依赖 repository 或 scanner 内部模块。
 
 ## 任务生命周期状态机
 

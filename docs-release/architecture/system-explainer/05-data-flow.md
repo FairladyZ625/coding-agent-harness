@@ -5,7 +5,7 @@
 ```mermaid
 flowchart LR
   Source["Markdown source of truth\ncoding-agent-harness/"]
-  Repository["TaskRepository\n兼容读缝"]
+  Repository["内部任务读取器\nadapter-owned 读缝"]
   Status["status model\nscanner + validators"]
   Projection["Task semantic projection\n统一生命周期 / 审查 / 队列语义"]
   Dashboard["Dashboard / Workbench / generated indexes"]
@@ -44,11 +44,11 @@ flowchart TD
 
 ---
 
-## Level 2 — TaskRepository 如何读取任务
+## Level 2 — 内部任务读取器如何读取任务
 
 ```mermaid
 flowchart TD
-  Repo["TaskRepository"]
+  Repo["内部任务读取器"]
   List["list(query)"]
   Get["get(ref)"]
   Resolve["resolve(ref)"]
@@ -65,8 +65,9 @@ flowchart TD
   Materials --> Scanner
 ```
 
-`TaskRepository` 包住现有 scanner。调用方看到的是任务记录和任务材料，而不是
-`listTaskPlanPaths()`、目录排除规则、legacy visual map fallback 等内部细节。
+内部任务读取器在需要时包装 scanner-backed discovery。公开和 application 调用方应该看到
+语义任务视图和可审查材料，而不是 `listTaskPlanPaths()`、目录排除规则、
+legacy visual map fallback 等内部细节。
 
 ### 任务发现流程
 
@@ -79,8 +80,9 @@ flowchart TD
   Parse --> Status["组装 status task record"]
 ```
 
-scanner 仍负责解析 Markdown 表格、状态、阶段、review submission、confirmation、
-lesson decision 和 tombstone。重构后的差别是：这些 raw fields 不应被每个 UI 或命令面重复解释。
+scanner 仍作为 infrastructure adapter 解析 Markdown 表格、状态、阶段、review submission、
+confirmation、lesson decision 和 tombstone。重构后的边界是：UI、命令面和 generated surface
+不能各自重新解释这些 raw fields。
 
 ---
 

@@ -142,14 +142,14 @@ checks, migration reports, and dashboard views aligned.
 sequenceDiagram
   autonumber
   participant CLI as harness dashboard/dev
-  participant Repo as TaskRepository + scanner
+  participant Repo as internal task read adapters
   participant Projection as task semantic projection
   participant Bundle as dashboard bundle
   participant Output as HTML output
   participant Browser as browser
   participant Target as target harness files
 
-  CLI->>Repo: read AGENTS.md and coding-agent-harness/
+  CLI->>Repo: read AGENTS.md and coding-agent-harness/ through internal adapters
   Repo->>Projection: build lifecycle, dashboard, and review queue views
   Projection->>Bundle: build status, tables, documents, graph, warnings
   Bundle->>Output: write index.html, assets, data/*.json
@@ -163,6 +163,9 @@ sequenceDiagram
 
 The static dashboard is a portable evidence snapshot. The local workbench adds a
 small writable surface for human-confirmed actions such as review completion.
+The scanner-backed read path is an internal adapter behind semantic projection;
+public consumers should use CLI commands and generated views, not package deep
+imports into repository or scanner internals.
 
 ## Task Lifecycle State Machine
 

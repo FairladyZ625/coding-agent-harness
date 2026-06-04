@@ -31,7 +31,7 @@ flowchart TB
   Adapter["Adapters\nCLI / Dashboard Workbench / Preset / Migration"]
   App["Application use cases\nTaskOperations / module governance / workbench actions"]
   Domain["Domain kernel\nstate policy / review gates / module ownership / preset model"]
-  Ports["Ports\nTaskRepository / HarnessTransaction / projections"]
+  Ports["Ports\ninternal task readers / HarnessTransaction / projections"]
   Infra["Infrastructure + legacy adapters\nscanner / markdown / fs / git / governance-sync / preset runner"]
 
   Adapter --> App
@@ -70,12 +70,12 @@ the entry file.
 
 ---
 
-## Level 2 — Task read path: TaskRepository
+## Level 2 — Task read path: internal readers
 
 ```mermaid
 flowchart TD
   Consumer["status / dashboard / workbench / lifecycle / task-index"]
-  Repo["TaskRepository\nlist / get / resolve / readMaterials"]
+  Repo["Internal task reader port\nlist / get / resolve / readMaterials"]
   Scanner["legacy scanner\ncollectTasks + task discovery"]
   Files["Markdown task package\nINDEX / task_plan / progress / review / visual_map"]
 
@@ -84,9 +84,10 @@ flowchart TD
   Scanner --> Files
 ```
 
-`TaskRepository` is the read seam. The first implementation still wraps the
-existing scanner; the point is not to rewrite scanning immediately, but to stop
-callers from depending on task discovery internals. It exposes four capabilities:
+The task reader port is an internal read seam. Scanner-backed implementations
+may still exist behind this adapter, but active callers should depend on
+semantic task views rather than scanner discovery details. The internal reader
+exposes four capabilities:
 
 | Method | Purpose |
 | --- | --- |
@@ -95,8 +96,10 @@ callers from depending on task discovery internals. It exposes four capabilities
 | `resolve(ref)` | Resolve a task reference to its directory and `task_plan.md` path |
 | `readMaterials(ref)` | Read reviewable Markdown files from the task package |
 
-This facade lets future scanner internals change without editing Dashboard,
-Workbench, check, and lifecycle callers one by one.
+This adapter lets future scanner internals change without editing Dashboard,
+Workbench, check, and lifecycle callers one by one. It is not a public package
+import surface; consumers should use the CLI, generated JSON, Dashboard output,
+or documented preset/template entrypoints.
 
 ---
 
@@ -107,22 +110,21 @@ flowchart TD
   CLI["CLI task commands"]
   Workbench["Dashboard Workbench"]
   Ops["TaskOperations\ncreate / start / review / complete / confirmReview / delete / archive / supersede / reopen / lessonSediment"]
-  Repo["TaskRepository"]
-  LegacyWrite["legacy lifecycle / tombstone / lesson writers"]
+  Read["Internal task readers"]
+  Writers["TaskOperationWriters / transaction-backed adapters"]
 
   CLI --> Ops
   Workbench --> Ops
-  Ops --> Repo
-  Ops --> LegacyWrite
+  Ops --> Read
+  Ops --> Writers
 ```
 
 `TaskOperations` is the application use-case layer. Both CLI and Dashboard
 Workbench go through it for task actions, so rules such as review confirmability,
 task completion, and open blocking findings do not fork across entry points.
 
-The current implementation can still call legacy lifecycle writers to update
-Markdown. That is an intentional transition state: first make the use-case
-boundary hard, then move lower-level writers behind a unified transaction.
+Write-specific compatibility modules are adapter-owned and transaction-scoped.
+They are not business interfaces for CLI or Dashboard callers.
 
 ---
 
@@ -197,7 +199,7 @@ roles are:
 
 | Module | Current role |
 | --- | --- |
-| `task-scanner.mts` / `task-review-model.mts` | Legacy read implementation behind TaskRepository |
+| `task-scanner.mts` / `task-review-model.mts` | Legacy read implementation behind internal task readers |
 | `governance-sync.mts` | Legacy write / commit adapter behind HarnessTransaction |
 | `task-lifecycle.mts` | Still performs some Markdown writes while TaskOperations and transaction adoption continue |
 | `dashboard-data.mts` / `dashboard-workbench.mts` | Dashboard adapter and projection consumer |

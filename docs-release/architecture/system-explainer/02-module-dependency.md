@@ -28,7 +28,7 @@ flowchart TB
   Adapter["Adapters\nCLI / Dashboard Workbench / Preset / Migration"]
   App["Application use cases\nTaskOperations / module governance / workbench actions"]
   Domain["Domain kernel\nstate policy / review gates / module ownership / preset model"]
-  Ports["Ports\nTaskRepository / HarnessTransaction / projections"]
+  Ports["Ports\n内部任务读取器 / HarnessTransaction / projections"]
   Infra["Infrastructure + legacy adapters\nscanner / markdown / fs / git / governance-sync / preset runner"]
 
   Adapter --> App
@@ -64,12 +64,12 @@ flag schema、positionals 和 handler。复杂命令仍分发到 `dashboard-comm
 
 ---
 
-## Level 2 — 任务读路径：TaskRepository
+## Level 2 — 任务读路径：内部读取器
 
 ```mermaid
 flowchart TD
   Consumer["status / dashboard / workbench / lifecycle / task-index"]
-  Repo["TaskRepository\nlist / get / resolve / readMaterials"]
+  Repo["内部任务读取端口\nlist / get / resolve / readMaterials"]
   Scanner["legacy scanner\ncollectTasks + task discovery"]
   Files["Markdown task package\nINDEX / task_plan / progress / review / visual_map"]
 
@@ -78,8 +78,8 @@ flowchart TD
   Scanner --> Files
 ```
 
-`TaskRepository` 是读缝。第一版实现仍包装现有 scanner；重点不是重写 scanner，
-而是让调用方停止直接依赖 task discovery 细节。它提供四类能力：
+任务读取端口是内部读缝。scanner-backed 实现可以继续藏在 adapter 后面，但 active
+调用方应依赖语义任务视图，而不是 scanner discovery 细节。内部读取器提供四类能力：
 
 | 方法 | 用途 |
 | --- | --- |
@@ -88,8 +88,9 @@ flowchart TD
 | `resolve(ref)` | 把任务引用解析成目录和 `task_plan.md` 路径 |
 | `readMaterials(ref)` | 读取任务包中可审查的 Markdown 文件 |
 
-这个 facade 让以后替换 scanner 内部实现时，不需要逐个改 Dashboard、Workbench、
-check 和 lifecycle 调用方。
+这个 adapter 让以后替换 scanner 内部实现时，不需要逐个改 Dashboard、Workbench、
+check 和 lifecycle 调用方。它不是公开 package import surface；消费者应使用 CLI、
+生成 JSON、Dashboard 输出或已文档化的 preset/template 入口。
 
 ---
 
@@ -100,20 +101,20 @@ flowchart TD
   CLI["CLI task commands"]
   Workbench["Dashboard Workbench"]
   Ops["TaskOperations\ncreate / start / review / complete / confirmReview / delete / archive / supersede / reopen / lessonSediment"]
-  Repo["TaskRepository"]
-  LegacyWrite["legacy lifecycle / tombstone / lesson writers"]
+  Read["内部任务读取器"]
+  Writers["TaskOperationWriters / transaction-backed adapters"]
 
   CLI --> Ops
   Workbench --> Ops
-  Ops --> Repo
-  Ops --> LegacyWrite
+  Ops --> Read
+  Ops --> Writers
 ```
 
 `TaskOperations` 是 application use-case 层。CLI 和 Dashboard Workbench 都通过它做任务动作，
 所以“能不能确认 review”“能不能 task-complete”“open blocking findings 是否阻断”等规则不会在多个入口分叉。
 
-当前实现仍会调用 legacy lifecycle writer 来实际更新 Markdown；这是有意的过渡形态。
-架构边界先收口到 use case，再逐步把底层 writer 迁入统一 transaction。
+写入相关 compatibility module 由 adapter 拥有并受 transaction scope 约束；
+它们不是 CLI 或 Dashboard 调用方的业务接口。
 
 ---
 
@@ -183,7 +184,7 @@ Projection 可以落盘或缓存为 generated JSON，但它不是权威事实源
 
 | 模块 | 当前角色 |
 | --- | --- |
-| `task-scanner.mts` / `task-review-model.mts` | TaskRepository 背后的 legacy read implementation |
+| `task-scanner.mts` / `task-review-model.mts` | 内部任务读取器背后的 legacy read implementation |
 | `governance-sync.mts` | HarnessTransaction 背后的 legacy write / commit adapter |
 | `task-lifecycle.mts` | 仍执行部分 Markdown 写入，逐步由 TaskOperations 和 transaction 收口 |
 | `dashboard-data.mts` / `dashboard-workbench.mts` | Dashboard adapter 和 projection consumer |
