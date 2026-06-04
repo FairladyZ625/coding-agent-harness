@@ -27,6 +27,7 @@ assert(p10Profile.some((gate) => gate.id === "dashboard-generation"), "P10 profi
 assert(p10Profile.some((gate) => gate.id === "pack-dry-run"), "P10 profile should include package dry-run gate");
 assert(p11Profile.some((gate) => gate.id === "installed-package-smoke"), "P11 profile should include installed package smoke");
 assert(p13Profile.some((gate) => gate.id === "legacy-fallback-final-audit"), "P13 profile should include final detector audit");
+assert(p13Profile.find((gate) => gate.id === "legacy-fallback-final-audit")?.command.includes("--registry <fallback-surface-registry.md>"), "P13 final detector audit command should require an explicit fallback registry");
 assert(p13Profile.some((gate) => gate.id === "reviewer-no-open-p0-p2"), "P13 profile should include reviewer no-open-P0/P1/P2 gate");
 
 const passingP10 = evaluateGateEvidenceEnvelope({
