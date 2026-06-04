@@ -95,6 +95,34 @@ export function ${inferReviewStatusName}() { // test-only-compat fixture
   return "agent-reviewed";
 }
 `);
+  writeFixture("scripts/domain/task/task-semantic-projection.mts", `
+export function project(task: { ${rawStateField}?: string }) {
+  if (task.${rawStateField} === "done") return "done";
+  return "active";
+}
+`);
+  writeFixture("scripts/lib/task-repository.mts", `
+export function list(tasks: Array<{ ${rawStateField}?: string }>) {
+  return tasks.filter((task) => task.${rawStateField} === "done");
+}
+`);
+  writeFixture("harness-gui/src/server/scanner.ts", `
+export function ${inferLifecycleName}(task: { ${rawStateField}?: string }) {
+  return task.${rawStateField} === "done" ? "done" : "active";
+}
+`);
+  writeFixture("tests/legal-raw-fixture.mts", `
+export function assertProjection(item: { ${rawReviewStatusField}?: string }) {
+  if (item.${rawReviewStatusField} === "confirmed") return true;
+  return false;
+}
+`);
+  writeFixture("harness-gui/node_modules/vendor/noise.js", `
+if (entry.${rawStateField} === "done") console.log(entry);
+`);
+  writeFixture("harness-gui/dist/assets/generated.js", `
+if (entry.${rawStateField} === "done") console.log(entry);
+`);
   writeFixture("src/positive/mixed-runtime.ts", `
 export const metadata = { schemaVersion: "legacy-migration-input/v1", runtimeTruth: false };
 
@@ -166,6 +194,10 @@ export function ${inferLifecycleName}() {
     repoRoot,
     scanRoots: ["tests/legacy-fallback-detector.mts"],
   });
+  const legalSurfaceReport = analyzeLegacyFallbackSurfaces({
+    repoRoot: tmpRoot,
+    scanRoots: ["scripts", "harness-gui", "tests"],
+  });
 
   expectFinding(report.findings, "legacy-raw-runtime-fallback", "src/positive/raw-runtime.ts");
   expectFinding(report.findings, "legacy-raw-runtime-fallback", "src/positive/raw-field-decision.ts");
@@ -189,6 +221,12 @@ export function ${inferLifecycleName}() {
   expectNoFinding(report.findings, "src/negative/migration-only.ts");
   expectNoFinding(report.findings, "src/negative/stable-kernel.ts");
   expectNoFinding(report.findings, "src/negative/test-only-compat.ts");
+  expectNoFinding(legalSurfaceReport.findings, "scripts/domain/task/task-semantic-projection.mts");
+  expectNoFinding(legalSurfaceReport.findings, "scripts/lib/task-repository.mts");
+  expectNoFinding(legalSurfaceReport.findings, "harness-gui/src/server/scanner.ts");
+  expectNoFinding(legalSurfaceReport.findings, "tests/legal-raw-fixture.mts");
+  assert(!legalSurfaceReport.scannedFiles.some((file) => file.includes("node_modules")), "detector should not scan vendored node_modules");
+  assert(!legalSurfaceReport.scannedFiles.some((file) => file.includes("dist/assets")), "detector should not scan generated GUI dist assets");
   assert(selfScanReport.findings.length === 0, `detector test source must not pollute repo scans; got ${JSON.stringify(selfScanReport.findings, null, 2)}`);
   assert(report.schemaVersion === "legacy-fallback-detector/v1", "detector should expose stable schema version");
   assert(report.scannedFiles.includes("src/positive/raw-runtime.ts"), "detector should record scanned files");

@@ -98,6 +98,18 @@ const decisionTokenPattern = /\b(?:if|switch|return)\b|[?]|&&|\|\|/;
 const rawFactDecisionPattern = new RegExp(`(?:\\b(?:if|switch|return)\\b|[?]|&&|\\|\\|).*?\\b(?:task|item|raw|record|entry)\\.(?:${rawFactFieldAlternation})\\b`);
 const rawFactBracketDecisionPattern = new RegExp(`(?:\\b(?:if|switch|return)\\b|[?]|&&|\\|\\|).*?\\b(?:task|item|raw|record|entry)\\[["'](?:${rawFactFieldAlternation})["']\\]`);
 const compatExemptionPattern = /\bmigration-only\b|runtimeTruth["']?\s*:\s*false|legacy-migration-input\/v1|\bstable-kernel\b|pure helper|\btest-only-compat\b|test only compat/i;
+const ignoredScanPathSegments = new Set(["node_modules", ".git", ".vite", "dist"]);
+const legalRawFactDecisionSurfacePatterns = [
+  /^scripts\/domain\/task\//,
+  /^scripts\/lib\/task-repository\.mts$/,
+  /^scripts\/lib\/task-lifecycle\.mts$/,
+  /^scripts\/lib\/task-lifecycle\/review-gates\.mts$/,
+  /^scripts\/lib\/task-command-results\.mts$/,
+  /^scripts\/lib\/task-completion-consistency\.mts$/,
+  /^harness-gui\/src\/server\/scanner\.ts$/,
+  /^harness-gui\/src\/server\/source-adapter\.ts$/,
+  /^tests\//,
+];
 
 export function analyzeLegacyFallbackSurfaces(options: DetectorOptions = {}): LegacyFallbackReport {
   const repoRoot = path.resolve(options.repoRoot || defaultRepoRoot);
@@ -122,7 +134,7 @@ function scanSourceText(relativeFile: string, content: string): LegacyFallbackFi
   const rawFactAliases = new Set<string>();
 
   for (const [index, line] of lines.entries()) {
-    const exemptCompat = isCompatExemptLine(lines, index);
+    const exemptCompat = isCompatExemptLine(relativeFile, lines, index);
     collectRawFactAliases(line, rawFactAliases);
     if (!exemptCompat && rawInferencePattern.test(line)) {
       findings.push({
@@ -270,6 +282,7 @@ function walkTextFiles(current: string, repoRoot: string): string[] {
   const stat = fs.lstatSync(current);
   if (stat.isSymbolicLink()) return [];
   if (stat.isFile()) return textFilePattern.test(current) ? [toPosix(path.relative(repoRoot, current))] : [];
+  if (ignoredScanPathSegments.has(path.basename(current))) return [];
   const files: string[] = [];
   for (const entry of fs.readdirSync(current)) files.push(...walkTextFiles(path.join(current, entry), repoRoot));
   return files;
@@ -293,8 +306,12 @@ function hasRawFactAliasDecision(line: string, aliases: Set<string>): boolean {
   return [...aliases].some((alias) => new RegExp(`\\b${escapeRegExp(alias)}\\b`).test(line));
 }
 
-function isCompatExemptLine(lines: string[], index: number): boolean {
-  return compatExemptionPattern.test(lines[index]);
+function isCompatExemptLine(relativeFile: string, lines: string[], index: number): boolean {
+  return isLegalRawFactDecisionSurface(relativeFile) || compatExemptionPattern.test(lines[index]);
+}
+
+function isLegalRawFactDecisionSurface(relativeFile: string): boolean {
+  return legalRawFactDecisionSurfacePatterns.some((pattern) => pattern.test(relativeFile));
 }
 
 function isPublishedText(relativeFile: string): boolean {
