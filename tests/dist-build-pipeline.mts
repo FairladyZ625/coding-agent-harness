@@ -16,6 +16,7 @@ type DistBuildSummary = {
 
 type PackageJsonShape = {
   bin?: { harness?: string };
+  exports?: Record<string, unknown>;
   scripts?: Record<string, string>;
   files: string[];
 };
@@ -79,10 +80,15 @@ assert(!buildSummary.files.includes("scripts/harness.mjs"), "dist build must not
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")) as PackageJsonShape;
 assert(packageJson.bin?.harness === "dist/harness.mjs", "package bin should run the dist harness entrypoint");
+assert(packageJson.exports && Object.keys(packageJson.exports).length === 1, "package exports should be restrictive");
+assert(packageJson.exports?.["./package.json"] === "./package.json", "package exports should expose package metadata only");
+assert(!packageJson.exports?.["."], "package root import should not be a public API");
 assert(packageJson.scripts?.postinstall === "node postinstall.mjs", "package postinstall should run the source-safe postinstall bootstrap");
 assert(packageJson.scripts?.prepare === "node postinstall.mjs --build-only", "package prepare should build dist for Git/source installs");
 assert(packageJson.scripts?.prepublishOnly?.includes("check-dist-observation.mjs"), "package prepublishOnly should run dist observation before publish");
+assert(packageJson.scripts?.prepublishOnly?.includes("check-package-surface.mjs"), "package prepublishOnly should run package surface checks before publish");
 assert(packageJson.scripts?.check === "node run-dist.mjs harness.mjs check --profile source-package .", "npm check should run through source-safe dist bootstrap");
+assert(packageJson.scripts?.["check:package-surface"] === "node run-dist.mjs check-package-surface.mjs", "package surface script should run through dist bootstrap");
 assert(packageJson.files.includes("dist/"), "package allowlist should include generated dist artifacts");
 assert(packageJson.files.includes("postinstall.mjs"), "package allowlist should include postinstall bootstrap");
 assert(packageJson.files.includes("run-dist.mjs"), "package allowlist should include npm script dist bootstrap");
