@@ -1,0 +1,11 @@
+/* Task index sidebar density */
+@media (min-width: 1024px) {
+  .tasks-grid {
+    grid-template-columns: minmax(0, 1fr) clamp(260px, 17vw, 320px);
+  }
+
+  .tasks-main,
+  .tasks-sidebar {
+    min-width: 0;
+  }
+}
