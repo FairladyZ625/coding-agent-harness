@@ -11,6 +11,14 @@ const typescriptVersion = "5.9.3";
 
 const options = parseArgs(process.argv.slice(2));
 
+if (!options.skipDistBuild) {
+  const build = spawnSync(process.execPath, ["scripts/build-dist.mts", "--quiet"], {
+    cwd: repoRoot,
+    stdio: "inherit",
+  });
+  if (build.status !== 0) process.exit(build.status || 1);
+}
+
 fs.rmSync(outDir, { recursive: true, force: true });
 const npmArgs = ["exec", "--yes", "--package", `typescript@${typescriptVersion}`, "--", "tsc", "-p", "tsconfig.tests.json", "--outDir", outDir, "--noCheck"];
 const npmCommand = resolveNpmCommand(npmArgs);
@@ -39,6 +47,8 @@ const result = spawnSync(process.execPath, [runner], {
   stdio: "inherit",
   env: {
     ...process.env,
+    ...(options.jobs ? { HARNESS_TEST_RUNNER_JOBS: String(options.jobs) } : {}),
+    ...(options.batchSize ? { HARNESS_TEST_RUNNER_BATCH_SIZE: String(options.batchSize) } : {}),
     HARNESS_TEST_REPO_ROOT: repoRoot,
     HARNESS_TEST_RUNNER_MODE: "built",
     HARNESS_TEST_RUNNER_OUT_DIR: outDir,
@@ -47,6 +57,9 @@ const result = spawnSync(process.execPath, [runner], {
 if (result.status !== 0) process.exit(result.status || 1);
 
 type RunBuiltTestsOptions = {
+  batchSize?: number;
+  jobs?: number;
+  skipDistBuild?: boolean;
   test?: string;
 };
 
@@ -57,6 +70,14 @@ function parseArgs(argv: string[]): RunBuiltTestsOptions {
     if (arg === "--test") {
       parsed.test = requireValue(argv, index, arg);
       index += 1;
+    } else if (arg === "--jobs") {
+      parsed.jobs = requirePositiveInteger(argv, index, arg);
+      index += 1;
+    } else if (arg === "--batch-size") {
+      parsed.batchSize = requirePositiveInteger(argv, index, arg);
+      index += 1;
+    } else if (arg === "--skip-dist-build") {
+      parsed.skipDistBuild = true;
     } else {
       throw new Error(`Unknown run-built-tests option: ${arg}`);
     }
@@ -67,6 +88,12 @@ function parseArgs(argv: string[]): RunBuiltTestsOptions {
 function requireValue(argv: string[], index: number, option: string): string {
   const value = argv[index + 1];
   if (!value) throw new Error(`${option} requires a value`);
+  return value;
+}
+
+function requirePositiveInteger(argv: string[], index: number, option: string): number {
+  const value = Number.parseInt(requireValue(argv, index, option), 10);
+  if (!Number.isInteger(value) || value < 1) throw new Error(`${option} requires a positive integer`);
   return value;
 }
 

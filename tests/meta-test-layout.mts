@@ -9,15 +9,16 @@ function assert(condition: boolean, message: string): void {
 }
 
 const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
-assert(pkg.scripts.test === "node run-dist.mjs run-built-tests.mjs", "npm test should use the source-safe built TS-source test runner");
+assert(pkg.scripts.test === "node scripts/run-built-tests.mts", "npm test should run the TS-source test runner directly and build dist only once");
 assert(!fs.existsSync(path.join(repoRoot, "tests/run-all.mjs")), "historical checked-in tests/run-all.mjs shim should be removed after PR-28");
 
 const runAllSource = fs.readFileSync(path.join(repoRoot, "tests/run-all.mts"), "utf8");
-const registeredSuites = new Set(Array.from(runAllSource.matchAll(/"([^"]+\.mjs)"/g)).map((match) => match[1].replace(/\.mjs$/, ".mts")));
+const registeredSuites = new Set(Array.from(runAllSource.matchAll(/path:\s*"([^"]+\.mjs)"/g)).map((match) => match[1].replace(/\.mjs$/, ".mts")));
 const suiteFiles = walkTestSuites(path.join(repoRoot, "tests"))
   .map((file) => path.relative(repoRoot, file).split(path.sep).join("/"))
   .filter((file) => ![
     "tests/run-all.mts",
+    "tests/run-batch.mts",
     "tests/run-built.mts",
     "tests/smoke-dashboard.mts",
     "tests/helpers/harness-test-utils.mts",
