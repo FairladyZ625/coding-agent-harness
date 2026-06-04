@@ -1,10 +1,62 @@
 # Preset Development
 
+[简体中文](preset-development.zh-CN.md)
+
 Harness presets are declarative task method packages. A preset can add task metadata, render Markdown templates, require CLI inputs, generate evidence files, and pre-load shared reference bundles without writing JavaScript.
 
 Use a preset when multiple tasks should start from the same method, evidence contract, or shared context. Do not create a preset for one-off prose. Good presets encode repeatable task behavior: required inputs, task kind, review/evidence expectations, shared references, and a small amount of task-plan guidance that tells the next agent what to read first.
 
 `preset.yaml` uses the Harness manifest subset: nested mappings, scalar strings/numbers/booleans, and inline arrays such as `[standard, complex]`. Do not use block strings or dash-list YAML forms in preset manifests.
+
+## How To Think About Presets
+
+A preset is not a longer prompt. It is a task-start contract for a work family.
+The best source material for a preset is the work your team already repeats:
+deployment steps, staging verification, API smoke tests, browser regression,
+PR templates, review routing, rollback checks, external contracts, screenshots,
+or local tools an agent must run before claiming the task is done.
+
+If a human usually has to remind the agent about the same checklist, reference
+packet, or validation path, that reminder probably belongs in a preset. The goal
+is to make each new task start with the right structure already present, so the
+agent does not rely on chat memory or model-specific instruction following to
+discover the workflow.
+
+Good presets usually answer these questions:
+
+- What kind of task is this, and which budgets are allowed?
+- What input must the task creator provide, such as service name, target branch,
+  release version, environment, API route, or design surface?
+- Which shared references must every agent read before implementation?
+- Which fixtures, runbooks, screenshots, API packets, or review materials should
+  be copied into the task as artifacts?
+- Which evidence files prove that the task was created from the expected method?
+- Which commands, scripts, browser flows, or external checks should the task plan
+  tell the agent to run?
+- When must the agent stop and ask for human input instead of improvising?
+
+## From Workflow To Preset
+
+Convert a real workflow into a preset in this order:
+
+1. Capture the repeated chain exactly as people run it today. Include manual
+   steps, local CLI commands, browser or Playwright checks, staging deploy
+   requirements, API smoke tests, PR body rules, and cleanup expectations.
+2. Separate stable shared context from per-task inputs. Shared contracts and
+   runbooks become reference resources; service names, versions, environments,
+   and subjects become `inputs`.
+3. Decide what belongs in the task plan versus the artifact bundle. Instructions
+   the agent must follow should be visible in `task_plan.md`; supporting packets,
+   fixtures, screenshots, and generated reports should live under artifacts.
+4. Encode proof. Add audit and evidence files so a reviewer can tell which preset
+   created the task, which inputs were used, and which write scopes were allowed.
+5. Create two different tasks from the preset and compare them. They should share
+   the same method while keeping independent task directories, evidence bundles,
+   and review state.
+
+Avoid presets for a single one-off request, vague process advice, or a workflow
+that is still unknown. In those cases, run one normal task first, learn the real
+chain, and only then package the repeatable parts as a preset.
 
 ## Install Location
 
