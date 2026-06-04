@@ -382,6 +382,7 @@ Do not claim strict migration is complete unless:
 Do not claim full readable migration is complete unless:
 
 - All strict-complete conditions above pass.
+- `migrate-plan` reports `mode=declared-capability` or `mode=v2-manifest`, not `legacy-compat`; this is eligibility only.
 - `migrate-plan` has 0 warnings/actions/residuals.
 - Dashboard brief coverage is 100%.
 - Final adversarial review lanes pass: CLI/session, brief quality, and boundary/git state.

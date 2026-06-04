@@ -203,13 +203,18 @@ flowchart TD
   C2 -->|"no"| F2["FAIL"]
   C2 -->|"yes"| C3{"All counters == 0?\n(warnings / taskActions\nreviewSchemaGaps / legacyResiduals etc.)"}
   C3 -->|"no"| F3["FAIL (list non-zero counters)"]
-  C3 -->|"yes"| C4{"fullCutoverEligible == true?"}
+  C3 -->|"yes"| C4{"eligible mode?\ndeclared-capability or v2-manifest"}
   C4 -->|"no"| F4["FAIL"]
-  C4 -->|"yes"| P1["PASS (full cutover ready)"]
+  C4 -->|"yes"| C5{"fullCutoverEligible == true?"}
+  C5 -->|"no"| F5["FAIL"]
+  C5 -->|"yes"| P1["PASS (full cutover verified)"]
 ```
 
 `--full-cutover` is the final acceptance criteria for migration completion: all 8 conditions
 must be satisfied to pass.
+It treats `declared-capability` and `v2-manifest` migrate-plan modes as eligible
+candidate inputs, rejects `legacy-compat`, and still requires the remaining
+full-cutover checks. Mode eligibility alone does not prove full migration.
 
 ---
 

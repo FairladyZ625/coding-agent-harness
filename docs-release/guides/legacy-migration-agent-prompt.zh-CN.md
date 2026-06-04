@@ -358,6 +358,7 @@ console.log(status.tasks.filter((task) => task.briefSource !== "standalone" || !
 不要声称 full readable migration complete，除非：
 
 - 上述 strict-complete 条件全部通过。
+- `migrate-plan` 报告 `mode=declared-capability` 或 `mode=v2-manifest`，不能是 `legacy-compat`；该 mode 只表示候选资格。
 - `migrate-plan` 有 0 warnings/actions/residuals。
 - Dashboard brief coverage 是 100%。
 - Final adversarial review lanes 通过：CLI/session、brief quality、boundary/git state。

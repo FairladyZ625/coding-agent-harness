@@ -333,8 +333,11 @@ npx --yes coding-agent-harness status --json .
 npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 npx --yes coding-agent-harness migrate-structure --plan --json .
 
-After I confirm the migration mode, first migrate the directory structure to the
-v2 manifest layout, then run the migration rail and verify it:
+After I confirm the migration mode, apply the directory-structure changes
+recommended by `migrate-structure --plan` when needed, then run the migration
+rail and verify it. Do not treat `migrate-plan` mode `declared-capability` as a
+failure; full-cutover verification rejects `legacy-compat` and accepts only
+`declared-capability` or `v2-manifest` as candidate modes:
 npx --yes coding-agent-harness migrate-structure --apply --json .
 npx --yes coding-agent-harness check --profile target-project .
 npx --yes coding-agent-harness migrate-run --locale zh-CN --session-dir /tmp/cah-migration-project --out-dir /tmp/cah-migration-project/dashboard .

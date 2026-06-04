@@ -312,7 +312,10 @@ npx --yes coding-agent-harness status --json .
 npx --yes coding-agent-harness migrate-plan --json --limit 1000 .
 npx --yes coding-agent-harness migrate-structure --plan --json .
 
-等我确认迁移模式后，先把目录结构迁到 v2 manifest 布局，再执行迁移轨道并验证：
+等我确认迁移模式后，按 `migrate-structure --plan` 的建议在需要时应用目录结构调整，
+再执行迁移轨道并验证。不要把 `migrate-plan` mode `declared-capability` 当作失败；
+full-cutover 验证会拒绝 `legacy-compat`，只把 `declared-capability` 或 `v2-manifest`
+视为候选模式：
 npx --yes coding-agent-harness migrate-structure --apply --json .
 npx --yes coding-agent-harness check --profile target-project .
 npx --yes coding-agent-harness migrate-run --locale zh-CN --session-dir /tmp/cah-migration-project --out-dir /tmp/cah-migration-project/dashboard .

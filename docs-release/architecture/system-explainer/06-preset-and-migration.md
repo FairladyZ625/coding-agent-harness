@@ -209,12 +209,17 @@ flowchart TD
   C2 -->|"否"| F2["FAIL"]
   C2 -->|"是"| C3{"所有计数器 == 0?\n（warnings / taskActions\nreviewSchemaGaps / legacyResiduals 等）"}
   C3 -->|"否"| F3["FAIL（列出非零计数器）"]
-  C3 -->|"是"| C4{"fullCutoverEligible == true?"}
+  C3 -->|"是"| C4{"eligible mode?\ndeclared-capability 或 v2-manifest"}
   C4 -->|"否"| F4["FAIL"]
-  C4 -->|"是"| P1["PASS（完全切换就绪）"]
+  C4 -->|"是"| C5{"fullCutoverEligible == true?"}
+  C5 -->|"否"| F5["FAIL"]
+  C5 -->|"是"| P1["PASS（full cutover verified）"]
 ```
 
 `--full-cutover` 是迁移完成的最终验收标准：8 个条件全部满足才算通过。
+它只把 `declared-capability` 和 `v2-manifest` migrate-plan mode 视为候选输入，
+继续拒绝 `legacy-compat`，并且仍要求其余 full-cutover 检查全部通过。
+mode 资格本身不能证明 full migration complete。
 
 ---
 

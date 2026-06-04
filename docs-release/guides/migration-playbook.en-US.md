@@ -168,7 +168,9 @@ If later cleanup repairs warnings or active task contracts, the first session is
 
 `migrate-verify` passing does not mean the full migration is complete. Full migration also requires:
 
-- `migrate-plan` is `declared-capability`.
+- `migrate-plan` is `declared-capability` or `v2-manifest`. These modes only
+  make the project eligible for full-cutover verification; they do not prove
+  full migration by themselves.
 - `warnings=0`, `taskActions=0`, `reviewSchemaGaps=0`, `legacyReferenceGaps=0`, `legacyResiduals=0`, and `recommendedCapabilities=[]`.
 - Normal and strict checks pass.
 - Dashboard status has `summary.briefCoverage.ready == total` and `missing == 0`.
