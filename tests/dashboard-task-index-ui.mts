@@ -155,6 +155,7 @@ vm.runInContext(`
 const defaultLayoutResult = JSON.parse(String(stats.__result)) as { layout: string; hasSwimlane: boolean };
 assert(defaultLayoutResult.layout === "swimlane", "task index should default to swimlane layout");
 assert(defaultLayoutResult.hasSwimlane === true, "default task index render should show the swimlane view");
+assert(/\.tasks-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*clamp\(260px,\s*17vw,\s*320px\)/s.test(dashboardCss), "task index sidebar should stay a narrow control rail on desktop");
 
 vm.runInContext(`
   __result = JSON.stringify({
