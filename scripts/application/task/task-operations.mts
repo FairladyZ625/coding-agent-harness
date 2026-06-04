@@ -27,6 +27,7 @@ export type OperationResult<TData = unknown> = OperationSuccess<TData> | Operati
 
 export type TaskOperationsOptions = {
   subjects?: TaskOperationSubjectReader;
+  strictSubjects?: TaskOperationSubjectReader;
   tombstoneSubjects?: TombstoneSubjectReader;
   writers?: TaskOperationWriters;
 };
@@ -129,6 +130,7 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
   const target = normalizeTarget(rawTargetInput);
   const subjects = options.subjects;
   if (!subjects) throw new Error("TaskOperations requires a TaskOperationSubjectReader.");
+  const strictSubjects = options.strictSubjects || subjects;
   const writers = options.writers;
   if (!writers) throw new Error("TaskOperations requires TaskOperationWriters.");
   const targetRoot = target.projectRoot;
@@ -155,7 +157,7 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
       return this.updateLifecycle({ ...input, event: "task-review", state: "review" });
     },
     complete(input) {
-      const task = getOperationTask(subjects, input.taskId);
+      const task = getOperationTask(strictSubjects, input.taskId);
       if (!task.success) return task;
       const blocked = taskCompleteBlock(task.data);
       if (blocked) return blocked;
@@ -167,7 +169,7 @@ export function createTaskOperations(targetInput: string = ".", options: TaskOpe
       }));
     },
     confirmReview(input) {
-      const task = getOperationTask(subjects, input.taskId);
+      const task = getOperationTask(strictSubjects, input.taskId);
       if (!task.success) return task;
       const blocked = reviewConfirmationBlock(task.data);
       if (blocked) return blocked;

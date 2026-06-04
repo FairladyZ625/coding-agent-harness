@@ -452,7 +452,7 @@ function closeoutMaterialSourcePath(target: HarnessTarget, taskDir: string): str
 
 export function parseReviewConfirmation(
   reviewContent: unknown,
-  { taskKey = "", taskAudit = null, projectRoot = "", taskDir = "", indexPath = "", reviewPath = "", progressPath = "", reviewAuditProvenance = null }: {
+  { taskKey = "", taskAudit = null, projectRoot = "", taskDir = "", indexPath = "", reviewPath = "", progressPath = "", reviewAuditProvenance = null, strictGitAudit = false }: {
     taskKey?: string;
     taskAudit?: TaskAudit | null;
     projectRoot?: string;
@@ -461,11 +461,13 @@ export function parseReviewConfirmation(
     reviewPath?: string;
     progressPath?: string;
     reviewAuditProvenance?: { reviewAudit?: { allowedPathGroups?: unknown } } | null;
+    strictGitAudit?: boolean;
   } = {},
 ): ReviewConfirmation | null {
   if (taskAudit) {
     const confirmation = reviewConfirmationFromTaskAudit(taskAudit, { taskKey });
     if (
+      strictGitAudit &&
       confirmation?.confirmed &&
       projectRoot &&
       (indexPath || taskDir) &&

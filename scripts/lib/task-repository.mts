@@ -137,7 +137,7 @@ export type TaskRepository = TaskRepositoryTombstoneSubjectReader & TaskReposito
   readMaterials(ref: TaskRef): TaskMaterials;
 };
 
-type ScannerRepositoryOptions = Pick<CollectTasksOptions, "requireGeneratedScaffoldProvenance" | "closeoutContent">;
+type ScannerRepositoryOptions = Pick<CollectTasksOptions, "requireGeneratedScaffoldProvenance" | "closeoutContent" | "strictReviewGitAudit">;
 
 export function createScannerTaskRepository(targetInput: TaskScannerTarget | string | undefined = ".", defaults: ScannerRepositoryOptions = {}): TaskRepository {
   const target = normalizeRepositoryTarget(targetInput);
@@ -452,6 +452,7 @@ function collectCheckProfileTasks(target: TaskScannerTarget, defaults: ScannerRe
     requireGeneratedScaffoldProvenance: query.requireGeneratedScaffoldProvenance ?? defaults.requireGeneratedScaffoldProvenance,
     includeArchived: query.includeArchived !== false,
     closeoutContent: query.closeoutContent ?? defaults.closeoutContent,
+    strictReviewGitAudit: defaults.strictReviewGitAudit === true,
   });
   return applyTaskQuery(tasks, query).map(checkProfileTaskFromRecord);
 }

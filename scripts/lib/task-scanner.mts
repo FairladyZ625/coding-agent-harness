@@ -236,7 +236,7 @@ export function taskCutoverCounters(tasks: Array<{ visualMapStatus: string; migr
   };
 }
 
-export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffoldProvenance = false, includeArchived = false, taskPlanPaths, closeoutContent }: CollectTasksOptions = {}) {
+export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffoldProvenance = false, includeArchived = false, taskPlanPaths, closeoutContent, strictReviewGitAudit = false }: CollectTasksOptions = {}) {
   const harnessPaths = (target.harness || resolveHarnessPaths(target)) as ResolvedHarnessPaths;
   const paths = taskPlanPaths || listTaskPlanPaths(target, { includeArchived });
   const closeout = closeoutContent ?? (harnessPaths.version === 2 ? "" : readFileSafe(harnessPaths.legacy.closeoutPath));
@@ -298,6 +298,7 @@ export function collectTasks(target: TaskScannerTarget, { requireGeneratedScaffo
       reviewPath,
       progressPath,
       reviewAuditProvenance,
+      strictGitAudit: strictReviewGitAudit,
     });
     const reviewStatus = taskReviewStatus({ reviewContent: review, risks, confirmation: reviewConfirmation, submission: reviewSubmission });
     const closeoutInfo = taskCloseoutInfo(target, taskPlanPath, closeout);

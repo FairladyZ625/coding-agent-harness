@@ -60,7 +60,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function listCheckerTasks(target: CheckTarget, options: { requireGeneratedScaffoldProvenance?: boolean; closeoutContent?: string } = {}): ScannedTask[] {
+function listCheckerTasks(target: CheckTarget, options: { requireGeneratedScaffoldProvenance?: boolean; closeoutContent?: string; strictReviewGitAudit?: boolean } = {}): ScannedTask[] {
   return createTaskCheckProfileReader(target, options).listCheckProfileTasks() as ScannedTask[];
 }
 
@@ -352,7 +352,7 @@ export function buildStatus(targetInput: string | undefined, options: BuildStatu
   const legacy = shouldRunLegacy ? runCompatibilityCheck(target) : { status: "skipped", code: 0, stdout: "", stderr: "" };
   const contractStrict = Boolean(options.strict) || (capabilityState.registry.mode !== legacyCompatMode && !safeAdoptionMode);
   const closeoutContent = target.harness?.version === 2 ? "" : readFileSafe(path.join(target.projectRoot, legacyPath(legacyCloseoutFile)));
-  const tasks = listCheckerTasks(target, { requireGeneratedScaffoldProvenance: contractStrict, closeoutContent });
+  const tasks = listCheckerTasks(target, { requireGeneratedScaffoldProvenance: contractStrict, closeoutContent, strictReviewGitAudit: contractStrict });
   const reviews = validateReviewSchema(target, { strict: contractStrict });
   const visualMaps = validateVisualMaps(target, { tasks });
   const planContracts = validatePlanContracts(target, { strict: contractStrict, tasks });

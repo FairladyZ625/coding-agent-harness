@@ -6,6 +6,10 @@ import type { TaskLocation, TaskOperationSubjectReader, TaskRef, TaskTombstoneSu
 import type { TaskScannerTarget } from "../../lib/types/task-scanner.js";
 import type { TaskSubjectRecord } from "../../domain/task/task-subjects.mjs";
 
+type ScannerSubjectSourceOptions = {
+  strictReviewGitAudit?: boolean;
+};
+
 export type ScannerTaskSubject = {
   record: TaskSubjectRecord;
   location: TaskLocation;
@@ -18,18 +22,18 @@ export type ScannerTaskSubjectSource = {
 
 type ScannerTaskRecord = ReturnType<typeof collectTasks>[number];
 
-export function createScannerTaskSubjectSource(targetInput: TaskScannerTarget | string | undefined = "."): ScannerTaskSubjectSource {
+export function createScannerTaskSubjectSource(targetInput: TaskScannerTarget | string | undefined = ".", options: ScannerSubjectSourceOptions = {}): ScannerTaskSubjectSource {
   const target = normalizeScannerSubjectTarget(targetInput);
   return {
     get(ref: TaskRef) {
-      const record = readScannerSubjectTask(target, ref);
+      const record = readScannerSubjectTask(target, ref, options);
       return scannerTaskSubject(target, record);
     },
   };
 }
 
-export function createScannerTaskOperationSubjectReader(targetInput: TaskScannerTarget | string | undefined = "."): TaskOperationSubjectReader {
-  const source = createScannerTaskSubjectSource(targetInput);
+export function createScannerTaskOperationSubjectReader(targetInput: TaskScannerTarget | string | undefined = ".", options: ScannerSubjectSourceOptions = {}): TaskOperationSubjectReader {
+  const source = createScannerTaskSubjectSource(targetInput, options);
   return {
     getOperationSubject(ref: TaskRef) {
       return buildTaskOperationSubject(source.get(ref).record);
@@ -37,8 +41,8 @@ export function createScannerTaskOperationSubjectReader(targetInput: TaskScanner
   };
 }
 
-export function createScannerTaskTombstoneSubjectReader(targetInput: TaskScannerTarget | string | undefined = "."): TombstoneSubjectReader {
-  const source = createScannerTaskSubjectSource(targetInput);
+export function createScannerTaskTombstoneSubjectReader(targetInput: TaskScannerTarget | string | undefined = ".", options: ScannerSubjectSourceOptions = {}): TombstoneSubjectReader {
+  const source = createScannerTaskSubjectSource(targetInput, options);
   return {
     getTombstoneSubject(ref: TaskRef) {
       const subject = source.get(ref);
@@ -55,8 +59,8 @@ function normalizeScannerSubjectTarget(targetInput: TaskScannerTarget | string |
   return normalizeTarget(typeof targetInput === "string" ? targetInput : ".") as TaskScannerTarget;
 }
 
-function readScannerSubjectTask(target: TaskScannerTarget, ref: TaskRef): ScannerTaskRecord {
-  const tasks = collectTasks(target, { includeArchived: true });
+function readScannerSubjectTask(target: TaskScannerTarget, ref: TaskRef, options: ScannerSubjectSourceOptions): ScannerTaskRecord {
+  const tasks = collectTasks(target, { includeArchived: true, strictReviewGitAudit: options.strictReviewGitAudit === true });
   const matches = tasks.filter((task) => scannerTaskMatchesRef(target, task, ref));
   if (matches.length === 1) return matches[0] as ScannerTaskRecord;
   const raw = ref.id || ref.path || "";
