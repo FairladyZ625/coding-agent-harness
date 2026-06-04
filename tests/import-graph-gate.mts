@@ -210,6 +210,8 @@ assert(!dashboardWorkbenchSource.includes("TaskRecord"), "dashboard workbench bu
 assert(!dashboardWorkbenchSource.includes("buildTaskSemanticProjection"), "dashboard workbench bulk review gate should not interpret raw task facts locally");
 assert(!dashboardWorkbenchSource.includes("task-lifecycle/review-confirm"), "dashboard workbench should route review confirmation through the application workbench contract");
 assert(dashboardWorkbenchSource.includes("confirmWorkbenchReviewBatch"), "dashboard workbench should compose bulk review confirmation through the application workbench contract");
+assert(dashboardWorkbenchSource.includes("listWorkbenchWritableActionIds"), "dashboard workbench runtime should expose writable actions through the application workbench action catalog");
+assert(!dashboardWorkbenchSource.includes("writableActions: ["), "dashboard workbench must not inline writable action policy in the HTTP server");
 assert(taskLifecycleSource.includes("createTaskReviewConfirmationSubjectReader"), "task-lifecycle review-confirm should consume the narrow review confirmation subject reader");
 assert(lifecycleReviewTaskByDirectorySource.includes("createTaskReviewConfirmationSubjectReader"), "task-lifecycle review-confirm lookup should use the narrow review confirmation subject reader");
 assert(!lifecycleReviewTaskByDirectorySource.includes("createScannerTaskRepository"), "task-lifecycle review-confirm lookup should not use the broad scanner-backed repository identity");

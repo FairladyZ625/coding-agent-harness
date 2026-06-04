@@ -5,6 +5,7 @@ import http from "node:http";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
+import { listWorkbenchActions, listWorkbenchWritableActionIds, workbenchActionPath } from "../scripts/application/workbench/action-catalog.mjs";
 import {
   assert,
   cli,
@@ -81,6 +82,9 @@ const origin = runtime.url.replace(/\/$/, "");
 
 try {
   const runtimePayload = await (await fetch(new URL("api/runtime", runtime.url))).json() as { writableActions: string[] };
+  assert(JSON.stringify(runtimePayload.writableActions) === JSON.stringify(listWorkbenchWritableActionIds()), "workbench runtime should expose writable actions from the application action catalog");
+  assert(listWorkbenchActions().every((action) => action.method === "POST" && action.path.startsWith("/api/")), "workbench action catalog should own HTTP method/path policy");
+  assert(workbenchActionPath("preset-check") === "/api/presets/check", "workbench action catalog should expose preset-check route policy");
   for (const action of ["preset-check", "preset-install", "preset-seed", "preset-uninstall"]) {
     assert(runtimePayload.writableActions.includes(action), `workbench runtime should expose ${action}`);
   }
