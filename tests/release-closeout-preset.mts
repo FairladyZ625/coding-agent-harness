@@ -186,6 +186,64 @@ const runnerOutput = fs.readFileSync(path.join(target, "coding-agent-harness/gov
 assert(runnerOutput.includes("note=hello"), "generic preset runner should pass resolved preset inputs to scripts");
 assert(runnerOutput.includes("secret=missing"), "generic preset runner should not pass arbitrary caller environment variables to scripts");
 
+const runnerContextProbePreset = path.join(tmpRoot, "runner-runtime-probe-preset");
+fs.mkdirSync(path.join(runnerContextProbePreset, "scripts"), { recursive: true });
+fs.writeFileSync(
+  path.join(runnerContextProbePreset, "preset.yaml"),
+  `id: runner-runtime-probe
+version: 1
+purpose: Test generic preset runner runtime module boundary
+compatibleBudgets: [standard]
+localeSupport: [en-US]
+task:
+  kind: runner-runtime-probe-task
+  defaultTaskId: runner-runtime-probe-task
+entrypoints:
+  newTask:
+    type: template
+    writes: [coding-agent-harness/planning/tasks/**]
+    audit: true
+  plan:
+    type: script
+    command: scripts/probe-runtime.mjs
+    writes: [coding-agent-harness/governance/runner/**]
+    audit: true
+inputs: {}
+audit:
+  manifestRequired: true
+  evidenceFiles: [preset-audit.json]
+writeScopes:
+  taskDocs:
+    path: coding-agent-harness/planning/tasks/**
+    access: write
+  runnerOutput:
+    path: coding-agent-harness/governance/runner/**
+    access: write
+`,
+);
+fs.writeFileSync(
+  path.join(runnerContextProbePreset, "scripts/probe-runtime.mjs"),
+  `#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+const context = JSON.parse(fs.readFileSync(process.env.HARNESS_PRESET_CONTEXT, "utf8"));
+const runtime = await import(context.runtime.module);
+if (!context.runtime.module.endsWith("/preset-runtime-bridge.mjs")) throw new Error("preset runtime module must be the narrow bridge");
+if (context.runtime.coreModule !== context.runtime.module) throw new Error("legacy coreModule compatibility must point at the narrow bridge");
+if (runtime.collectTasks || runtime.createScannerTaskRepository || runtime.TaskRepository) throw new Error("preset runtime bridge must not expose broad task scanner/repository APIs");
+fs.mkdirSync(path.join(context.outputRoot, "reports"), { recursive: true });
+fs.writeFileSync(path.join(context.outputRoot, "reports/runtime.txt"), "runtime=bridge\\n");
+fs.writeFileSync(context.materializationManifestPath, JSON.stringify({
+  schemaVersion: "preset-materialization/v1",
+  writes: [{ source: "reports/runtime.txt", destination: "coding-agent-harness/governance/runner/runtime.txt", type: "text" }]
+}, null, 2));
+`,
+);
+expectJson(["preset", "install", runnerContextProbePreset, "--project", "--force", "--allow-scripts", "--json", target], { env });
+expectJson(["new-task", "runner-runtime-probe-task", "--budget", "standard", "--preset", "runner-runtime-probe", target], { env });
+const runtimeProbeResult = expectJson<PresetRunResult>(["preset", "run", "runner-runtime-probe", "plan", "--task", "runner-runtime-probe-task", "--json", target], { env });
+assert(runtimeProbeResult.materialized.some((item) => item.destination === "coding-agent-harness/governance/runner/runtime.txt"), "generic preset runner should expose a narrow preset runtime module");
+
 const installedRunnerScript = path.join(target, ".coding-agent-harness/presets/runner-materialize/scripts/write-manifest.mjs");
 fs.appendFileSync(installedRunnerScript, "\n// tamper after trust\n");
 const tamperedTrustRun = run(["preset", "run", "runner-materialize", "plan", "--task", "runner-owned-task", "--json", target], { env });

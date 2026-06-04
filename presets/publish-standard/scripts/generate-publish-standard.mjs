@@ -4,8 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 const context = JSON.parse(fs.readFileSync(process.env.HARNESS_PRESET_CONTEXT, "utf8"));
-const harnessCore = await import(context.runtime?.coreModule || new URL("../../../dist/harness-core.mjs", import.meta.url).href);
-const { normalizeTarget, collectTasks: collectCoreTasks } = harnessCore;
+const presetRuntime = await import(context.runtime?.module || context.runtime?.coreModule || new URL("../../../dist/lib/preset-runtime-bridge.mjs", import.meta.url).href);
+const { normalizePresetRuntimeTarget, collectPresetRuntimeTasks } = presetRuntime;
 
 const release = safeToken(context.inputs.release);
 const fromVersion = safeToken(context.inputs.from);
@@ -28,8 +28,8 @@ if (!paths.tasksRoot || !paths.governanceRoot) {
 const outputRoot = path.join(context.outputRoot, "publish-standard");
 fs.mkdirSync(outputRoot, { recursive: true });
 
-const target = normalizeTarget(context.targetRoot);
-const allTasks = collectCoreTasks(target)
+const target = normalizePresetRuntimeTarget(context.targetRoot);
+const allTasks = collectPresetRuntimeTasks(target)
   .map((task) => publishTaskFromCore(target, task))
   .filter((task) => task.id !== context.task.id && task.shortId !== context.task.id && task.preset !== "publish-standard")
   .sort((a, b) => a.id.localeCompare(b.id));
@@ -354,14 +354,14 @@ function parseTaskQuery(query) {
   });
 }
 
-function matchesQueryTerm(task, term) {
+function matchesQueryTerm(presetTask, term) {
   if (term.type === "date") {
-    const date = task.date || "";
+    const date = presetTask.date || "";
     return date >= term.from && date <= term.to;
   }
-  if (term.type === "state") return task.state === term.value;
-  if (term.type === "preset") return (task.preset || "none") === term.value;
-  if (term.type === "module") return (task.module || "").toLowerCase() === term.value;
+  if (term.type === "state") return presetTask.state === term.value;
+  if (term.type === "preset") return (presetTask.preset || "none") === term.value;
+  if (term.type === "module") return (presetTask.module || "").toLowerCase() === term.value;
   return false;
 }
 

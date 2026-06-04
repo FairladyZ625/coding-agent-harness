@@ -98,12 +98,15 @@ assert(packedFiles.includes("dist/postinstall.mjs"), "npm package must include d
 assert(!packedFiles.some((file) => file.startsWith("scripts/")), "npm package must not include historical scripts/ shims after PR-28");
 for (const required of [
   "dist/lib/harness-paths.mjs",
+  "dist/lib/preset-runtime-bridge.mjs",
   "dist/lib/structure-migration.mjs",
   "templates/planning/walkthrough.md",
   "examples/minimal-project/coding-agent-harness/harness.yaml",
 ]) {
   assert(packedFiles.includes(required), `npm package must include ${required}`);
 }
+assert(fs.readFileSync(path.join(repoRoot, "presets/release-closeout/scripts/generate-release-package.mjs"), "utf8").includes("preset-runtime-bridge.mjs"), "release-closeout preset must use the narrow preset runtime bridge");
+assert(fs.readFileSync(path.join(repoRoot, "presets/publish-standard/scripts/generate-publish-standard.mjs"), "utf8").includes("preset-runtime-bridge.mjs"), "publish-standard preset must use the narrow preset runtime bridge");
 
 const dashboardAssetsDir = path.join(repoRoot, "templates/dashboard/assets");
 const dashboardWriter = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-writer.mts"), "utf8");

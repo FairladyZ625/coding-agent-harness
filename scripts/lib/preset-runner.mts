@@ -137,7 +137,8 @@ export function runPresetEntrypoint(presetId: string, entrypointName: string, { 
       targetRoot: target.projectRoot,
       targetRootPolicy: "read-only; direct target mutation before manifest materialization is a hard failure",
       runtime: {
-        coreModule: new URL("./harness-core.mjs", import.meta.url).href,
+        module: new URL("./preset-runtime-bridge.mjs", import.meta.url).href,
+        coreModule: new URL("./preset-runtime-bridge.mjs", import.meta.url).href,
       },
       outputRoot,
       materializationManifestPath: manifestPath,
