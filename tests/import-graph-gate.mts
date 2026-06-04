@@ -114,6 +114,7 @@ const taskOperationsSource = fs.readFileSync(path.join(repoRoot, "scripts/applic
 const taskLifecycleSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-lifecycle.mts"), "utf8");
 const statusBuilderSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/status-builder.mts"), "utf8");
 const dashboardWorkbenchSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/dashboard-workbench.mts"), "utf8");
+const workbenchReviewSubjectSource = fs.readFileSync(path.join(repoRoot, "scripts/adapters/workbench/workbench-review-subject-source.mts"), "utf8");
 const taskTombstoneCommandsSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-tombstone-commands.mts"), "utf8");
 const dashboardBundleReaderSource = fs.readFileSync(path.join(repoRoot, "scripts/application/dashboard/bundle-reader.mts"), "utf8");
 const generatedRowPolicySource = fs.readFileSync(path.join(repoRoot, "scripts/application/governance/generated-row-policy.mts"), "utf8");
@@ -223,6 +224,10 @@ assert(migrationSupportSource.includes("createMigrationTaskSampleReader"), "migr
 assert(migrationTaskSampleSource.includes("task-scanner"), "the migration-only task sample source should own legacy scanner path sampling");
 assert(!dashboardWorkbenchSource.includes("subjects: taskRepository"), "dashboard workbench task actions should use narrow subject readers instead of the broad TaskRepository identity");
 assert(!dashboardWorkbenchSource.includes("createScannerTaskRepository"), "dashboard workbench bulk review cache should consume workbench review subjects instead of creating the broad scanner-backed repository");
+assert(!dashboardWorkbenchSource.includes("createTaskWorkbenchReviewSubjectReader"), "dashboard workbench should consume the WorkbenchReviewSubjectSource adapter instead of task-repository directly");
+assert(dashboardWorkbenchSource.includes("createWorkbenchReviewSubjectSource"), "dashboard workbench should compose through the P08 workbench review subject source adapter");
+assert(workbenchReviewSubjectSource.includes("WorkbenchReviewSubjectSource"), "P08 workbench source adapter should expose a stable source contract");
+assert(workbenchReviewSubjectSource.includes("createTaskWorkbenchReviewSubjectReader"), "P08 workbench source adapter should own scanner-backed workbench review subject materialization");
 assert(!taskTombstoneCommandsSource.includes("createScannerTaskRepository"), "task-tombstone compatibility commands should use the narrow tombstone subject reader instead of the broad scanner-backed repository");
 assert(!taskTombstoneCommandsSource.includes("../adapters/cli/"), "task-tombstone compatibility commands should not depend on the CLI adapter layer");
 assert(taskTombstoneCommandsSource.includes("createScannerTaskTombstoneSubjectReader"), "task-tombstone compatibility commands should compose through the scanner-backed tombstone subject reader adapter");
@@ -306,6 +311,8 @@ assert(taskInfrastructureLayer?.owns.includes("scripts/infrastructure/task/**"),
 assert(taskInfrastructureLayer?.mayImport.includes("scripts/lib/task-scanner.mts"), "task infrastructure adapter contract should explicitly own scanner reads");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P05-domain-task-subject-semantic-projection-bridge"), "contract should not keep the retired task subject domain semantic projection bridge");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P08-dashboard-workbench-review-confirm-internal-bridge"), "contract should not keep the retired dashboard workbench review-confirm internal bridge");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P08-dashboard-workbench-repository-bridge"), "contract should not keep the retired dashboard workbench repository bridge");
+assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P08-dashboard-workbench-projection-bridge"), "contract should not keep the retired dashboard workbench projection bridge");
 assert(!taskSubjectsSource.includes("../../lib/task-semantic-projection"), "task subject domain mapper should consume the domain-owned semantic projection module");
 assert(taskSemanticProjectionSource.includes("export * from \"../domain/task/task-semantic-projection.mjs\""), "legacy task semantic projection module should be a compatibility re-export");
 const legacyWriterLifecycleBridge = graph.architectureContract.phaseOpenExceptions.find((exception) => exception.id === "P04-infrastructure-task-operation-lifecycle-writer-adapter");
