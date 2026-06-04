@@ -72,18 +72,25 @@ Harness 覆盖长程开发里的持续性问题：任务生命周期、Brief、E
 ### 面向任务族的可复用 Preset
 
 Preset 是一个可版本化、声明式的任务方法包。它不是安装一个新 Agent，也不是替代
-Harness；它告诉 `harness new-task` 如何为某一类可重复工作创建任务：应该设置什么
-Task Kind、需要询问哪些输入、要把哪些共享 Reference 或 Artifact 复制进任务、Agent
-必须先读哪些文件，以及要生成哪些 audit / evidence 文件来证明任务创建正确。
+Harness；它把团队对某一类重复工作的启动方法打包起来：需要哪些输入、共享哪些
+Reference 和 Artifact、审查标准是什么、验证命令怎么跑、证据文件放在哪里，以及 Agent
+写代码前必须先读什么。
 
-当一组任务共享同一套启动上下文时，就适合用 Preset。比如多个接口任务都依赖同一个
-上游微服务 contract、fixture packet、runbook 和验证清单，就不应该每次都把这些内容塞进
-prompt；应该把它们放进 Preset，然后用
-`harness new-task --preset <preset-id> ...` 创建每个任务。
+当一组任务共享同一套工作链路时，就适合用 Preset。比如后端接口需求总是要走预发发布
+runbook、接口 smoke test、fixture 数据、PR checklist 和回滚说明；前端任务总是要跑浏览器
+或 Playwright 回归。不要每次都在 prompt 里重新解释这条链路，也不要赌 Agent 会记得；
+应该把它沉淀进 Preset，然后用 `harness new-task --preset <preset-id> ...` 创建每个任务。
+
+Skill 和 Preset 的边界也在这里：Skill 是 Agent 被调用时“知道怎么做”；Preset 是创建任务时
+就把这套方法写进任务结构。好的 Preset 会把人的重复操作习惯变成任务标准，让后续 Agent
+不用靠长聊天上下文，也能按同一套标准启动、验证和交付。
 
 Harness 自带内置 Preset，`harness init` 会把它们 seed 到目标项目，团队也可以在
 `.coding-agent-harness/presets/` 下维护项目级 Preset。`preset-creator` Skill 用来制作
 这些 Preset 包；真正检查、安装、列出和应用 Preset 的是 Harness CLI。
+
+如何判断什么内容应该进入 Preset、如何验证一个 Preset，见
+[`Preset 开发指南`](docs-release/guides/preset-development.zh-CN.md)。
 
 默认任务模板和模块模板来自当前安装的 npm 包，在命令运行时读取。目标项目不应该把
 `planning/**/_task-template` 或 `planning/**/_module-template` 当作活跃状态；v2 结构迁移发现这些旧生成模板目录时会直接清理。
