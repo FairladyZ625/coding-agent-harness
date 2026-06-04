@@ -1,13 +1,9 @@
-import {
-  readPresetPackage,
-  buildTaskIndex,
-  listLifecycleTasks,
-  promoteLessonCandidate,
-  updateModuleStep,
-  updateTaskPhase,
-} from "../lib/harness-core.mjs";
+import { readPresetPackage } from "../lib/preset-registry.mjs";
+import { promoteLessonCandidate } from "../lib/lesson-maintenance.mjs";
 import fs from "node:fs";
 import { takeRepeatedOptionsFromArgs } from "../lib/command-registry.mjs";
+import { writeCommandResult } from "../lib/command-result.mjs";
+import { buildModuleStepCommandResult, buildTaskIndexCommandResult, buildTaskListCommandResult, buildTaskPhaseCommandResult } from "../lib/task-command-results.mjs";
 import { unwrapTaskOperation } from "../application/task/task-operations.mjs";
 import { createScannerTaskOperations } from "../adapters/cli/task-operations.mjs";
 
@@ -113,7 +109,7 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       process.exit(2);
     }
     try {
-      console.log(JSON.stringify(updateTaskPhase(targetArg(), taskId, phaseId, { state, completion, evidenceStatus }), null, 2));
+      writeCommandResult(buildTaskPhaseCommandResult(targetArg(), taskId, phaseId, { state, completion, evidenceStatus }), { json: true });
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);
@@ -202,22 +198,13 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
     const search = takeOption("--search", "");
     const missingMaterials = takeFlag("--missing-materials");
     const includeArchived = takeFlag("--include-archived");
-    const result = listLifecycleTasks(targetArg(), { state, moduleKey, queue, preset, review, lesson, search, missingMaterials, includeArchived });
-    if (json) {
-      console.log(JSON.stringify(result, null, 2));
-    } else {
-      for (const task of result.tasks) {
-        console.log(`${task.id}\t${task.state}\t${task.completion}%\t${task.title}`);
-      }
-    }
+    writeCommandResult(buildTaskListCommandResult(targetArg(), { state, moduleKey, queue, preset, review, lesson, search, missingMaterials, includeArchived }), { json });
     return;
   }
 
   if (command === "task-index") {
     const json = takeFlag("--json");
-    const result = buildTaskIndex(targetArg());
-    if (json) console.log(JSON.stringify(result, null, 2));
-    else console.log(`${result.tasks.length} tasks indexed (${result.schemaVersion})`);
+    writeCommandResult(buildTaskIndexCommandResult(targetArg()), { json });
     return;
   }
 
@@ -310,7 +297,7 @@ export function runTaskCommand(command: string, { args, takeFlag, takeOption, ta
       process.exit(2);
     }
     try {
-      console.log(JSON.stringify(updateModuleStep(targetArg(), moduleKey, stepId, { state }), null, 2));
+      writeCommandResult(buildModuleStepCommandResult(targetArg(), moduleKey, stepId, { state }), { json: true });
     } catch (error) {
       console.error(errorMessage(error));
       process.exit(1);

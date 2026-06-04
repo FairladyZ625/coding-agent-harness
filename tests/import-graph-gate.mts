@@ -105,6 +105,8 @@ writeFixture(
 const graph = buildImportGraph({ repoRoot: fixtureRoot });
 const repoGraph = buildImportGraph({ repoRoot });
 const harnessCoreSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/harness-core.mts"), "utf8");
+const taskCommandSource = fs.readFileSync(path.join(repoRoot, "scripts/commands/task-command.mts"), "utf8");
+const taskCommandResultsSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-command-results.mts"), "utf8");
 const taskOperationsSource = fs.readFileSync(path.join(repoRoot, "scripts/application/task/task-operations.mts"), "utf8");
 const taskLifecycleSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-lifecycle.mts"), "utf8");
 const statusBuilderSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/status-builder.mts"), "utf8");
@@ -144,6 +146,11 @@ assert(!harnessCoreSource.includes("./task-operation-subjects.mjs"), "scanner-ba
 assert(!harnessCoreSource.includes("../domain/task/task-subjects.mjs"), "task subject domain mapper should not be re-exported from the broad harness-core barrel");
 assert(harnessCoreSource.includes("../infrastructure/task/legacy-task-operation-writers.mjs"), "harness-core should expose the legacy writer adapter needed for package-facing TaskOperations composition");
 assert(!fs.existsSync(path.join(repoRoot, "scripts/lib/task-operation-subjects.mts")), "scanner-backed TaskOperationSubjectReader helper should not live in scripts/lib");
+assert(!taskCommandSource.includes("../lib/harness-core.mjs"), "task-command should consume narrow command/application contracts instead of the broad harness-core barrel");
+assert(!taskCommandSource.includes("../lib/task-lifecycle.mjs"), "task-command should not import task-lifecycle directly for command output or phase/module updates");
+assert(taskCommandSource.includes("../lib/task-command-results.mjs"), "task-command should delegate task-list/task-index display semantics to the command result contract");
+assert(taskCommandResultsSource.includes("./task-lifecycle.mjs"), "task command result contract should own lifecycle projection use for task-list and lifecycle command output");
+assert(taskCommandResultsSource.includes("./task-index.mjs"), "task command result contract should own task-index projection use for task-index output");
 assert(!taskOperationsSource.includes("../../lib/task-lifecycle.mjs"), "TaskOperations should consume injected writer ports instead of importing the legacy lifecycle writer");
 assert(!taskOperationsSource.includes("../../lib/task-lesson-sedimentation.mjs"), "TaskOperations should consume injected writer ports instead of importing the legacy lesson writer");
 assert(!taskLifecycleSource.includes("createScannerTaskRepository"), "task-lifecycle should consume the narrow lifecycle reader instead of the broad scanner-backed repository");
