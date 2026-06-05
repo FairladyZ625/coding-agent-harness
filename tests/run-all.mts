@@ -40,6 +40,7 @@ const suites: Suite[] = [
   { path: "tests/task-kernel-domain.mjs" },
   { path: "tests/task-kernel-service-tags.mjs" },
   { path: "tests/task-kernel-repository-adapter.mjs" },
+  { path: "tests/task-kernel-fixture-schema.mjs" },
   { path: "tests/task-semantic-projection.mjs" },
   { path: "tests/semantic-contract-baseline.mjs" },
   { path: "tests/task-archive-eligibility.mjs" },
