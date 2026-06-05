@@ -15,6 +15,9 @@ export {
   TaskPackageStorePlaceholderLayer,
 } from "./layers.mjs";
 export {
+  taskMaterialNames,
+} from "./task-package-store-reader.mjs";
+export {
   GENERATED_PROJECTION_PORT_ID,
 } from "./projection.mjs";
 export type {
@@ -52,3 +55,13 @@ export type {
   HumanReviewConfirmationInput,
   HumanReviewPortServiceShape,
 } from "./human-review.mjs";
+export type {
+  TaskMaterialName,
+  TaskMaterialSnapshot,
+  TaskPackageMaterials,
+  TaskPackageSnapshot,
+  TaskPackageStoreLocation,
+  TaskPackageStoreQuery,
+  TaskPackageStoreReader,
+  WriteTaskMaterialInput,
+} from "./task-package-store-reader.mjs";
