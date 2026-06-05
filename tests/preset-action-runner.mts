@@ -31,6 +31,13 @@ type PresetActionResult = {
   manifestSha256?: string;
   presetDrift?: { accepted?: boolean };
   materialized?: Array<{ destination?: string }>;
+  taskKernel?: {
+    operation?: string;
+    queryService?: string;
+    queries?: string[];
+    materialsIssues?: unknown[];
+    residuals?: string[];
+  };
   governance?: {
     transaction?: {
       success?: boolean;
@@ -91,6 +98,12 @@ actions:
     taskRequired: true
     writes: [{{task.paths.artifacts}}/direct/**]
     audit: true
+  write-progress:
+    type: script
+    command: scripts/write-progress.mjs
+    taskRequired: true
+    writes: [{{task.paths.progress}}]
+    audit: true
 writeScopes:
   taskDocs:
     path: {{paths.tasksRoot}}/**
@@ -140,6 +153,25 @@ fs.writeFileSync(path.join(context.targetRoot, context.task.paths.artifacts, "di
 fs.writeFileSync(context.materializationManifestPath, JSON.stringify({ schemaVersion: "preset-materialization/v1", writes: [] }, null, 2));
 `,
 );
+fs.writeFileSync(
+  path.join(actionPreset, "scripts/write-progress.mjs"),
+  `#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+const context = JSON.parse(fs.readFileSync(process.env.HARNESS_PRESET_CONTEXT, "utf8"));
+fs.mkdirSync(path.join(context.outputRoot, "reports"), { recursive: true });
+fs.writeFileSync(path.join(context.outputRoot, "reports/progress.md"), "# Progress\\n\\nPreset action attempted progress update.\\n");
+fs.writeFileSync(context.materializationManifestPath, JSON.stringify({
+  schemaVersion: "preset-materialization/v1",
+  status: "blocked",
+  writes: [{
+    source: "reports/progress.md",
+    destination: context.task.paths.progress,
+    type: "text"
+  }]
+}, null, 2));
+`,
+);
 
 const checkReport = expectJson<PresetCheckReport>(["preset", "check", actionPreset, "--json"], { env });
 assert(checkReport.actions?.["close-stage"]?.type === "script", "preset check should expose action declarations");
@@ -176,6 +208,11 @@ const actionResult = expectJson<PresetActionResult>([
 ], { env });
 assert(actionResult.action === "close-stage", "preset action should report the executed action");
 assert(actionResult.status === "closed", "preset action should return manifest status");
+assert(actionResult.taskKernel?.operation === "preset-action.preflight", "preset action should preflight through the Task Kernel adapter contract");
+assert(actionResult.taskKernel?.queryService === "coding-agent-harness/task-kernel/application/TaskQueryService", "preset action should report the Task Kernel query service used for active runtime truth");
+assert(actionResult.taskKernel?.queries?.includes("ResolveTaskRef"), "preset action should call Task Kernel resolve query for active task identity");
+assert(actionResult.taskKernel?.materialsIssues?.length === 0, "preset action preflight should not invent materials issues when the materials query is residual");
+assert(actionResult.taskKernel?.residuals?.some((item) => item.includes("TK-11: GetMaterialsIssues query needs Task Kernel metadata")), "preset action should record the materials query cutover residual explicitly");
 assert(actionResult.materialized?.some((item) => item.destination?.endsWith("/artifacts/stages/PLAN.md")), "preset action should materialize task-local writes");
 assert(actionResult.governance?.transaction?.success === true, "preset action should report successful transaction materialization");
 assert(actionResult.governance.transaction.allowedPaths?.some((item) => item.endsWith("/artifacts/stages/PLAN.md")), "preset action transaction should predeclare materialized write paths");
@@ -215,6 +252,11 @@ assert(`${mismatch.stdout}\n${mismatch.stderr}`.includes("not action-runner"), "
 const directMutation = run(["preset", "action", "action-runner", "mutate-direct", "--task", "action-owned-task", "--json", target], { env });
 assert(directMutation.status !== 0, "action runner should reject direct target mutation before materialization");
 assert(`${directMutation.stdout}\n${directMutation.stderr}`.includes("Preset script mutated target before materialization"), "direct mutation failure should explain the audit failure");
+
+const progressMaterialization = run(["preset", "action", "action-runner", "write-progress", "--task", "action-owned-task", "--json", target], { env });
+assert(progressMaterialization.status !== 0, "preset action should fail closed when it tries to write active task progress truth");
+assert(`${progressMaterialization.stdout}\n${progressMaterialization.stderr}`.includes("Task Kernel UpdateTaskProgress is not implemented for preset action materialization yet"), "progress materialization failure should route to the Task Kernel command boundary");
+assert(`${progressMaterialization.stdout}\n${progressMaterialization.stderr}`.includes("migration-only compatibility must not become active runtime truth"), "progress materialization failure should preserve the migration/active runtime split");
 
 const badCommandPreset = path.join(tmpRoot, "bad-action-command-preset");
 fs.mkdirSync(path.join(badCommandPreset, "scripts"), { recursive: true });

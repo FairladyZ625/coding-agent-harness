@@ -20,6 +20,9 @@ import { assertTransactionSucceeded, createGovernanceHarnessTransaction, type Fi
 import { resolveHarnessPaths, taskIdFromDirectory } from "./harness-paths.mjs";
 import { parseTaskMetadata } from "./task-metadata.mjs";
 import { resolveTaskDirectory } from "./task-lifecycle.mjs";
+import {
+  assertPresetActionTaskKernelMaterializationBoundary,
+} from "./preset-task-kernel-materialization-boundary.mjs";
 import { evaluateTemplateValues, assertPresetWriteScope, resolvePresetScopes } from "./preset-engine.mjs";
 import { buildPresetAudit, buildPresetScriptPolicy, presetScriptTrustValid, readPresetPackage } from "./preset-registry.mjs";
 import type { PresetAction, PresetEntrypoint, PresetInputDeclaration, PresetPackage, PresetTarget } from "./types/preset.js";
@@ -195,7 +198,7 @@ export function runPresetEntrypoint(presetId: string, entrypointName: string, { 
   }
 }
 
-export function runPresetAction(presetId: string, actionName: string, { taskRef = "", targetInput = ".", json = false, actionArgs = [], allowScripts = false, useCurrentPreset = false, reason = "" }: PresetActionOptions = {}) {
+export async function runPresetAction(presetId: string, actionName: string, { taskRef = "", targetInput = ".", json = false, actionArgs = [], allowScripts = false, useCurrentPreset = false, reason = "" }: PresetActionOptions = {}) {
   void json;
   const target = normalizeTarget(targetInput) as PresetTarget;
   const preset = readPresetPackage(presetId, { targetInput });
@@ -214,6 +217,11 @@ export function runPresetAction(presetId: string, actionName: string, { taskRef 
   if (metadata.preset !== preset.id) throw new Error(`Task ${taskRef} was created by preset ${metadata.preset || "none"}, not ${preset.id}`);
   const taskId = taskIdForDirectory(target, taskDir);
   const taskPaths = taskPathContext(target, taskDir);
+  const { preflightPresetActionTaskKernelBoundary } = await import("../kernel/task/adapters/preset-closeout.mjs");
+  const taskKernelPreflight = preflightPresetActionTaskKernelBoundary({
+    targetRoot: target.projectRoot,
+    taskPath: taskPaths.dir,
+  });
   const actionInputs = resolveActionInputs(action, actionArgs);
   const audit = readPresetAudit(target, metadata);
   const presetDrift = assessPresetDrift(audit, preset, { useCurrentPreset, reason });
@@ -230,12 +238,13 @@ export function runPresetAction(presetId: string, actionName: string, { taskRef 
       preset: { id: preset.id, version: preset.version, source: preset.source, manifestSha256: preset.manifestSha256 },
       action: { id: actionName, type: action.type },
       task: {
-        id: taskId,
+        id: taskKernelPreflight.taskId || taskId,
         ref: taskRef,
-        dir: taskPaths.dir,
+        dir: taskKernelPreflight.taskPath || taskPaths.dir,
         taskPlanPath: taskPaths.taskPlan,
         paths: taskPaths,
       },
+      taskKernel: taskKernelPreflight,
       targetRoot: target.projectRoot,
       targetRootPolicy: "read-only; direct target mutation before manifest materialization is a hard failure",
       outputRoot,
@@ -296,6 +305,7 @@ export function runPresetAction(presetId: string, actionName: string, { taskRef 
         sha256: item.sha256,
       })),
       governance: { commit: transactionResult.commit, transaction: presetTransactionSummary(transactionResult) },
+      taskKernel: taskKernelPreflight,
       presetDrift,
     };
   } finally {
@@ -442,8 +452,8 @@ function validateMaterializationManifest(preset: PresetPackage, entrypoint: Pres
     if (seenDestinations.has(destination)) throw new Error(`Duplicate materialization destination: ${destination}`);
     seenDestinations.add(destination);
     assertEntrypointWriteScope(preset, entrypoint, destination, target, entrypointName);
-    if (entrypointName && preset.actions?.[entrypointName] && isDefaultTaskGovernanceFile(destination)) {
-      throw new Error(`Preset action ${entrypointName} cannot write task governance file by default: ${destination}`);
+    if (entrypointName && preset.actions?.[entrypointName]) {
+      assertPresetActionTaskKernelMaterializationBoundary(entrypointName, destination);
     }
     const sourcePath = path.join(outputRoot, source);
     assertOutputSource(outputRoot, sourcePath, source);
@@ -510,10 +520,6 @@ function matchesScope(scope: string, relativePath: string): boolean {
     return relativePath === prefix || relativePath.startsWith(`${prefix}/`);
   }
   return relativePath === normalizedScope;
-}
-
-function isDefaultTaskGovernanceFile(destination: string): boolean {
-  return /(^|\/)(review|brief|task_plan)\.md$/.test(destination);
 }
 
 function enforcePublicRedaction(manifest: MaterializationManifest, writes: MaterializedWrite[], { outputRoot }: { outputRoot: string }): void {

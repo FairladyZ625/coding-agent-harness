@@ -16,7 +16,7 @@ import { takeOptionFromArgs } from "../lib/command-registry.mjs";
 type FlagReader = (name: string, fallback?: boolean) => boolean;
 type TargetReader = () => string;
 
-export function runPresetCommand({ args, takeFlag, targetArg }: { args: string[]; takeFlag: FlagReader; targetArg: TargetReader }) {
+export async function runPresetCommand({ args, takeFlag, targetArg }: { args: string[]; takeFlag: FlagReader; targetArg: TargetReader }) {
   const subcommand = args.shift() || "list";
   const json = takeFlag("--json");
   const project = takeFlag("--project");
@@ -102,7 +102,7 @@ export function runPresetCommand({ args, takeFlag, targetArg }: { args: string[]
       if (!id) throw new Error("Missing preset id");
       if (!action) throw new Error("Missing preset action");
       const target = takeTrailingActionTarget(args);
-      const result = runPresetAction(id, action, { taskRef, targetInput: target, json, allowScripts, useCurrentPreset, reason, actionArgs: args });
+      const result = await runPresetAction(id, action, { taskRef, targetInput: target, json, allowScripts, useCurrentPreset, reason, actionArgs: args });
       if (json) console.log(JSON.stringify(result, null, 2));
       else console.log(`Preset action ${result.status}: ${result.preset}.${result.action} (${result.materialized.length} writes) [${result.source} ${String(result.manifestSha256 || "").slice(0, 12)}]`);
     } else {

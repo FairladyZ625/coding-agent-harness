@@ -391,10 +391,10 @@ function legacyMigrationHandler(command: string): (ctx: CommandContext) => void 
   };
 }
 
-function legacyPresetHandler(subcommand?: string): (ctx: CommandContext) => void {
+function legacyPresetHandler(subcommand?: string): (ctx: CommandContext) => Promise<void> {
   return (ctx) => {
     const args = subcommand ? [subcommand, ...ctx.raw] : [...ctx.raw];
-    runPresetCommand({ args, ...createArgReaders(args) });
+    return runPresetCommand({ args, ...createArgReaders(args) });
   };
 }
 
