@@ -4,8 +4,16 @@ export const taskKernelInfrastructureBoundary = {
 } as const;
 
 export {
+  createGitUnitOfWork,
+  createGitUnitOfWorkLiveLayer,
+  GitUnitOfWorkLiveLayer,
+} from "./git-unit-of-work.mjs";
+export {
   createMarkdownTaskPackageStoreReader,
 } from "./markdown-task-package-store-reader.mjs";
+export type {
+  GitUnitOfWorkOptions,
+} from "./git-unit-of-work.mjs";
 export type {
   MarkdownTaskPackageStoreReaderOptions,
 } from "./markdown-task-package-store-reader.mjs";

@@ -13,7 +13,17 @@ export type {
 export { taskKernelAdaptersBoundary } from "./adapters/index.mjs";
 export { taskKernelApplicationBoundary } from "./application/index.mjs";
 export { taskKernelDomainBoundary } from "./domain/index.mjs";
-export { taskKernelInfrastructureBoundary } from "./infrastructure/index.mjs";
+export {
+  createGitUnitOfWork,
+  createGitUnitOfWorkLiveLayer,
+  createMarkdownTaskPackageStoreReader,
+  GitUnitOfWorkLiveLayer,
+  taskKernelInfrastructureBoundary,
+} from "./infrastructure/index.mjs";
+export type {
+  GitUnitOfWorkOptions,
+  MarkdownTaskPackageStoreReaderOptions,
+} from "./infrastructure/index.mjs";
 export { taskKernelPortsBoundary } from "./ports/index.mjs";
 
 export {
