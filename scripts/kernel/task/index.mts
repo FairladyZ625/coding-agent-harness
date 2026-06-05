@@ -98,11 +98,11 @@ export {
   HumanReviewPort,
   humanReviewPortPlaceholder,
   HumanReviewPortPlaceholderLayer,
-  TASK_REPOSITORY_PORT_ID,
+  TASK_PACKAGE_STORE_PORT_ID,
   TaskPortsPlaceholderLayer,
-  TaskRepository,
-  taskRepositoryPlaceholder,
-  TaskRepositoryPlaceholderLayer,
+  TaskPackageStore,
+  taskPackageStorePlaceholder,
+  TaskPackageStorePlaceholderLayer,
 } from "./ports/index.mjs";
 export type {
   GeneratedProjectionPortServiceShape,
@@ -113,8 +113,8 @@ export type {
   HumanReviewPortServiceShape,
   ProjectionDriftReport,
   ProjectionScopeInput,
-  TaskRepositoryDetail,
-  TaskRepositoryListInput,
-  TaskRepositoryServiceShape,
-  TaskRepositorySummary,
+  TaskPackageStoreDetail,
+  TaskPackageStoreListInput,
+  TaskPackageStoreServiceShape,
+  TaskPackageStoreSummary,
 } from "./ports/index.mjs";

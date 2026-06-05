@@ -10,9 +10,9 @@ export {
   GitUnitOfWorkPlaceholderLayer,
   humanReviewPortPlaceholder,
   HumanReviewPortPlaceholderLayer,
-  taskRepositoryPlaceholder,
+  taskPackageStorePlaceholder,
   TaskPortsPlaceholderLayer,
-  TaskRepositoryPlaceholderLayer,
+  TaskPackageStorePlaceholderLayer,
 } from "./layers.mjs";
 export {
   GENERATED_PROJECTION_PORT_ID,
@@ -23,19 +23,19 @@ export type {
   ProjectionScopeInput,
 } from "./projection.mjs";
 export {
-  TASK_REPOSITORY_PORT_ID,
+  TASK_PACKAGE_STORE_PORT_ID,
 } from "./repository.mjs";
 export type {
-  TaskRepositoryDetail,
-  TaskRepositoryListInput,
-  TaskRepositoryServiceShape,
-  TaskRepositorySummary,
+  TaskPackageStoreDetail,
+  TaskPackageStoreListInput,
+  TaskPackageStoreServiceShape,
+  TaskPackageStoreSummary,
 } from "./repository.mjs";
 export {
   GeneratedProjectionPort,
   GitUnitOfWork,
   HumanReviewPort,
-  TaskRepository,
+  TaskPackageStore,
 } from "./services.mjs";
 export {
   GIT_UNIT_OF_WORK_PORT_ID,

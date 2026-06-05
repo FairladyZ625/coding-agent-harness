@@ -13,13 +13,13 @@ import {
   type HumanReviewPortServiceShape,
 } from "./human-review.mjs";
 import {
-  TASK_REPOSITORY_PORT_ID,
-  type TaskRepositoryServiceShape,
+  TASK_PACKAGE_STORE_PORT_ID,
+  type TaskPackageStoreServiceShape,
 } from "./repository.mjs";
 
-export class TaskRepository extends Context.Tag(TASK_REPOSITORY_PORT_ID)<
-  TaskRepository,
-  TaskRepositoryServiceShape
+export class TaskPackageStore extends Context.Tag(TASK_PACKAGE_STORE_PORT_ID)<
+  TaskPackageStore,
+  TaskPackageStoreServiceShape
 >() {}
 
 export class GitUnitOfWork extends Context.Tag(GIT_UNIT_OF_WORK_PORT_ID)<

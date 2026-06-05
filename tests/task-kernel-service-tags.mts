@@ -14,14 +14,14 @@ import {
   HumanReviewPort,
   TASK_COMMAND_SERVICE_ID,
   TASK_QUERY_SERVICE_ID,
-  TASK_REPOSITORY_PORT_ID,
+  TASK_PACKAGE_STORE_PORT_ID,
   TaskApplicationServicesPlaceholderLayer,
   TaskCommands,
   TaskKernelNotImplementedError,
   TaskPortsPlaceholderLayer,
   TaskQueries,
   TaskQueryService,
-  TaskRepository,
+  TaskPackageStore,
 } from "../scripts/kernel/task/index.mjs";
 import {
   createTaskRef,
@@ -46,7 +46,7 @@ assert.equal(TASK_COMMAND_SERVICE_ID, "coding-agent-harness/task-kernel/applicat
 
 const portIdentities = await Effect.runPromise(
   Effect.gen(function* () {
-    const repository = yield* TaskRepository;
+    const repository = yield* TaskPackageStore;
     const unitOfWork = yield* GitUnitOfWork;
     const humanReview = yield* HumanReviewPort;
     const projection = yield* GeneratedProjectionPort;
@@ -60,7 +60,7 @@ const portIdentities = await Effect.runPromise(
 );
 
 assert.deepEqual(portIdentities, {
-  repository: TASK_REPOSITORY_PORT_ID,
+  repository: TASK_PACKAGE_STORE_PORT_ID,
   unitOfWork: GIT_UNIT_OF_WORK_PORT_ID,
   humanReview: HUMAN_REVIEW_PORT_ID,
   projection: GENERATED_PROJECTION_PORT_ID,
@@ -89,7 +89,7 @@ assert.match(createFailure.message, /TaskCommandService\.createTask/);
 
 const repositoryFailure = await captureFailure(
   Effect.gen(function* () {
-    const repository = yield* TaskRepository;
+    const repository = yield* TaskPackageStore;
     return yield* repository.get(createTaskRef({
       kind: "task-id",
       value: "2026-06-05-task-kernel-tk02-effect-service-tags-layers",
@@ -97,7 +97,7 @@ const repositoryFailure = await captureFailure(
   }).pipe(Effect.provide(TaskPortsPlaceholderLayer)),
 );
 assert(repositoryFailure instanceof TaskKernelNotImplementedError);
-assert.match(repositoryFailure.message, /TaskRepository\.get/);
+assert.match(repositoryFailure.message, /TaskPackageStore\.get/);
 
 const productionSources = collectSources(path.join(repoRoot, "scripts/kernel/task"));
 assert(productionSources.length > 0, "Task Kernel source files should exist");

@@ -14,28 +14,28 @@ import {
   type HumanReviewPortServiceShape,
 } from "./human-review.mjs";
 import {
-  TASK_REPOSITORY_PORT_ID,
-  type TaskRepositoryServiceShape,
+  TASK_PACKAGE_STORE_PORT_ID,
+  type TaskPackageStoreServiceShape,
 } from "./repository.mjs";
 import {
   GeneratedProjectionPort,
   GitUnitOfWork,
   HumanReviewPort,
-  TaskRepository,
+  TaskPackageStore,
 } from "./services.mjs";
 
 const failNotImplemented = (serviceId: string, methodName: string) =>
   Effect.fail(new TaskKernelNotImplementedError(serviceId, methodName));
 
-export const taskRepositoryPlaceholder: TaskRepositoryServiceShape = {
-  identity: TASK_REPOSITORY_PORT_ID,
-  list: () => failNotImplemented(TASK_REPOSITORY_PORT_ID, "list"),
-  get: () => failNotImplemented(TASK_REPOSITORY_PORT_ID, "get"),
-  resolve: () => failNotImplemented(TASK_REPOSITORY_PORT_ID, "resolve"),
-  create: () => failNotImplemented(TASK_REPOSITORY_PORT_ID, "create"),
-  save: () => failNotImplemented(TASK_REPOSITORY_PORT_ID, "save"),
-  archive: () => failNotImplemented(TASK_REPOSITORY_PORT_ID, "archive"),
-  delete: () => failNotImplemented(TASK_REPOSITORY_PORT_ID, "delete"),
+export const taskPackageStorePlaceholder: TaskPackageStoreServiceShape = {
+  identity: TASK_PACKAGE_STORE_PORT_ID,
+  list: () => failNotImplemented(TASK_PACKAGE_STORE_PORT_ID, "list"),
+  get: () => failNotImplemented(TASK_PACKAGE_STORE_PORT_ID, "get"),
+  resolve: () => failNotImplemented(TASK_PACKAGE_STORE_PORT_ID, "resolve"),
+  create: () => failNotImplemented(TASK_PACKAGE_STORE_PORT_ID, "create"),
+  save: () => failNotImplemented(TASK_PACKAGE_STORE_PORT_ID, "save"),
+  archive: () => failNotImplemented(TASK_PACKAGE_STORE_PORT_ID, "archive"),
+  delete: () => failNotImplemented(TASK_PACKAGE_STORE_PORT_ID, "delete"),
 };
 
 export const gitUnitOfWorkPlaceholder: GitUnitOfWorkServiceShape = {
@@ -54,7 +54,7 @@ export const generatedProjectionPortPlaceholder: GeneratedProjectionPortServiceS
   detectDrift: () => failNotImplemented(GENERATED_PROJECTION_PORT_ID, "detectDrift"),
 };
 
-export const TaskRepositoryPlaceholderLayer = Layer.succeed(TaskRepository, taskRepositoryPlaceholder);
+export const TaskPackageStorePlaceholderLayer = Layer.succeed(TaskPackageStore, taskPackageStorePlaceholder);
 export const GitUnitOfWorkPlaceholderLayer = Layer.succeed(GitUnitOfWork, gitUnitOfWorkPlaceholder);
 export const HumanReviewPortPlaceholderLayer = Layer.succeed(HumanReviewPort, humanReviewPortPlaceholder);
 export const GeneratedProjectionPortPlaceholderLayer = Layer.succeed(
@@ -63,7 +63,7 @@ export const GeneratedProjectionPortPlaceholderLayer = Layer.succeed(
 );
 
 export const TaskPortsPlaceholderLayer = Layer.mergeAll(
-  TaskRepositoryPlaceholderLayer,
+  TaskPackageStorePlaceholderLayer,
   GitUnitOfWorkPlaceholderLayer,
   HumanReviewPortPlaceholderLayer,
   GeneratedProjectionPortPlaceholderLayer,
