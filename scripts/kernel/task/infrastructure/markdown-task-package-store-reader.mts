@@ -55,7 +55,10 @@ export function createMarkdownTaskPackageStoreReader(options: MarkdownTaskPackag
 
   return {
     list(query: TaskPackageStoreQuery = {}) {
-      const snapshots = listTaskPlanPaths(root, taskPlanFileName).map((taskPlanPath) => readSnapshot(root, taskPlanPath));
+      const snapshots = listTaskPlanPaths(root, taskPlanFileName).flatMap((taskPlanPath) => {
+        const snapshot = safeReadSnapshot(root, taskPlanPath);
+        return snapshot ? [snapshot] : [];
+      });
       return snapshots.filter((snapshot) => matchesQuery(snapshot, query));
     },
     get(ref: TaskRef) {
@@ -78,6 +81,14 @@ export function createMarkdownTaskPackageStoreReader(options: MarkdownTaskPackag
   };
 }
 
+function safeReadSnapshot(root: string, taskPlanPath: string): TaskPackageSnapshot | undefined {
+  try {
+    return readSnapshot(root, taskPlanPath);
+  } catch {
+    return undefined;
+  }
+}
+
 function readSnapshot(root: string, taskPlanPath: string): TaskPackageSnapshot {
   assertInsideRoot(root, taskPlanPath);
   const location = locationFromTaskPlan(root, taskPlanPath);
@@ -93,10 +104,10 @@ function readSnapshot(root: string, taskPlanPath: string): TaskPackageSnapshot {
   const task = createTask({
     id: location.id,
     title: parseTitle(taskPlanContent, location.id),
-    state: parseTaskState(readMetadata(metadata, "state", "planned", parseWarnings)),
-    lifecycleState: parseLifecycleState(readMetadata(metadata, "lifecycle-state", "ready", parseWarnings)),
-    reviewStatus: parseReviewStatus(readMetadata(metadata, "review-status", "missing", parseWarnings)),
-    closeoutState: parseCloseoutState(readMetadata(metadata, "closeout-state", "open", parseWarnings)),
+    state: parseTaskState(requiredMetadata(metadata, "state")),
+    lifecycleState: parseLifecycleState(requiredMetadata(metadata, "lifecycle-state")),
+    reviewStatus: parseReviewStatus(requiredMetadata(metadata, "review-status")),
+    closeoutState: parseCloseoutState(requiredMetadata(metadata, "closeout-state")),
     materials: determineMaterialsState({
       requiredArtifactIds: requiredArtifacts.map((artifact) => artifact.artifact.id),
       availableArtifactIds,
@@ -124,7 +135,7 @@ function readSnapshot(root: string, taskPlanPath: string): TaskPackageSnapshot {
 function listTaskPlanPaths(root: string, taskPlanFileName: string): string[] {
   const paths: string[] = [];
   walk(root, (filePath) => {
-    if (path.basename(filePath) === taskPlanFileName) paths.push(filePath);
+    if (isOwnedTaskPlanPath(root, filePath, taskPlanFileName)) paths.push(filePath);
   });
   return paths.sort((left, right) => toPosix(path.relative(root, left)).localeCompare(toPosix(path.relative(root, right))));
 }
@@ -144,6 +155,20 @@ function shouldSkipDirectory(name: string): boolean {
   return new Set([".git", "node_modules", "dist", "tmp", ".worktrees"]).has(name);
 }
 
+function isOwnedTaskPlanPath(root: string, filePath: string, taskPlanFileName: string): boolean {
+  if (path.basename(filePath) !== taskPlanFileName) return false;
+  const absolute = assertInsideRoot(root, filePath);
+  const directory = path.dirname(absolute);
+  const ownerDirectory = path.basename(path.dirname(directory));
+  if (ownerDirectory !== "tasks") return false;
+  try {
+    parseTaskId(path.basename(directory));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function resolveTaskLocation(root: string, taskPlanFileName: string, ref: TaskRef): TaskPackageStoreLocation {
   if (ref.kind === "module-path" || ref.kind === "legacy-path") {
     const candidateDirectory = assertInsideRoot(root, path.resolve(root, String(ref.value)));
@@ -158,7 +183,13 @@ function resolveTaskLocation(root: string, taskPlanFileName: string, ref: TaskRe
 
   const id = parseTaskId(String(ref.value));
   const match = listTaskPlanPaths(root, taskPlanFileName)
-    .map((taskPlanPath) => locationFromTaskPlan(root, taskPlanPath))
+    .flatMap((taskPlanPath) => {
+      try {
+        return [locationFromTaskPlan(root, taskPlanPath)];
+      } catch {
+        return [];
+      }
+    })
     .find((location) => location.id === id);
   if (!match) throw new Error(`Task not found: ${id}`);
   return match;
@@ -229,7 +260,7 @@ function parseTitle(content: string, fallback: TaskId): string {
 }
 
 function parseArtifacts(content: string): ParsedArtifact[] {
-  return markdownRows(content)
+  return markdownRowsInSection(content, "artifacts")
     .filter((cells) => /^ART-\d{3,}$/i.test(cells[0] ?? ""))
     .map((cells) => {
       const id = parseArtifactId(cells[0]);
@@ -242,15 +273,22 @@ function parseArtifacts(content: string): ParsedArtifact[] {
 }
 
 function parsePhases(content: string): TaskPhase[] {
-  return markdownRows(content)
+  return markdownRowsInSection(content, "phases")
     .filter((cells) => /^[A-Z][A-Z0-9]*-\d{2,}$/i.test(cells[0] ?? "") && !/^ART-/i.test(cells[0] ?? ""))
     .map((cells, order) => createTaskPhase({ id: cells[0], title: cells[1] || cells[0], order }));
 }
 
-function markdownRows(content: string): string[][] {
+function markdownRowsInSection(content: string, sectionName: string): string[][] {
   const rows: string[][] = [];
+  let inSection = false;
   for (const line of content.split(/\r?\n/)) {
     const trimmed = line.trim();
+    const heading = trimmed.match(/^#{1,6}\s+(.+)$/);
+    if (heading) {
+      inSection = normalizeSectionTitle(heading[1]) === sectionName;
+      continue;
+    }
+    if (!inSection) continue;
     if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) continue;
     if (/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(trimmed)) continue;
     rows.push(trimmed.slice(1, -1).split("|").map((cell) => cell.trim()).filter(Boolean));
@@ -261,13 +299,6 @@ function markdownRows(content: string): string[][] {
 function materialExists(root: string, taskDirectory: string, materialPath: string): boolean {
   const absolute = assertInsideRoot(root, path.resolve(taskDirectory, materialPath));
   return fs.existsSync(absolute) && fs.lstatSync(absolute).isFile();
-}
-
-function readMetadata(metadata: Map<string, string>, key: string, fallback: string, warnings: string[]): string {
-  const value = metadata.get(key);
-  if (value) return value;
-  warnings.push(`missing metadata ${key}; defaulted to ${fallback}`);
-  return fallback;
 }
 
 function requiredMetadata(metadata: Map<string, string>, key: string): string {
@@ -299,6 +330,10 @@ function assertInsideRoot(root: string, candidate: string): string {
 
 function normalizeMetadataKey(raw: string): string {
   return raw.trim().toLowerCase().replace(/[_\s/]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+}
+
+function normalizeSectionTitle(raw: string): string {
+  return raw.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 function toPosix(value: string): string {

@@ -39,6 +39,7 @@ assert.deepEqual(active.task.artifacts.map((artifact) => [artifact.id, artifact.
   ["ART-002", "Progress notes"],
   ["ART-003", "Review notes"],
 ]);
+assert.equal(active.task.artifacts.some((artifact) => artifact.id === "ART-999"), false);
 assert.equal(active.task.auditMetadata?.["task-kind"], "coding-agent-harness-task");
 assert.equal(active.materials["review.md"].source, "standalone");
 assert.match(active.materials["review.md"].content, /Agent review evidence/);
@@ -56,6 +57,17 @@ assert.equal(missing.materials["review.md"].content, "");
 assert.throws(
   () => repository.get(createTaskRef({ kind: "task-id", value: "2026-06-05-unknown-task" })),
   /Task not found/,
+);
+assert.equal(
+  repository.list().some((snapshot) => snapshot.location.relativeDirectory.includes("demo-task")),
+  false,
+);
+
+const repositoryRootReader = createMarkdownTaskPackageStoreReader({ root: repoRoot });
+assert.doesNotThrow(() => repositoryRootReader.list());
+assert.equal(
+  repositoryRootReader.list().some((snapshot) => snapshot.task.id === "demo-task"),
+  false,
 );
 
 const writableRoot = fs.mkdtempSync(path.join(os.tmpdir(), "task-kernel-repository-adapter-"));
@@ -83,6 +95,24 @@ assert.throws(
 assert.throws(
   () => writableRepository.resolve(createTaskRef({ kind: "legacy-path", value: "../outside" })),
   /escapes repository root/,
+);
+
+const incompleteRoot = fs.mkdtempSync(path.join(os.tmpdir(), "task-kernel-repository-incomplete-"));
+fs.cpSync(path.join(fixtureRoot, "active-standard-task"), incompleteRoot, { recursive: true });
+const incompleteTaskPlan = path.join(
+  incompleteRoot,
+  "coding-agent-harness/planning/modules/task-kernel/tasks/2026-06-05-active-standard-task/task_plan.md",
+);
+fs.writeFileSync(
+  incompleteTaskPlan,
+  fs.readFileSync(incompleteTaskPlan, "utf8").replace(/^State: active\n/m, ""),
+  "utf8",
+);
+const incompleteRepository = createMarkdownTaskPackageStoreReader({ root: incompleteRoot });
+assert.deepEqual(incompleteRepository.list({ state: "active" }).map((snapshot) => snapshot.task.id), []);
+assert.throws(
+  () => incompleteRepository.get(activeRef),
+  /Missing task metadata: state/,
 );
 
 console.log("Task Kernel repository adapter tests passed");
