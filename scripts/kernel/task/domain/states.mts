@@ -2,7 +2,7 @@ const taskStates = ["planned", "active", "review", "blocked", "done", "archived"
 const lifecycleStates = ["ready", "active", "in_review", "closed-review-pending"] as const;
 const reviewStatuses = ["missing", "required", "agent-reviewed", "human-confirmed"] as const;
 const closeoutStates = ["not-required", "open", "ready-to-close", "closed"] as const;
-const queueNames = ["planned", "active", "review", "missing-materials", "lessons"] as const;
+const queueNames = ["planned", "active", "review", "blocked", "done", "archived", "deleted", "missing-materials", "lessons"] as const;
 
 export type TaskState = (typeof taskStates)[number];
 export type LifecycleState = (typeof lifecycleStates)[number];

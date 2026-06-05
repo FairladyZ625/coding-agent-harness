@@ -96,6 +96,9 @@ export function createTask(input: CreateTaskInput): Task {
   if (input.reviewConfirmation && input.reviewStatus !== "human-confirmed") {
     throw new Error("ReviewConfirmation may only be attached to human-confirmed tasks");
   }
+  if (input.reviewConfirmation) {
+    assertHumanReviewConfirmation(input.reviewConfirmation);
+  }
   assertUniqueValues((input.phases ?? []).map((phase) => phase.id), "PhaseId");
   assertUniqueValues((input.artifacts ?? []).map((artifact) => artifact.id), "ArtifactId");
   assertPhaseOrder(input.phases ?? []);
@@ -128,6 +131,11 @@ export function createTaskArtifact(input: { id: string; title: string }): TaskAr
 function assertPhaseOrder(phases: readonly TaskPhase[]): void {
   const orders = phases.map((phase) => phase.order);
   assertUniqueValues(orders.map(String), "TaskPhase.order");
+}
+
+function assertHumanReviewConfirmation(reviewConfirmation: ReviewConfirmation): void {
+  const actorKind = (reviewConfirmation as { actor?: { kind?: unknown } }).actor?.kind;
+  if (actorKind !== "human") throw new Error("ReviewConfirmation requires a human actor");
 }
 
 function requireNonEmpty(raw: string, label: string): string {

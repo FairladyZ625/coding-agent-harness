@@ -67,11 +67,16 @@ export function decideTaskReadiness(task: Task): TaskReadinessDecision {
 
 export function classifyTaskQueue(input: QueuePolicyInput): QueueName {
   const task = input.task;
+  if (task.state === "blocked") return "blocked";
+  if (task.state === "done") return "done";
+  if (task.state === "archived") return "archived";
+  if (task.state === "deleted") return "deleted";
   if (task.materials.kind === "missing") return "missing-materials";
   if (input.requiresLessonReview) return "lessons";
   if (task.reviewStatus === "required" || task.lifecycleState === "in_review" || task.state === "review") return "review";
   if (task.state === "active" || task.lifecycleState === "active") return "active";
-  return "planned";
+  if (task.state === "planned") return "planned";
+  return assertUnreachableTaskState(task.state);
 }
 
 export function decideArchiveEligibility(task: Task): PolicyDecision {
@@ -93,4 +98,8 @@ export function decideDeleteEligibility(task: Task): PolicyDecision {
   }
   if (task.reviewStatus === "required") reasons.push("review is still required");
   return { allowed: reasons.length === 0, reasons };
+}
+
+function assertUnreachableTaskState(value: never): never {
+  throw new Error(`Unhandled TaskState for queue classification: ${value}`);
 }

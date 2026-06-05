@@ -21,6 +21,7 @@ import {
   parseLifecycleState,
   parseModuleKey,
   parsePhaseId,
+  parseQueueName,
   parseReviewStatus,
   parseTaskId,
   parseTaskState,
@@ -39,6 +40,7 @@ assert.equal(artifactId, "ART-001");
 assert.equal(parseTaskState("active"), "active");
 assert.equal(parseLifecycleState("in_review"), "in_review");
 assert.equal(parseReviewStatus("agent-reviewed"), "agent-reviewed");
+assert.equal(parseQueueName("blocked"), "blocked");
 
 assert.throws(() => parseTaskId("task-kernel-tk01"), /Invalid TaskId/);
 assert.throws(() => parseTaskState("in-review"), /Invalid TaskState/);
@@ -128,6 +130,11 @@ const reviewTask = createTask({
 assert.equal(classifyTaskQueue({ task: reviewTask }), "review");
 assert.equal(decideArchiveEligibility(reviewTask).allowed, false);
 
+assert.equal(classifyTaskQueue({ task: createTask({ ...baseTask, state: "blocked", materials: missingMaterials }) }), "blocked");
+assert.equal(classifyTaskQueue({ task: createTask({ ...baseTask, state: "done", lifecycleState: "ready" }) }), "done");
+assert.equal(classifyTaskQueue({ task: createTask({ ...baseTask, state: "archived", lifecycleState: "active" }) }), "archived");
+assert.equal(classifyTaskQueue({ task: createTask({ ...baseTask, state: "deleted", lifecycleState: "in_review" }) }), "deleted");
+
 assert.equal(classifyTaskQueue({ task: baseTask, requiresLessonReview: true }), "lessons");
 assert.equal(deriveReviewStatus({ reviewRequired: true, agentReviewed: false }), "required");
 assert.equal(deriveReviewStatus({ reviewRequired: true, agentReviewed: true }), "agent-reviewed");
@@ -140,6 +147,15 @@ assert.throws(
 assert.throws(
   () => createTask({ ...baseTask, reviewStatus: "human-confirmed" }),
   /requires ReviewConfirmation/,
+);
+const forgedAgentConfirmation = JSON.parse(JSON.stringify({
+  actor: { kind: "agent", id: "TK-01-worker" },
+  confirmedAt: "2026-06-05T00:00:00Z",
+  evidence: "forged-agent-note",
+})) as Parameters<typeof createTask>[0]["reviewConfirmation"];
+assert.throws(
+  () => createTask({ ...baseTask, reviewStatus: "human-confirmed", reviewConfirmation: forgedAgentConfirmation }),
+  /requires a human actor/,
 );
 
 const humanConfirmation = createHumanReviewConfirmation({
