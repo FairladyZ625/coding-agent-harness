@@ -48,7 +48,7 @@ import {
   taskReviewStatus,
   taskScannerVersion,
 } from "./task-review-model.mjs";
-import { attachTaskSemanticProjection } from "./task-semantic-projection.mjs";
+import { attachTaskSemanticProjection } from "../domain/task/task-semantic-projection.mjs";
 import { invalidTaskStateMaterialIssues } from "./task-state-materials.mjs";
 import {
   parsePhases,

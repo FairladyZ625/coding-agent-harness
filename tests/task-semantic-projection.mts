@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { buildTaskSemanticProjection } from "../scripts/lib/task-semantic-projection.mjs";
+import { buildTaskSemanticProjection } from "../scripts/domain/task/task-semantic-projection.mjs";
 import { deriveLifecycleState } from "../scripts/lib/task-review-model.mjs";
 
 function assert(condition: unknown, message: string): asserts condition {

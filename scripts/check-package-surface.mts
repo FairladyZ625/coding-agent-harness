@@ -39,7 +39,6 @@ const deniedDeepImports = [
 ];
 const runtimeInternalPackageFiles = [
   "dist/lib/harness-core.mjs",
-  "dist/lib/task-semantic-projection.mjs",
   "dist/lib/task-tombstone-commands.mjs",
   "dist/lib/task-archive-eligibility.mjs",
 ];

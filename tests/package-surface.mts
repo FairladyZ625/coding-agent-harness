@@ -40,7 +40,7 @@ const payload = JSON.parse(result.stdout) as PackageSurfaceResult;
 assert(payload.ok === true, "package surface payload should report ok");
 assert(payload.exports.length === 1 && payload.exports[0] === "./package.json", "package exports should only expose package metadata");
 assert(payload.internalRuntimeFiles.includes("dist/lib/harness-core.mjs"), "harness-core should be classified as runtime-internal, not public export");
-assert(payload.internalRuntimeFiles.includes("dist/lib/task-semantic-projection.mjs"), "task semantic projection facade should be classified as runtime-internal");
+assert(!payload.internalRuntimeFiles.includes("dist/lib/task-semantic-projection.mjs"), "retired task semantic projection facade should not be packed");
 assert(payload.packageFileClassification.retiredFacadeTargets.includes("dist/lib/task-operations.mjs"), "retired TaskOperations package facade should be classified separately from runtime internals");
 assert(payload.packageFileClassification.packedRetiredFacadeFiles.length === 0, "current tarball should not ship retired package facades");
 assert(payload.deniedDeepImportSmoke.some((smoke) => smoke.specifier === "coding-agent-harness" && smoke.denied), "package root import should be denied");
