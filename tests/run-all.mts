@@ -46,6 +46,7 @@ const suites: Suite[] = [
   { path: "tests/task-kernel-unit-of-work.mjs" },
   { path: "tests/task-kernel-fixture-schema.mjs" },
   { path: "tests/task-kernel-oracle-parity.mjs" },
+  { path: "tests/task-kernel-dashboard-gui-query-parity.mjs" },
   { path: "tests/task-semantic-projection.mjs" },
   { path: "tests/semantic-contract-baseline.mjs" },
   { path: "tests/task-archive-eligibility.mjs" },
