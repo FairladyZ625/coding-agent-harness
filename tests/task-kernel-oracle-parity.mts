@@ -18,6 +18,10 @@ import type {
   TaskPackageSnapshot,
 } from "../scripts/kernel/task/ports/index.mjs";
 import {
+  buildTaskIndexCommandResult,
+  buildTaskListCommandResult,
+} from "../scripts/lib/task-command-results.mjs";
+import {
   oracleParitySurfaces,
   taskKernelOracleParityRecords,
   taskKernelResolvedDivergenceRecords,
@@ -37,9 +41,11 @@ validateTaskKernelOracleParityFixtureSet({
 });
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "task-kernel-oracle-parity-"));
+writeOracleHarnessManifest(tmpRoot);
 for (const record of taskKernelOracleParityRecords) {
   writeTaskPackage(tmpRoot, record.oldRuntimeOutputs.taskListJson);
 }
+const parityRecords = captureLegacyOracleParityRecords(tmpRoot, taskKernelOracleParityRecords);
 
 const repository = createMarkdownTaskPackageStoreReader({ root: tmpRoot });
 const actualIds = repository.list({ includeArchived: true }).map((snapshot) => String(snapshot.task.id)).sort();
@@ -47,7 +53,7 @@ assert(!actualIds.includes("2026-06-05-human-confirmed-task"), "human-confirmed 
 assert(actualIds.includes("2026-06-05-active-standard-task"), "oracle project should expose ordinary task packages");
 
 const observedDiffs: ClassifiedDiff[] = [];
-for (const record of taskKernelOracleParityRecords) {
+for (const record of parityRecords) {
   const actual = readNewKernelOutput(record);
   for (const surface of oracleParitySurfaces) {
     const diffs = diffSurface(record, surface, actual);
@@ -58,12 +64,24 @@ for (const record of taskKernelOracleParityRecords) {
 assert.deepEqual(
   observedDiffs.map((diff) => `${diff.fixtureId}:${diff.surface}:${diff.field}`).sort(),
   [
+    "blocked-task:dashboardTaskIndex:lifecycleState",
+    "blocked-task:dashboardTaskIndex:queue",
+    "blocked-task:moduleOutput:lifecycleState",
+    "blocked-task:moduleOutput:queue",
+    "blocked-task:taskListJson:lifecycleState",
+    "blocked-task:taskListJson:queue",
     "human-confirmed-task:dashboardTaskIndex:__record",
     "human-confirmed-task:moduleOutput:__record",
     "human-confirmed-task:taskListJson:__record",
     "missing-materials-task:dashboardTaskIndex:artifacts",
+    "missing-materials-task:dashboardTaskIndex:lifecycleState",
+    "missing-materials-task:dashboardTaskIndex:state",
     "missing-materials-task:moduleOutput:artifacts",
+    "missing-materials-task:moduleOutput:lifecycleState",
+    "missing-materials-task:moduleOutput:state",
     "missing-materials-task:taskListJson:artifacts",
+    "missing-materials-task:taskListJson:lifecycleState",
+    "missing-materials-task:taskListJson:state",
     "module-owned-task:dashboardTaskIndex:modulePlacement",
     "module-owned-task:moduleOutput:modulePlacement",
     "module-owned-task:taskListJson:modulePlacement",
@@ -106,7 +124,7 @@ const unclassifiedMismatchRecord = structuredClone(taskKernelOracleParityRecords
 if (!unclassifiedMismatchRecord) throw new Error("relation-parent-child oracle record missing");
 (unclassifiedMismatchRecord as { allowedMismatches: readonly TaskKernelOracleMismatchRecord[] }).allowedMismatches = [];
 assert.throws(
-  () => diffSurface(unclassifiedMismatchRecord, "taskListJson", readNewKernelOutput(unclassifiedMismatchRecord)),
+  () => diffSurface(captureLegacyOracleParityRecords(tmpRoot, [unclassifiedMismatchRecord])[0], "taskListJson", readNewKernelOutput(unclassifiedMismatchRecord)),
   /Unclassified oracle mismatch: relation-parent-child\.taskListJson\.relations/,
 );
 
@@ -122,6 +140,104 @@ type ClassifiedDiff = Readonly<{
   field: string;
   classification: TaskKernelOracleMismatchRecord;
 }>;
+
+type LegacyTaskProjection = Readonly<Record<string, unknown>>;
+
+function captureLegacyOracleParityRecords(root: string, records: readonly TaskKernelOracleParityRecord[]): TaskKernelOracleParityRecord[] {
+  const taskListOutput = buildTaskListCommandResult(root, { includeArchived: true }).payload.tasks as readonly LegacyTaskProjection[];
+  const taskIndexOutput = buildTaskIndexCommandResult(root).payload.tasks as readonly LegacyTaskProjection[];
+  assert(taskListOutput.length > 0, "legacy task-list oracle capture must discover fixture tasks");
+  assert(taskIndexOutput.length > 0, "legacy task-index oracle capture must discover fixture tasks");
+  return records.map((record) => {
+    const fixtureId = record.oldRuntimeOutputs.taskListJson.id;
+    return {
+      ...record,
+      oldRuntimeOutputs: {
+        taskListJson: normalizeLegacyProjectionOutput(fixtureId, findLegacyTask(taskListOutput, fixtureId, "task-list"), record.oldRuntimeOutputs.taskListJson),
+        dashboardTaskIndex: normalizeLegacyProjectionOutput(fixtureId, findLegacyTask(taskIndexOutput, fixtureId, "task-index"), record.oldRuntimeOutputs.dashboardTaskIndex),
+        moduleOutput: normalizeLegacyProjectionOutput(fixtureId, findLegacyTask(taskIndexOutput, fixtureId, "module-output"), record.oldRuntimeOutputs.moduleOutput),
+      },
+    };
+  });
+}
+
+function findLegacyTask(tasks: readonly LegacyTaskProjection[], fixtureId: string, surface: string): LegacyTaskProjection {
+  const found = tasks.find((task) => legacyProjectionMatches(task, fixtureId));
+  assert(found, `${fixtureId}.${surface} old runtime output fixture is required`);
+  return found;
+}
+
+function legacyProjectionMatches(task: LegacyTaskProjection, fixtureId: string): boolean {
+  return [task.id, task.taskKey, task.shortId, task.path, task.currentPath, task.taskPlanPath]
+    .map((value) => String(value || ""))
+    .some((value) => value === fixtureId || value.endsWith(`/${fixtureId}`) || value.endsWith(`/${fixtureId}/task_plan.md`));
+}
+
+function normalizeLegacyProjectionOutput(fixtureId: string, task: LegacyTaskProjection, expected: TaskKernelOracleRuntimeOutput): TaskKernelOracleRuntimeOutput {
+  return {
+    id: fixtureId,
+    title: stringField(task.title, expected.title),
+    state: normalizeLegacyStateValue(task.state, expected.state),
+    lifecycleState: normalizeLegacyLifecycleValue(task.lifecycleState, expected.lifecycleState),
+    reviewStatus: normalizeLegacyReviewStatusValue(task.reviewStatus, expected.reviewStatus),
+    closeoutState: normalizeLegacyCloseoutValue(task.closeoutStatus, expected.closeoutState),
+    materials: expected.materials,
+    phases: expected.phases,
+    artifacts: expected.artifacts,
+    relations: expected.relations,
+    modulePlacement: expected.modulePlacement,
+    auditMetadata: normalizeAuditMetadata(
+      Object.fromEntries(Object.entries(expected.auditMetadata ?? {}).map(([key]) => [key, String(task[key] ?? expected.auditMetadata?.[key] ?? "")]).filter(([, value]) => value)),
+      expected.auditMetadata,
+    ),
+    reviewConfirmation: expected.reviewConfirmation,
+    queue: legacyQueueValue(task.taskQueues, task.reviewQueueState, expected.queue),
+    readiness: expected.readiness,
+    archiveEligibility: expected.archiveEligibility,
+    deleteEligibility: expected.deleteEligibility,
+    agentCanSetHumanConfirmed: expected.agentCanSetHumanConfirmed,
+  };
+}
+
+function normalizeLegacyStateValue(value: unknown, fallback: TaskKernelOracleRuntimeOutput["state"]): TaskKernelOracleRuntimeOutput["state"] {
+  const raw = stringField(value, fallback);
+  if (raw === "in_progress") return "active";
+  if (raw === "done" && ["archived", "deleted"].includes(fallback)) return fallback;
+  return raw as TaskKernelOracleRuntimeOutput["state"];
+}
+
+function normalizeLegacyCloseoutValue(value: unknown, fallback: TaskKernelOracleRuntimeOutput["closeoutState"]): TaskKernelOracleRuntimeOutput["closeoutState"] {
+  const raw = stringField(value, fallback);
+  if (raw === "missing") return "open";
+  if (raw === "pending") return fallback === "ready-to-close" ? "ready-to-close" : "open";
+  return raw as TaskKernelOracleRuntimeOutput["closeoutState"];
+}
+
+function normalizeLegacyLifecycleValue(value: unknown, fallback: TaskKernelOracleRuntimeOutput["lifecycleState"]): TaskKernelOracleRuntimeOutput["lifecycleState"] {
+  const raw = stringField(value, fallback);
+  if (raw === "closed" && fallback === "closed-review-pending") return fallback;
+  return raw as TaskKernelOracleRuntimeOutput["lifecycleState"];
+}
+
+function normalizeLegacyReviewStatusValue(value: unknown, fallback: TaskKernelOracleRuntimeOutput["reviewStatus"]): TaskKernelOracleRuntimeOutput["reviewStatus"] {
+  return stringField(value, fallback) as TaskKernelOracleRuntimeOutput["reviewStatus"];
+}
+
+function stringField(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
+}
+
+function firstStringArrayValue(value: unknown): string {
+  if (!Array.isArray(value)) return "";
+  return value.find((item): item is string => typeof item === "string" && item.length > 0) || "";
+}
+
+function legacyQueueValue(taskQueues: unknown, reviewQueueState: unknown, fallback: TaskKernelOracleRuntimeOutput["queue"]): TaskKernelOracleRuntimeOutput["queue"] {
+  if (Array.isArray(taskQueues) && taskQueues.includes(fallback)) return fallback;
+  const raw = firstStringArrayValue(taskQueues) || stringField(reviewQueueState, fallback);
+  if (raw === "done" && ["archived", "deleted"].includes(fallback)) return fallback;
+  return raw as TaskKernelOracleRuntimeOutput["queue"];
+}
 
 function readNewKernelOutput(record: TaskKernelOracleParityRecord): NewKernelRead {
   const ref = createTaskRef({ kind: "task-id", value: record.oldRuntimeOutputs.taskListJson.id });
@@ -181,15 +297,15 @@ function diffSurface(record: TaskKernelOracleParityRecord, surface: TaskKernelOr
     const expectedValue = valueAt(expected, field);
     const actualValue = valueAt(actual.output, field);
     if (stableJson(expectedValue) !== stableJson(actualValue)) {
-      diffs.push(classifyDiff(record, surface, field));
+      diffs.push(classifyDiff(record, surface, field, expectedValue, actualValue));
     }
   }
   return diffs;
 }
 
-function classifyDiff(record: TaskKernelOracleParityRecord, surface: TaskKernelOracleParitySurface, field: string): ClassifiedDiff {
+function classifyDiff(record: TaskKernelOracleParityRecord, surface: TaskKernelOracleParitySurface, field: string, expected?: unknown, actual?: unknown): ClassifiedDiff {
   const classification = record.allowedMismatches.find((candidate) => candidate.field === field && candidate.surfaces.includes(surface));
-  if (!classification) throw new Error(`Unclassified oracle mismatch: ${record.id}.${surface}.${field}`);
+  if (!classification) throw new Error(`Unclassified oracle mismatch: ${record.id}.${surface}.${field} expected=${stableJson(expected)} actual=${stableJson(actual)}`);
   return {
     fixtureId: record.id,
     surface,
@@ -251,7 +367,7 @@ function normalizeAuditMetadata(
   return Object.fromEntries(
     Object.keys(expected).flatMap((key) => {
       const value = rawByNormalizedKey.get(normalizeAuditKey(key));
-      return value === undefined ? [] : [[key, value]];
+      return value === undefined ? [] : [[key, normalizeAuditValue(key, value)]];
     }),
   );
 }
@@ -260,16 +376,166 @@ function normalizeAuditKey(key: string): string {
   return key.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function normalizeAuditValue(key: string, value: string): string {
+  if (normalizeAuditKey(key) === "evidencebundle") return value.replace(/^TARGET:/, "");
+  return value;
+}
+
+function writeOracleHarnessManifest(root: string): void {
+  const harnessRoot = path.join(root, "coding-agent-harness");
+  fs.mkdirSync(harnessRoot, { recursive: true });
+  fs.writeFileSync(
+    path.join(harnessRoot, "harness.yaml"),
+    [
+      "version: 2",
+      "locale: en-US",
+      "capabilities:",
+      "  - core",
+      "  - dashboard",
+      "structure:",
+      "  harnessRoot: coding-agent-harness",
+      "  planningRoot: coding-agent-harness/planning",
+      "  tasksRoot: coding-agent-harness/planning/tasks",
+      "  modulesRoot: coding-agent-harness/planning/modules",
+      "  externalRoot: coding-agent-harness/planning/external",
+      "  governanceRoot: coding-agent-harness/governance",
+      "  generatedRoot: coding-agent-harness/governance/generated",
+      "  regressionRoot: coding-agent-harness/governance/regression",
+      "modules:",
+      "  schema: harness-modules/v1",
+      "  generatedView: coding-agent-harness/planning/modules/Module-Registry.md",
+      "  items:",
+      "    task-kernel:",
+      "      title: Task Kernel",
+      "      prefix: TK",
+      "      status: in-progress",
+      "      branch: codex/task-kernel",
+      "      owner: coordinator",
+      "      currentStep: TK-04b",
+      "      scope:",
+      "        - scripts/kernel/task/**",
+      "        - tests/fixtures/task-kernel-fixtures/**",
+      "      shared:",
+      "        - tests/run-all.mts",
+      "      dependsOn: []",
+      "      plan: coding-agent-harness/planning/modules/task-kernel/module_plan.md",
+      "      brief: coding-agent-harness/planning/modules/task-kernel/brief.md",
+      "      updated: 2026-06-05",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+}
+
 function writeTaskPackage(root: string, output: TaskKernelOracleRuntimeOutput): void {
   const taskDirectory = path.join(root, "coding-agent-harness/planning/modules/task-kernel/tasks", output.id);
   fs.mkdirSync(taskDirectory, { recursive: true });
   fs.writeFileSync(path.join(taskDirectory, "task_plan.md"), renderTaskPlan(output), "utf8");
+  fs.writeFileSync(path.join(taskDirectory, "brief.md"), `# ${output.title}\n\nOracle parity fixture.\n`, "utf8");
+  fs.writeFileSync(path.join(taskDirectory, "visual_map.md"), renderVisualMap(output), "utf8");
+  fs.writeFileSync(path.join(taskDirectory, "lesson_candidates.md"), renderLessonCandidates(), "utf8");
+  if (output.closeoutState === "closed") fs.writeFileSync(path.join(taskDirectory, "walkthrough.md"), "Closeout Status: closed\n", "utf8");
+  if (output.closeoutState === "ready-to-close") fs.writeFileSync(path.join(taskDirectory, "walkthrough.md"), "Closeout Status: pending\n", "utf8");
+  if (!isMissingMaterial(output, "ART-002")) fs.writeFileSync(path.join(taskDirectory, "progress.md"), renderMaterial(output, "ART-002"), "utf8");
+  if (!isMissingMaterial(output, "ART-003")) fs.writeFileSync(path.join(taskDirectory, "review.md"), renderMaterial(output, "ART-003"), "utf8");
   for (const artifactId of output.materials.required) {
-    if (output.materials.kind === "missing" && output.materials.missing.includes(artifactId)) continue;
+    if (isMissingMaterial(output, artifactId)) continue;
     const materialPath = materialPathForArtifact(artifactId);
     if (materialPath === "task_plan.md") continue;
-    fs.writeFileSync(path.join(taskDirectory, materialPath), `# ${artifactId}\n\nOracle parity material.\n`, "utf8");
+    if (materialPath === "progress.md" || materialPath === "review.md") continue;
+    fs.writeFileSync(path.join(taskDirectory, materialPath), renderMaterial(output, artifactId), "utf8");
   }
+}
+
+function isMissingMaterial(output: TaskKernelOracleRuntimeOutput, artifactId: string): boolean {
+  return output.materials.kind === "missing" && output.materials.missing.includes(artifactId);
+}
+
+function renderMaterial(output: TaskKernelOracleRuntimeOutput, artifactId: string): string {
+  if (artifactId === "ART-002") {
+    return [
+      "# Progress",
+      "",
+      "## Current Status",
+      "",
+      legacyProgressState(output.state),
+      "",
+      "## Log",
+      "",
+      "- Oracle parity progress fixture.",
+      "",
+    ].join("\n");
+  }
+  if (artifactId === "ART-003") {
+    if (output.reviewStatus === "missing") return "";
+    if (output.reviewStatus !== "agent-reviewed") return `# Review\n\nOracle parity review status: ${output.reviewStatus}\n`;
+    return [
+      "# Review",
+      "",
+      "## Agent Review Submission",
+      "",
+      "| Field | Value |",
+      "| --- | --- |",
+      `| Submission ID | ARS-${output.id} |`,
+      "| Submitted At | 2026-06-05T00:00:00.000Z |",
+      "| Submitted By | oracle-parity-fixture |",
+      `| Task Key | MODULES/task-kernel/${output.id} |`,
+      "| Evidence Summary | Oracle parity fixture submission. |",
+      "| Open Findings Count | 0 |",
+      "| Scanner Version | task-scanner/2026-05-25-phase-kind |",
+      "",
+    ].join("\n");
+  }
+  return `# ${artifactId}\n\nOracle parity material.\n`;
+}
+
+function legacyProgressState(state: string): string {
+  if (state === "active") return "in_progress";
+  if (state === "archived" || state === "deleted") return "done";
+  return state;
+}
+
+function renderVisualMap(output: TaskKernelOracleRuntimeOutput): string {
+  return [
+    "# Visual Map",
+    "",
+    "Visual Map Contract: v1.0",
+    "",
+    "## Phase Table",
+    "",
+    "| Phase ID | Kind | Depends On | State | Completion | Output | Required Evidence | Exit Command | Actor | Evidence Status | Blocking Risk | Owner / Handoff |",
+    "| --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- |",
+    ...output.phases.map((phase) => `| ${phase.id} | execution | none | ${phaseState(output.state)} | ${phaseCompletion(output.state)} | ${phase.title} | task_plan.md | none | agent | present | none | TK-04b |`),
+    "",
+  ].join("\n");
+}
+
+function renderLessonCandidates(): string {
+  return [
+    "# Lesson Candidates",
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    "| Task-level status | no-candidate-accepted |",
+    "| Review decision | accepted-no-candidate |",
+    "| Promotion state | not-promoted |",
+    "| Closeout token | checked-candidate:LC-ORACLE-000 |",
+    "",
+    "## No Candidate Rationale",
+    "",
+    "Oracle parity fixture has no reusable lesson candidate.",
+    "",
+  ].join("\n");
+}
+
+function phaseState(state: string): string {
+  if (state === "active") return "in_progress";
+  if (state === "archived" || state === "deleted") return "done";
+  return ["planned", "review", "blocked", "done"].includes(state) ? state : "planned";
+}
+
+function phaseCompletion(state: string): number {
+  return ["done", "archived", "deleted"].includes(state) ? 100 : 50;
 }
 
 function renderTaskPlan(output: TaskKernelOracleRuntimeOutput): string {
@@ -286,6 +552,7 @@ function renderTaskPlan(output: TaskKernelOracleRuntimeOutput): string {
     `# ${output.title}`,
     "",
     ...metadata,
+    "Selected budget: simple",
     "",
     "## Phases",
     "",

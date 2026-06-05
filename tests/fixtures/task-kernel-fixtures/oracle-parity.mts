@@ -246,6 +246,21 @@ function allowedMismatchesForFixture(fixture: TaskKernelExpectedRecord): readonl
     });
   }
   if (fixture.id === "missing-materials-task") {
+    for (const field of ["state", "lifecycleState", "reviewStatus", "closeoutState", "queue"] as const) {
+      records.push({
+        fixtureId: fixture.id,
+        field,
+        surfaces: oracleParitySurfaces,
+        classification: "selected-compatible",
+        fieldClassification: fieldClassificationForFixtureField(fixture, field),
+        selectedBehavior: "new-kernel-output",
+        owner: "Task Kernel fixture owner",
+        followUp: "Keep missing-material fixtures state-preserving by reading task_plan.md domain metadata when progress.md is absent before kernel cutover.",
+        expiry: "kernel-cutover",
+        policyRef: "divergence-resolution-policy.md",
+        reason: "The fixture intentionally omits ART-002/progress.md, so the legacy runtime loses some lifecycle projection fields while the new Kernel preserves task_plan.md domain facts.",
+      });
+    }
     records.push({
       fixtureId: fixture.id,
       field: "artifacts",
@@ -259,6 +274,23 @@ function allowedMismatchesForFixture(fixture: TaskKernelExpectedRecord): readonl
       policyRef: "divergence-resolution-policy.md",
       reason: "The missing-materials oracle must include ART-002 as a required artifact row so the TK-03 reader can fail closed on the missing material.",
     });
+  }
+  if (fixture.id === "blocked-task") {
+    for (const field of ["lifecycleState", "queue"] as const) {
+      records.push({
+        fixtureId: fixture.id,
+        field,
+        surfaces: oracleParitySurfaces,
+        classification: "selected-compatible",
+        fieldClassification: fieldClassificationForFixtureField(fixture, field),
+        selectedBehavior: "new-kernel-output",
+        owner: "Task Kernel domain policy owner",
+        followUp: "Keep blocked as a queue/state overlay on an active lifecycle instead of copying legacy blocked lifecycle before kernel cutover.",
+        expiry: "kernel-cutover",
+        policyRef: "divergence-resolution-policy.md",
+        reason: "Legacy derives blocked lifecycle/queue from review findings and state heuristics; TK-04a selected active lifecycle with a blocked queue/state overlay.",
+      });
+    }
   }
   if (fixture.task.modulePlacement) {
     records.push({
@@ -337,6 +369,10 @@ function validateResolvedFields(label: string, record: {
   assertEqual(record.expiry, "kernel-cutover", `${label}.expiry`);
   assertEqual(record.policyRef, "divergence-resolution-policy.md", `${label}.policyRef`);
   assertNonEmpty(record.reason, `${label}.reason`);
+}
+
+function fieldClassificationForFixtureField(fixture: TaskKernelExpectedRecord, field: string): ExpectedFieldClassification["classification"] {
+  return fixture.compatibility.noDataLossFields.find((candidate) => candidate.field === field)?.classification || "domain field";
 }
 
 function assertExactIds(actual: readonly string[], expected: readonly string[], label: string): void {
