@@ -37,6 +37,18 @@
 - 新模块创建规则：命名、入口、测试、文档、导出方式。
 - 不允许跨越的依赖边界。
 
+## 目标对齐与便利替代禁止
+
+工程任务必须保护用户原始目标。不得因为更容易实现、测试或合并，就把成功标准改写成更小的代理目标。
+
+必须遵守：
+
+- 任务目标描述用户要求的最终状态，而不只是当前工程动作。
+- 任务范围可以切小，但 evidence-only、comparison-only、adapter-only 或 gate-only 切片不能被表述成 replacement、cutover、rewrite 或 retirement 完成。
+- sidecar rewrite 中，旧代码只能作为行为语料、oracle fixture 或测试对照；如果 active runtime、default path、package export、CLI、UI 或生产 consumer 仍依赖旧代码，就不能声称 rewrite 完成。
+- 检查通过、parity fixture、gate profile、consumer scan 或局部删除证据，只证明这些检查覆盖的局部主张。
+- 如果实现压力把任务推向用户没有要求的 bridge、compatibility layer 或 transitional adapter，必须回到 planning，记录禁止替代项后再继续。
+
 ## 命名规则
 
 | 类型 | 规则 | 备注 |
@@ -75,6 +87,7 @@
 非平凡工程改动完成前必须提供：
 
 - 受影响模块和边界说明。
+- 原始用户目标、最容易误用的便利替代，以及本轮不能声称完成的事项。
 - 对应测试、build、smoke 或回归证据。
 - 对架构、依赖、配置、schema 或安全边界的影响判断。
 - 如存在 residual，写明 owner、后续路径和为什么不阻塞本轮目标。

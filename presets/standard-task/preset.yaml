@@ -1,6 +1,6 @@
 id: standard-task
 version: 1
-purpose: Create a standard task using the generic declarative preset engine.
+purpose: Create a standard task using the generic declarative preset engine with an explicit goal-alignment challenge.
 compatibleBudgets: [standard, complex]
 localeSupport: [en-US, zh-CN]
 task:

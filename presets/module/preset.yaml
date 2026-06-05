@@ -1,6 +1,6 @@
 id: module
 version: 1
-purpose: Create module-scoped tasks with module context entry points and auditable preset metadata.
+purpose: Create module-scoped tasks with module context entry points, a goal-alignment challenge, and auditable preset metadata.
 compatibleBudgets: [simple, standard, complex]
 localeSupport: [en-US, zh-CN]
 task:
