@@ -12,3 +12,22 @@ export type {
   KernelTaskListOptions,
   KernelTaskListPayload,
 } from "./cli-task-list.mjs";
+
+export {
+  createTaskKernelHttpAdapter,
+  createTaskKernelNextRouteHandler,
+  handleTaskKernelHttpRequest,
+} from "./http.mjs";
+export type {
+  TaskKernelHttpAdapterServices,
+  TaskKernelHttpActor,
+  TaskKernelHttpContext,
+  TaskKernelHttpErrorBody,
+  TaskKernelHttpMethod,
+  TaskKernelHttpRequest,
+  TaskKernelHttpResponse,
+  TaskKernelHttpResponseBody,
+  TaskKernelNextRequestLike,
+  TaskKernelNextResponseLike,
+  TaskKernelNextRouteOptions,
+} from "./http.mjs";

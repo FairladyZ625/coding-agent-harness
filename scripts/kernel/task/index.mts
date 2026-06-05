@@ -10,7 +10,25 @@ export type {
   TaskKernelLayerId,
 } from "./kernel-frame.mjs";
 
-export { taskKernelAdaptersBoundary } from "./adapters/index.mjs";
+export {
+  createTaskKernelHttpAdapter,
+  createTaskKernelNextRouteHandler,
+  handleTaskKernelHttpRequest,
+  taskKernelAdaptersBoundary,
+} from "./adapters/index.mjs";
+export type {
+  TaskKernelHttpAdapterServices,
+  TaskKernelHttpActor,
+  TaskKernelHttpContext,
+  TaskKernelHttpErrorBody,
+  TaskKernelHttpMethod,
+  TaskKernelHttpRequest,
+  TaskKernelHttpResponse,
+  TaskKernelHttpResponseBody,
+  TaskKernelNextRequestLike,
+  TaskKernelNextResponseLike,
+  TaskKernelNextRouteOptions,
+} from "./adapters/index.mjs";
 export { taskKernelApplicationBoundary } from "./application/index.mjs";
 export { taskKernelDomainBoundary } from "./domain/index.mjs";
 export {

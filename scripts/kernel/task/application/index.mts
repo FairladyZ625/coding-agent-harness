@@ -63,3 +63,22 @@ export type {
   TaskCommandServiceShape,
   TaskQueryServiceShape,
 } from "./services.mjs";
+export {
+  createListTasksInputFromHttpQuery,
+  createMaterialsIssuesInputFromHttpQuery,
+  createReviewQueueInputFromHttpQuery,
+  createTaskRefFromHttpDto,
+  createTaskRefFromHttpPath,
+  createWriteScopeFromHttpDto,
+  optionalBoolean,
+  optionalString,
+  optionalTaskRefKind,
+  parseHttpModuleKey,
+  parseHttpTaskId,
+  requiredString,
+  requiredStringArray,
+} from "./http-dtos.mjs";
+export type {
+  HttpTaskRefDto,
+  HttpWriteScopeDto,
+} from "./http-dtos.mjs";
