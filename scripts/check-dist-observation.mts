@@ -432,6 +432,7 @@ function runInstalledMatrix(root: string, runtimeEnv: NodeJS.ProcessEnv, failure
     { id: "installed-help", cwd: root, args: ["--help"] },
     { id: "installed-status", cwd: root, args: ["status", "--json", "examples/minimal-project"] },
     { id: "installed-task-list", cwd: root, args: ["task-list", "--json", "examples/minimal-project"] },
+    { id: "installed-task-kernel-list", cwd: root, args: ["task-list", "--json", "--task-kernel", "examples/minimal-project"] },
     { id: "installed-preset-list", cwd: root, args: ["preset", "list", "--json", "examples/minimal-project"] },
     { id: "installed-source-check", cwd: root, args: ["check", "--profile", "source-package", "."] },
     { id: "installed-target-check", cwd: root, args: ["check", "--profile", "target-project", "examples/minimal-project"] },

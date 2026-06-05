@@ -71,9 +71,11 @@
     "docs-release/",
     "examples/"
   ],
-  "devDependencies": {
-    "@types/node": "24",
+  "dependencies": {
     "effect": "3.21.2"
+  },
+  "devDependencies": {
+    "@types/node": "24"
   },
   "engines": {
     "node": ">=24"
