@@ -43,6 +43,7 @@ const suites: Suite[] = [
   { path: "tests/task-kernel-application-service.mjs" },
   { path: "tests/task-kernel-cli-adapter-comparison.mjs" },
   { path: "tests/task-kernel-http-adapter.mjs" },
+  { path: "tests/task-kernel-cutover-gate-profile.mjs" },
   { path: "tests/task-kernel-unit-of-work.mjs" },
   { path: "tests/task-kernel-fixture-schema.mjs" },
   { path: "tests/task-kernel-oracle-parity.mjs" },
