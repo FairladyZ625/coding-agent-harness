@@ -35,7 +35,10 @@ if (emit.status !== 0) process.exit(emit.status || 1);
 
 linkPackageResources();
 
-const runner = path.join(outDir, options.test || "tests/run-all.mjs");
+let runner = path.join(outDir, options.test || "tests/run-all.mjs");
+if (!fs.existsSync(runner) && options.test?.endsWith(".mts")) {
+  runner = path.join(outDir, options.test.replace(/\.mts$/, ".mjs"));
+}
 if (!fs.existsSync(runner)) {
   console.error(`Built test runner not found: ${runner}`);
   process.exit(1);

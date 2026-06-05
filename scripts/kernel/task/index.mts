@@ -70,14 +70,19 @@ export type {
 export {
   TASK_COMMAND_SERVICE_ID,
   TASK_QUERY_SERVICE_ID,
+  makeTaskCommandService,
+  makeTaskQueryService,
+  TaskApplicationServicesLiveLayer,
   taskCommandServicePlaceholder,
   TaskApplicationServicesPlaceholderLayer,
+  TaskCommandServiceLiveLayer,
   TaskCommands,
   TaskCommandService,
   TaskCommandServicePlaceholderLayer,
   taskQueryServicePlaceholder,
   TaskQueries,
   TaskQueryService,
+  TaskQueryServiceLiveLayer,
   TaskQueryServicePlaceholderLayer,
 } from "./application/index.mjs";
 export type {

@@ -40,10 +40,15 @@ export type {
   UpdateTaskProgressCommandInput,
 } from "./contracts.mjs";
 export {
+  makeTaskCommandService,
+  makeTaskQueryService,
+  TaskApplicationServicesLiveLayer,
   taskCommandServicePlaceholder,
   TaskApplicationServicesPlaceholderLayer,
+  TaskCommandServiceLiveLayer,
   TaskCommandServicePlaceholderLayer,
   taskQueryServicePlaceholder,
+  TaskQueryServiceLiveLayer,
   TaskQueryServicePlaceholderLayer,
 } from "./layers.mjs";
 export {
