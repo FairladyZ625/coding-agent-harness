@@ -21,6 +21,7 @@ Keep it as a charter and routing index. Detailed rules belong in
 5. Protect unrelated working-tree changes; never revert files outside the assigned scope.
 6. Commit verified, meaningful work slices proactively. Do not leave completed work only as dirty files unless the user explicitly pauses commits, checks fail, dirty ownership is unclear, or a security boundary prevents a clean commit; in those cases record the no-commit reason, owner, and next step in progress, handoff, or closeout notes. Never mix unrelated dirty changes into a task commit.
 7. Before the final response, inspect the current task `visual_map.md` gate phase. If the current `Exit Command` has `Actor: agent`, run it or record the blocker. Never perform a `human` gate; human review confirmation belongs in the local Dashboard workbench.
+8. Preserve the original user outcome. Do not redefine success around an easier local substitute. For rewrite, replacement, retirement, cutover, sidecar, parity, or gate-profile work, comparison evidence, adapter wiring, gate profiles, partial shrink, and passing local checks are only slice evidence unless the requested default-path replacement, old-path deletion, or production dependency removal actually happened.
 
 ## Reading Matrix
 

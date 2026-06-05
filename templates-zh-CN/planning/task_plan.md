@@ -13,6 +13,19 @@ Task Package Index: required
 - 不做什么：[明确排除的内容，避免执行中扩大范围]
 - 主要风险：[当前已知的技术、产品、协作或验证风险]
 
+## 目标对齐反问
+
+进入 implementation 前，从用户原始请求出发回答，而不是从当前最容易交付的局部切片出发回答。此表仍有占位时，不得开始实现。
+
+| 问题 | 回答 / 证据 |
+| --- | --- |
+| 必须保持为真的原始用户目标是什么？ | [用户要求的最终状态；不是最容易交付的局部代理目标] |
+| 本任务是否直接让该目标更真实？ | [yes/no；说明当前切片与原始目标之间的因果关系] |
+| 最容易误用的便利替代是什么？ | [adapter 接线、parity 证据、gate profile、comparison mode、局部 shrink、docs-only 声称或其他代理目标] |
+| 本任务完成后不能声称什么？ | [当前切片不能诚实支持的 completion/cutover/rewrite/retirement 声称] |
+| 如果这是 evidence-only、parity、comparison 或 gate-profile 工作，为什么它不等于 cutover 或完成？ | [原因或不适用] |
+| 如果这是 rewrite、retirement 或 cutover 工作，什么生产/default path 变化或删除证据能证明替换完成？ | [default path、package/export、consumer removal、old-path deletion、no-production-dependency evidence 或不适用] |
+
 ## 预算选择
 
 选择预算：{{TASK_BUDGET}}
