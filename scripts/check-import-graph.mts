@@ -262,7 +262,6 @@ export const architectureImportContract: ArchitectureImportContract = {
     { path: "scripts/infrastructure/task/scanner-subject-source.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Infrastructure-only scanner source for task subject readers; owns scanner collection, reference matching, and path normalization." },
     { path: "scripts/lib/task-scanner.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Legacy scanner adapter and migration-only boundary." },
     { path: "scripts/domain/task/task-semantic-projection.mts", ownerPhase: "P05-repository-scanner-strangler", reason: "Task semantic projection policy owned by domain task module." },
-    { path: "scripts/lib/task-semantic-projection.mts", ownerPhase: "P11-package-facade-deletion", reason: "Compatibility re-export for package/deep-import consumers until package facade cleanup." },
     { path: "scripts/lib/dashboard-data.mts", ownerPhase: "P06-dashboard-projection-consumer-cutover", reason: "Dashboard projection consumer." },
     { path: "scripts/lib/dashboard-workbench.mts", ownerPhase: "P08-dashboard-workbench-consumer-cutover", reason: "Workbench command adapter and review-confirm consumer." },
     { path: "scripts/lib/preset-runner.mts", ownerPhase: "P09-preset-runtime-cutover", reason: "Preset runtime transaction boundary." },
@@ -871,7 +870,6 @@ function isLegacyTaskRuntimeSurface(target: string): boolean {
     || target === "scripts/lib/task-lesson-sedimentation.mts"
     || target === "scripts/lib/task-repository.mts"
     || target === "scripts/lib/task-scanner.mts"
-    || target === "scripts/lib/task-semantic-projection.mts"
     || target === "scripts/lib/task-tombstone-commands.mts";
 }
 

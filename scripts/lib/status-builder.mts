@@ -4,7 +4,7 @@ import { capabilityDefinitions, readCapabilityRegistry } from "./capability-regi
 import { summarizeGitState } from "./git-status-summary.mjs";
 import { createTaskStatusProjectionReader, taskStatusCutoverCounters } from "./task-repository.mjs";
 import { readHarnessModules } from "./module-registry.mjs";
-import { taskMatchesVisibilityScope } from "./task-semantic-projection.mjs";
+import { taskMatchesVisibilityScope } from "../domain/task/task-semantic-projection.mjs";
 import type { TaskStatusIssue, TaskStatusProjection } from "./types/task-repository.js";
 
 type HarnessTarget = {

@@ -143,7 +143,6 @@ const checkProfilesTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/li
 const taskRepositorySource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-repository.mts"), "utf8");
 const taskRepositoryTypesSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/types/task-repository.ts"), "utf8");
 const taskSubjectsSource = fs.readFileSync(path.join(repoRoot, "scripts/domain/task/task-subjects.mts"), "utf8");
-const taskSemanticProjectionSource = fs.readFileSync(path.join(repoRoot, "scripts/lib/task-semantic-projection.mts"), "utf8");
 const statusProjectionReaderSource = taskRepositorySource.match(/export function createTaskStatusProjectionReader[\s\S]*?\n}\n/)?.[0] || "";
 const checkProfileReaderSource = taskRepositorySource.match(/export function createTaskCheckProfileReader[\s\S]*?\n}\n/)?.[0] || "";
 const taskIndexProjectionReaderSource = taskRepositorySource.match(/export function createTaskIndexProjectionReader[\s\S]*?\n}\n/)?.[0] || "";
@@ -340,7 +339,7 @@ assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => excep
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P08-dashboard-workbench-repository-bridge"), "contract should not keep the retired dashboard workbench repository bridge");
 assert(!graph.architectureContract.phaseOpenExceptions.some((exception) => exception.id === "P08-dashboard-workbench-projection-bridge"), "contract should not keep the retired dashboard workbench projection bridge");
 assert(!taskSubjectsSource.includes("../../lib/task-semantic-projection"), "task subject domain mapper should consume the domain-owned semantic projection module");
-assert(taskSemanticProjectionSource.includes("export * from \"../domain/task/task-semantic-projection.mjs\""), "legacy task semantic projection module should be a compatibility re-export");
+assert(!fs.existsSync(path.join(repoRoot, "scripts/lib/task-semantic-projection.mts")), "legacy task semantic projection compatibility re-export should be deleted after TK-12");
 const legacyWriterLifecycleBridge = graph.architectureContract.phaseOpenExceptions.find((exception) => exception.id === "P04-infrastructure-task-operation-lifecycle-writer-adapter");
 assert(legacyWriterLifecycleBridge?.source === "scripts/infrastructure/task/legacy-task-operation-writers.mts" && legacyWriterLifecycleBridge.target === "scripts/lib/task-lifecycle.mts", "contract should explicitly track the legacy lifecycle writer adapter residual");
 assert(legacyWriterLifecycleBridge?.ownerPhase === "P04-transaction-cutover" && legacyWriterLifecycleBridge.expiryPhase === "P07-task-operations-facade-removal", "legacy lifecycle writer adapter residual should stay scoped to the P04-to-P07 retirement window");
