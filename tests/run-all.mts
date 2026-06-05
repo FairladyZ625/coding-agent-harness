@@ -36,6 +36,7 @@ const suites: Suite[] = [
   { path: "tests/helpers/test-helper-types.mjs" },
   { path: "tests/source-package-boundary.mjs", phase: "package" },
   { path: "tests/architecture-health.mjs" },
+  { path: "tests/task-kernel-smoke.mjs" },
   { path: "tests/task-semantic-projection.mjs" },
   { path: "tests/semantic-contract-baseline.mjs" },
   { path: "tests/task-archive-eligibility.mjs" },
