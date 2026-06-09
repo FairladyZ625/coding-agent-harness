@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.2
+
+- Publish a stable original-runtime patch release from the current `main`
+  baseline without advancing the deferred `scripts-refactor` rewrite.
+- Keep the existing command registry and original runtime behavior as the
+  release surface while validating the package through the full release gates.
+- Confirm the package surface remains private-clean and suitable for npm
+  publication.
+
 ## 1.1.1
 
 - Align lifecycle completion around the human-reviewed terminal state so
