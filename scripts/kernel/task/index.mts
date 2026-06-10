@@ -30,7 +30,34 @@ export type {
   TaskKernelNextRouteOptions,
 } from "./adapters/index.mjs";
 export { taskKernelApplicationBoundary } from "./application/index.mjs";
-export { taskKernelDomainBoundary } from "./domain/index.mjs";
+export {
+  allowedMulticaMetadataKeys,
+  assertExternalTaskRef,
+  assertTaskBinding,
+  createExternalTaskBinding,
+  createLocalTaskBinding,
+  isAllowedMulticaMetadataKey,
+  issueBackendProviders,
+  taskBindingRoles,
+  taskBindingSchemaVersion,
+  taskBindingStateBackends,
+  taskBindingSyncModes,
+  taskKernelDomainBoundary,
+} from "./domain/index.mjs";
+export type {
+  BaseTaskBinding,
+  ExternalTaskBinding,
+  ExternalTaskRef,
+  HarnessTaskBindingRef,
+  IssueBackendProvider,
+  IssueMetadataPrimitive,
+  LocalTaskBinding,
+  MulticaMetadataKey,
+  TaskBinding,
+  TaskBindingRole,
+  TaskBindingStateBackend,
+  TaskBindingSyncMode,
+} from "./domain/index.mjs";
 export {
   createGitUnitOfWork,
   createGitUnitOfWorkLiveLayer,

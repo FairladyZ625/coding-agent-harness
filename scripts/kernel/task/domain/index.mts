@@ -25,6 +25,34 @@ export {
 } from "./identity.mjs";
 
 export type {
+  BaseTaskBinding,
+  ExternalTaskBinding,
+  ExternalTaskRef,
+  HarnessTaskBindingRef,
+  IssueBackendProvider,
+  IssueMetadataPrimitive,
+  LocalTaskBinding,
+  MulticaMetadataKey,
+  TaskBinding,
+  TaskBindingRole,
+  TaskBindingStateBackend,
+  TaskBindingSyncMode,
+} from "./task-binding.mjs";
+export {
+  allowedMulticaMetadataKeys,
+  assertExternalTaskRef,
+  assertTaskBinding,
+  createExternalTaskBinding,
+  createLocalTaskBinding,
+  isAllowedMulticaMetadataKey,
+  issueBackendProviders,
+  taskBindingRoles,
+  taskBindingSchemaVersion,
+  taskBindingStateBackends,
+  taskBindingSyncModes,
+} from "./task-binding.mjs";
+
+export type {
   CloseoutState,
   LifecycleState,
   QueueName,
