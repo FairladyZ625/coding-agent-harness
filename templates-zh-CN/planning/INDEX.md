@@ -13,6 +13,23 @@ Task Contract: harness-task/v1
 | Long-running | `{{TASK_LONG_RUNNING}}` |
 | Created | {{DATE}} |
 
+## 任务后端绑定
+
+| Field | Value |
+| --- | --- |
+| Binding Schema | `task-binding/v1` |
+| State Backend | `local` |
+| Issue Backend | `none` |
+| Sync Mode | `local-only` |
+| Binding Role | `root` |
+| Harness Task Ref | `TASKS/{{TASK_ID}}` |
+| Task Package Path | `{{paths.tasksRoot}}/{{TASK_ID}}` |
+| External Provider | `none` |
+| External ID | `none` |
+| External Identifier | `none` |
+| Title Snapshot | `n/a` |
+| Binding Created | {{DATE}} |
+
 ## 任务审计元数据
 
 | Field | Value |
@@ -86,3 +103,4 @@ standard 和 complex 任务包含以下文件。
 - 任务专属目标和验收标准写入 `task_plan.md`。
 - 大段命令输出、截图、报告和生成文件放入 `artifacts/INDEX.md`。
 - 源材料、外部链接和 preset required reads 放入 `references/INDEX.md`。
+- 外部标题变化后不要自动重命名任务目录；只更新绑定或展示字段。

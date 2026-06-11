@@ -38,6 +38,7 @@ const suites: Suite[] = [
   { path: "tests/architecture-health.mjs" },
   { path: "tests/task-kernel-smoke.mjs" },
   { path: "tests/task-kernel-domain.mjs" },
+  { path: "tests/task-binding-schema.mjs" },
   { path: "tests/task-kernel-service-tags.mjs" },
   { path: "tests/task-kernel-repository-adapter.mjs" },
   { path: "tests/task-kernel-application-service.mjs" },

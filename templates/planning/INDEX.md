@@ -13,6 +13,23 @@ Task Contract: harness-task/v1
 | Long-running | `{{TASK_LONG_RUNNING}}` |
 | Created | {{DATE}} |
 
+## Task Backend Binding
+
+| Field | Value |
+| --- | --- |
+| Binding Schema | `task-binding/v1` |
+| State Backend | `local` |
+| Issue Backend | `none` |
+| Sync Mode | `local-only` |
+| Binding Role | `root` |
+| Harness Task Ref | `TASKS/{{TASK_ID}}` |
+| Task Package Path | `{{paths.tasksRoot}}/{{TASK_ID}}` |
+| External Provider | `none` |
+| External ID | `none` |
+| External Identifier | `none` |
+| Title Snapshot | `n/a` |
+| Binding Created | {{DATE}} |
+
 ## Task Audit Metadata
 
 | Field | Value |
@@ -86,3 +103,4 @@ This section is system-rendered. Presets may not add custom root-level files or 
 - Keep task-specific goals and acceptance in `task_plan.md`.
 - Put large command output, screenshots, reports, and generated files in `artifacts/INDEX.md`.
 - Put source material, external links, and preset required reads in `references/INDEX.md`.
+- Do not rename the task directory automatically after an external title changes; update binding/display fields only.

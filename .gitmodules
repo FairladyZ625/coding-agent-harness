@@ -1,3 +1,6 @@
 [submodule "harness-gui"]
 	path = harness-gui
 	url = https://github.com/FairladyZ625/coding-agent-harness-gui.git
+[submodule "harness-anything"]
+	path = harness-anything
+	url = https://github.com/FairladyZ625/harness-anything.git
