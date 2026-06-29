@@ -32,6 +32,14 @@ const status = runner.statusEntries(target);
 assert(status.some((entry) => entry.path === "tracked.txt" && entry.worktree === "M"), "GitRunner should parse modified tracked paths");
 assert(status.some((entry) => entry.path === "untracked.txt" && entry.index === "?"), "GitRunner should parse untracked paths");
 
+const largeContent = "x".repeat(2 * 1024 * 1024);
+fs.writeFileSync(path.join(target, "large-output.txt"), largeContent);
+git(["add", "large-output.txt"]);
+git(["commit", "-m", "large output"]);
+const largeOutput = runner.run(target, ["show", "HEAD:large-output.txt"]);
+assert(largeOutput.status === 0, "GitRunner should allow Git output larger than Node's default spawnSync buffer");
+assert(largeOutput.stdout.length === largeContent.length, "GitRunner should return complete large Git stdout");
+
 git(["add", "tracked.txt"]);
 git(["commit", "-m", "update tracked"]);
 const head = runner.head(target);

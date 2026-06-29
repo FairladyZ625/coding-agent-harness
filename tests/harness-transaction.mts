@@ -228,17 +228,19 @@ git(ignoredAllowlistTarget, ["config", "user.email", "harness-test@example.inval
 fs.writeFileSync(path.join(ignoredAllowlistTarget, ".gitignore"), "ignored.txt\n");
 git(ignoredAllowlistTarget, ["add", "."]);
 git(ignoredAllowlistTarget, ["commit", "-m", "test fixture baseline"]);
-const ignoredAllowlistTransaction = createGovernanceHarnessTransaction(normalizeTarget(ignoredAllowlistTarget));
-const ignoredAllowlistPlan = ignoredAllowlistTransaction.plan({
-  operation: "transaction-ignored-empty-allowlist-callback-write",
+const ignoredStatusTransaction = createGovernanceHarnessTransaction(normalizeTarget(ignoredAllowlistTarget));
+const ignoredStatusPlan = ignoredStatusTransaction.plan({
+  operation: "transaction-ignored-file-is-not-git-write-scope",
   commit: { message: "chore(harness): ignored empty allowlist callback fixture" },
   apply() {
     fs.writeFileSync(path.join(ignoredAllowlistTarget, "ignored.txt"), "ignored but undeclared\n");
   },
 });
-const ignoredAllowlistResult = ignoredAllowlistTransaction.apply(ignoredAllowlistPlan);
-assert(ignoredAllowlistResult.success === false, "transactions should reject ignored callback writes outside the allowlist");
-assert(ignoredAllowlistResult.error.message.includes("outside the transaction write scope"), "ignored write rejection should explain write scope");
+const ignoredStatusResult = ignoredStatusTransaction.apply(ignoredStatusPlan);
+assertTransactionSucceeded(ignoredStatusResult);
+assert(ignoredStatusResult.commit.committed === false, "ignored-only callback writes should not create a Git commit");
+assert(git(ignoredAllowlistTarget, ["status", "--short"]).stdout.trim() === "", "ignored-only callback writes should not dirty Git status");
+fs.rmSync(path.join(ignoredAllowlistTarget, "ignored.txt"));
 
 const nonGitTarget = path.join(tmpRoot, "harness-transaction-non-git-target");
 fs.mkdirSync(nonGitTarget);

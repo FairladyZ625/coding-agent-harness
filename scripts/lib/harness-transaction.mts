@@ -3,7 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { beginGovernanceSync, commitGovernanceSync, GovernanceSyncError, inspectGit, releaseGovernanceSync } from "./governance-sync.mjs";
 import { normalizeTarget, toPosix } from "./core-shared.mjs";
-import { defaultGitRunner, parseGitStatus } from "./git-runner.mjs";
+import { defaultGitRunner, gitCommandFailureSummary, parseGitStatus } from "./git-runner.mjs";
 import type { ResolvedHarnessPaths } from "./harness-paths.mjs";
 
 type HarnessTransactionTarget = {
@@ -341,11 +341,17 @@ function fingerprintEntries(target: HarnessTransactionTarget, entries: GitStatus
 function transactionScopeEntries(target: HarnessTransactionTarget): GitStatusEntry[] {
   const git = inspectGit(target.projectRoot);
   if (!git.inGit) return fileSystemStatusEntries(target.projectRoot);
-  const result = defaultGitRunner.run(target.projectRoot, ["status", "--porcelain=v1", "--untracked-files=all", "--ignored"]);
+  const result = defaultGitRunner.run(target.projectRoot, ["status", "--porcelain=v1", "--untracked-files=all"]);
   if (result.status !== 0) {
-    throw new GovernanceSyncError("git status failed while inspecting transaction write scope.", {
+    const summary = gitCommandFailureSummary(result);
+    throw new GovernanceSyncError(`git status failed while inspecting transaction write scope: ${summary}`, {
       code: "transaction-git-status-failed",
-      details: { stdout: result.stdout.trim(), stderr: result.stderr.trim() },
+      details: {
+        summary,
+        errorCode: (result.error as NodeJS.ErrnoException | undefined)?.code || "",
+        stdout: result.stdout.trim(),
+        stderr: result.stderr.trim(),
+      },
       recovery: ["Inspect the Git error and retry after resolving it."],
     });
   }
