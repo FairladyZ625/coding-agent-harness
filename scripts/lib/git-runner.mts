@@ -2,6 +2,8 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { toPosix } from "./core-shared.mjs";
 
+export const DEFAULT_GIT_MAX_BUFFER = 256 * 1024 * 1024;
+
 export type GitCommandResult = ReturnType<typeof spawnSync> & {
   stdout: string;
   stderr: string;
@@ -40,7 +42,7 @@ export function createGitRunner(): GitRunner {
   };
   return {
     run(cwd, args) {
-      return spawnSync("git", args, { cwd, encoding: "utf8" }) as GitCommandResult;
+      return spawnSync("git", args, { cwd, encoding: "utf8", maxBuffer: DEFAULT_GIT_MAX_BUFFER }) as GitCommandResult;
     },
     root(cwd) {
       const resolved = path.resolve(cwd);
@@ -69,8 +71,11 @@ export function createGitRunner(): GitRunner {
     statusEntries(cwd, options = {}) {
       const args = ["status", "--porcelain=v1", "--untracked-files=all"];
       if (options.includeIgnored === true) args.push("--ignored");
-      const output = this.run(cwd, args).stdout;
-      return parseGitStatus(output);
+      const result = this.run(cwd, args);
+      if (result.status !== 0) {
+        throw new Error(`git status failed: ${gitCommandFailureSummary(result)}`);
+      }
+      return parseGitStatus(result.stdout);
     },
     head(cwd) {
       const result = this.run(cwd, ["rev-parse", "HEAD"]);
@@ -97,6 +102,18 @@ export function createGitRunner(): GitRunner {
 
 export const defaultGitRunner = createGitRunner();
 
+export function gitCommandFailureSummary(result: GitCommandResult): string {
+  const error = result.error as NodeJS.ErrnoException | undefined;
+  const parts = [
+    error?.code ? `error=${error.code}` : "",
+    result.status === null ? "status=null" : `status=${result.status}`,
+    result.signal ? `signal=${result.signal}` : "",
+    result.stderr?.trim() ? `stderr=${firstLine(result.stderr)}` : "",
+    result.stdout?.trim() ? `stdout=${firstLine(result.stdout)}` : "",
+  ].filter(Boolean);
+  return parts.join("; ") || "unknown git command failure";
+}
+
 export function parseGitStatus(output: string): GitStatusEntry[] {
   return output
     .split(/\r?\n/)
@@ -120,4 +137,8 @@ function gitSuccess(stdout: string): GitCommandResult {
     stderr: "",
     status: 0,
   } as GitCommandResult;
+}
+
+function firstLine(value: string): string {
+  return value.trim().split(/\r?\n/).find(Boolean) || "";
 }
