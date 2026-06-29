@@ -194,6 +194,7 @@ function runInstalledPackageSmoke(): DeepImportSmoke[] {
   const pack = spawnSync("npm", ["pack", "--json", "--pack-destination", packDestination], {
     cwd: repoRoot,
     encoding: "utf8",
+    env: { ...process.env, npm_config_dry_run: "false" },
     maxBuffer: 16 * 1024 * 1024,
   });
   if (pack.status !== 0) {
@@ -209,6 +210,7 @@ function runInstalledPackageSmoke(): DeepImportSmoke[] {
   const install = spawnSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarballPath], {
     cwd: installRoot,
     encoding: "utf8",
+    env: { ...process.env, npm_config_dry_run: "false" },
     maxBuffer: 16 * 1024 * 1024,
   });
   if (install.status !== 0) {
