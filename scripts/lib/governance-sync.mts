@@ -368,7 +368,7 @@ export function moduleGeneratedIndexSurfaces(target: HarnessTarget, tasks: Gover
       absolute: modulePlanPath,
       relative: toPosix(path.relative(target.projectRoot, modulePlanPath)),
       rows: stepRows,
-      content: replaceTableRows(existingOrTemplate(modulePlanPath, "templates/planning/module_plan.md"), /^(?:Step ID|步骤 ID)$/i, stepRows),
+      content: mergeModulePlanRows(existingOrTemplate(modulePlanPath, "templates/planning/module_plan.md"), stepRows),
     });
   }
   return surfaces;
@@ -393,7 +393,19 @@ function collectGovernanceProjectionTasks(target: HarnessTarget, query: Pick<Tas
   return createTaskGovernanceProjectionReader(target).listGovernanceTasks({ includeArchived: false, ...query });
 }
 
-function replaceTableRows(content: string, headerPattern: RegExp, rows: MarkdownRow[]): string {
+function mergeModulePlanRows(content: string, rows: MarkdownRow[]): string {
+  return mergeTableRowsByKey(content, /^(?:Step ID|步骤 ID)$/i, rows, {
+    keyColumns: ["Step ID", "步骤 ID"],
+    prune: isGeneratedModulePlanRow,
+  });
+}
+
+function mergeTableRowsByKey(
+  content: string,
+  headerPattern: RegExp,
+  rows: MarkdownRow[],
+  { keyColumns, prune }: { keyColumns: string[]; prune?: (header: string[], row: string[]) => boolean },
+): string {
   const lines = String(content || "").split(/\r?\n/);
   for (let index = 0; index < lines.length - 1; index += 1) {
     if (!lines[index].trim().startsWith("|")) continue;
@@ -401,12 +413,47 @@ function replaceTableRows(content: string, headerPattern: RegExp, rows: Markdown
     if (!header.some((cell) => headerPattern.test(cell))) continue;
     const separator = splitMarkdownRow(lines[index + 1]);
     if (!separator.every((cell) => /^:?-{3,}:?$/.test(cell))) continue;
+    const keyIndex = tableKeyIndex(header, headerPattern, keyColumns);
+    const generatedRows = rows.map((row) => fitMarkdownTableRow(row, header.length));
+    const generatedByKey = new Map<string, string[]>();
+    for (const row of generatedRows) {
+      const key = row[keyIndex];
+      if (key) generatedByKey.set(key, row);
+    }
     let end = index + 2;
     while (end < lines.length && lines[end].trim().startsWith("|")) end += 1;
-    lines.splice(index + 2, end - index - 2, ...rows.map((row) => `| ${fitMarkdownTableRow(row, header.length).join(" | ")} |`));
+    const mergedRows: string[][] = [];
+    for (const line of lines.slice(index + 2, end)) {
+      const existing = fitMarkdownTableRow(splitMarkdownRow(line), header.length);
+      const generated = generatedByKey.get(existing[keyIndex]);
+      if (generated) {
+        mergedRows.push(generated);
+        generatedByKey.delete(existing[keyIndex]);
+        continue;
+      }
+      if (prune?.(header, existing)) continue;
+      mergedRows.push(existing);
+    }
+    mergedRows.push(...generatedRows.filter((row) => generatedByKey.has(row[keyIndex])));
+    lines.splice(index + 2, end - index - 2, ...mergedRows.map((row) => `| ${row.join(" | ")} |`));
     return `${lines.join("\n").trimEnd()}\n`;
   }
   return `${String(content || "").trimEnd()}\n\n${rows.map((row) => `| ${fitMarkdownTableRow(row, row.length).join(" | ")} |`).join("\n")}\n`;
+}
+
+function tableKeyIndex(header: string[], headerPattern: RegExp, keyColumns: string[]): number {
+  const namedIndex = firstColumn(header, keyColumns);
+  if (namedIndex >= 0) return namedIndex;
+  const patternIndex = header.findIndex((cell) => headerPattern.test(cell));
+  return patternIndex >= 0 ? patternIndex : 0;
+}
+
+function isGeneratedModulePlanRow(header: string[], row: string[]): boolean {
+  const stepIndex = tableKeyIndex(header, /^(?:Step ID|步骤 ID)$/i, ["Step ID", "步骤 ID"]);
+  const planIndex = firstColumn(header, ["Task Plan", "任务计划", "Plan", "当前产物"]);
+  const stepId = String(row[stepIndex] || "");
+  const taskPlan = planIndex >= 0 ? String(row[planIndex] || "") : "";
+  return /^T-[A-Z0-9-]+$/.test(stepId) && /\/tasks\/.+\/task_plan\.md$/.test(taskPlan);
 }
 
 function existingOrTemplate(filePath: string, templateSource: string): string {

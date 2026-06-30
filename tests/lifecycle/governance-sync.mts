@@ -44,6 +44,13 @@ git(target, ["add", "."]);
 git(target, ["commit", "-m", "test fixture baseline"]);
 
 expectJson(["module", "register", "sync", "--title", "Sync", "--prefix", "SYNC", "--scope", "src/sync/**", target]);
+const modulePlanPath = path.join(target, "coding-agent-harness/planning/modules/sync/module_plan.md");
+fs.writeFileSync(
+  modulePlanPath,
+  `# Sync Module Plan\n\n## Steps\n\n| Step ID | Name | Status | Task Plan | Depends On |\n| --- | --- | --- | --- | --- |\n| SYNC-01 | Manual module milestone | planned | none | none |\n| SYNC-02 | Manual dependent milestone | planned | none | SYNC-01 |\n`,
+);
+git(target, ["add", path.relative(target, modulePlanPath).replaceAll(path.sep, "/")]);
+git(target, ["commit", "-m", "test fixture manual module plan rows"]);
 const created = expectJson<NewTaskResponse>(["new-task", "governance-owned", "--title", "Governance Owned", "--locale", "en-US", "--module", "sync", target]);
 assert(created.governance?.commit?.committed === true, "new-task should auto-commit governance sync in git targets");
 assert(git(target, ["status", "--short"]).stdout.trim() === "", "new-task governance sync should leave git clean");
@@ -53,13 +60,14 @@ const ownedTaskPlan = `coding-agent-harness/planning/modules/sync/tasks/${todayL
 const featurePath = path.join(target, "coding-agent-harness/planning/Feature-SSoT.md");
 const ledgerPath = path.join(target, "coding-agent-harness/governance/generated/Harness-Ledger.md");
 const registryPath = path.join(target, "coding-agent-harness/planning/modules/Module-Registry.md");
-const modulePlanPath = path.join(target, "coding-agent-harness/planning/modules/sync/module_plan.md");
 assert(!fs.existsSync(featurePath), "new-task --module should not create Feature SSoT lifecycle projection");
 const ledgerContent = fs.readFileSync(ledgerPath, "utf8");
 assert(ledgerContent.includes(ownedTaskPlan), "new-task should register task in Harness Ledger");
 assert(ledgerContent.includes("| module | sync |"), "new-task --module should expose module scope in Harness Ledger");
 assert(fs.readFileSync(registryPath, "utf8").includes("coding-agent-harness/planning/modules/sync/module_plan.md"), "new-task --module should refresh the YAML-backed module registry view");
 assert(fs.readFileSync(modulePlanPath, "utf8").includes(ownedTaskPlan), "new-task --module should regenerate module plan index");
+assert(fs.readFileSync(modulePlanPath, "utf8").includes("| SYNC-01 | Manual module milestone | planned | none | none |"), "new-task --module should preserve manual module plan rows");
+assert(fs.readFileSync(modulePlanPath, "utf8").includes("| SYNC-02 | Manual dependent milestone | planned | none | SYNC-01 |"), "new-task --module should preserve manual module dependencies");
 assert(!fs.existsSync(path.join(target, "coding-agent-harness/planning/modules/sync/visual_map.md")), "new-task --module should not create a module-root visual map index");
 const defaultModuleSurfaces = moduleGeneratedIndexSurfaces(normalizeTarget(target));
 const syncModuleSurface = defaultModuleSurfaces.find((surface) => surface.relative === "coding-agent-harness/planning/modules/sync/module_plan.md");
@@ -85,7 +93,18 @@ git(target, ["commit", "-m", "test fixture zh module plan header"]);
 expectJson(["task-log", created.task.shortId || "governance-owned", "--message", "sync zh module plan header", target]);
 const zhModulePlanContent = fs.readFileSync(modulePlanPath, "utf8");
 assert((zhModulePlanContent.match(new RegExp(ownedTaskPlan.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length === 1, "governance sync should replace zh module plan table rows instead of appending a duplicate table");
-assert(!zhModulePlanContent.includes("old/task_plan.md"), "governance sync should replace stale zh module plan rows");
+assert(zhModulePlanContent.includes("| SYNC-OLD | Old row | planned | old/task_plan.md | none |"), "governance sync should preserve manual zh module plan rows");
+
+fs.writeFileSync(
+  modulePlanPath,
+  `# Sync Module Plan\n\n## 步骤\n\n| 步骤 ID | 名称 | 状态 | 任务计划 | 依赖 |\n| --- | --- | --- | --- | --- |\n| SYNC-01 | Manual module milestone | planned | none | none |\n| T-STALE-GENERATED | Stale generated row | reserved | coding-agent-harness/planning/modules/sync/tasks/2000-01-01-stale/task_plan.md | none |\n`,
+);
+git(target, ["add", path.relative(target, modulePlanPath).replaceAll(path.sep, "/")]);
+git(target, ["commit", "-m", "test fixture stale generated module plan row"]);
+expectJson(["task-log", created.task.shortId || "governance-owned", "--message", "prune stale generated zh module plan row", target]);
+const prunedModulePlanContent = fs.readFileSync(modulePlanPath, "utf8");
+assert(prunedModulePlanContent.includes("| SYNC-01 | Manual module milestone | planned | none | none |"), "governance sync should preserve manual rows while pruning stale generated rows");
+assert(!prunedModulePlanContent.includes("2000-01-01-stale/task_plan.md"), "governance sync should prune stale generated module plan rows");
 
 fs.writeFileSync(path.join(target, "UNRELATED.txt"), "dirty\n");
 const dirtyResult = expectJson<NewTaskResponse>(["new-task", "dirty-allowed", "--title", "Dirty Allowed", target]);
